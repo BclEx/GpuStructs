@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="System">
+      <UniqueIdentifier>{a01b2f1d-070c-4251-ab84-52099898b5ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System.1">
+      <UniqueIdentifier>{5c9b6e2e-1481-49df-a221-14609b637222}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="System\Type.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="System\Object.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="System.1\Boolean.h">
+      <Filter>System.1</Filter>
+    </ClInclude>
+    <ClInclude Include="System.h" />
+    <ClInclude Include="Thunk.h" />
+    <ClInclude Include="System.1\Byte.h">
+      <Filter>System.1</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+    <ClCompile Include="System\Type.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="System\Object.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="System.1\Boolean.cpp">
+      <Filter>System.1</Filter>
+    </ClCompile>
+    <ClCompile Include="System.1\Byte.cpp">
+      <Filter>System.1</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

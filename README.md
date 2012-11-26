@@ -1,4 +1,4 @@
-BclEx-Web
+GpuStructs
 ==============
 
-Extends the BCL with helper libraries for Web concerns.
+GPU library.

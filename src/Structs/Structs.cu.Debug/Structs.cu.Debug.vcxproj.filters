@@ -4,6 +4,6 @@
     <CudaCompile Include="SimpleGL.cu" />
   </ItemGroup>
   <ItemGroup>
-    <Library Include="..\..\lib\x64\glew32.lib" />
+    <Library Include="..\..\lib\x64\glew64.lib" />
   </ItemGroup>
 </Project>
