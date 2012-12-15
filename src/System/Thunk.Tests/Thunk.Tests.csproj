@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>9.0.30729</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{116D5E61-1608-49F3-A387-811DDFF1F72C}</ProjectGuid>
+    <ProjectGuid>{116D5E61-1608-49F3-A387-811DDFF1F72D}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ThunkC.Fixture.net</RootNamespace>
-    <AssemblyName>ThunkC.Fixture.net</AssemblyName>
+    <RootNamespace>Thunk</RootNamespace>
+    <AssemblyName>Thunk.Tests</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
@@ -43,9 +43,26 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="System\" />
+    <Compile Include="System\ClassTests.cs" />
+    <Compile Include="System\Collections.1\Dictionary\ValueCollectionTests.cs" />
+    <Compile Include="System\Collections.1\Dictionary\KeyCollectionTests.cs" />
+    <Compile Include="System\Collections.1\IListTests.cs" />
+    <Compile Include="System\Collections.1\DictionaryTests.cs" />
+    <Compile Include="System\Collections.2\SortedDictionaryTests.cs" />
+    <Compile Include="System\Collections.2\LinkedListNodeTests.cs" />
+    <Compile Include="System\Collections.1\ListTests.cs" />
+    <Compile Include="System\Collections.2\LinkedListTests.cs" />
+    <Compile Include="System\Collections\ComparerTests.cs" />
+    <Compile Include="System\Collections.1\KeyValuePairTests.cs" />
+    <Compile Include="System\Collections.1\IDictionaryTests.cs" />
+    <Compile Include="System\Collections\IEqualityComparerTests.cs" />
+    <Compile Include="System\Collections\IEnumeratorTests.cs" />
+    <Compile Include="System\Collections\IEnumerableTests.cs" />
+    <Compile Include="System\Collections\ICollectionTests.cs" />
+    <Compile Include="System\Collections\IComparerTests.cs" />
+    <Compile Include="System\Collections\EqualityComparerTests.cs" />
+    <Compile Include="System\ObjectTests.cs" />
+    <Compile Include="System\ThunkTests.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

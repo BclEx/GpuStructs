@@ -10,17 +10,35 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="System.1\Boolean.h" />
+    <ClInclude Include="System.1\Byte.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="System.h" />
+    <ClInclude Include="System\Object.h" />
+    <ClInclude Include="System\Type.h" />
+    <ClInclude Include="Thunk.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+    <ClCompile Include="System.1\Boolean.cpp" />
+    <ClCompile Include="System.1\Byte.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="System\Object.cpp" />
+    <ClCompile Include="System\Type.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5F2C2EC5-CF7B-4EEE-8368-072D22EB8725}</ProjectGuid>
-    <RootNamespace>SystemcpuTests</RootNamespace>
+    <ProjectGuid>{38D19A31-A959-44D7-B57D-D497A61B9A6B}</ProjectGuid>
+    <RootNamespace>Systemcpu</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v110</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
-    <CLRSupport>true</CLRSupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -62,11 +80,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <Reference Include="xunit">
-      <HintPath>..\..\..\packages\xunit.1.9.1\lib\net20\xunit.dll</HintPath>
-    </Reference>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

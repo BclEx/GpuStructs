@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5F2C2EC5-CF7B-4EEE-8368-072D22EB8725}</ProjectGuid>
+    <ProjectGuid>{5F2C2EC5-CF7B-4EEE-8368-072D22EB8726}</ProjectGuid>
     <RootNamespace>SystemcpuTests</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -62,6 +62,30 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="System\ClassTests.cpp" />
+    <ClCompile Include="System\Collections.1\DictionaryTests.cpp" />
+    <ClCompile Include="System\Collections.1\Dictionary\KeyCollectionTests.cpp" />
+    <ClCompile Include="System\Collections.1\Dictionary\ValueCollectionTests.cpp" />
+    <ClCompile Include="System\Collections.1\EqualityComparerTests.cpp" />
+    <ClCompile Include="System\Collections.1\IDictionaryTests.cpp" />
+    <ClCompile Include="System\Collections.1\IListTests.cpp" />
+    <ClCompile Include="System\Collections.1\KeyValuePairTests.cpp" />
+    <ClCompile Include="System\Collections.1\ListTests.cpp" />
+    <ClCompile Include="System\Collections.2\LinkedListNodeTests.cpp" />
+    <ClCompile Include="System\Collections.2\LinkedListTests.cpp" />
+    <ClCompile Include="System\Collections.2\SortedDictionaryTests.cpp" />
+    <ClCompile Include="System\Collections\ComparerTests.cpp" />
+    <ClCompile Include="System\Collections\EqualityComparerTests.cpp" />
+    <ClCompile Include="System\Collections\ICollectionTests.cpp" />
+    <ClCompile Include="System\Collections\IComparerTests.cpp" />
+    <ClCompile Include="System\Collections\IEnumerableTests.cpp" />
+    <ClCompile Include="System\Collections\IEnumeratorTests.cpp" />
+    <ClCompile Include="System\Collections\IEqualityComparerTests.cpp" />
+    <ClCompile Include="System\Collections\Internals\GenericComparerTests.cpp" />
+    <ClCompile Include="System\ObjectTests.cpp" />
+    <ClCompile Include="System\ThunkTests.cpp" />
+  </ItemGroup>
   <ItemGroup>
     <Reference Include="xunit">
       <HintPath>..\..\..\packages\xunit.1.9.1\lib\net20\xunit.dll</HintPath>

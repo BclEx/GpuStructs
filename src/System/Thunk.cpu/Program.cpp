@@ -1,6 +1,6 @@
 #include <stdio.h>
-//#include "System.h"
-//using namespace System;
+#include "System.h"
+using namespace System;
 
 //class A  : public Object 
 //{

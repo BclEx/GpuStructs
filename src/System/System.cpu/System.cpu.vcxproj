@@ -11,23 +11,32 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="System.1\Boolean.h" />
-    <ClInclude Include="System.1\Byte.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="System.h" />
-    <ClInclude Include="System\Object.h" />
-    <ClInclude Include="System\Type.h" />
+    <ClInclude Include="System\Class.h" />
+    <ClInclude Include="System\Collections\Array.h" />
+    <ClInclude Include="System\Collections\BinSearch.h" />
+    <ClInclude Include="System\Collections\HashIndex.h" />
+    <ClInclude Include="System\Collections\Hierarchy.h" />
+    <ClInclude Include="System\Collections\LinkedList.h" />
+    <ClInclude Include="System\Collections\List.h" />
+    <ClInclude Include="System\Collections\PlaneSet.h" />
+    <ClInclude Include="System\Collections\Queue.h" />
+    <ClInclude Include="System\Collections\Sort.h" />
+    <ClInclude Include="System\Collections\Stack.h" />
+    <ClInclude Include="System\Collections\StaticList.h" />
+    <ClInclude Include="System\Collections\StringPool.h" />
+    <ClInclude Include="System\Collections\VectorSet.h" />
+    <ClInclude Include="System\Event.h" />
+    <ClInclude Include="System\System.h" />
+    <ClInclude Include="System\Text\String.h" />
     <ClInclude Include="Thunk.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
-    <ClCompile Include="System.1\Boolean.cpp" />
-    <ClCompile Include="System.1\Byte.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="System\Object.cpp" />
-    <ClCompile Include="System\Type.cpp" />
+    <ClCompile Include="System\Class.cpp" />
+    <ClCompile Include="System\Collections\HashIndex.cpp" />
+    <ClCompile Include="System\Event.cpp" />
+    <ClCompile Include="System\System.cpp" />
+    <ClCompile Include="System\Text\String.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{38D19A31-A959-44D7-B57D-D497A61B9A6A}</ProjectGuid>
