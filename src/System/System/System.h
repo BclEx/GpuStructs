@@ -1,7 +1,14 @@
-#include <cstdarg>
-#include <cstring>
-
+#ifndef __SYSTEM_SYSTEM_H__
+#define __SYSTEM_SYSTEM_H__
+#include "System+Defines.h"
+#include "System+Cuda.h"
+#include "System+Includes.h"
+#include "System+Assert.h"
+#include "System+Types.h"
+//#include "System+Intrinsics.h"
+//
 namespace Sys {
+
 	/// <summary>
 	/// Exception
 	/// </summary>
@@ -25,7 +32,7 @@ namespace Sys {
 	class FatalException
 	{
 	public:
-		__device__ FatalException(const char *text = "") { strncpy(FatalException_error, text, Exception_MAX_ERROR_LEN);  }
+		__device__ FatalException(const char *text = "") { strncpy(FatalException_error, text, Exception_MAX_ERROR_LEN); }
 		__device__ const char *GetError() const { return FatalException_error; }	
 		//protected:
 		//	__device__ char *GetErrorBuffer() { return FatalException_error; }	
@@ -40,9 +47,15 @@ namespace Sys {
 	public:
 		__device__ NetworkLoadException(const char *text = "") : Exception(text) { }
 	};
-}
-
-__global__ void foo()
-{
 
 }
+// memory management and arrays
+#include "Heap.h"
+#include "Collections\Sort.h"
+#include "Collections\List.h"
+//
+//// text manipulation
+//#include "Text\String.h"
+
+//
+#endif /* __SYSTEM_SYSTEM_H__ */

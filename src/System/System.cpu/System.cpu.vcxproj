@@ -11,32 +11,54 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="System\Class.h" />
-    <ClInclude Include="System\Collections\Array.h" />
-    <ClInclude Include="System\Collections\BinSearch.h" />
-    <ClInclude Include="System\Collections\HashIndex.h" />
-    <ClInclude Include="System\Collections\Hierarchy.h" />
-    <ClInclude Include="System\Collections\LinkedList.h" />
-    <ClInclude Include="System\Collections\List.h" />
-    <ClInclude Include="System\Collections\PlaneSet.h" />
-    <ClInclude Include="System\Collections\Queue.h" />
-    <ClInclude Include="System\Collections\Sort.h" />
-    <ClInclude Include="System\Collections\Stack.h" />
-    <ClInclude Include="System\Collections\StaticList.h" />
-    <ClInclude Include="System\Collections\StringPool.h" />
-    <ClInclude Include="System\Collections\VectorSet.h" />
-    <ClInclude Include="System\Event.h" />
-    <ClInclude Include="System\System.h" />
-    <ClInclude Include="System\Text\String.h" />
+    <ClInclude Include="..\System\Class.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Array.h" />
+    <ClInclude Include="..\System\Collections\BinSearch.h" />
+    <ClInclude Include="..\System\Collections\BTree.h" />
+    <ClInclude Include="..\System\Collections\Dictionary.h" />
+    <ClInclude Include="..\System\Collections\Dictionary2.h" />
+    <ClInclude Include="..\System\Collections\HashIndex.h" />
+    <ClInclude Include="..\System\Collections\HashTable.h" />
+    <ClInclude Include="..\System\Collections\Hierarchy.h" />
+    <ClInclude Include="..\System\Collections\LinkedList.h" />
+    <ClInclude Include="..\System\Collections\List.h" />
+    <ClInclude Include="..\System\Collections\PlaneSet.h" />
+    <ClInclude Include="..\System\Collections\Queue.h" />
+    <ClInclude Include="..\System\Collections\Sort.h" />
+    <ClInclude Include="..\System\Collections\Stack.h" />
+    <ClInclude Include="..\System\Collections\StaticList.h" />
+    <ClInclude Include="..\System\Collections\StringPool.h" />
+    <ClInclude Include="..\System\Collections\VectorSet.h" />
+    <ClInclude Include="..\System\Event.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\System\Heap+Tags.h" />
+    <ClInclude Include="..\System\Heap.h" />
+    <ClInclude Include="..\System\System+Assert.h" />
+    <ClInclude Include="..\System\System+Cuda.h" />
+    <ClInclude Include="..\System\System+Defines.h" />
+    <ClInclude Include="..\System\System+Includes.h" />
+    <ClInclude Include="..\System\System+Intrinsics.h" />
+    <ClInclude Include="..\System\System+Types.h" />
+    <ClInclude Include="..\System\System.h" />
+    <ClInclude Include="..\System\Text\String.h" />
     <ClInclude Include="Thunk.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\System\Class.cpp" />
+    <ClCompile Include="..\System\Collections\Dictionary.cpp" />
+    <ClCompile Include="..\System\Collections\Dictionary2.cpp" />
+    <ClCompile Include="..\System\Collections\HashIndex.cpp" />
+    <ClCompile Include="..\System\Event.cpp" />
+    <ClCompile Include="..\System\Heap.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\System\System.cpp" />
+    <ClCompile Include="..\System\Text\String.cpp" />
     <ClCompile Include="Program.cpp" />
-    <ClCompile Include="System\Class.cpp" />
-    <ClCompile Include="System\Collections\HashIndex.cpp" />
-    <ClCompile Include="System\Event.cpp" />
-    <ClCompile Include="System\System.cpp" />
-    <ClCompile Include="System\Text\String.cpp" />
+    <ClCompile Include="Runtime.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{38D19A31-A959-44D7-B57D-D497A61B9A6A}</ProjectGuid>
@@ -71,6 +93,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
+      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
