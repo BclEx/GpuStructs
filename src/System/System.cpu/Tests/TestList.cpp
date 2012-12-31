@@ -4,8 +4,8 @@ using namespace Sys::Collections;
 __device__ void TestList_ListArray()
 {
 	void* a = ListArrayNew<byte, TAG_IDLIB_LIST>(2, true);
-	ListArrayResize<byte, TAG_IDLIB_LIST>(a, 2, 4, true);
-	ListArrayDelete<byte>(a, 4);
+	void* b = ListArrayResize<byte, TAG_IDLIB_LIST>(a, 2, 4, true);
+	ListArrayDelete<byte>(b, 4);
 }
 
 __device__ void TestList_ListNewElement()
