@@ -1,7 +1,6 @@
 #ifndef __SYSTEM_SYSTEM_H__
 #define __SYSTEM_SYSTEM_H__
 #include "System+Defines.h"
-#include "System+Cuda.h"
 #include "System+Includes.h"
 #include "System+Assert.h"
 #include "System+Types.h"

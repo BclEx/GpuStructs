@@ -1,4 +1,4 @@
-#include "..\System\System.h"
+#include "..\..\System\System.h"
 using namespace Sys;
 
 class FakeNode
@@ -54,10 +54,19 @@ __device__ void TestHeap_DynamicAlloc()
 	a.Shutdown();
 }
 
-__global__ void TestHeap()
+__global__ void TestHeap_Kernel()
 {
-  //NetworkLoadException *ex = new NetworkLoadException();
-  TestHeap_TempArray();
-  TestHeap_BlockAlloc();
-  TestHeap_DynamicAlloc();
+	//NetworkLoadException *ex = new NetworkLoadException();
+	TestHeap_TempArray();
+	TestHeap_BlockAlloc();
+	TestHeap_DynamicAlloc();
+}
+
+void TestHeap()
+{
+#ifndef __CUDACC__
+	TestHeap_Kernel();
+#else
+	TestHeap_Kernel<<<1, 1>>>();
+#endif
 }

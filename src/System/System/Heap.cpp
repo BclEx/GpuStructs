@@ -1,4 +1,5 @@
 #pragma hdrstop
+#include <malloc.h>
 #include "System.h"
 #undef new
 

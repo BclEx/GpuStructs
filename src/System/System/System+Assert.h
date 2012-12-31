@@ -1,14 +1,13 @@
 #ifndef __SYSTEM_SYSTEM_ASSERT_H__
 #define __SYSTEM_SYSTEM_ASSERT_H__
-namespace Sys {
 
-	/// <summary>
-	/// Getting assert() to work as we want on all platforms and code analysis tools can be tricky.
-	/// </summary>
-	__device__ bool AssertFailed(const char *file, int line, const char *expression);
+/// <summary>
+/// Getting assert() to work as we want on all platforms and code analysis tools can be tricky.
+/// </summary>
+__device__ bool AssertFailed(const char *file, int line, const char *expression);
 
-	// idassert is useful for cases where some external library (think MFC, etc.) decides it's a good idea to redefine assert on us
-	// We have the code analysis tools on the 360 compiler, so let it know what our asserts are. The VS ultimate editions also get it on win32, but not x86
+// idassert is useful for cases where some external library (think MFC, etc.) decides it's a good idea to redefine assert on us
+// We have the code analysis tools on the 360 compiler, so let it know what our asserts are. The VS ultimate editions also get it on win32, but not x86
 #if 0 & defined(_DEBUG) || defined(_lint)
 #undef assert
 #define __assert(x) (void)((!!(x)) || (AssertFailed(__FILE__, __LINE__, #x)))
@@ -34,9 +33,9 @@ namespace Sys {
 #define assert_aligned_to_type_size(ptr) assert((((UINT_PTR)(ptr)) & (sizeof((ptr)[0]) - 1)) == 0)
 
 #if !defined(__TYPEINFOGEN__) && !defined(_lint) // pcLint has problems with assert_offsetof()
-	template<bool> struct compile_time_assert_failed;
-	template<> struct compile_time_assert_failed<true> { };
-	template<int x> struct compile_time_assert_test { };
+template<bool> struct compile_time_assert_failed;
+template<> struct compile_time_assert_failed<true> { };
+template<int x> struct compile_time_assert_test { };
 #define __compile_time_assert_join2(a, b) a##b
 #define __compile_time_assert_join(a, b) __compile_time_assert_join2(a, b)
 #define compile_time_assert(x) typedef compile_time_assert_test<sizeof(compile_time_assert_failed<(bool)(x)>)> __compile_time_assert_join(compile_time_assert_typedef_, __LINE__)
@@ -56,8 +55,7 @@ namespace Sys {
 #define assert_offsetof_16_byte_multiple(type, field)
 #endif
 
-	// useful for verifying that an array of items has the same number of elements in it as an enum type
+// useful for verifying that an array of items has the same number of elements in it as an enum type
 #define verify_array_size(_array_name_, _max_enum_) compile_time_assert(sizeof(_array_name_) == (_max_enum_) * sizeof(_array_name_[0]))
 
-}
 #endif /* __SYSTEM_SYSTEM_ASSERT_H__ */

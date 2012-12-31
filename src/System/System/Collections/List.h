@@ -8,7 +8,7 @@ namespace Sys { namespace Collections {
 	/// ListArrayNew
 	/// </summary>
 	template<typename T, memTag_t Tag>
-	__device__ inline void * ListArrayNew(int num, bool zeroBuffer)
+	__device__ inline void *ListArrayNew(int num, bool zeroBuffer)
 	{
 		T *ptr = nullptr;
 		if (zeroBuffer)
@@ -36,7 +36,7 @@ namespace Sys { namespace Collections {
 	/// ListArrayResize
 	/// </summary>
 	template<typename T, memTag_t Tag>
-	__device__ inline void *ListArrayResize(void * voldptr, int oldNum, int newNum, bool zeroBuffer)
+	__device__ inline void *ListArrayResize(void *voldptr, int oldNum, int newNum, bool zeroBuffer)
 	{
 		T *oldptr = (T *)voldptr;
 		T *newptr = nullptr;
@@ -70,14 +70,14 @@ namespace Sys { namespace Collections {
 		__device__ List(const List &other);
 		__device__ ~List();
 
-		__device__ void Clear();								// clear the list
-		__device__ int Num() const;							// returns number of elements in list
-		__device__ int NumAllocated() const;					// returns number of elements allocated for
+		__device__ void Clear();						// clear the list
+		__device__ int Num() const;						// returns number of elements in list
+		__device__ int NumAllocated() const;			// returns number of elements allocated for
 		__device__ void SetGranularity(int newgranularity);	// set new granularity
-		__device__ int GetGranularity() const;					// get the current granularity
+		__device__ int GetGranularity() const;			// get the current granularity
 
 		__device__ size_t Allocated() const;			// returns total size of allocated memory
-		__device__ size_t Size() const;				// returns total size of allocated memory including size of list _type_
+		__device__ size_t Size() const;					// returns total size of allocated memory including size of list _type_
 		__device__ size_t MemoryUsed() const;			// returns size of the used elements in the list
 
 		__device__ List<T, Tag> &operator=(const List<T, Tag> &other);
@@ -85,11 +85,11 @@ namespace Sys { namespace Collections {
 		__device__ T &operator[](int index);
 
 		__device__ void Condense();										// resizes list to exactly the number of elements it contains
-		__device__ void Resize( int newsize);								// resizes list to the given number of elements
-		__device__ void Resize( int newsize, int newgranularity);			// resizes list and sets new granularity
-		__device__ void SetNum( int newnum);								// set number of elements in list and resize to exactly this number if needed
-		__device__ void AssureSize(int newSize);							// assure list has given number of elements, but leave them uninitialized
-		__device__ void AssureSize(int newSize, const T &initValue);		// assure list has given number of elements and initialize any new elements
+		__device__ void Resize(int newsize);							// resizes list to the given number of elements
+		__device__ void Resize(int newsize, int newgranularity);		// resizes list and sets new granularity
+		__device__ void SetNum(int newnum);								// set number of elements in list and resize to exactly this number if needed
+		__device__ void AssureSize(int newSize);						// assure list has given number of elements, but leave them uninitialized
+		__device__ void AssureSize(int newSize, const T &initValue);	// assure list has given number of elements and initialize any new elements
 		__device__ void AssureSizeAlloc(int newSize, new_t *allocator);	// assure the pointer list has the given number of elements and allocate any new elements
 
 		__device__ T *Ptr();										// returns a pointer to the list
@@ -98,18 +98,18 @@ namespace Sys { namespace Collections {
 		__device__ int Append(const T & obj );						// append element
 		__device__ int Append(const List &other );					// append list
 		__device__ int AddUnique(const T &obj );					// add unique element
-		__device__ int Insert(const T &obj, int index = 0);		// insert the element at the given index
+		__device__ int Insert(const T &obj, int index = 0);			// insert the element at the given index
 		__device__ int FindIndex(const T &obj) const;				// find the index for the given element
-		__device__ T *Find(T const &obj) const;					// find pointer to the given element
+		__device__ T *Find(T const &obj) const;						// find pointer to the given element
 		__device__ int FindNull() const;							// find the index for the first NULL pointer in the list
-		__device__ int IndexOf(const T *obj) const;				// returns the index for the pointer to an element in the list
-		__device__ bool RemoveIndex(int index);					// remove the element at the given index
+		__device__ int IndexOf(const T *obj) const;					// returns the index for the pointer to an element in the list
+		__device__ bool RemoveIndex(int index);						// remove the element at the given index
 		// removes the element at the given index and places the last element into its spot - DOES NOT PRESERVE LIST ORDER
 		__device__ bool RemoveIndexFast(int index);
 		__device__ bool Remove(const T &obj);						// remove the element
-		//__device__ void Sort(cmp_t *compare = (cmp_t *)&idListSortCompare<T, tag>);
+		//__device__ void Sort(cmp_t *compare = (cmp_t *)&ListSortCompare<T, tag>);
 		__device__ void SortWithTemplate(const Sorter<T> &sort = Sort_QuickDefault<T>());
-		//__device__ void SortSubSection( int startIndex, int endIndex, cmp_t *compare = ( cmp_t * )&idListSortCompare<_type_> );
+		//__device__ void SortSubSection(int startIndex, int endIndex, cmp_t *compare = (cmp_t *)&ListSortCompare<T>);
 		__device__ void Swap(List &other);							// swap the contents of the lists
 		__device__ void DeleteContents(bool clear = true);			// delete the contents of the list
 
@@ -327,7 +327,7 @@ namespace Sys { namespace Collections {
 				_granularity = 16;
 			newSize += _granularity - 1;
 			newSize -= newSize % _granularity;
-			_num = size;
+			_num = _size;
 			Resize(newSize);
 			for (int i = _num; i < newSize; i++)
 				_list[i] = initValue;
@@ -369,10 +369,10 @@ namespace Sys { namespace Collections {
 		_size = other._size;
 		_granularity = other._granularity;
 		_memTag = other._memTag;
-		if (size)
+		if (_size)
 		{
 			_list = (T *)ListArrayNew<T, Tag>(_size, false);
-			for (int i = 0; i < num; i++)
+			for (int i = 0; i < _num; i++)
 				_list[i] = other._list[i];
 		}
 		return *this;

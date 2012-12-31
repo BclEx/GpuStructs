@@ -10,9 +10,11 @@
     <Filter Include="System\Collections">
       <UniqueIdentifier>{0dc67e7b-9b9d-4ed2-90cb-644ff1e46207}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests">
+      <UniqueIdentifier>{0c34c41a-894d-4112-bf65-b275f9c972c6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Thunk.h" />
     <ClInclude Include="..\System\Class.h">
       <Filter>System</Filter>
     </ClInclude>
@@ -20,9 +22,6 @@
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="..\System\Heap.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="..\System\Heap+Tags.h">
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="..\System\System.h">
@@ -127,6 +126,22 @@
     <ClCompile Include="..\System\Collections\HashIndex.cpp">
       <Filter>System\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="Runtime.cpp" />
+    <ClCompile Include="Tests\TestHeap.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestList.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestSort.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestString.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\System\Heap+Tags.h_">
+      <Filter>System</Filter>
+    </None>
   </ItemGroup>
 </Project>

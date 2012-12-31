@@ -1,56 +1,56 @@
 #ifndef __SYSTEM_SYSTEM_TYPES_H__
 #define __SYSTEM_SYSTEM_TYPES_H__
-namespace Sys {
 
-	typedef unsigned char		byte;		// 8 bits
-	typedef unsigned short		word;		// 16 bits
-	typedef unsigned int		dword;		// 32 bits
-	typedef unsigned int		uint;
-	typedef unsigned long		ulong;
+typedef unsigned char		byte;		// 8 bits
+typedef unsigned short		word;		// 16 bits
+typedef unsigned int		dword;		// 32 bits
+typedef unsigned int		uint;
+typedef unsigned long		ulong;
 
-	typedef signed char			int8;
-	typedef unsigned char		uint8;
-	typedef short int			int16;
-	typedef unsigned short int	uint16;
-	typedef int					int32;
-	typedef unsigned int		uint32;
-	typedef long long			int64;
-	typedef unsigned long long	uint64;
+typedef signed char			int8;
+typedef unsigned char		uint8;
+typedef short int			int16;
+typedef unsigned short int	uint16;
+typedef int					int32;
+typedef unsigned int		uint32;
+typedef long long			int64;
+typedef unsigned long long	uint64;
 
-	// The C/C++ standard guarantees the size of an unsigned type is the same as the signed type. The exact size in bytes of several types is guaranteed here.
-	assert_sizeof(bool,		1);
-	assert_sizeof(char,		1);
-	assert_sizeof(short,	2);
-	assert_sizeof(int,		4);
-	assert_sizeof(float,	4);
-	assert_sizeof(byte,		1);
-	assert_sizeof(int8,		1);
-	assert_sizeof(uint8,	1);
-	assert_sizeof(int16,	2);
-	assert_sizeof(uint16,	2);
-	assert_sizeof(int32,	4);
-	assert_sizeof(uint32,	4);
-	assert_sizeof(int64,	8);
-	assert_sizeof(uint64,	8);
+// The C/C++ standard guarantees the size of an unsigned type is the same as the signed type. The exact size in bytes of several types is guaranteed here.
+assert_sizeof(bool,		1);
+assert_sizeof(char,		1);
+assert_sizeof(short,	2);
+assert_sizeof(int,		4);
+assert_sizeof(float,	4);
+assert_sizeof(byte,		1);
+assert_sizeof(int8,		1);
+assert_sizeof(uint8,	1);
+assert_sizeof(int16,	2);
+assert_sizeof(uint16,	2);
+assert_sizeof(int32,	4);
+assert_sizeof(uint32,	4);
+assert_sizeof(int64,	8);
+assert_sizeof(uint64,	8);
 
 #define MAX_TYPE(x) ((((1 << ((sizeof(x) - 1) * 8 - 1)) - 1) << 8) | 255)
 #define MIN_TYPE(x) (-MAX_TYPE(x) - 1)
 #define MAX_UNSIGNED_TYPE(x) ((((1U << ((sizeof(x) - 1) * 8)) - 1) << 8) | 255U)
 #define MIN_UNSIGNED_TYPE(x) 0
 
-	template<typename T> inline bool IsSignedType(const T t) { return _type_(-1) < 0; }
-	template<class T> T	Max(T x, T y) { return (x > y ? x : y); }
-	template<class T> T	Min(T x, T y) { return (x < y ? x : y); }
+template<typename T> inline bool IsSignedType(const T t) { return _type_(-1) < 0; }
+template<class T> T	Max(T x, T y) { return (x > y ? x : y); }
+template<class T> T	Min(T x, T y) { return (x < y ? x : y); }
 
-	// C99 Standard
+// C99 Standard
 #if !defined(__CUDACC__) && !defined(nullptr)
-	struct a__nullptr
-	{
-		void *value; a__nullptr() : value(0) { } // one pointer member initialized to zero so you can pass NULL as a vararg
-		template<typename T1> operator T1 *() const { return 0; } // implicit conversion to all pointer types
-		template<typename T1, typename T2> operator T1 T2::*() const { return 0; } // implicit conversion to all pointer to member types
-	};
-#define nullptr	a__nullptr()
+//struct a__nullptr
+//{
+//	void *value; a__nullptr() : value(0) { } // one pointer member initialized to zero so you can pass NULL as a vararg
+//	template<typename T1> operator T1 *() const { return 0; } // implicit conversion to all pointer types
+//	template<typename T1, typename T2> operator T1 T2::*() const { return 0; } // implicit conversion to all pointer to member types
+//};
+//#define nullptr a__nullptr()
+#define nullptr __nullptr
 #endif
 
 #define ALIGN16(x) __declspec(align(16)) x
@@ -75,10 +75,10 @@ namespace Sys {
 #define NODEFAULT default: __assume(0)
 #endif
 
-	// The CONST_* defines can be used to create constant expressions that	can be evaluated at compile time.
-	// The parameters to these defines need to be compile time constants such as literals or sizeof(). NEVER use an actual variable as a parameter to one of these defines.
+// The CONST_* defines can be used to create constant expressions that	can be evaluated at compile time.
+// The parameters to these defines need to be compile time constants such as literals or sizeof(). NEVER use an actual variable as a parameter to one of these defines.
 #ifdef _lint	
-	// lint has problems with CONST_BITSFORINTEGER(), so just make it something simple for analysis
+// lint has problems with CONST_BITSFORINTEGER(), so just make it something simple for analysis
 #define CONST_ILOG2(x) 1
 #else
 #define CONST_ILOG2(x)(	\
@@ -166,12 +166,12 @@ namespace Sys {
 #define CONST_PI 3.14159265358979323846f
 #define CONST_SINE_POLY(a) ((a) * (((((-2.39e-08f * ((a)*(a)) + 2.7526e-06f) * ((a)*(a)) - 1.98409e-04f) * ((a)*(a)) + 8.3333315e-03f) * ((a)*(a)) - 1.666666664e-01f) * ((a)*(a)) + 1.0f))
 #define CONST_COSINE_POLY(a) (((((-2.605e-07f * ((a)*(a)) + 2.47609e-05f) * ((a)*(a)) - 1.3888397e-03f) * ((a)*(a)) + 4.16666418e-02f) * ((a)*(a)) - 4.999999963e-01f) * ((a)*(a)) + 1.0f)
-	// These are only good in the 0 - 2*PI range!, maximum absolute error is 2.3082e-09
+// These are only good in the 0 - 2*PI range!, maximum absolute error is 2.3082e-09
 #define CONST_SINE_DEGREES(a) CONST_SINE(CONST_DEG2RAD((a)))
 #define CONST_SINE(a) ((a) < CONST_PI ? \
 	((a) > CONST_PI * 0.5f ? CONST_SINE_POLY(CONST_PI - (a)) : CONST_SINE_POLY((a))) : \
 	((a) > CONST_PI * 1.5f ? CONST_SINE_POLY((a) - CONST_PI * 2.0f) : CONST_SINE_POLY(CONST_PI - (a))))
-	// maximum absolute error is 2.3082e-09
+// maximum absolute error is 2.3082e-09
 #define CONST_COSINE_DEGREES(a) CONST_COSINE(CONST_DEG2RAD((a)))
 #define CONST_COSINE(a) ((a) < CONST_PI ? \
 	((a) > CONST_PI * 0.5f ? -CONST_COSINE_POLY(CONST_PI - (a)) : CONST_COSINE_POLY((a))) : \
@@ -179,14 +179,13 @@ namespace Sys {
 #define CONST_DEG2RAD(a) ((a) * CONST_PI / 180.0f)
 
 #if 1
-	typedef unsigned short triIndex_t;
+typedef unsigned short triIndex_t;
 #define GL_INDEX_TYPE GL_UNSIGNED_SHORT
 #else
-	typedef unsigned int triIndex_t;
+typedef unsigned int triIndex_t;
 #define GL_INDEX_TYPE GL_UNSIGNED_INT
 #endif
-	// if writing to write-combined memory, always write indexes as pairs for 32 bit writes
-	inline void WriteIndexPair(triIndex_t *dest, const triIndex_t a, const triIndex_t b) { *(unsigned *)dest = (unsigned)a | ( (unsigned)b<<16 ); }
+// if writing to write-combined memory, always write indexes as pairs for 32 bit writes
+inline void WriteIndexPair(triIndex_t *dest, const triIndex_t a, const triIndex_t b) { *(unsigned *)dest = (unsigned)a | ( (unsigned)b<<16 ); }
 
-}
 #endif /* __SYSTEM_SYSTEM_TYPES_H__ */

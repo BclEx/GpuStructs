@@ -34,7 +34,6 @@
     <ClInclude Include="..\System\Event.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="..\System\Heap+Tags.h" />
     <ClInclude Include="..\System\Heap.h" />
     <ClInclude Include="..\System\System+Assert.h" />
     <ClInclude Include="..\System\System+Cuda.h" />
@@ -44,7 +43,6 @@
     <ClInclude Include="..\System\System+Types.h" />
     <ClInclude Include="..\System\System.h" />
     <ClInclude Include="..\System\Text\String.h" />
-    <ClInclude Include="Thunk.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\System\Class.cpp" />
@@ -52,13 +50,17 @@
     <ClCompile Include="..\System\Collections\Dictionary2.cpp" />
     <ClCompile Include="..\System\Collections\HashIndex.cpp" />
     <ClCompile Include="..\System\Event.cpp" />
-    <ClCompile Include="..\System\Heap.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\System\Heap.cpp" />
     <ClCompile Include="..\System\System.cpp" />
     <ClCompile Include="..\System\Text\String.cpp" />
     <ClCompile Include="Program.cpp" />
-    <ClCompile Include="Runtime.cpp" />
+    <ClCompile Include="Tests\TestHeap.cpp" />
+    <ClCompile Include="Tests\TestList.cpp" />
+    <ClCompile Include="Tests\TestSort.cpp" />
+    <ClCompile Include="Tests\TestString.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\System\Heap+Tags.h_" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{38D19A31-A959-44D7-B57D-D497A61B9A6A}</ProjectGuid>
