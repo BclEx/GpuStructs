@@ -2,7 +2,7 @@
 
 __global__ void simpleTest(int N)
 {
-    int gtid = blockIdx.x*blockDim.x + threadIdx.x ;
+    //int gtid = blockIdx.x*blockDim.x + threadIdx.x ;
     //thread whose id > N will print assertion failed error msg
     //assert(gtid < N);
 }

@@ -18,40 +18,51 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="SimpleTest.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="SimpleTest.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="xunit">
+      <HintPath>..\..\..\packages\xunit.1.9.1\lib\net20\xunit.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{BBC93753-0E98-4BE3-891F-F8DD45B90FCE}</ProjectGuid>
-    <RootNamespace>Structs</RootNamespace>
+    <ProjectGuid>{2A992207-4EA5-4750-9401-AAD09DFDE7E5}</ProjectGuid>
+    <RootNamespace>Runtime</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v100</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
-    <LinkIncremental>true</LinkIncremental>
+    <CLRSupport>true</CLRSupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v100</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
-    <LinkIncremental>true</LinkIncremental>
+    <CLRSupport>true</CLRSupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v100</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
-    <LinkIncremental>true</LinkIncremental>
+    <CLRSupport>true</CLRSupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.2|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v100</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
-    <LinkIncremental>true</LinkIncremental>
+    <CLRSupport>true</CLRSupport>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -70,6 +81,7 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -82,7 +94,6 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <Include>$(SolutionDir)\inc\Structs.cu;%(Include)</Include>
       <CodeGeneration>compute_11,sm_11</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
@@ -98,7 +109,6 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <Include>$(SolutionDir)\inc\Structs.cu;%(Include)</Include>
       <CodeGeneration>compute_20,sm_20</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
@@ -118,7 +128,6 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <Include>$(SolutionDir)\inc\Structs.cu;%(Include)</Include>
       <CodeGeneration>compute_11,sm_11</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
@@ -138,28 +147,9 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <Include>$(SolutionDir)\inc\Structs.cu;%(Include)</Include>
       <CodeGeneration>compute_20,sm_20</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="Program.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="Tests\TestHeap.cu" />
-    <CudaCompile Include="Tests\TestList.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </CudaCompile>
-    <CudaCompile Include="Tests\TestSort.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </CudaCompile>
-    <CudaCompile Include="Tests\TestString.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </CudaCompile>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.0.targets" />

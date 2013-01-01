@@ -34,7 +34,6 @@
     <ClInclude Include="..\System\Event.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="..\System\Falloc.h" />
     <ClInclude Include="..\System\Heap.h" />
     <ClInclude Include="..\System\System+Assert.h" />
     <ClInclude Include="..\System\System+Defines.h" />
@@ -50,7 +49,6 @@
     <ClCompile Include="..\System\Collections\Dictionary2.cpp" />
     <ClCompile Include="..\System\Collections\HashIndex.cpp" />
     <ClCompile Include="..\System\Event.cpp" />
-    <ClCompile Include="..\System\FallocHost.c" />
     <ClCompile Include="..\System\Heap.cpp" />
     <ClCompile Include="..\System\System.cpp" />
     <ClCompile Include="..\System\Text\String.cpp" />
@@ -61,7 +59,6 @@
     <ClCompile Include="Tests\TestString.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\System\Falloc.c" />
     <None Include="..\System\Heap+Tags.h_" />
     <None Include="..\System\System+Cuda.h_" />
   </ItemGroup>
