@@ -1,5 +1,6 @@
 #include "..\..\System\System.h"
 using namespace Sys;
+#include <stdio.h>
 
 class FakeNode
 {
@@ -56,6 +57,7 @@ __device__ void TestHeap_DynamicAlloc()
 
 __global__ void TestHeap_Kernel()
 {
+	//printf("HERE");
 	//NetworkLoadException *ex = new NetworkLoadException();
 	TestHeap_TempArray();
 	TestHeap_BlockAlloc();
