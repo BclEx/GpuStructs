@@ -96,7 +96,7 @@
     <ClInclude Include="..\System\Collections\VectorSet.h">
       <Filter>System\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\System\System+Cuda.h">
+    <ClInclude Include="..\System\Falloc.h">
       <Filter>System</Filter>
     </ClInclude>
   </ItemGroup>
@@ -138,9 +138,18 @@
     <ClCompile Include="Tests\TestString.cpp">
       <Filter>Tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\System\FallocHost.c">
+      <Filter>System</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\System\Heap+Tags.h_">
+      <Filter>System</Filter>
+    </None>
+    <None Include="..\System\System+Cuda.h_">
+      <Filter>System</Filter>
+    </None>
+    <None Include="..\System\Falloc.c">
       <Filter>System</Filter>
     </None>
   </ItemGroup>

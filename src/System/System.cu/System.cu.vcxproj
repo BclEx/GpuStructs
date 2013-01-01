@@ -147,9 +147,15 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="Tests\TestHeap.cu" />
-    <CudaCompile Include="Tests\TestList.cu" />
-    <CudaCompile Include="Tests\TestSort.cu" />
-    <CudaCompile Include="Tests\TestString.cu" />
+    <CudaCompile Include="Tests\TestList.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
+    <CudaCompile Include="Tests\TestSort.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
+    <CudaCompile Include="Tests\TestString.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
