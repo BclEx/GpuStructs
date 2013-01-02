@@ -76,11 +76,12 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_MBCS;</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\packages\freeglut.2.8.0\lib\$(PlatformName);$(SolutionDir)\packages\glew.1.9.0\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <CudaCompile>
@@ -90,6 +91,7 @@
       <Runtime>MTd</Runtime>
       <Defines>WIN32</Defines>
     </CudaCompile>
+    <CudaLink />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug.2|x64'">
     <ClCompile>
@@ -163,10 +165,17 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="SimpleGL.cu" />
+    <CudaCompile Include="Sample.cu" />
   </ItemGroup>
   <ItemGroup>
-    <Library Include="..\..\lib\x64\glew64.lib" />
+    <Library Include="..\..\..\packages\glew.1.9.0\lib\x64\glew32.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Runtime\Cuda.h" />
+    <ClInclude Include="..\Runtime\CudaGL.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

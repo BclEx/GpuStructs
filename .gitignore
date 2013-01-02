@@ -9,6 +9,7 @@ TestResults/
 *.sdf
 *.pdb
 *.user
+*.opensdf
 _ReSharper.*/
 *resharper.user
 ipch/
