@@ -10,13 +10,18 @@ enum memTag_t { // memory tag names are used to sort allocations for sys_dumpMem
 
 //
 __constant__ static const int MAX_TAGS = 256;
-#ifndef __CUDACC__
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 200)
+__device__ inline void *Mem_Alloc16(const int size, const memTag_t tag) { return nullptr; }
+__device__ inline void Mem_Free16(void *ptr) { }
+#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 200)
+__device__ inline void *Mem_Alloc16(const int size, const memTag_t tag) { return malloc(size); }
+__device__ inline void Mem_Free16(void *ptr) { delete ptr; }
+#else
 __device__ void *Mem_Alloc16(const int size, const memTag_t tag);
 __device__ void Mem_Free16(void *ptr);
-#else
-#define Mem_Alloc16(size, tag) malloc(size)
-#define Mem_Free16(ptr) delete ptr
 #endif
+//
 #define Mem_Alloc(size, tag) Mem_Alloc16(size, tag)
 #define Mem_Free(ptr) Mem_Free16(ptr)
 __device__ void *Mem_ClearedAlloc(const int size, const memTag_t tag);

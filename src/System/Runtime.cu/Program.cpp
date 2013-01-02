@@ -5,45 +5,42 @@
 
 // constants
 #define MAX_EPSILON_ERROR 10.0f
-#define THRESHOLD          0.30f
+#define THRESHOLD         0.30f
 #define REFRESH_DELAY     10 //ms
-const unsigned int window_width  = 512;
-const unsigned int window_height = 512;
-const unsigned int mesh_width    = 256;
-const unsigned int mesh_height   = 256;
+const unsigned int WindowWidth = 512;
+const unsigned int WindowHeight = 512;
+const unsigned int MeshWidth = 256;
+const unsigned int MeshHeight = 256;
 
-// vbo variables
-GLuint vbo;
-struct cudaGraphicsResource *cuda_vbo_resource;
-void *d_vbo_buffer = NULL;
-float g_fAnim = 0.0;
+// _vbo variables
+GLuint _vbo;
+struct cudaGraphicsResource *_vboResource;
+float _anim = 0.0;
 // mouse controls
-int mouse_old_x, mouse_old_y;
-int mouse_buttons = 0;
-float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -3.0;
+int _mouseLastX, _mouseLastY;
+int _mouseState = 0;
+float _rotateX = 0.0, _rotateY = 0.0;
+float _translateZ = -3.0;
 //StopWatchInterface *timer = NULL;
-// Auto-Verification Code
-int fpsCount = 0;        // FPS count for averaging
-int fpsLimit = 1;        // FPS limit for sampling
-float avgFPS = 0.0f;
-unsigned int frameCount = 0;
+int _fpsCount = 0; // FPS count for averaging
+int _fpsLimit = 1; // FPS limit for sampling
+float _avgFps = 0.0f;
 
-extern void launch_kernel(float4 *pos, unsigned int mesh_width, unsigned int mesh_height, float time);
-void runCuda(struct cudaGraphicsResource **vbo_resource)
+extern void launch_kernel(float4 *pos, unsigned int MeshWidth, unsigned int MeshHeight, float time);
+void runCuda(struct cudaGraphicsResource **resource)
 {
 	// map OpenGL buffer object for writing from CUDA
-	checkCudaErrors(cudaGraphicsMapResources(1, vbo_resource, 0), exit(0));
-	float4 *dptr;
-	size_t num_bytes;
-	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes, *vbo_resource), exit(0));
-	//printf("CUDA mapped VBO: May access %ld bytes\n", num_bytes);
-	launch_kernel(dptr, mesh_width, mesh_height, g_fAnim);
+	checkCudaErrors(cudaGraphicsMapResources(1, resource, 0), exit(0));
+	float4 *devPtr;
+	size_t size;
+	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&devPtr, &size, *resource), exit(0));
+	//printf("CUDA mapped VBO: May access %ld bytes\n", size);
+	launch_kernel(devPtr, MeshWidth, MeshHeight, _anim);
 	// unmap buffer object
-	checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0), exit(0));
+	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, 0), exit(0));
 }
 
-void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res, unsigned int vbo_res_flags)
+void createVBO(GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
 {
 	assert(vbo);
 
@@ -52,41 +49,40 @@ void createVBO(GLuint *vbo, struct cudaGraphicsResource **vbo_res, unsigned int 
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 
 	// initialize buffer object
-	unsigned int size = mesh_width * mesh_height * 4 * sizeof(float);
+	unsigned int size = MeshWidth * MeshHeight * 4 * sizeof(float);
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	// register this buffer object with CUDA
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags), exit(0));
+	checkCudaErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
 
 	SDK_CHECK_ERROR_GL();
 }
 
-void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *vbo_res)
+void deleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 {
 	// unregister this buffer object with CUDA
-	cudaGraphicsUnregisterResource(vbo_res);
+	cudaGraphicsUnregisterResource(resource);
 
 	glBindBuffer(1, *vbo);
 	glDeleteBuffers(1, vbo);
 
-	*vbo = 0;    
+	*vbo = 0;
 }
 
 void computeFPS()
 {
-	frameCount++;
-	fpsCount++;
-	if (fpsCount == fpsLimit)
+	_fpsCount++;
+	if (_fpsCount == _fpsLimit)
 	{
-		avgFPS = 1.f; //1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-		fpsCount = 0;
-		fpsLimit = (int)(avgFPS > 1.f ? avgFPS : 1.f);
+		_avgFps = 1.f; //1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+		_fpsCount = 0;
+		_fpsLimit = (int)(_avgFps > 1.f ? _avgFps : 1.f);
 		//sdkResetTimer(&timer);
 	}
 	char fps[256];
-	sprintf_s(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", avgFPS);
+	sprintf_s(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
 	glutSetWindowTitle(fps);
 }
 
@@ -95,29 +91,29 @@ void display()
 	//sdkStartTimer(&timer);
 
 	// run CUDA kernel to generate vertex positions
-	runCuda(&cuda_vbo_resource);
+	runCuda(&_vboResource);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// set view matrix
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glTranslatef(0.0, 0.0, translate_z);
-	glRotatef(rotate_x, 1.0, 0.0, 0.0);
-	glRotatef(rotate_y, 0.0, 1.0, 0.0);
+	glTranslatef(0.0, 0.0, _translateZ);
+	glRotatef(_rotateX, 1.0, 0.0, 0.0);
+	glRotatef(_rotateY, 0.0, 1.0, 0.0);
 
-	// render from the vbo
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	// render from the _vbo
+	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
 	glVertexPointer(4, GL_FLOAT, 0, 0);
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glColor3f(1.0, 0.0, 0.0);
-	glDrawArrays(GL_POINTS, 0, mesh_width * mesh_height);
+	glDrawArrays(GL_POINTS, 0, MeshWidth * MeshHeight);
 	glDisableClientState(GL_VERTEX_ARRAY);
 
 	glutSwapBuffers();
 
-	g_fAnim += 0.01f;
+	_anim += 0.01f;
 
 	//sdkStopTimer(&timer);
 	computeFPS();
@@ -132,8 +128,8 @@ void timerEvent(int value)
 void cleanup()
 {
 	//sdkDeleteTimer(&timer);
-	if (vbo)
-		deleteVBO(&vbo, cuda_vbo_resource);
+	if (_vbo)
+		deleteVBO(&_vbo, _vboResource);
 }
 
 void keyboard(unsigned char key, int, int)
@@ -149,34 +145,33 @@ void keyboard(unsigned char key, int, int)
 void mouse(int button, int state, int x, int y)
 {
 	if (state == GLUT_DOWN)
-		mouse_buttons |= 1<<button;
+		_mouseState |= 1 << button;
 	else if (state == GLUT_UP)
-		mouse_buttons = 0;
-	mouse_old_x = x;
-	mouse_old_y = y;
+		_mouseState = 0;
+	_mouseLastX = x;
+	_mouseLastY = y;
 }
 
 void motion(int x, int y)
 {
-	float dx, dy;
-	dx = (float)(x - mouse_old_x);
-	dy = (float)(y - mouse_old_y);
-	if (mouse_buttons & 1)
+	float dx = (float)(x - _mouseLastX);
+	float dy = (float)(y - _mouseLastY);
+	if (_mouseState & 1)
 	{
-		rotate_x += dy * 0.2f;
-		rotate_y += dx * 0.2f;
+		_rotateX += dy * 0.2f;
+		_rotateY += dx * 0.2f;
 	}
-	else if (mouse_buttons & 4)
-		translate_z += dy * 0.01f;
-	mouse_old_x = x;
-	mouse_old_y = y;
+	else if (_mouseState & 4)
+		_translateZ += dy * 0.01f;
+	_mouseLastX = x;
+	_mouseLastY = y;
 }
 
 bool initGL(int *argc, char **argv)
 {
     glutInit(argc, argv);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
-    glutInitWindowSize(window_width, window_height);
+    glutInitWindowSize(WindowWidth, WindowHeight);
     glutCreateWindow("Cuda GL Interop (VBO)");
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
@@ -197,12 +192,12 @@ bool initGL(int *argc, char **argv)
     glDisable(GL_DEPTH_TEST);
 
     // viewport
-    glViewport(0, 0, window_width, window_height);
+    glViewport(0, 0, WindowWidth, WindowHeight);
 
     // projection
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
+    gluPerspective(60.0, (GLfloat)WindowWidth / (GLfloat)WindowHeight, 0.1, 10.0);
 
     SDK_CHECK_ERROR_GL();
     return true;
@@ -223,10 +218,10 @@ void main(int argc, char **argv)
 	glutMotionFunc(motion);
 
 	// create VBO
-	createVBO(&vbo, &cuda_vbo_resource, cudaGraphicsMapFlagsWriteDiscard);
+	createVBO(&_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
 
 	// run the cuda part
-	runCuda(&cuda_vbo_resource);
+	runCuda(&_vboResource);
 
 	// start rendering mainloop
 	glutMainLoop();
