@@ -1,5 +1,5 @@
 #include <cstdio>
-#include "..\Runtime\Cuda.h"
+#include "../Runtime/Cuda.h"
 #include "Visual.h"
 
 cudaError _lastError;

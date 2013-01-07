@@ -1,0 +1,114 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		273AED67169A75DD00FE5172 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 273AED63169A75DC00FE5172 /* Runtime.cu.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 273AED56169A75DC00FE5172;
+			remoteInfo = Runtime.cu;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		273AED63169A75DC00FE5172 /* Runtime.cu.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Runtime.cu.xcodeproj; path = src/System/Runtime.cu/Runtime.cu.xcodeproj; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		273AED41169A74F200FE5172 = {
+			isa = PBXGroup;
+			children = (
+				273AED4A169A752500FE5172 /* System */,
+			);
+			sourceTree = "<group>";
+		};
+		273AED4A169A752500FE5172 /* System */ = {
+			isa = PBXGroup;
+			children = (
+				273AED63169A75DC00FE5172 /* Runtime.cu.xcodeproj */,
+			);
+			name = System;
+			sourceTree = "<group>";
+		};
+		273AED64169A75DC00FE5172 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				273AED68169A75DD00FE5172 /* Runtime.cu */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXProject section */
+		273AED43169A74F200FE5172 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0450;
+			};
+			buildConfigurationList = 273AED46169A74F200FE5172 /* Build configuration list for PBXProject "GpuStructs" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 273AED41169A74F200FE5172;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 273AED64169A75DC00FE5172 /* Products */;
+					ProjectRef = 273AED63169A75DC00FE5172 /* Runtime.cu.xcodeproj */;
+				},
+			);
+			projectRoot = "";
+			targets = (
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		273AED68169A75DD00FE5172 /* Runtime.cu */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = Runtime.cu;
+			remoteRef = 273AED67169A75DD00FE5172 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
+/* Begin XCBuildConfiguration section */
+		273AED48169A74F200FE5172 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		273AED49169A74F200FE5172 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		273AED46169A74F200FE5172 /* Build configuration list for PBXProject "GpuStructs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				273AED48169A74F200FE5172 /* Debug */,
+				273AED49169A74F200FE5172 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 273AED43169A74F200FE5172 /* Project object */;
+}
