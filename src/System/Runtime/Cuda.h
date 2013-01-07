@@ -2,7 +2,7 @@
 #define __RUNTIME_CUDA_H__
 #include <cuda_runtime.h>
 
-cudaError _lastError;
+extern cudaError _lastError;
 #define checkCudaErrors(action, failure) if ((_lastError = action) != cudaSuccess) failure;
 
 inline int _ConvertSMVer2Cores(int major, int minor)

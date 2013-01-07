@@ -22,7 +22,8 @@ typedef struct __align__(8) _cuFallocHeap
 	size_t offset;
 	size_t freeBlocksSize; // Size of circular buffer (set up by host)
 	fallocBlock** freeBlocks; // Start of circular buffer (set up by host)
-	volatile fallocBlock** freeBlocksPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
 } fallocHeap;
 
 
@@ -40,7 +41,7 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t* erro
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
 	cudaFallocHost host; memset(&host, 0, sizeof(cudaFallocHost));
-	// fix up block to include fallocBlock
+	// fix up blockSize to include fallocBlock
 	blockSize += sizeof(fallocBlock);
 	if ((blockSize % 16) > 0)
 		blockSize += 16 - (blockSize % 16);
@@ -55,7 +56,7 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t* erro
 	length += sizeof(fallocHeap);
 	if ((length % 16) > 0)
 		length += 16 - (length % 16);
-	// Allocate a print buffer on the device and zero it
+	// Allocate a heap on the device and zero it
 	fallocHeap* heap;
 	if ((*error = cudaMalloc((void**)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
 		return host;
@@ -65,8 +66,9 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t* erro
 	hostHeap.blockSize = blockSize;
 	hostHeap.blocks = blocks;
 	hostHeap.freeBlocksSize = blocks * sizeof(fallocBlock*);
-	hostHeap.offset = sizeof(fallocHeap); hostHeap.freeBlocksSize;
+	hostHeap.offset = sizeof(fallocHeap);
 	hostHeap.freeBlocks = nullptr;
+	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = nullptr;
 	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(fallocHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
 		return host;
 	// return the heap

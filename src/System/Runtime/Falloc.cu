@@ -15,13 +15,15 @@ typedef struct __align__(8) _cuFallocBlock
 
 typedef struct __align__(8) _cuFallocHeap
 {
+	void* reserved;
 	size_t blockSize;
 	size_t blocks;
 	size_t offset;
-	size_t freeBlocksSize; // Size of circular buffer (set up by host)
-	fallocBlock** freeBlocks; // Start of circular buffer (set up by host)
-	volatile fallocBlock** freeBlocksPtr; // Current atomically-incremented non-wrapped offset
-	void* reserved;
+	size_t freeBlocksSize; // Size of circular buffer
+	fallocBlock** freeBlocks; // Start of circular buffer
+	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	
 } fallocHeap;
 
 
@@ -54,8 +56,8 @@ __device__ void fallocInit(fallocHeap* heap)
 	size_t blocks = heap->blocks;
 	if (!blocks)
 		__THROW;
-	fallocBlock** freeBlocks = heap->freeBlocks;
 	size_t blockSize = heap->blockSize;
+	fallocBlock** freeBlocks = heap->freeBlocks;
 	// preset all blocks
 	fallocBlock* block = (fallocBlock*)((__int8*)heap + heap->offset);
 	block->magic = FALLOC_MAGIC;
@@ -69,7 +71,7 @@ __device__ void fallocInit(fallocHeap* heap)
 		block->reserved = nullptr;
 	}
 	block->next = nullptr;
-	heap->freeBlocksPtr = freeBlocks;
+	
 }
 
 __device__ inline void* fallocGetBlock(fallocHeap* heap)

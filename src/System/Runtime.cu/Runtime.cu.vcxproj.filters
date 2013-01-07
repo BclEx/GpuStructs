@@ -6,11 +6,13 @@
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
     <ClCompile Include="..\Runtime\FallocHost.cpp" />
+    <ClCompile Include="Visual.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Runtime\Cuda.h" />
     <ClInclude Include="..\Runtime\CudaGL.h" />
     <ClInclude Include="..\Runtime\Falloc.h" />
+    <ClInclude Include="Visual.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="Sample.cu" />

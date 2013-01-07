@@ -171,6 +171,7 @@
     <Library Include="..\..\..\packages\glew.1.9.0\lib\x64\glew32.lib" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Visual.cpp" />
     <CudaCompile Include="..\Runtime\Falloc.cu">
       <FileType>CppCode</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -182,6 +183,7 @@
     <ClInclude Include="..\Runtime\Cuda.h" />
     <ClInclude Include="..\Runtime\CudaGL.h" />
     <ClInclude Include="..\Runtime\Falloc.h" />
+    <ClInclude Include="Visual.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
