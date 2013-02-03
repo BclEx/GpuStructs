@@ -1,6 +1,6 @@
 #include <cstdio>
 #include "../Runtime/Cuda.h"
-#include "Visual.h"
+#include "../Runtime/FallocVisual.h"
 
 cudaError _lastError;
 void main(int argc, char **argv)

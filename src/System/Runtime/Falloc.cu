@@ -23,7 +23,6 @@ typedef struct __align__(8) _cuFallocHeap
 	fallocBlock** freeBlocks; // Start of circular buffer
 	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
 	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
-	
 } fallocHeap;
 
 
@@ -48,11 +47,13 @@ typedef struct _cuFallocContext
 	fallocNode* nodes;
 	fallocNode* availableNodes;
 	fallocHeap* heap;
+	size_t HEAPBLOCK_SIZE;
 } fallocCtx;
 
 __device__ void fallocInit(fallocHeap* heap)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) return;
+	//
 	size_t blocks = heap->blocks;
 	if (!blocks)
 		__THROW;
@@ -71,22 +72,37 @@ __device__ void fallocInit(fallocHeap* heap)
 		block->reserved = nullptr;
 	}
 	block->next = nullptr;
-	
 }
 
 __device__ inline void* fallocGetBlock(fallocHeap* heap)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	volatile fallocBlock* block = heap->freeBlocks;
-	if (!block)
-		return nullptr;
-	{ // critical
-		heap->freeBlocks = block->next;
-		block->next = nullptr;
-	}
+	// advance circular buffer
+	fallocBlock** freeBlocks = heap->freeBlocks;
+	//volatile fallocBlock** freeBlockPtr = heap->freeBlockPtr;
+    size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
+    offset %= heap->freeBlocksSize;
+	fallocBlock* block = (fallocBlock*)(freeBlocks + offset);
+    //
 	return (void*)((__int8*)block + sizeof(fallocBlock));
 }
 
+__device__ inline void fallocFreeBlock(fallocHeap* heap, void* obj)
+{
+	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
+	//
+	fallocBlock* block = (fallocBlock *)((__int8 *)obj - (int)sizeof(fallocBlock));
+	if (block->magic != FALLOC_MAGIC || block->count > 1) // bad magic or not a singular block
+		__THROW;
+	// advance circular buffer
+	fallocBlock** freeBlocks = heap->freeBlocks;
+	//volatile fallocBlock** retnBlockPtr = heap->retnBlockPtr;
+    size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
+    offset %= heap->freeBlocksSize;
+	*(freeBlocks + offset) = block;
+}
+
+#if MULTIBLOCK
 __device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t* allocLength = nullptr)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
@@ -129,18 +145,6 @@ __device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t*
 	return (void*)((__int8*)block + sizeof(fallocBlock));
 }
 
-__device__ inline void fallocFreeBlock(fallocHeap* heap, void* obj)
-{
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	volatile fallocBlock* block = (fallocBlock *)((__int8 *)obj - (int)sizeof(fallocBlock));
-	if (block->magic != FALLOC_MAGIC || block->count > 1)
-		__THROW;
-	{ // critical
-		block->next = heap->freeBlocks;
-		heap->freeBlocks = block;
-	}
-}
-
 __device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
 {
 	volatile fallocBlock* block = (fallocBlock*)((__int8*)obj - sizeof(fallocBlock));
@@ -171,7 +175,7 @@ __device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
 		heap->freeBlocks = block;
 	}
 }
-
+#endif
 
 //////////////////////
 // ALLOC
@@ -204,7 +208,7 @@ __device__ static void fallocDisposeCtx(fallocCtx* ctx)
 
 __device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
 {
-	if (bytes > (HEAPBLOCK_SIZE - sizeof(fallocCtx)))
+	if (bytes > (ctx->HEAPBLOCK_SIZE - sizeof(fallocCtx)))
 		__THROW;
 	// find or add available node
 	fallocNode* node;
@@ -212,7 +216,7 @@ __device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
 	unsigned char hasFreeSpace;
 	fallocNode* lastNode;
 	for (lastNode = (fallocNode*)ctx, node = ctx->availableNodes; node; lastNode = node, node = (alloc ? node->nextAvailable : node->next))
-		if (hasFreeSpace = ((freeOffset = (node->freeOffset + bytes)) <= HEAPBLOCK_SIZE))
+		if (hasFreeSpace = ((freeOffset = (node->freeOffset + bytes)) <= ctx->HEAPBLOCK_SIZE))
 			break;
 	if (!node || !hasFreeSpace) {
 		// add node
@@ -229,7 +233,7 @@ __device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
 	void* obj = (__int8*)node + node->freeOffset;
 	node->freeOffset = freeOffset;
 	// close node
-	if (alloc && ((freeOffset + FALLOCNODE_SLACK) > HEAPBLOCK_SIZE)) {
+	if (alloc && ((freeOffset + FALLOCNODE_SLACK) > ctx->HEAPBLOCK_SIZE)) {
 		if (lastNode == (fallocNode*)ctx)
 			ctx->availableNodes = node->nextAvailable;
 		else
