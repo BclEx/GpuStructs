@@ -1,12 +1,13 @@
 #include <cstdio>
 #include "../Runtime/Cuda.h"
-#include "../Runtime/FallocVisual.h"
+#include "../Runtime/Visual.h"
 
 cudaError _lastError;
 void main(int argc, char **argv)
 {
 	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
-	if (!Visual::InitGL(&argc, argv))
+	IVisualRender* render = new FallocVisualRender();
+	if (!Visual::InitGL(render, &argc, argv))
 		return;
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
 	Visual::Main();

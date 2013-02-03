@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <cassert>
-#include "FallocVisual.h"
+#include "Visual.h"
 
 // _vbo variables
 GLuint _vbo;
@@ -52,28 +52,14 @@ void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 	*vbo = 0;
 }
 
-int Visual::_mouseLastX;
-int Visual::_mouseLastY;
-int Visual::_mouseState;
-float Visual::_rotateX;
-float Visual::_rotateY;
-float Visual::_translateZ;
-//StopWatchInterface *Visual::_timer;
-int Visual::_fpsCount; // FPS count for averaging
-int Visual::_fpsLimit; // FPS limit for sampling
-float Visual::_avgFps;
-
-void Visual::Dispose()
+void FallocVisualRender::Dispose()
 {
-	//sdkDeleteTimer(&_timer);
 	if (_vbo)
 		DeleteVBO(&_vbo, _vboResource);
 }
 
-void Visual::Display()
+void FallocVisualRender::Display()
 {
-	//sdkStartTimer(&_timer);
-
 	// run CUDA kernel to generate vertex positions
 	RunCuda(&_vboResource);
 
@@ -82,9 +68,9 @@ void Visual::Display()
 	// set view matrix
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glTranslatef(0.0, 0.0, _translateZ);
-	glRotatef(_rotateX, 1.0, 0.0, 0.0);
-	glRotatef(_rotateY, 0.0, 1.0, 0.0);
+	glTranslatef(0.0, 0.0, Visual::TranslateZ);
+	glRotatef(Visual::RotateX, 1.0, 0.0, 0.0);
+	glRotatef(Visual::RotateY, 0.0, 1.0, 0.0);
 
 	// render from the _vbo
 	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
@@ -99,59 +85,15 @@ void Visual::Display()
 
 	_anim += 0.01f;
 
-	//sdkStopTimer(&_timer);
-	ComputeFPS();
 }
 
-void Visual::Keyboard(unsigned char key, int, int)
-{
-	switch (key)
-	{
-	case 27:
-		exit(1);
-		break;
-	}
-}
-
-void Visual::Mouse(int button, int state, int x, int y)
-{
-	if (state == GLUT_DOWN)
-		_mouseState |= 1 << button;
-	else if (state == GLUT_UP)
-		_mouseState = 0;
-	_mouseLastX = x;
-	_mouseLastY = y;
-}
-
-void Visual::Motion(int x, int y)
-{
-	float dx = (float)(x - _mouseLastX);
-	float dy = (float)(y - _mouseLastY);
-	if (_mouseState & 1)
-	{
-		_rotateX += dy * 0.2f;
-		_rotateY += dx * 0.2f;
-	}
-	else if (_mouseState & 4)
-		_translateZ += dy * 0.01f;
-	_mouseLastX = x;
-	_mouseLastY = y;
-}
-
-void Visual::TimerEvent(int value)
-{
-	glutPostRedisplay();
-	glutTimerFunc(REFRESH_DELAY, TimerEvent, 0);
-}
-
-void Visual::Main()
+void FallocVisualRender::Initialize()
 {
 	// create VBO
 	CreateVBO(&_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
 
 	// run the cuda part
 	RunCuda(&_vboResource);
-
-	// start rendering mainloop
-	glutMainLoop();
 }
+
+

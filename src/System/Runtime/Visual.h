@@ -10,21 +10,45 @@ const unsigned int WindowHeight = 512;
 const unsigned int MeshWidth = 256;
 const unsigned int MeshHeight = 256;
 
+class IVisualRender
+{
+public:
+	virtual void Dispose() = 0;
+	virtual void Display() = 0;
+	virtual void Initialize() = 0;
+};
+
+class FallocVisualRender : public IVisualRender
+{
+public:
+	virtual void Dispose();
+	virtual void Display();
+	virtual void Initialize();
+};
+
 class Visual
 {
-private:
+public:
+	static float RotateX;
+	static float RotateY;
+	static float TranslateZ;
+
+protected:
+	static IVisualRender* _render;
 	// mouse controls
 	static int _mouseLastX;
 	static int _mouseLastY;
 	static int _mouseState;
-	static float _rotateX;
-	static float _rotateY;
-	static float _translateZ;
 	//StopWatchInterface *_timer;
 	static int _fpsCount; // FPS count for averaging
 	static int _fpsLimit; // FPS limit for sampling
 	static float _avgFps;
 
+	static void Display();
+	static void Keyboard(unsigned char key, int, int);
+	static void Mouse(int button, int state, int x, int y);
+	static void Motion(int x, int y);
+	static void TimerEvent(int value);
 	inline static void ComputeFPS()
 	{
 		_fpsCount++;
@@ -39,11 +63,6 @@ private:
 		sprintf_s(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
 		glutSetWindowTitle(fps);
 	}
-	static void Display();
-	static void Keyboard(unsigned char key, int, int);
-	static void Mouse(int button, int state, int x, int y);
-	static void Motion(int x, int y);
-	static void TimerEvent(int value);
 
 public:
 	static void Dispose();
@@ -52,8 +71,8 @@ public:
 	{
 		// mouse controls
 		_mouseState = 0;
-		_rotateX = 0.0, _rotateY = 0.0;
-		_translateZ = -3.0;
+		RotateX = 0.0, RotateY = 0.0;
+		TranslateZ = -3.0;
 		//
 		//_timer = nullptr;
 		_fpsCount = 0; // FPS count for averaging
@@ -61,8 +80,9 @@ public:
 		_avgFps = 0.0f;
 		//
 	}
-	inline static bool InitGL(int *argc, char **argv)
+	inline static bool InitGL(IVisualRender* render, int *argc, char **argv)
 	{
+		_render = render;
 		InitState();
 		glutInit(argc, argv);
 		glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);

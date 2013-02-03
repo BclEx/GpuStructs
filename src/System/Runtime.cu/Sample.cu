@@ -22,5 +22,5 @@ void launch_kernel(float4 *pos, unsigned int mesh_width, unsigned int mesh_heigh
     // execute the kernel
     dim3 block(8, 8, 1);
     dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-    simple_vbo_kernel<<< grid, block>>>(pos, mesh_width, mesh_height, time);
+    simple_vbo_kernel<<<grid, block>>>(pos, mesh_width, mesh_height, time);
 }

@@ -179,14 +179,15 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </CudaCompile>
     <ClCompile Include="..\Runtime\FallocHost.cpp" />
-    <ClCompile Include="..\Runtime\FallocVisual.cpp" />
+    <ClCompile Include="..\Runtime\FallocVisualRender.cpp" />
+    <ClCompile Include="..\Runtime\Visual.cpp" />
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Runtime\Cuda.h" />
     <ClInclude Include="..\Runtime\CudaGL.h" />
     <ClInclude Include="..\Runtime\Falloc.h" />
-    <ClInclude Include="..\Runtime\FallocVisual.h" />
+    <ClInclude Include="..\Runtime\Visual.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
