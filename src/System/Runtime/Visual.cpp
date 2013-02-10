@@ -4,6 +4,8 @@
 
 float Visual::RotateX;
 float Visual::RotateY;
+float Visual::TranslateX;
+float Visual::TranslateY;
 float Visual::TranslateZ;
 //
 IVisualRender* Visual::_render;
@@ -15,22 +17,20 @@ int Visual::_fpsCount; // FPS count for averaging
 int Visual::_fpsLimit; // FPS limit for sampling
 float Visual::_avgFps;
 
-void Visual::Dispose()
-{
-	//sdkDeleteTimer(&_timer);
-	_render->Dispose();
-}
-
 void Visual::Display()
 {
 	//sdkStartTimer(&_timer);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	_render->Display();
 	//sdkStopTimer(&_timer);
+	glutSwapBuffers();
+	glutPostRedisplay();
 	ComputeFPS();
 }
 
 void Visual::Keyboard(unsigned char key, int, int)
 {
+	_render->Keyboard(key);
 	switch (key)
 	{
 	case 27:
@@ -53,13 +53,18 @@ void Visual::Motion(int x, int y)
 {
 	float dx = (float)(x - _mouseLastX);
 	float dy = (float)(y - _mouseLastY);
-	if (_mouseState & 1)
+	if (_mouseState & 2)
 	{
 		RotateX += dy * 0.2f;
 		RotateY += dx * 0.2f;
 	}
-	else if (_mouseState & 4)
-		TranslateZ += dy * 0.01f;
+	if (_mouseState & 1)
+	{
+		TranslateX += dx * 1.5f;
+		TranslateY += dy * -1.5f;
+	}
+	if (_mouseState & 4)
+		TranslateZ += dy * 0.2f;
 	_mouseLastX = x;
 	_mouseLastY = y;
 }

@@ -3,30 +3,27 @@
 #endif
 #include "cuda_runtime_api.h"
 #include "Falloc.h"
+//#include <malloc.h>
 #include <string.h>
 
 typedef struct __align__(8) _cuFallocBlock
 {
 	unsigned short magic;
 	unsigned short count;
-	struct _cuFallocBlock *next;
-	void *reserved;
+	struct _cuFallocBlock* next;
+	void* reserved;
 } fallocBlock;
-
-typedef struct _cuFallocBlockRef
-{
-	fallocBlock *b;
-} fallocBlockRef;
 
 typedef struct __align__(8) _cuFallocHeap
 {
-	void *reserved;
+	void* reserved;
 	size_t blockSize;
 	size_t blocks;
-	size_t blockRefSize; // Size of circular buffer (set up by host)
-	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlock **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	size_t offset;
+	size_t freeBlocksSize; // Size of circular buffer (set up by host)
+	fallocBlock** freeBlocks; // Start of circular buffer (set up by host)
+	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
 } fallocHeap;
 
 
@@ -40,7 +37,7 @@ typedef struct __align__(8) _cuFallocHeap
 //  returns a pointer to it for when a kernel is called. It's up to the caller
 //  to free it.
 //
-cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
+cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t* error, void* reserved)
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
 	cudaFallocHost host; memset(&host, 0, sizeof(cudaFallocHost));
@@ -52,21 +49,21 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *erro
 	size_t blocks = (size_t)(length / blockSize);
 	if (!blocks)
 		return host;
-	// Fix up length to include fallocHeap + freeblocks
-	unsigned int blockRefSize = blocks * sizeof(fallocBlockRef);
-	length = (length + blockRefSize + sizeof(fallocHeap) + 15) & ~15;
+	// Fix up length to include fallocHeap
+	length = (length + sizeof(fallocHeap) + 15) & ~15;
 	// Allocate a heap on the device and zero it
-	fallocHeap *heap;
-	if ((*error = cudaMalloc((void **)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
+	fallocHeap* heap;
+	if ((*error = cudaMalloc((void**)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
 		return host;
 	// transfer to heap
 	fallocHeap hostHeap;
 	hostHeap.reserved = reserved;
 	hostHeap.blockSize = blockSize;
 	hostHeap.blocks = blocks;
-	hostHeap.blockRefSize = blockRefSize;
-	hostHeap.blockRefs = (fallocBlockRef *)heap + sizeof(fallocHeap);
-	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = (volatile fallocBlock **)hostHeap.blockRefs;
+	hostHeap.freeBlocksSize = blocks * sizeof(fallocBlock*);
+	hostHeap.offset = sizeof(fallocHeap);
+	hostHeap.freeBlocks = nullptr;
+	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = nullptr;
 	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(fallocHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
 		return host;
 	// return the heap

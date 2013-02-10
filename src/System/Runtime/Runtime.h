@@ -68,7 +68,7 @@ typedef struct _cudaFallocHost
 //		cudaSuccess if all is well.
 //
 // default 256b chucks, 1-meg heap
-extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
+extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 256, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
 
 //
 //	cudaFallocEnd

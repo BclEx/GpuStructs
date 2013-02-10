@@ -104,7 +104,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\packages\freeglut.2.8.0\lib\$(PlatformName);$(SolutionDir)\packages\glew.1.9.0\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <CudaCompile>
@@ -130,7 +130,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\packages\freeglut.2.8.0\lib\$(PlatformName);$(SolutionDir)\packages\glew.1.9.0\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <CudaCompile>
@@ -156,7 +156,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\packages\freeglut.2.8.0\lib\$(PlatformName);$(SolutionDir)\packages\glew.1.9.0\lib\$(PlatformName);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <CudaCompile>
@@ -168,24 +168,22 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="Sample.cu" />
-  </ItemGroup>
-  <ItemGroup>
     <Library Include="..\..\..\packages\glew.1.9.0\lib\x64\glew32.lib" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\Runtime\Falloc.cu">
       <FileType>CppCode</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </CudaCompile>
     <ClCompile Include="..\Runtime\FallocHost.cpp" />
-    <ClCompile Include="..\Runtime\FallocVisualRender.cpp" />
     <ClCompile Include="..\Runtime\Visual.cpp" />
     <ClCompile Include="Program.cpp" />
+    <CudaCompile Include="..\Runtime\FallocVisualKeypress.cu" />
+    <CudaCompile Include="..\Runtime\FallocVisualRender.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Runtime\Cuda.h" />
     <ClInclude Include="..\Runtime\CudaGL.h" />
+    <ClInclude Include="..\Runtime\Falloc.cu.h" />
     <ClInclude Include="..\Runtime\Falloc.h" />
     <ClInclude Include="..\Runtime\Visual.h" />
   </ItemGroup>

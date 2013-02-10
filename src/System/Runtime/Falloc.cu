@@ -1,5 +1,10 @@
-#if __CUDA_ARCH__ == 100 
+//[GL VBO] http://3dgep.com/?p=2596
+#if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
+#elif __CUDA_ARCH__ < 200
+#define STATIC static
+#else
+#define STATIC
 #endif
 #include "cuda_runtime_api.h"
 #include <malloc.h>
@@ -9,48 +14,34 @@ typedef struct __align__(8) _cuFallocBlock
 {
 	unsigned short magic;
 	unsigned short count;
-	struct _cuFallocBlock* next;
-	void* reserved;
+	struct _cuFallocBlock *next;
+	void *reserved;
 } fallocBlock;
+
+typedef struct _cuFallocBlockRef
+{
+	fallocBlock *b;
+} fallocBlockRef;
 
 typedef struct __align__(8) _cuFallocHeap
 {
-	void* reserved;
+	void *reserved;
 	size_t blockSize;
 	size_t blocks;
-	size_t offset;
-	size_t freeBlocksSize; // Size of circular buffer
-	fallocBlock** freeBlocks; // Start of circular buffer
-	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	size_t blockRefSize; // Size of circular buffer (set up by host)
+	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
+	volatile fallocBlock **freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlock **retnBlockPtr; // Current atomically-incremented non-wrapped offset
 } fallocHeap;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// DEVICE SIDE
+// HEAP
+#pragma region HEAP
 
-const static int FALLOCNODE_SLACK = 0x10;
 #define FALLOC_MAGIC (unsigned short)0x3412 // All our headers are prefixed with a magic number so we know they're ours
-#define FALLOCNODE_MAGIC (unsigned short)0x7856 // All our headers are prefixed with a magic number so we know they're ours
 
-typedef struct _cuFallocNode
-{
-	struct _cuFallocNode* next;
-	struct _cuFallocNode* nextAvailable;
-	unsigned short freeOffset;
-	unsigned short magic;
-} fallocNode;
-
-typedef struct _cuFallocContext
-{
-	fallocNode node;
-	fallocNode* nodes;
-	fallocNode* availableNodes;
-	fallocHeap* heap;
-	size_t HEAPBLOCK_SIZE;
-} fallocCtx;
-
-__device__ void fallocInit(fallocHeap* heap)
+STATIC __device__ void fallocInit(fallocHeap *heap)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) return;
 	//
@@ -58,52 +49,50 @@ __device__ void fallocInit(fallocHeap* heap)
 	if (!blocks)
 		__THROW;
 	size_t blockSize = heap->blockSize;
-	fallocBlock** freeBlocks = heap->freeBlocks;
+	fallocBlockRef *blockRefs = heap->blockRefs;
 	// preset all blocks
-	fallocBlock* block = (fallocBlock*)((__int8*)heap + heap->offset);
+	fallocBlock *block = (fallocBlock *)((__int8 *)blockRefs + heap->blockRefSize);
 	block->magic = FALLOC_MAGIC;
 	block->count = 1;
 	block->reserved = nullptr;
 	while (blocks-- > 1)
 	{
-		block = *freeBlocks++ = block->next = (fallocBlock*)((__int8 *)block + blockSize);
+		block = blockRefs->b = block->next = (fallocBlock *)((__int8*)block + blockSize);
 		block->magic = FALLOC_MAGIC;
 		block->count = 1;
 		block->reserved = nullptr;
+		blockRefs++;
 	}
 	block->next = nullptr;
 }
 
-__device__ inline void* fallocGetBlock(fallocHeap* heap)
+static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
 	// advance circular buffer
-	fallocBlock** freeBlocks = heap->freeBlocks;
-	//volatile fallocBlock** freeBlockPtr = heap->freeBlockPtr;
-    size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
-    offset %= heap->freeBlocksSize;
-	fallocBlock* block = (fallocBlock*)(freeBlocks + offset);
-    //
-	return (void*)((__int8*)block + sizeof(fallocBlock));
+	fallocBlockRef *blockRefs = heap->blockRefs;
+	size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
+	offset %= heap->blockRefSize;
+	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
+	return (void *)((unsigned int*)blockRef->b + sizeof(fallocBlock));
 }
 
-__device__ inline void fallocFreeBlock(fallocHeap* heap, void* obj)
+static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
 	//
-	fallocBlock* block = (fallocBlock *)((__int8 *)obj - (int)sizeof(fallocBlock));
-	if (block->magic != FALLOC_MAGIC || block->count > 1) // bad magic or not a singular block
-		__THROW;
+	fallocBlock *block = (fallocBlock *)((__int8 *)obj - sizeof(fallocBlock));
+	if (block->magic != FALLOC_MAGIC || block->count > 1) __THROW;// bad magic or not a singular block
 	// advance circular buffer
-	fallocBlock** freeBlocks = heap->freeBlocks;
-	//volatile fallocBlock** retnBlockPtr = heap->retnBlockPtr;
-    size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
-    offset %= heap->freeBlocksSize;
-	*(freeBlocks + offset) = block;
+	fallocBlockRef *blockRefs = heap->blockRefs;
+	size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
+	offset %= heap->blockRefSize;
+	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
+	blockRef->b = block;
 }
 
 #if MULTIBLOCK
-__device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t* allocLength = nullptr)
+__device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t *allocLength = nullptr)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
 	size_t blockSize = heap->blockSize;
@@ -133,10 +122,10 @@ __device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t*
 		}
 		if (index)
 			return nullptr;
-		// found chuck, remove from freeBlocks
+		// found chuck, remove from blockRefs
 		endBlock = block;
 		block = (fallocBlock*)((__int8*)block - (blockSize * blocks));
-		for (volatile fallocBlock* chunk2 = heap->freeBlocks; chunk2; chunk2 = chunk2->next)
+		for (volatile fallocBlock* chunk2 = heap->blockRefs; chunk2; chunk2 = chunk2->next)
 			if (chunk2 >= block && chunk2 <= endBlock)
 				chunk2->next = (chunk2->next ? chunk2->next->next : nullptr);
 		block->count = blocks;
@@ -145,7 +134,7 @@ __device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t*
 	return (void*)((__int8*)block + sizeof(fallocBlock));
 }
 
-__device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
+__device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 {
 	volatile fallocBlock* block = (fallocBlock*)((__int8*)obj - sizeof(fallocBlock));
 	if (block->magic != FALLOC_MAGIC)
@@ -155,8 +144,8 @@ __device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
 	if (blocks == 1)
 	{
 		{ // critical
-			block->next = heap->freeBlocks;
-			heap->freeBlocks = block;
+			block->next = heap->blockRefs;
+			heap->blockRefs = block;
 		}
 		return;
 	}
@@ -171,58 +160,79 @@ __device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
 		block->reserved = nullptr;
 	}
 	{ // critical
-		block->next = heap->freeBlocks;
-		heap->freeBlocks = block;
+		block->next = heap->blockRefs;
+		heap->blockRefs = block;
 	}
 }
 #endif
 
-//////////////////////
-// ALLOC
+#pragma endregion
 
-__device__ static fallocCtx* fallocCreateCtx(fallocHeap* heap)
+
+//////////////////////
+// CONTEXT
+#pragma region CONTEXT
+
+const static int FALLOCNODE_SLACK = 0x10;
+#define FALLOCNODE_MAGIC (unsigned short)0x7856 // All our headers are prefixed with a magic number so we know they're ours
+
+typedef struct _cuFallocNode
+{
+	struct _cuFallocNode *next;
+	struct _cuFallocNode *nextAvailable;
+	unsigned short freeOffset;
+	unsigned short magic;
+} fallocNode;
+
+typedef struct _cuFallocContext
+{
+	fallocNode node;
+	fallocNode *nodes;
+	fallocNode *availableNodes;
+	fallocHeap *heap;
+	size_t HEAPBLOCK_SIZE;
+} fallocCtx;
+
+STATIC __device__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
 {
 	size_t blockSize = heap->blockSize;
-	if (sizeof(fallocCtx) > blockSize)
-		__THROW;
-	fallocCtx* ctx = (fallocCtx*)fallocGetBlock(heap);
+	if (sizeof(fallocCtx) > blockSize) __THROW;
+	fallocCtx *ctx = (fallocCtx *)fallocGetBlock(heap);
 	if (!ctx)
 		return nullptr;
 	ctx->heap = heap;
 	unsigned short freeOffset = ctx->node.freeOffset = sizeof(fallocCtx);
 	ctx->node.magic = FALLOCNODE_MAGIC;
-	ctx->node.next = nullptr; ctx->nodes = (fallocNode*)ctx;
-	ctx->node.nextAvailable = nullptr; ctx->availableNodes = (fallocNode*)ctx;
+	ctx->node.next = nullptr; ctx->nodes = (fallocNode *)ctx;
+	ctx->node.nextAvailable = nullptr; ctx->availableNodes = (fallocNode *)ctx;
 	// close node
 	if ((freeOffset + FALLOCNODE_SLACK) > blockSize)
 		ctx->availableNodes = nullptr;
 	return ctx;
 }
 
-__device__ static void fallocDisposeCtx(fallocCtx* ctx)
+STATIC __device__ void fallocDisposeCtx(fallocCtx *ctx)
 {
-	fallocHeap* heap = ctx->heap;
-	for (fallocNode* node = ctx->nodes; node; node = node->next)
+	fallocHeap *heap = ctx->heap;
+	for (fallocNode *node = ctx->nodes; node; node = node->next)
 		fallocFreeBlock(heap, node);
 }
 
-__device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
+STATIC __device__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc = true)
 {
-	if (bytes > (ctx->HEAPBLOCK_SIZE - sizeof(fallocCtx)))
-		__THROW;
+	if (bytes > (ctx->HEAPBLOCK_SIZE - sizeof(fallocCtx))) __THROW;
 	// find or add available node
-	fallocNode* node;
+	fallocNode *node;
 	unsigned short freeOffset;
 	unsigned char hasFreeSpace;
-	fallocNode* lastNode;
-	for (lastNode = (fallocNode*)ctx, node = ctx->availableNodes; node; lastNode = node, node = (alloc ? node->nextAvailable : node->next))
+	fallocNode *lastNode;
+	for (lastNode = (fallocNode *)ctx, node = ctx->availableNodes; node; lastNode = node, node = (alloc ? node->nextAvailable : node->next))
 		if (hasFreeSpace = ((freeOffset = (node->freeOffset + bytes)) <= ctx->HEAPBLOCK_SIZE))
 			break;
 	if (!node || !hasFreeSpace) {
 		// add node
-		node = (fallocNode*)fallocGetBlock(ctx->heap);
-		if (!node)
-			__THROW;
+		node = (fallocNode *)fallocGetBlock(ctx->heap);
+		if (!node) __THROW;
 		freeOffset = node->freeOffset = sizeof(fallocNode); 
 		freeOffset += bytes;
 		node->magic = FALLOCNODE_MAGIC;
@@ -230,11 +240,11 @@ __device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
 		node->nextAvailable = (alloc ? ctx->availableNodes : nullptr); ctx->availableNodes = node;
 	}
 	//
-	void* obj = (__int8*)node + node->freeOffset;
+	void *obj = (__int8 *)node + node->freeOffset;
 	node->freeOffset = freeOffset;
 	// close node
 	if (alloc && ((freeOffset + FALLOCNODE_SLACK) > ctx->HEAPBLOCK_SIZE)) {
-		if (lastNode == (fallocNode*)ctx)
+		if (lastNode == (fallocNode *)ctx)
 			ctx->availableNodes = node->nextAvailable;
 		else
 			lastNode->nextAvailable = node->nextAvailable;
@@ -243,27 +253,39 @@ __device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
 	return obj;
 }
 
-__device__ static void* fallocRetract(fallocCtx* ctx, unsigned short bytes)
+STATIC __device__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 {
-	fallocNode* node = ctx->availableNodes;
+	fallocNode *node = ctx->availableNodes;
 	int freeOffset = (int)node->freeOffset - bytes;
 	// multi node, retract node
 	if (node != &ctx->node && freeOffset < sizeof(fallocNode)) {
 		node->freeOffset = sizeof(fallocNode);
 		// search for previous node
-		fallocNode* lastNode;
-		for (lastNode = (fallocNode*)ctx, node = ctx->nodes; node; lastNode = node, node = node->next)
+		fallocNode *lastNode;
+		for (lastNode = (fallocNode *)ctx, node = ctx->nodes; node; lastNode = node, node = node->next)
 			if (node == ctx->availableNodes)
 				break;
 		node = ctx->availableNodes = lastNode;
 		freeOffset = (int)node->freeOffset - bytes;
 	}
 	// first node && !overflow
-	if (node == &ctx->node && freeOffset < sizeof(fallocCtx))
-		__THROW;
+	if (node == &ctx->node && freeOffset < sizeof(fallocCtx)) __THROW;
 	node->freeOffset = (unsigned short)freeOffset;
-	return (__int8*)node + freeOffset;
+	return (__int8 *)node + freeOffset;
 }
 
-__device__ static void fallocMark(fallocCtx* ctx, void* &mark, unsigned short &mark2) { mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset; }
-__device__ static bool fallocAtMark(fallocCtx* ctx, void* mark, unsigned short mark2) { return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset); }
+static __inline__ __device__ void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2)
+{
+	mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset;
+}
+
+static __inline__ __device__ bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2)
+{
+	return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset);
+}
+
+template <typename T> __device__ T* falloc(fallocCtx *ctx) { return (T *)falloc(ctx, sizeof(T), true); }
+template <typename T> __device__ void fallocPush(fallocCtx *ctx, T t) { *((T *)falloc(ctx, sizeof(T), false)) = t; }
+template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
+
+#pragma endregion
