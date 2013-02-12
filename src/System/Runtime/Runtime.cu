@@ -66,6 +66,16 @@ __device__ static void runtimeRestrict(int threadid, int blockid)
 		_heap->restriction.blockid = blockid;
 }
 
+__device__ static void writeBlockHeader(char *ptr, char *fmtptr)
+{
+	runtimeBlockHeader header;
+	header.magic = RUNTIME_MAGIC;
+	header.fmtoffset = (unsigned short)(fmtptr - ptr);
+	header.blockid = gridDim.x*blockIdx.y + blockIdx.x;
+	header.threadid = blockDim.x*blockDim.y*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x;
+	*(runtimeBlockHeader *)(void *)ptr = header;
+}
+
 #pragma endregion
 
 
@@ -73,23 +83,10 @@ __device__ static void runtimeRestrict(int threadid, int blockid)
 // PRINTF
 #pragma region PRINTF
 
-__device__ static void writePrintfHeader(char *ptr, char *fmtptr)
-{
-	if (ptr)
-	{
-		runtimeBlockHeader header;
-		header.magic = RUNTIME_MAGIC;
-		header.fmtoffset = (unsigned short)(fmtptr - ptr);
-		header.blockid = blockIdx.x + gridDim.x*blockIdx.y;
-		header.threadid = threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z;
-		*(runtimeBlockHeader *)(void *)ptr = header;
-	}
-}
-
 __device__ static char *printfStrncpy(char *dest, const char *src, int n, char *end)
 {
 	// initialization and overflow check
-	if (!dest || !src || dest >= end)
+	if (!dest || src != 0 || dest >= end)
 		return nullptr;
 	// prepare to write the length specifier. We're guaranteed to have at least "RUNTIME_ALIGNSIZE" bytes left because we only write out in
 	// chunks that size, and blockSize is aligned with RUNTIME_ALIGNSIZE.
@@ -118,7 +115,7 @@ __device__ static char *printfStrncpy(char *dest, const char *src, int n, char *
 
 __device__ static char *copyArg(char *ptr, const char *arg, char *end)
 {
-	// initialisation check
+	// initialization check
 	if (!ptr || !arg)
 		return nullptr;
 	// strncpy does all our work. We just terminate.
@@ -152,7 +149,7 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 #define PRINTF_POSTAMBLE \
 	fmtstart = bufptr; \
 	end = printfStrncpy(bufptr, fmt, _heap->blockSize, end); \
-	writePrintfHeader(start, (end ? fmtstart : nullptr)); \
+	writeBlockHeader(start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
 __device__ static int __printf(const char *fmt)

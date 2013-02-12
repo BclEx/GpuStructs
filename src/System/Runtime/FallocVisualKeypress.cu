@@ -1,7 +1,7 @@
 #include "cuda_runtime_api.h"
 #include "Falloc.cu.h"
 
-__global__ void Init(fallocHeap *heap)
+__global__ static void Init(fallocHeap *heap)
 {
 	fallocInit(heap);
 }
@@ -9,7 +9,7 @@ __global__ void Init(fallocHeap *heap)
 __device__ void *_testObj;
 __device__ fallocCtx *_testCtx;
 
-__global__ void Keypress(fallocHeap *heap, unsigned char key)
+__global__ static void Keypress(fallocHeap *heap, unsigned char key)
 {
 	switch (key)
 	{
@@ -32,14 +32,14 @@ __global__ void Keypress(fallocHeap *heap, unsigned char key)
 	}
 }
 
-__host__ void LaunchInit(fallocHeap *heap)
+__host__ void LaunchFallocInit(fallocHeap *heap)
 {
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Init<<<heapGrid, heapBlock>>>(heap);
 }
 
-__host__ void LaunchKeypress(fallocHeap *heap, unsigned char key)
+__host__ void LaunchFallocKeypress(fallocHeap *heap, unsigned char key)
 {
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);

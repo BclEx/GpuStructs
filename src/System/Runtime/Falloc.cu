@@ -10,30 +10,30 @@
 #include <malloc.h>
 #include <string.h>
 
-typedef struct __align__(8) _cuFallocBlock
+typedef struct __align__(8)
 {
-	unsigned short magic;
+	unsigned short magic;		// magic number says we're valid
 	unsigned short count;
-	struct _cuFallocBlock *next;
-	void *reserved;
-} fallocBlock;
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
+} fallocBlockHeader;
 
 typedef struct _cuFallocBlockRef
 {
-	fallocBlock *b;
+	fallocBlockHeader *b;
+	struct _cuFallocBlockRef *next;
 } fallocBlockRef;
 
-typedef struct __align__(8) _cuFallocHeap
+typedef struct __align__(8)
 {
 	void *reserved;
 	size_t blockSize;
 	size_t blocks;
-	size_t blockRefSize; // Size of circular buffer (set up by host)
+	size_t blockRefsLength; // Size of circular buffer (set up by host)
 	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlock **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockHeader **freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockHeader **retnBlockPtr; // Current atomically-incremented non-wrapped offset
 } fallocHeap;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -50,20 +50,28 @@ STATIC __device__ void fallocInit(fallocHeap *heap)
 	size_t blockSize = heap->blockSize;
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	// preset all blocks
-	fallocBlock *block = (fallocBlock *)((__int8 *)blockRefs + heap->blockRefSize);
-	block->magic = FALLOC_MAGIC;
-	block->count = 1;
-	block->reserved = nullptr;
+	fallocBlockHeader *block = (fallocBlockHeader *)((__int8 *)blockRefs + heap->blockRefsLength);
+	//block->magic = FALLOC_MAGIC;
+	//block->count = 1;
 	while (blocks-- > 1)
 	{
-		block = blockRefs->b = block->next = (fallocBlock *)((__int8*)block + blockSize);
-		block->magic = FALLOC_MAGIC;
-		block->count = 1;
-		block->reserved = nullptr;
+		blockRefs->b = block = (fallocBlockHeader *)((__int8*)block + blockSize);
+		//block = blockRefs->b = block->next = (fallocBlockHeader *)((__int8*)block + blockSize);
+		//block->magic = FALLOC_MAGIC;
+		//block->count = 1;
 		//blockRef->count = 1;
 		blockRefs++;
 	}
-	block->next = nullptr;
+}
+
+__device__ static void writeBlockHeader(char *ptr, unsigned short count)
+{
+	fallocBlockHeader header;
+	header.magic = FALLOC_MAGIC;
+	header.count = count;
+	header.blockid = gridDim.x*blockIdx.y + blockIdx.x;
+	header.threadid = blockDim.x*blockDim.y*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x;
+	*(fallocBlockHeader *)(void *)ptr = header;
 }
 
 static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
@@ -72,21 +80,21 @@ static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
-	offset %= heap->blockRefSize;
+	offset %= heap->blockRefsLength;
 	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
-	return (void *)((__int8 *)blockRef->b + sizeof(fallocBlock));
+	return (void *)((__int8 *)blockRef->b + sizeof(fallocBlockHeader));
 }
 
 static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	//
-	fallocBlock *block = (fallocBlock *)((__int8 *)obj - sizeof(fallocBlock));
+	// get block
+	fallocBlockHeader *block = (fallocBlockHeader *)((__int8 *)obj - sizeof(fallocBlockHeader));
 	if (block->magic != FALLOC_MAGIC || block->count > 1) __THROW;// bad magic or not a singular block
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
-	offset %= heap->blockRefSize;
+	offset %= heap->blockRefsLength;
 	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
 	blockRef->b = block;
 }
@@ -101,7 +109,7 @@ __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t 
 		length += blockSize - (length % blockSize);
 	// set length, if requested
 	if (allocLength)
-		*allocLength = length - sizeof(fallocBlock);
+		*allocLength = length - sizeof(fallocBlockHeader);
 	size_t blocks = (size_t)(length / blockSize);
 	if (blocks > heap->blocks) __THROW;
 	// single, equals: fallocGetBlock
@@ -109,10 +117,10 @@ __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t 
 		return fallocGetBlock(heap);
 	// multiple, find a contiguous chuck
 	size_t index = blocks;
-	volatile fallocBlock* block;
-	volatile fallocBlock* endBlock = (fallocBlock*)((__int8*)heap + sizeof(fallocHeap) + (blockSize * heap->blocks));
+	volatile fallocBlockHeader* block;
+	volatile fallocBlockHeader* endBlock = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap) + (blockSize * heap->blocks));
 	{ // critical
-		for (block = (fallocBlock*)((__int8*)heap + sizeof(fallocHeap)); index && block < endBlock; block = (fallocBlock*)((__int8*)block + (blockSize * block->count)))
+		for (block = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap)); index && block < endBlock; block = (fallocBlockHeader*)((__int8*)block + (blockSize * block->count)))
 		{
 			if (block->magic != FALLOC_MAGIC)
 				__THROW;
@@ -122,20 +130,20 @@ __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t 
 			return nullptr;
 		// found chuck, remove from blockRefs
 		endBlock = block;
-		block = (fallocBlock*)((__int8*)block - (blockSize * blocks));
-		for (volatile fallocBlock* chunk2 = heap->blockRefs; chunk2; chunk2 = chunk2->next)
+		block = (fallocBlockHeader*)((__int8*)block - (blockSize * blocks));
+		for (volatile fallocBlockHeader* chunk2 = heap->blockRefs; chunk2; chunk2 = chunk2->next)
 			if (chunk2 >= block && chunk2 <= endBlock)
 				chunk2->next = (chunk2->next ? chunk2->next->next : nullptr);
 		block->count = blocks;
 		block->next = nullptr;
 	}
-	return (void*)((__int8*)block + sizeof(fallocBlock));
+	return (void*)((__int8*)block + sizeof(fallocBlockHeader));
 }
 
 
 __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 {
-	volatile fallocBlock* block = (fallocBlock*)((__int8*)obj - sizeof(fallocBlock));
+	volatile fallocBlockHeader* block = (fallocBlockHeader*)((__int8*)obj - sizeof(fallocBlockHeader));
 	if (block->magic != FALLOC_MAGIC)
 		__THROW;
 	size_t blocks = block->count;
@@ -153,7 +161,7 @@ __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 	block->count = 1;
 	while (blocks-- > 1)
 	{
-		block = block->next = (fallocBlock*)((__int8*)block + sizeof(fallocBlock) + blockSize);
+		block = block->next = (fallocBlockHeader*)((__int8*)block + sizeof(fallocBlockHeader) + blockSize);
 		block->magic = FALLOC_MAGIC;
 		block->count = 1;
 		block->reserved = nullptr;

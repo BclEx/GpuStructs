@@ -45,8 +45,8 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cuda
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
 	cudaRuntimeHost host; memset(&host, 0, sizeof(cudaRuntimeHost));
-	// fix up blockSize to include fallocBlock
-	blockSize = (blockSize + 15) & ~15;
+	// fix up blockSize to include fallocBlockHeader
+	blockSize = (blockSize + (RUNTIME_ALIGNSIZE - 1)) & ~(RUNTIME_ALIGNSIZE - 1);
 	// fix up length to be a multiple of blockSize
 	if (!length || length % blockSize)
 		length += blockSize - (length % blockSize);
@@ -100,7 +100,8 @@ static int executeRuntime(size_t blockSize, char *heap, int headings, int clear,
 		if (bufptr == bufend)
 			bufptr = bufstart;
 		// adjust our start pointer to within the circular buffer and copy a block.
-		cudaMemcpy(b, bufptr, blockSize, cudaMemcpyDeviceToHost);
+		if (cudaMemcpy(b, bufptr, blockSize, cudaMemcpyDeviceToHost) != cudaSuccess)
+			break;
 		// if the magic number isn't valid, then this write hasn't gone through yet and we'll wait until it does (or we're past the end for non-async printfs).
 		runtimeBlockHeader *hdr = (runtimeBlockHeader *)b;
 		if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= blockSize)

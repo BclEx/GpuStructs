@@ -42,11 +42,10 @@ return 0;
 // HOST SIDE
 // External function definitions for host-side code
 
-typedef struct _cuFallocHeap fallocHeap;
-typedef struct _cudaFallocHost
+typedef struct
 {
 	void *reserved;
-	fallocHeap *heap;
+	void *heap;
 	size_t blocks;
 	size_t length;
 } cudaFallocHost;

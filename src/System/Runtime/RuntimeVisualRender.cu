@@ -53,17 +53,20 @@ static __global__ void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offs
 		make_float4(00, 0, 1, 1), HEADERCOLOR);
 	// free
 	float x1, y1;
-	int ptr = (heap->blockPtr ? (char *)heap->blockPtr - (char *)heap->blocks : -1);
-	if (ptr >= 0)
+	if (heap->blockPtr)
 	{
-		unsigned int x = ptr % BLOCKPITCH;
-		unsigned int y = ptr / BLOCKPITCH;
-		x1 = x * 1; y1 = y * 1 + 1;
+		size_t offset = ((char *)heap->blockPtr - (char *)heap->blocks);
+		offset %= heap->blocksLength;
+		offset /= heap->blockSize;
+		//
+		unsigned int x = offset % BLOCKPITCH;
+		unsigned int y = offset / BLOCKPITCH;
+		x1 = x * 10; y1 = y * 20 + 2;
 		b[index + 1] = make_quad4(
-			make_float4(x1 + .0, y1 + .2, 1, 1), MARKERCOLOR,
-			make_float4(x1 + .2, y1 + .2, 1, 1), MARKERCOLOR,
-			make_float4(x1 + .2, y1 + .0, 1, 1), MARKERCOLOR,
-			make_float4(x1 + .0, y1 + .0, 1, 1), MARKERCOLOR);
+			make_float4(x1 + 0, y1 + 1, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 1, y1 + 1, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 1, y1 + 0, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 0, y1 + 0, 1, 1), MARKERCOLOR);
 	}
 }
 
@@ -74,7 +77,7 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	int blockIndex = y * BLOCKPITCH + x;
 	if (blockIndex >= blocks)
 		return;
-	runtimeBlockHeader *hdr = (runtimeBlockHeader *)&heap->blocks[blockIndex];
+	runtimeBlockHeader *hdr = (runtimeBlockHeader *)(heap->blocks + blockIndex * heap->blockSize);
 	int index = blockIndex * 2 + offset;
 	// block
 	float x2 = x * 10; float y2 = y * 20 + 2;
@@ -173,13 +176,14 @@ void RuntimeVisualRender::Dispose()
 		DeleteVBO(&_vbo, _vboResource);
 }
 
-extern void LaunchKeypress(cudaRuntimeHost &heap, unsigned char key);
+extern void LaunchRuntimeKeypress(cudaRuntimeHost &heap, unsigned char key);
 void RuntimeVisualRender::Keyboard(unsigned char key)
 {
 	switch (key)
 	{
 	case 'a':
-		LaunchKeypress(_runtimeHost, key);
+	case 'b':
+		LaunchRuntimeKeypress(_runtimeHost, key);
 		break;
 	}
 }

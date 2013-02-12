@@ -2,28 +2,29 @@
 #include <cassert>
 #include "Visual.h"
 
-typedef struct __align__(8) _cuFallocBlock
+typedef struct __align__(8)
 {
-	unsigned short magic;
+	unsigned short magic;		// magic number says we're valid
 	unsigned short count;
-	struct _cuFallocBlock *next;
-	void *reserved;
-} fallocBlock;
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
+} fallocBlockHeader;
 
 typedef struct _cuFallocBlockRef
 {
-	fallocBlock *b;
+	fallocBlockHeader *b;
+	struct _cuFallocBlockRef *next;
 } fallocBlockRef;
 
-typedef struct __align__(8) _cuFallocHeap
+typedef struct __align__(8)
 {
 	void *reserved;
 	size_t blockSize;
 	size_t blocks;
-	size_t blockRefSize; // Size of circular buffer (set up by host)
+	size_t blockRefsLength; // Size of circular buffer (set up by host)
 	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlock **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockHeader **freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockHeader **retnBlockPtr; // Current atomically-incremented non-wrapped offset
 } fallocHeap;
 
 
@@ -59,10 +60,13 @@ static __global__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offse
 		make_float4(00, 0, 1, 1), HEADERCOLOR);
 	// free
 	float x1, y1;
-	int freePtr = (heap->freeBlockPtr ? (fallocBlockRef *)heap->freeBlockPtr - (fallocBlockRef *)heap->blockRefs : -1);
-	if (freePtr >= 0)
+	if (heap->freeBlockPtr)
 	{
-		OffsetBlockRef(freePtr % BLOCKPITCH, freePtr / BLOCKPITCH, &x1, &y1);
+		size_t offset = ((char *)heap->freeBlockPtr - (char *)heap->blockRefs);
+		offset %= heap->blockRefsLength;
+		offset /= sizeof(fallocBlockRef);
+		//
+		OffsetBlockRef(offset % BLOCKPITCH, offset / BLOCKPITCH, &x1, &y1);
 		b[index + 1] = make_quad4(
 			make_float4(x1 + .0, y1 + .2, 1, 1), MARKERCOLOR,
 			make_float4(x1 + .2, y1 + .2, 1, 1), MARKERCOLOR,
@@ -70,10 +74,13 @@ static __global__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offse
 			make_float4(x1 + .0, y1 + .0, 1, 1), MARKERCOLOR);
 	}
 	// retn
-	int retnPtr = (heap->retnBlockPtr ? (fallocBlockRef *)heap->retnBlockPtr - (fallocBlockRef *)heap->blockRefs : -1);
-	if (retnPtr >= 0)
+	if (heap->retnBlockPtr)
 	{
-		OffsetBlockRef(retnPtr % BLOCKPITCH, retnPtr / BLOCKPITCH, &x1, &y1);
+		size_t offset = ((char *)heap->retnBlockPtr - (char *)heap->blockRefs);
+		offset %= heap->blockRefsLength;
+		offset /= sizeof(fallocBlockRef);
+		//
+		OffsetBlockRef(offset % BLOCKPITCH, offset / BLOCKPITCH, &x1, &y1);
 		b[index + 2] = make_quad4(
 			make_float4(x1 + .7, y1 + .9, 1, 1), MARKERCOLOR,
 			make_float4(x1 + .9, y1 + .9, 1, 1), MARKERCOLOR,
@@ -184,7 +191,7 @@ void FallocVisualRender::Dispose()
 		DeleteVBO(&_vbo, _vboResource);
 }
 
-extern void LaunchKeypress(fallocHeap *heap, unsigned char key);
+extern void LaunchFallocKeypress(fallocHeap *heap, unsigned char key);
 void FallocVisualRender::Keyboard(unsigned char key)
 {
 	switch (key)
@@ -194,7 +201,7 @@ void FallocVisualRender::Keyboard(unsigned char key)
 	case 'x':
 	case 'y':
 	case 'z':
-		LaunchKeypress(_fallocHost.heap, key);
+		LaunchFallocKeypress((fallocHeap *)_fallocHost.heap, key);
 		break;
 	}
 }
@@ -202,7 +209,7 @@ void FallocVisualRender::Keyboard(unsigned char key)
 void FallocVisualRender::Display()
 {
 	// run CUDA kernel to generate vertex positions
-	RunCuda(_fallocHost.blocks, _fallocHost.heap, &_vboResource);
+	RunCuda(_fallocHost.blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
 
 	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
 	//glScalef(.02, .02, .02);
@@ -225,16 +232,16 @@ void FallocVisualRender::Display()
 	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-extern void LaunchInit(fallocHeap *heap);
+extern void LaunchFallocInit(fallocHeap *heap);
 void FallocVisualRender::Initialize()
 {
-	LaunchInit(_fallocHost.heap);
+	LaunchFallocInit((fallocHeap *)_fallocHost.heap);
 
 	// create VBO
 	CreateVBO(_fallocHost.blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
 
 	// run the cuda part
-	RunCuda(_fallocHost.blocks, _fallocHost.heap, &_vboResource);
+	RunCuda(_fallocHost.blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
 }
 
 #pragma endregion

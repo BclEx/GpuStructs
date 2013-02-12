@@ -5,7 +5,7 @@
 // HOST SIDE
 // External function definitions for host-side code
 
-typedef struct _cudaRuntimeHost
+typedef struct
 {
 	void *reserved;
 	void *heap;
@@ -29,7 +29,7 @@ typedef struct _cudaRuntimeHost
 //		length - Length, in bytes, of total space to reserve (in device global memory) for output.
 //
 // default 2k blocks, 1-meg heap
-extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 2048, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
+extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 256, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
 
 //
 //	cudaRuntimeEnd
@@ -52,6 +52,6 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host);
 //	Returns:
 //		cudaSuccess if all is well.
 //
-extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = false);
+extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = true);
 
 #endif // __RUNTIME_H__
