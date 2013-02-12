@@ -1,6 +1,7 @@
 #include "..\Runtime\Cuda.h"
 #include "..\Runtime\CudaGL.h"
 #include "..\Runtime\Falloc.h"
+#include "..\Runtime\Runtime.h"
 
 // constants
 #define MAX_EPSILON_ERROR 10.0f
@@ -8,6 +9,22 @@
 #define REFRESH_DELAY     10 //ms
 const unsigned int WindowWidth = 800;
 const unsigned int WindowHeight = 600;
+
+struct quad4
+{ 
+	float4 av, ac;
+	float4 bv, bc;
+	float4 cv, cc;
+	float4 dv, dc;
+};
+static __inline__ __device__ quad4 make_quad4(
+	float4 av, float4 ac,
+	float4 bv, float4 bc,
+	float4 cv, float4 cc,
+	float4 dv, float4 dc)
+{
+	quad4 q; q.av = av; q.ac = ac; q.bv = bv; q.bc = bc; q.cv = cv; q.cc = cc; q.dv = dv; q.dc = dc; return q;
+}
 
 class IVisualRender
 {
@@ -25,6 +42,19 @@ private:
 public:
 	FallocVisualRender(cudaFallocHost fallocHost)
 		: _fallocHost(fallocHost) { }
+	virtual void Dispose();
+	virtual void Keyboard(unsigned char key);
+	virtual void Display();
+	virtual void Initialize();
+};
+
+class RuntimeVisualRender : public IVisualRender
+{
+private:
+	cudaRuntimeHost _runtimeHost;
+public:
+	RuntimeVisualRender(cudaRuntimeHost runtimeHost)
+		: _runtimeHost(runtimeHost) { }
 	virtual void Dispose();
 	virtual void Keyboard(unsigned char key);
 	virtual void Display();

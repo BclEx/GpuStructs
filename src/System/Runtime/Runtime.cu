@@ -1,4 +1,3 @@
-//[GL VBO] http://3dgep.com/?p=2596
 #if __CUDA_ARCH__ == 100 
 #error Atomics only used with > sm_10 architecture
 #endif
@@ -6,374 +5,268 @@
 #include <malloc.h>
 #include <string.h>
 
-typedef struct __align__(8) _cuFallocBlock
-{
-	unsigned short magic;
-	unsigned short count;
-	struct _cuFallocBlock* next;
-	void* reserved;
-} fallocBlock;
+#define RUNTIME_UNRESTRICTED -1
 
-typedef struct __align__(8) _cuFallocHeap
+typedef struct __align__(8)
 {
-	void* reserved;
+	int threadid; // RUNTIME_UNRESTRICTED for unrestricted
+	int blockid;  // RUNTIME_UNRESTRICTED for unrestricted
+} runtimeRestriction;
+
+typedef struct __align__(8)
+{
+	volatile char *blockPtr; // current atomically-incremented non-wrapped offset
+	void *reserved;
+	runtimeRestriction restriction;
 	size_t blockSize;
-	size_t blocks;
-	size_t offset;
-	size_t freeBlocksSize; // Size of circular buffer (set up by host)
-	fallocBlock** freeBlocks; // Start of circular buffer (set up by host)
-	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
-} fallocHeap;
+	size_t blocksLength; // size of circular buffer (set up by host)
+	char *blocks; // start of circular buffer (set up by host)
+} runtimeHeap;
 
+typedef struct __align__(8)
+{
+	unsigned short magic;		// magic number says we're valid
+	unsigned short fmtoffset;	// offset of fmt string into buffer
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
+} runtimeBlockHeader;
+
+__device__ static runtimeHeap *_heap = nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////
-// VISUAL
+// HEAP
+#pragma region HEAP
 
-#define BLOCKPITCH 64
-struct quad4
-{ 
-	float4 av, ac;
-	float4 bv, bc;
-	float4 cv, cc;
-	float4 dv, dc;
-};
-static __inline__ __device__ quad4 make_quad4(
-	float4 av, float4 ac,
-	float4 bv, float4 bc,
-	float4 cv, float4 cc,
-	float4 dv, float4 dc)
+#define RUNTIME_MAGIC (unsigned short)0xC811
+#define RUNTIME_ALIGNSIZE sizeof(long long)
+
+__device__ static char *moveNextPtr()
 {
-	quad4 q; q.av = av; q.ac = ac; q.bv = bv; q.bc = bc; q.cv = cv; q.cc = cc; q.dv = dv; q.dc = dc; return q;
+	if (!_heap) __THROW;
+	// thread/block restriction check
+	runtimeRestriction restriction = _heap->restriction;
+	if (restriction.blockid != RUNTIME_UNRESTRICTED && restriction.blockid != (blockIdx.x + gridDim.x*blockIdx.y))
+		return nullptr;
+	if (restriction.threadid != RUNTIME_UNRESTRICTED && restriction.threadid != (threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z))
+		return nullptr;
+	// advance pointer
+	char *blocks = _heap->blocks;
+	size_t offset = atomicAdd((unsigned int *)&_heap->blockPtr, _heap->blockSize) - (size_t)blocks;
+	offset %= _heap->blocksLength;
+	return blocks + offset;
 }
 
-#define red make_float4(1, 0, 0, 1)
-#define green make_float4(0, 1, 0, 1)
-#define blue make_float4(0, 0, 1, 1)
-#define blue2 make_float4(0, 0, .8, 1)
-#define yellow make_float4(1, 0, 1, 1)
-
-static __inline__ __device__ void OffsetBlockRef(unsigned int x, unsigned int y, float *x1, float *y1)
+__device__ static void runtimeRestrict(int threadid, int blockid)
 {
-	*x1 = x * 1; *y1 = y * 1 + 1;
+	int threadMax = blockDim.x * blockDim.y * blockDim.z;
+	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)
+		_heap->restriction.threadid = threadid;
+	int blockMax = gridDim.x * gridDim.y;
+	if ((blockid < blockMax && blockid >= 0) || blockid == RUNTIME_UNRESTRICTED)
+		_heap->restriction.blockid = blockid;
 }
 
-__global__ void RenderHeap(quad4 *b, fallocHeap* heap)
-{
-	// heap
-	b[0] = make_quad4(
-		make_float4(00, 1, 1, 1), green,
-		make_float4(10, 1, 1, 1), green,
-		make_float4(10, 0, 1, 1), green,
-		make_float4(00, 0, 1, 1), green);
-	// free
-	float x1, y1;
-	int freePtr = 1; //(int)(heap->freeBlockPtr - heap->freeBlocks);
-	if (freePtr > 0)
-	{
-		OffsetBlockRef(1, 1, &x1, &y1);
-		b[1] = make_quad4(
-			make_float4(x1 + .0, y1 + .2, 1, 2), green,
-			make_float4(x1 + .2, y1 + .2, 1, 2), green,
-			make_float4(x1 + .2, y1 + .0, 1, 2), green,
-			make_float4(x1 + .0, y1 + .0, 1, 2), green);
-	}
-	// retn
-	int retnPtr = 2; //(int)(heap->retnBlockPtr - heap->freeBlocks);
-	if (retnPtr > 0)
-	{
-		OffsetBlockRef(2, 1, &x1, &y1);
-		b[2] = make_quad4(
-			make_float4(x1 + .7, y1 + .9, 1, 2), yellow,
-			make_float4(x1 + .9, y1 + .9, 1, 2), yellow,
-			make_float4(x1 + .9, y1 + .7, 1, 2), yellow,
-			make_float4(x1 + .7, y1 + .7, 1, 2), yellow);
-	}
-}
+#pragma endregion
 
-__global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, fallocHeap* heap, unsigned int offset)
-{
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-	int blockIndex = y*BLOCKPITCH + x;
-	if (blockIndex >= blocks)
-		return;
-	int index = blockIndex * 3 + offset;
-	//
-	float x1, y1; OffsetBlockRef(x, y, &x1, &y1);
-	b[index] = make_quad4(
-		make_float4(x1 + 0.0, y1 + 0.9, 1, 1), red,
-		make_float4(x1 + 0.9, y1 + 0.9, 1, 1), red,
-		make_float4(x1 + 0.9, y1 + 0.0, 1, 1), red,
-		make_float4(x1 + 0.0, y1 + 0.0, 1, 1), red);
-
-	// block
-	float x2 = x * 10;
-	float y2 = y * 20 + blocksY + 3;
-	b[index + 1] = make_quad4(
-		make_float4(x2 + 0, y2 + 19, 1, 1), blue,
-		make_float4(x2 + 9, y2 + 19, 1, 1), blue,
-		make_float4(x2 + 9, y2 + 00, 1, 1), blue,
-		make_float4(x2 + 0, y2 + 00, 1, 1), blue);
-	b[index + 2] = make_quad4(
-		make_float4(x2 + 0, y2 + 1, 1, 1), green,
-		make_float4(x2 + 3.9, y2 + 1, 1, 1), green,
-		make_float4(x2 + 3.9, y2 + 0, 1, 1), green,
-		make_float4(x2 + 0, y2 + 0, 1, 1), green);
-}
-
-#define MAX(a,b) (a > b ? a : b)
-__host__ int GetRenderQuads(size_t blocks) { return 3 + (blocks * 3); }
-__host__ void LaunchRender(float4 *b, size_t blocks, fallocHeap* heap)
-{
-	dim3 heapBlock(1, 1, 1);
-	dim3 heapGrid(1, 1, 1);
-	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap);
-	//
-	dim3 blockBlock(16, 16, 1);
-	dim3 blockGrid(MAX(BLOCKPITCH / 16, 1), MAX(blocks / BLOCKPITCH / 16, 1), 1);
-	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, blocks / BLOCKPITCH, heap, 3);
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-// DEVICE SIDE
-
-const static int FALLOCNODE_SLACK = 0x10;
-#define FALLOC_MAGIC (unsigned short)0x3412 // All our headers are prefixed with a magic number so we know they're ours
-#define FALLOCNODE_MAGIC (unsigned short)0x7856 // All our headers are prefixed with a magic number so we know they're ours
-
-typedef struct _cuFallocNode
-{
-	struct _cuFallocNode* next;
-	struct _cuFallocNode* nextAvailable;
-	unsigned short freeOffset;
-	unsigned short magic;
-} fallocNode;
-
-typedef struct _cuFallocContext
-{
-	fallocNode node;
-	fallocNode* nodes;
-	fallocNode* availableNodes;
-	fallocHeap* heap;
-	size_t HEAPBLOCK_SIZE;
-} fallocCtx;
-
-__device__ void fallocInit(fallocHeap* heap)
-{
-	if (threadIdx.x || threadIdx.y || threadIdx.z) return;
-	//
-	size_t blocks = heap->blocks;
-	if (!blocks)
-		__THROW;
-	size_t blockSize = heap->blockSize;
-	fallocBlock** freeBlocks = heap->freeBlocks;
-	// preset all blocks
-	fallocBlock* block = (fallocBlock*)((__int8*)heap + heap->offset);
-	block->magic = FALLOC_MAGIC;
-	block->count = 1;
-	block->reserved = nullptr;
-	while (blocks-- > 1)
-	{
-		block = *freeBlocks++ = block->next = (fallocBlock*)((__int8 *)block + blockSize);
-		block->magic = FALLOC_MAGIC;
-		block->count = 1;
-		block->reserved = nullptr;
-	}
-	block->next = nullptr;
-}
-
-__device__ inline void* fallocGetBlock(fallocHeap* heap)
-{
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	// advance circular buffer
-	fallocBlock** freeBlocks = heap->freeBlocks;
-	//volatile fallocBlock** freeBlockPtr = heap->freeBlockPtr;
-	size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
-	offset %= heap->freeBlocksSize;
-	fallocBlock* block = (fallocBlock*)(freeBlocks + offset);
-	//
-	return (void*)((__int8*)block + sizeof(fallocBlock));
-}
-
-__device__ inline void fallocFreeBlock(fallocHeap* heap, void* obj)
-{
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	//
-	fallocBlock* block = (fallocBlock *)((__int8 *)obj - (int)sizeof(fallocBlock));
-	if (block->magic != FALLOC_MAGIC || block->count > 1) // bad magic or not a singular block
-		__THROW;
-	// advance circular buffer
-	fallocBlock** freeBlocks = heap->freeBlocks;
-	//volatile fallocBlock** retnBlockPtr = heap->retnBlockPtr;
-	size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlock*)) - (size_t)freeBlocks;
-	offset %= heap->freeBlocksSize;
-	*(freeBlocks + offset) = block;
-}
-
-#if MULTIBLOCK
-__device__ inline void* fallocGetBlocks(fallocHeap* heap, size_t length, size_t* allocLength = nullptr)
-{
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	size_t blockSize = heap->blockSize;
-	// fix up length to be a multiple of blockSize
-	length = (length < blockSize ? blockSize : length);
-	if (length % blockSize)
-		length += blockSize - (length % blockSize);
-	// set length, if requested
-	if (allocLength)
-		*allocLength = length - sizeof(fallocBlock);
-	size_t blocks = (size_t)(length / blockSize);
-	if (blocks > heap->blocks)
-		__THROW;
-	// single, equals: fallocGetBlock
-	if (blocks == 1)
-		return fallocGetBlock(heap);
-	// multiple, find a contiguous chuck
-	size_t index = blocks;
-	volatile fallocBlock* block;
-	volatile fallocBlock* endBlock = (fallocBlock*)((__int8*)heap + sizeof(fallocHeap) + (blockSize * heap->blocks));
-	{ // critical
-		for (block = (fallocBlock*)((__int8*)heap + sizeof(fallocHeap)); index && block < endBlock; block = (fallocBlock*)((__int8*)block + (blockSize * block->count)))
-		{
-			if (block->magic != FALLOC_MAGIC)
-				__THROW;
-			index = (block->next ? index - 1 : blocks);
-		}
-		if (index)
-			return nullptr;
-		// found chuck, remove from freeBlocks
-		endBlock = block;
-		block = (fallocBlock*)((__int8*)block - (blockSize * blocks));
-		for (volatile fallocBlock* chunk2 = heap->freeBlocks; chunk2; chunk2 = chunk2->next)
-			if (chunk2 >= block && chunk2 <= endBlock)
-				chunk2->next = (chunk2->next ? chunk2->next->next : nullptr);
-		block->count = blocks;
-		block->next = nullptr;
-	}
-	return (void*)((__int8*)block + sizeof(fallocBlock));
-}
-
-__device__ inline void fallocFreeBlocks(fallocHeap* heap, void* obj)
-{
-	volatile fallocBlock* block = (fallocBlock*)((__int8*)obj - sizeof(fallocBlock));
-	if (block->magic != FALLOC_MAGIC)
-		__THROW;
-	size_t blocks = block->count;
-	// single, equals: fallocFreeChunk
-	if (blocks == 1)
-	{
-		{ // critical
-			block->next = heap->freeBlocks;
-			heap->freeBlocks = block;
-		}
-		return;
-	}
-	// retag blocks
-	size_t blockSize = heap->blockSize;
-	block->count = 1;
-	while (blocks-- > 1)
-	{
-		block = block->next = (fallocBlock*)((__int8*)block + sizeof(fallocBlock) + blockSize);
-		block->magic = FALLOC_MAGIC;
-		block->count = 1;
-		block->reserved = nullptr;
-	}
-	{ // critical
-		block->next = heap->freeBlocks;
-		heap->freeBlocks = block;
-	}
-}
-#endif
 
 //////////////////////
-// ALLOC
+// PRINTF
+#pragma region PRINTF
 
-__device__ static fallocCtx* fallocCreateCtx(fallocHeap* heap)
+__device__ static void writePrintfHeader(char *ptr, char *fmtptr)
 {
-	size_t blockSize = heap->blockSize;
-	if (sizeof(fallocCtx) > blockSize)
-		__THROW;
-	fallocCtx* ctx = (fallocCtx*)fallocGetBlock(heap);
-	if (!ctx)
+	if (ptr)
+	{
+		runtimeBlockHeader header;
+		header.magic = RUNTIME_MAGIC;
+		header.fmtoffset = (unsigned short)(fmtptr - ptr);
+		header.blockid = blockIdx.x + gridDim.x*blockIdx.y;
+		header.threadid = threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z;
+		*(runtimeBlockHeader *)(void *)ptr = header;
+	}
+}
+
+__device__ static char *printfStrncpy(char *dest, const char *src, int n, char *end)
+{
+	// initialization and overflow check
+	if (!dest || !src || dest >= end)
 		return nullptr;
-	ctx->heap = heap;
-	unsigned short freeOffset = ctx->node.freeOffset = sizeof(fallocCtx);
-	ctx->node.magic = FALLOCNODE_MAGIC;
-	ctx->node.next = nullptr; ctx->nodes = (fallocNode*)ctx;
-	ctx->node.nextAvailable = nullptr; ctx->availableNodes = (fallocNode*)ctx;
-	// close node
-	if ((freeOffset + FALLOCNODE_SLACK) > blockSize)
-		ctx->availableNodes = nullptr;
-	return ctx;
-}
-
-__device__ static void fallocDisposeCtx(fallocCtx* ctx)
-{
-	fallocHeap* heap = ctx->heap;
-	for (fallocNode* node = ctx->nodes; node; node = node->next)
-		fallocFreeBlock(heap, node);
-}
-
-__device__ static void* falloc(fallocCtx* ctx, unsigned short bytes, bool alloc)
-{
-	if (bytes > (ctx->HEAPBLOCK_SIZE - sizeof(fallocCtx)))
-		__THROW;
-	// find or add available node
-	fallocNode* node;
-	unsigned short freeOffset;
-	unsigned char hasFreeSpace;
-	fallocNode* lastNode;
-	for (lastNode = (fallocNode*)ctx, node = ctx->availableNodes; node; lastNode = node, node = (alloc ? node->nextAvailable : node->next))
-		if (hasFreeSpace = ((freeOffset = (node->freeOffset + bytes)) <= ctx->HEAPBLOCK_SIZE))
+	// prepare to write the length specifier. We're guaranteed to have at least "RUNTIME_ALIGNSIZE" bytes left because we only write out in
+	// chunks that size, and blockSize is aligned with RUNTIME_ALIGNSIZE.
+	int *lenptr = (int *)(void *)dest;
+	int len = 0;
+	dest += RUNTIME_ALIGNSIZE;
+	// now copy the string
+	while (n--)
+	{
+		if (dest >= end) // overflow check
 			break;
-	if (!node || !hasFreeSpace) {
-		// add node
-		node = (fallocNode*)fallocGetBlock(ctx->heap);
-		if (!node)
-			__THROW;
-		freeOffset = node->freeOffset = sizeof(fallocNode); 
-		freeOffset += bytes;
-		node->magic = FALLOCNODE_MAGIC;
-		node->next = ctx->nodes; ctx->nodes = node;
-		node->nextAvailable = (alloc ? ctx->availableNodes : nullptr); ctx->availableNodes = node;
+		len++;
+		*dest++ = *src;
+		if (*src++ == '\0')
+			break;
 	}
-	//
-	void* obj = (__int8*)node + node->freeOffset;
-	node->freeOffset = freeOffset;
-	// close node
-	if (alloc && ((freeOffset + FALLOCNODE_SLACK) > ctx->HEAPBLOCK_SIZE)) {
-		if (lastNode == (fallocNode*)ctx)
-			ctx->availableNodes = node->nextAvailable;
-		else
-			lastNode->nextAvailable = node->nextAvailable;
-		node->nextAvailable = nullptr;
+	// now write out the padding bytes, and we have our length.
+	while (dest < end && ((long)dest & (RUNTIME_ALIGNSIZE - 1)) != 0)
+	{
+		len++;
+		*dest++ = 0;
 	}
-	return obj;
+	*lenptr = len;
+	return (dest < end ? dest : nullptr); // overflow means return nullptr
 }
 
-__device__ static void* fallocRetract(fallocCtx* ctx, unsigned short bytes)
+__device__ static char *copyArg(char *ptr, const char *arg, char *end)
 {
-	fallocNode* node = ctx->availableNodes;
-	int freeOffset = (int)node->freeOffset - bytes;
-	// multi node, retract node
-	if (node != &ctx->node && freeOffset < sizeof(fallocNode)) {
-		node->freeOffset = sizeof(fallocNode);
-		// search for previous node
-		fallocNode* lastNode;
-		for (lastNode = (fallocNode*)ctx, node = ctx->nodes; node; lastNode = node, node = node->next)
-			if (node == ctx->availableNodes)
-				break;
-		node = ctx->availableNodes = lastNode;
-		freeOffset = (int)node->freeOffset - bytes;
-	}
-	// first node && !overflow
-	if (node == &ctx->node && freeOffset < sizeof(fallocCtx))
-		__THROW;
-	node->freeOffset = (unsigned short)freeOffset;
-	return (__int8*)node + freeOffset;
+	// initialisation check
+	if (!ptr || !arg)
+		return nullptr;
+	// strncpy does all our work. We just terminate.
+	if ((ptr = printfStrncpy(ptr, arg, _heap->blockSize, end)) != nullptr)
+		*ptr = 0;
+	return ptr;
 }
 
-__device__ static void fallocMark(fallocCtx* ctx, void* &mark, unsigned short &mark2) { mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset; }
-__device__ static bool fallocAtMark(fallocCtx* ctx, void* mark, unsigned short mark2) { return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset); }
+template <typename T>
+__device__ static char *copyArg(char *ptr, T &arg, char *end)
+{
+	// initisalisation and overflow check. Alignment rules mean that we're at least CUPRINTF_ALIGN_SIZE away from "end", so we only need to check that one offset.
+	if (!ptr || (ptr + RUNTIME_ALIGNSIZE) >= end)
+		return nullptr;
+	// write the length and argument
+	*(int *)(void *)ptr = sizeof(arg);
+	ptr += RUNTIME_ALIGNSIZE;
+	*(T *)(void *)ptr = arg;
+	ptr += RUNTIME_ALIGNSIZE;
+	*ptr = 0;
+	return ptr;
+}
+
+#define PRINTF_PREAMBLE \
+	char *start, *end, *bufptr, *fmtstart; \
+	if ((start = moveNextPtr()) == nullptr) return 0; \
+	end = start + _heap->blockSize; \
+	bufptr = start + sizeof(runtimeBlockHeader);
+#define PRINTF_ARG(argname) \
+	bufptr = copyArg(bufptr, argname, end);
+#define PRINTF_POSTAMBLE \
+	fmtstart = bufptr; \
+	end = printfStrncpy(bufptr, fmt, _heap->blockSize, end); \
+	writePrintfHeader(start, (end ? fmtstart : nullptr)); \
+	return (end ? (int)(end - start) : 0);
+
+__device__ static int __printf(const char *fmt)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_POSTAMBLE;
+}
+template <typename T1> __device__ static int __printf(const char *fmt, T1 arg1)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg6);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg6);
+	PRINTF_ARG(arg7);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg6);
+	PRINTF_ARG(arg7);
+	PRINTF_ARG(arg8);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg6);
+	PRINTF_ARG(arg7);
+	PRINTF_ARG(arg8);
+	PRINTF_ARG(arg9);
+	PRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10)
+{
+	PRINTF_PREAMBLE;
+	PRINTF_ARG(arg1);
+	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg4);
+	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg6);
+	PRINTF_ARG(arg7);
+	PRINTF_ARG(arg8);
+	PRINTF_ARG(arg9);
+	PRINTF_ARG(arg10);
+	PRINTF_POSTAMBLE;
+}
+#undef PRINTF_PREAMBLE
+#undef PRINTF_ARG
+#undef PRINTF_POSTAMBLE
+
+#pragma endregion

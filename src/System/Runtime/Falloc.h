@@ -45,8 +45,8 @@ return 0;
 typedef struct _cuFallocHeap fallocHeap;
 typedef struct _cudaFallocHost
 {
-	void* reserved;
-	fallocHeap* heap;
+	void *reserved;
+	fallocHeap *heap;
 	size_t blocks;
 	size_t length;
 } cudaFallocHost;
@@ -54,21 +54,20 @@ typedef struct _cudaFallocHost
 //
 //	cudaFallocInit
 //
-//	Call this to initialise a falloc heap. If the buffer size needs to be changed, call cudaFallocEnd()
+//	Call this to initialize a falloc heap. If the buffer size needs to be changed, call cudaFallocEnd()
 //	before re-calling cudaFallocInit().
 //
-//	The default size for the buffer is 1 megabyte. For CUDA
-//	architecture 1.1 and above, the buffer is filled linearly and
+//	The default size for the buffer is 1 megabyte. The buffer is filled linearly and
 //	is completely used.
 //
 //	Arguments:
 //		length - Length, in bytes, of total space to reserve (in device global memory) for output.
 //
 //	Returns:
-//		cudaSuccess if all is well.
+//		cudaFallocHost if all is well.
 //
-// default 256b chucks, 1-meg heap
-extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
+// default 2k blocks, 1-meg heap
+extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
 
 //
 //	cudaFallocEnd

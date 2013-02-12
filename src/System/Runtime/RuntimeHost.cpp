@@ -2,85 +2,209 @@
 #error Atomics only used with > sm_10 architecture
 #endif
 #include "cuda_runtime_api.h"
-#include "Falloc.h"
-//#include <malloc.h>
+#include "Runtime.h"
 #include <string.h>
+#include <stdio.h>
+#include <malloc.h>
 
-typedef struct __align__(8) _cuFallocBlock
-{
-	unsigned short magic;
-	unsigned short count;
-	struct _cuFallocBlock* next;
-	void* reserved;
-} fallocBlock;
+#define RUNTIME_UNRESTRICTED -1
 
-typedef struct __align__(8) _cuFallocHeap
+typedef struct __align__(8)
 {
-	void* reserved;
+	int threadid; // RUNTIME_UNRESTRICTED for unrestricted
+	int blockid;  // RUNTIME_UNRESTRICTED for unrestricted
+} runtimeRestriction;
+
+typedef struct __align__(8)
+{
+	volatile char *blockPtr; // current atomically-incremented non-wrapped offset
+	void *reserved;
+	runtimeRestriction restriction;
 	size_t blockSize;
-	size_t blocks;
-	size_t offset;
-	size_t freeBlocksSize; // Size of circular buffer (set up by host)
-	fallocBlock** freeBlocks; // Start of circular buffer (set up by host)
-	volatile fallocBlock** freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlock** retnBlockPtr; // Current atomically-incremented non-wrapped offset
-} fallocHeap;
+	size_t blocksLength; // size of circular buffer (set up by host)
+	char *blocks; // start of circular buffer (set up by host)
+} runtimeHeap;
 
+typedef struct __align__(8)
+{
+	unsigned short magic;		// magic number says we're valid
+	unsigned short fmtoffset;	// offset of fmt string into buffer
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
+} runtimeBlockHeader;
+
+static FILE *_stream;
 
 ///////////////////////////////////////////////////////////////////////////////
 // HOST SIDE
 
-//
-//  cudaFallocInit
-//
-//  Takes a buffer length to allocate, creates the memory on the device and
-//  returns a pointer to it for when a kernel is called. It's up to the caller
-//  to free it.
-//
-cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t* error, void* reserved)
+#define RUNTIME_MAGIC (unsigned short)0xC811
+#define RUNTIME_ALIGNSIZE sizeof(long long)
+
+extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
-	cudaFallocHost host; memset(&host, 0, sizeof(cudaFallocHost));
+	cudaRuntimeHost host; memset(&host, 0, sizeof(cudaRuntimeHost));
 	// fix up blockSize to include fallocBlock
-	blockSize = (blockSize + sizeof(fallocBlock) + 15) & ~15;
+	blockSize = (blockSize + 15) & ~15;
 	// fix up length to be a multiple of blockSize
 	if (!length || length % blockSize)
 		length += blockSize - (length % blockSize);
-	size_t blocks = (size_t)(length / blockSize);
-	if (!blocks)
+	size_t blocksLength = length;
+	length = (length + sizeof(runtimeHeap) + 15) & ~15;
+	// allocate a heap on the device and zero it
+	char *heap;
+	if ((*error = cudaMalloc((void **)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
 		return host;
-	// Fix up length to include fallocHeap
-	length = (length + sizeof(fallocHeap) + 15) & ~15;
-	// Allocate a heap on the device and zero it
-	fallocHeap* heap;
-	if ((*error = cudaMalloc((void**)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
-		return host;
+	char *blocks = heap + length - blocksLength;
+	// no restrictions to begin with
+	runtimeRestriction restriction;
+	restriction.threadid = restriction.blockid = RUNTIME_UNRESTRICTED;
 	// transfer to heap
-	fallocHeap hostHeap;
-	hostHeap.reserved = reserved;
-	hostHeap.blockSize = blockSize;
+	runtimeHeap hostHeap;
+	hostHeap.blockPtr = (volatile char *)blocks;
 	hostHeap.blocks = blocks;
-	hostHeap.freeBlocksSize = blocks * sizeof(fallocBlock*);
-	hostHeap.offset = sizeof(fallocHeap);
-	hostHeap.freeBlocks = nullptr;
-	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = nullptr;
-	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(fallocHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
+	hostHeap.reserved = reserved;
+	hostHeap.restriction = restriction;
+	hostHeap.blockSize = blockSize;
+	hostHeap.blocksLength = blocksLength;
+	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(runtimeHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
 		return host;
 	// return the heap
 	host.reserved = reserved;
 	host.heap = heap;
-	host.blocks = blocks;
+	host.blocks = host.blockStart = blocks;
+	host.blockSize = blockSize;
+	host.blocksLength = blocksLength;
 	host.length = length;
 	return host;
 }
 
-//
-//  cudaFallocEnd
-//
-//  Frees up the memory which we allocated
-//
-void cudaFallocEnd(cudaFallocHost &host) {
+extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
+{
 	if (!host.heap)
 		return;
 	cudaFree(host.heap); host.heap = nullptr;
 }
+
+static int outputPrintfData(size_t blockSize, char *fmt, char *data);
+static int executeRuntime(size_t blockSize, char *heap, int headings, int clear, char *bufstart, char *bufend, char *bufptr, char *endptr)
+{
+	// grab, piece-by-piece, each output element until we catch up with the circular buffer end pointer
+	int count = 0;
+	char *b = (char *)alloca(blockSize + 1);
+	b[blockSize] = '\0';
+	while (bufptr != endptr)
+	{
+		// wrap ourselves at the end-of-buffer
+		if (bufptr == bufend)
+			bufptr = bufstart;
+		// adjust our start pointer to within the circular buffer and copy a block.
+		cudaMemcpy(b, bufptr, blockSize, cudaMemcpyDeviceToHost);
+		// if the magic number isn't valid, then this write hasn't gone through yet and we'll wait until it does (or we're past the end for non-async printfs).
+		runtimeBlockHeader *hdr = (runtimeBlockHeader *)b;
+		if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= blockSize)
+		{
+			//fprintf(_stream, "Bad magic number in printf header\n");
+			break;
+		}
+		// Extract all the info and get this printf done
+		if (headings)
+			fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
+		if (hdr->fmtoffset == 0)
+			fprintf(_stream, "printf buffer overflow\n");
+		else if (!outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader)))
+			break;
+		count++;
+		// clear if asked
+		if (clear)
+			cudaMemset(bufptr, 0, blockSize);
+		// now advance our start location, because we're done, and keep copying
+		bufptr += blockSize;
+	}
+	return count;
+}
+
+extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, bool showThreadID)
+{
+	// for now, we force "synchronous" mode which means we're not concurrent with kernel execution. This also means we don't need clearOnPrint.
+	// if you're patching it for async operation, here's where you want it.
+	bool sync = true;
+	//
+	_stream = (FILE *)(stream == nullptr ? stdout : stream);
+	// initialisation check
+	if (!host.blockStart || !host.heap || !_stream)
+		return cudaErrorMissingConfiguration;
+	size_t blocksLength = host.blocksLength;
+	char *blocks = host.blocks;
+	// grab the current "end of circular buffer" pointer.
+	char *blockEnd = nullptr;
+	cudaMemcpy(&blockEnd, host.heap, sizeof(char *), cudaMemcpyDeviceToHost);
+	// adjust our starting and ending pointers to within the block
+	char *bufptr = ((host.blockStart - blocks) % blocksLength) + blocks;
+	char *endptr = ((blockEnd - blocks) % blocksLength) + blocks;
+	// for synchronous (i.e. after-kernel-exit) printf display, we have to handle circular buffer wrap carefully because we could miss those past "end".
+	if (sync)
+		executeRuntime(host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, endptr, blocks + blocksLength);
+	executeRuntime(host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, bufptr, endptr);
+	host.blockStart = blockEnd;
+	// if we were synchronous, then we must ensure that the memory is cleared on exit otherwise another kernel launch with a different grid size could conflict.
+	if (sync)
+		cudaMemset(blocks, 0, blocksLength);
+	return cudaSuccess;
+}
+
+#pragma region PRINTF
+
+static int outputPrintfData(size_t blockSize, char *fmt, char *data)
+{
+	// Format string is prefixed by a length that we don't need
+	fmt += RUNTIME_ALIGNSIZE;
+	// now run through it, printing everything we can. We must run to every % character, extract only that, and use printf to format it.
+	char *p = strchr(fmt, '%');
+	while (p != nullptr)
+	{
+		// print up to the % character
+		*p = '\0'; fputs(fmt, _stream); *p = '%'; // Put back the %
+		// now handle the format specifier
+		char *format = p++; // Points to the '%'
+		p += strcspn(p, "%cdiouxXeEfgGaAnps");
+		if (*p == '\0') // If no format specifier, print the whole thing
+		{
+			fmt = format;
+			break;
+		}
+		// cut out the format bit and use printf to print it. It's prefixed by its length.
+		int arglen = *(int *)data;
+		if (arglen > blockSize)
+		{
+			fputs("Corrupt printf buffer data - aborting\n", _stream);
+			return 0;
+		}
+		data += RUNTIME_ALIGNSIZE;
+		//
+		char specifier = *p++;
+		char c = *p; *p = '\0'; // store for later and clip
+		switch (specifier)
+		{
+			// these all take integer arguments
+		case 'c': case 'd': case 'i': case 'o': case 'u': case 'x': case 'X': case 'p': fprintf(_stream, format, *((int *)data)); break;
+			// these all take float/double arguments, float vs. double thing
+		case 'e': case 'E': case 'f': case 'g': case 'G': case 'a': case 'A': if (arglen == 4) fprintf(_stream, format, *((float *)data)); else fprintf(_stream, format, *((double *)data)); break;
+			// Strings are handled in a special way
+		case 's': fprintf(_stream, format, (char *)data); break;
+			// % is special
+		case '%': fprintf(_stream, "%%"); break;
+			// everything else is just printed out as-is
+		default: fprintf(_stream, format); break;
+		}
+		data += RUNTIME_ALIGNSIZE; // move on to next argument
+		*p = c; fmt = p; // restore what we removed, and adjust fmt string to be past the specifier
+		p = strchr(fmt, '%'); // and get the next specifier
+	}
+	// print out the last of the string
+	fputs(fmt, _stream);
+	return 1;
+}
+
+#pragma endregion

@@ -40,7 +40,7 @@ typedef struct __align__(8) _cuFallocHeap
 //  returns a pointer to it for when a kernel is called. It's up to the caller
 //  to free it.
 //
-cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
+extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
 	cudaFallocHost host; memset(&host, 0, sizeof(cudaFallocHost));
@@ -52,10 +52,10 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *erro
 	size_t blocks = (size_t)(length / blockSize);
 	if (!blocks)
 		return host;
-	// Fix up length to include fallocHeap + freeblocks
+	// fix up length to include fallocHeap + freeblocks
 	unsigned int blockRefSize = blocks * sizeof(fallocBlockRef);
 	length = (length + blockRefSize + sizeof(fallocHeap) + 15) & ~15;
-	// Allocate a heap on the device and zero it
+	// allocate a heap on the device and zero it
 	fallocHeap *heap;
 	if ((*error = cudaMalloc((void **)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
 		return host;
@@ -82,7 +82,7 @@ cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *erro
 //
 //  Frees up the memory which we allocated
 //
-void cudaFallocEnd(cudaFallocHost &host) {
+extern "C" void cudaFallocEnd(cudaFallocHost &host) {
 	if (!host.heap)
 		return;
 	cudaFree(host.heap); host.heap = nullptr;

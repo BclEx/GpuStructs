@@ -46,8 +46,7 @@ STATIC __device__ void fallocInit(fallocHeap *heap)
 	if (threadIdx.x || threadIdx.y || threadIdx.z) return;
 	//
 	size_t blocks = heap->blocks;
-	if (!blocks)
-		__THROW;
+	if (!blocks) __THROW;
 	size_t blockSize = heap->blockSize;
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	// preset all blocks
@@ -61,6 +60,7 @@ STATIC __device__ void fallocInit(fallocHeap *heap)
 		block->magic = FALLOC_MAGIC;
 		block->count = 1;
 		block->reserved = nullptr;
+		//blockRef->count = 1;
 		blockRefs++;
 	}
 	block->next = nullptr;
@@ -74,7 +74,7 @@ static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
 	size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
 	offset %= heap->blockRefSize;
 	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
-	return (void *)((unsigned int*)blockRef->b + sizeof(fallocBlock));
+	return (void *)((__int8 *)blockRef->b + sizeof(fallocBlock));
 }
 
 static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
@@ -91,21 +91,19 @@ static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 	blockRef->b = block;
 }
 
-#if MULTIBLOCK
+/*
 __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t *allocLength = nullptr)
 {
 	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
 	size_t blockSize = heap->blockSize;
 	// fix up length to be a multiple of blockSize
-	length = (length < blockSize ? blockSize : length);
 	if (length % blockSize)
 		length += blockSize - (length % blockSize);
 	// set length, if requested
 	if (allocLength)
 		*allocLength = length - sizeof(fallocBlock);
 	size_t blocks = (size_t)(length / blockSize);
-	if (blocks > heap->blocks)
-		__THROW;
+	if (blocks > heap->blocks) __THROW;
 	// single, equals: fallocGetBlock
 	if (blocks == 1)
 		return fallocGetBlock(heap);
@@ -133,6 +131,7 @@ __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t 
 	}
 	return (void*)((__int8*)block + sizeof(fallocBlock));
 }
+
 
 __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 {
@@ -164,8 +163,7 @@ __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 		heap->blockRefs = block;
 	}
 }
-#endif
-
+*/
 #pragma endregion
 
 

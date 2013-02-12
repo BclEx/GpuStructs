@@ -9,6 +9,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
+
 // External function definitions for device-side code
 typedef struct _cuFallocHeap fallocHeap;
 __device__ void fallocInit(fallocHeap *heap);

@@ -11,7 +11,7 @@ __device__ fallocCtx *_testCtx;
 
 __global__ void Keypress(fallocHeap *heap, unsigned char key)
 {
-	switch(key)
+	switch (key)
 	{
 	case 'a':
 		_testObj = fallocGetBlock(heap);

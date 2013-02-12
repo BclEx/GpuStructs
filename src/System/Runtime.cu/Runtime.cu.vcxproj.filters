@@ -7,6 +7,7 @@
     <ClCompile Include="Program.cpp" />
     <ClCompile Include="..\Runtime\FallocHost.cpp" />
     <ClCompile Include="..\Runtime\Visual.cpp" />
+    <ClCompile Include="..\Runtime\RuntimeHost.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Runtime\Cuda.h" />
@@ -14,10 +15,15 @@
     <ClInclude Include="..\Runtime\Falloc.h" />
     <ClInclude Include="..\Runtime\Visual.h" />
     <ClInclude Include="..\Runtime\Falloc.cu.h" />
+    <ClInclude Include="..\Runtime\Runtime.h" />
+    <ClInclude Include="..\Runtime\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\Runtime\Falloc.cu" />
     <CudaCompile Include="..\Runtime\FallocVisualRender.cu" />
     <CudaCompile Include="..\Runtime\FallocVisualKeypress.cu" />
+    <CudaCompile Include="..\Runtime\Runtime.cu" />
+    <CudaCompile Include="..\Runtime\RuntimeVisualKeypress.cu" />
+    <CudaCompile Include="..\Runtime\RuntimeVisualRender.cu" />
   </ItemGroup>
 </Project>
