@@ -65,7 +65,8 @@ typedef struct __align__(8)
 #define HEADERCOLOR make_float4(0, 1, 0, 1)
 #define BLOCKCOLOR make_float4(0, 0, .7, 1)
 #define BLOCK2COLOR make_float4(0, 0, 1, 1)
-#define BLOCK3COLOR make_float4(0, .5, 1, 1)
+#define BLOCK3COLOR make_float4(0, .4, 1, 1)
+#define BLOCK4COLOR make_float4(0, .7, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
 #define MAX(a,b) (a > b ? a : b)
@@ -126,11 +127,10 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 		return;
 	fallocBlockRef *ref = (fallocBlockRef *)((char *)heap->blockRefs + blockIndex * sizeof(fallocBlockRef));
 	fallocBlockHeader *hdr = (fallocBlockHeader *)(heap->blocks + blockIndex * heap->blockSize);
-	int index = blockIndex * 3 + offset;
+	int index = blockIndex * 4 + offset;
 	//
 	float x1, y1; OffsetBlockRef(x, y, &x1, &y1);
-	if (!ref) { }
-	else if (ref->block == nullptr)
+	if (ref->block == nullptr)
 	{
 		b[index] = make_quad4(
 			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
@@ -148,8 +148,7 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	}
 	// block
 	float x2 = x * 10; float y2 = y * 20 + (blocksY / HEADERPITCH) + 3;
-	if (!hdr) { }
-	else if (hdr->magic != FALLOC_MAGIC)
+	if (hdr->magic != FALLOC_MAGIC)
 	{
 		b[index + 1] = make_quad4(
 			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
@@ -165,8 +164,8 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 			make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
 			make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
 		// block or node
-		fallocCtx *ctx = (fallocCtx *)((char *)hdr + sizeof(fallocBlockHeader));
-		if (!ctx || ctx->node.magic != FALLOCNODE_MAGIC)
+		fallocNode *node = (fallocNode *)((char *)hdr + sizeof(fallocBlockHeader));
+		if (!node || node->magic != FALLOCNODE_MAGIC)
 		{
 			b[index + 2] = make_quad4(
 				make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
@@ -176,18 +175,24 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 		}
 		else 
 		{
+			float split = 19 * .90; //100 / heap->blockSize / (heap->blockSize - node->freeOffset);
 			b[index + 2] = make_quad4(
+				make_float4(x2 + 0, y2 + split, 1, 1), BLOCK4COLOR,
+				make_float4(x2 + 9, y2 + split, 1, 1), BLOCK4COLOR,
+				make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK4COLOR,
+				make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK4COLOR);
+			b[index + 3] = make_quad4(
 				make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK3COLOR,
 				make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK3COLOR,
-				make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK3COLOR,
-				make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK3COLOR);
+				make_float4(x2 + 9, y2 + split, 1, 1), BLOCK3COLOR,
+				make_float4(x2 + 0, y2 + split, 1, 1), BLOCK3COLOR);
 		}
 	}
 }
 
 static int GetFallocRenderQuads(size_t blocks)
 { 
-	return 3 + (blocks * 3);
+	return 3 + (blocks * 4);
 }
 
 static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)

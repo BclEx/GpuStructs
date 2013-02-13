@@ -81,8 +81,7 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	int index = blockIndex * 2 + offset;
 	// block
 	float x2 = x * 10; float y2 = y * 20 + 2;
-	if (!hdr) { }
-	else if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= heap->blockSize)
+	if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= heap->blockSize)
 	{
 		b[index] = make_quad4(
 			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
