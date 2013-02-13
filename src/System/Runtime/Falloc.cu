@@ -13,26 +13,28 @@
 typedef struct __align__(8)
 {
 	unsigned short magic;		// magic number says we're valid
-	unsigned short count;
+	unsigned short count;		// number of blocks in sequence
 	unsigned short blockid;		// block ID of author
 	unsigned short threadid;	// thread ID of author
 } fallocBlockHeader;
 
-typedef struct _cuFallocBlockRef
+typedef struct __align__(8)
 {
-	fallocBlockHeader *b;
-	struct _cuFallocBlockRef *next;
+	fallocBlockHeader *block;	// block reference
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
 } fallocBlockRef;
 
 typedef struct __align__(8)
 {
 	void *reserved;
 	size_t blockSize;
-	size_t blocks;
+	size_t blocksLength;
 	size_t blockRefsLength; // Size of circular buffer (set up by host)
 	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlockHeader **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlockHeader **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	char *blocks;
 } fallocHeap;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,62 +43,46 @@ typedef struct __align__(8)
 
 #define FALLOC_MAGIC (unsigned short)0x3412 // All our headers are prefixed with a magic number so we know they're ours
 
-STATIC __device__ void fallocInit(fallocHeap *heap)
+__inline__ __device__ static void writeBlockRef(fallocBlockRef *ref, fallocBlockHeader *block)
 {
-	if (threadIdx.x || threadIdx.y || threadIdx.z) return;
-	//
-	size_t blocks = heap->blocks;
-	if (!blocks) __THROW;
-	size_t blockSize = heap->blockSize;
-	fallocBlockRef *blockRefs = heap->blockRefs;
-	// preset all blocks
-	fallocBlockHeader *block = (fallocBlockHeader *)((__int8 *)blockRefs + heap->blockRefsLength);
-	//block->magic = FALLOC_MAGIC;
-	//block->count = 1;
-	while (blocks-- > 1)
-	{
-		blockRefs->b = block = (fallocBlockHeader *)((__int8*)block + blockSize);
-		//block = blockRefs->b = block->next = (fallocBlockHeader *)((__int8*)block + blockSize);
-		//block->magic = FALLOC_MAGIC;
-		//block->count = 1;
-		//blockRef->count = 1;
-		blockRefs++;
-	}
+	ref->block = block;
+	ref->blockid = gridDim.x*blockIdx.y + blockIdx.x;
+	ref->threadid = blockDim.x*blockDim.y*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x;
 }
 
-__device__ static void writeBlockHeader(char *ptr, unsigned short count)
+__inline__ __device__ static void writeBlockHeader(fallocBlockHeader *hdr, unsigned short count)
 {
 	fallocBlockHeader header;
 	header.magic = FALLOC_MAGIC;
 	header.count = count;
 	header.blockid = gridDim.x*blockIdx.y + blockIdx.x;
 	header.threadid = blockDim.x*blockDim.y*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x;
-	*(fallocBlockHeader *)(void *)ptr = header;
+	*hdr = header;
 }
 
 static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
 {
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	size_t offset = atomicAdd((unsigned int *)&heap->freeBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
 	offset %= heap->blockRefsLength;
-	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
-	return (void *)((__int8 *)blockRef->b + sizeof(fallocBlockHeader));
+	fallocBlockRef *blockRef = (fallocBlockRef *)((char *)blockRefs + offset);
+	fallocBlockHeader *block = blockRef->block;
+	writeBlockHeader(block, 1);
+	blockRef->block = nullptr;
+	return (void *)((char *)block + sizeof(fallocBlockHeader));
 }
 
 static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 {
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	// get block
-	fallocBlockHeader *block = (fallocBlockHeader *)((__int8 *)obj - sizeof(fallocBlockHeader));
+	fallocBlockHeader *block = (fallocBlockHeader *)((char *)obj - sizeof(fallocBlockHeader));
 	if (block->magic != FALLOC_MAGIC || block->count > 1) __THROW;// bad magic or not a singular block
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
 	size_t offset = atomicAdd((unsigned int *)&heap->retnBlockPtr, sizeof(fallocBlockRef)) - (size_t)blockRefs;
 	offset %= heap->blockRefsLength;
-	fallocBlockRef *blockRef = (fallocBlockRef *)(blockRefs + offset);
-	blockRef->b = block;
+	writeBlockRef((fallocBlockRef *)((char *)blockRefs + offset), block);
+	block->magic = 0;
 }
 
 /*

@@ -28,6 +28,7 @@ typedef struct __align__(8)
 typedef struct __align__(8)
 {
 	unsigned short magic;		// magic number says we're valid
+	unsigned short type;		// type of block
 	unsigned short fmtoffset;	// offset of fmt string into buffer
 	unsigned short blockid;		// block ID of author
 	unsigned short threadid;	// thread ID of author
@@ -40,6 +41,8 @@ static FILE *_stream;
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
 #define RUNTIME_ALIGNSIZE sizeof(long long)
+#define RUNTIMETYPE_PRINTF 1
+#define RUNTIMETYPE_ASSERT 2
 
 extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
@@ -87,7 +90,7 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
 	cudaFree(host.heap); host.heap = nullptr;
 }
 
-static int outputPrintfData(size_t blockSize, char *fmt, char *data);
+static bool outputPrintfData(size_t blockSize, char *fmt, char *data);
 static int executeRuntime(size_t blockSize, char *heap, int headings, int clear, char *bufstart, char *bufend, char *bufptr, char *endptr)
 {
 	// grab, piece-by-piece, each output element until we catch up with the circular buffer end pointer
@@ -112,9 +115,24 @@ static int executeRuntime(size_t blockSize, char *heap, int headings, int clear,
 		// Extract all the info and get this printf done
 		if (headings)
 			fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
-		if (hdr->fmtoffset == 0)
-			fprintf(_stream, "printf buffer overflow\n");
-		else if (!outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader)))
+		bool error = false;
+		switch (hdr->type)
+		{
+		case RUNTIMETYPE_PRINTF:
+			if (hdr->fmtoffset == 0)
+				fprintf(_stream, "printf buffer overflow\n");
+			else
+				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			break;
+		case RUNTIMETYPE_ASSERT:
+			fprintf(_stream, "ASSERT: ");
+			if (hdr->fmtoffset == 0)
+				fprintf(_stream, "printf buffer overflow\n");
+			else
+				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			break;
+		}
+		if (error)
 			break;
 		count++;
 		// clear if asked
@@ -157,7 +175,7 @@ extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, b
 
 #pragma region PRINTF
 
-static int outputPrintfData(size_t blockSize, char *fmt, char *data)
+static bool outputPrintfData(size_t blockSize, char *fmt, char *data)
 {
 	// Format string is prefixed by a length that we don't need
 	fmt += RUNTIME_ALIGNSIZE;
@@ -180,7 +198,7 @@ static int outputPrintfData(size_t blockSize, char *fmt, char *data)
 		if (arglen > blockSize)
 		{
 			fputs("Corrupt printf buffer data - aborting\n", _stream);
-			return 0;
+			return false;
 		}
 		data += RUNTIME_ALIGNSIZE;
 		//
@@ -205,7 +223,7 @@ static int outputPrintfData(size_t blockSize, char *fmt, char *data)
 	}
 	// print out the last of the string
 	fputs(fmt, _stream);
-	return 1;
+	return true;
 }
 
 #pragma endregion

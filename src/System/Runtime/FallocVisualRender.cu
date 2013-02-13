@@ -5,28 +5,31 @@
 typedef struct __align__(8)
 {
 	unsigned short magic;		// magic number says we're valid
-	unsigned short count;
+	unsigned short count;		// number of blocks in sequence
 	unsigned short blockid;		// block ID of author
 	unsigned short threadid;	// thread ID of author
 } fallocBlockHeader;
 
-typedef struct _cuFallocBlockRef
+typedef struct __align__(8)
 {
-	fallocBlockHeader *b;
-	struct _cuFallocBlockRef *next;
+	fallocBlockHeader *block;	// block reference
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
 } fallocBlockRef;
 
 typedef struct __align__(8)
 {
 	void *reserved;
 	size_t blockSize;
-	size_t blocks;
+	size_t blocksLength;
 	size_t blockRefsLength; // Size of circular buffer (set up by host)
 	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlockHeader **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlockHeader **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	char *blocks;
 } fallocHeap;
 
+#define FALLOC_MAGIC (unsigned short)0x3412 // All our headers are prefixed with a magic number so we know they're ours
 
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
@@ -35,9 +38,10 @@ typedef struct __align__(8)
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
 #define BLOCKREFCOLOR make_float4(1, 0, 0, 1)
+#define BLOCKREF2COLOR make_float4(.7, 0, 0, 1)
 #define HEADERCOLOR make_float4(0, 1, 0, 1)
 #define BLOCKCOLOR make_float4(0, 0, 1, 1)
-#define BLOCK2COLOR make_float4(0, 0, .8, 1)
+#define BLOCK2COLOR make_float4(0, 0, .7, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
 #define MAX(a,b) (a > b ? a : b)
@@ -96,27 +100,52 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	int blockIndex = y * BLOCKPITCH + x;
 	if (blockIndex >= blocks)
 		return;
+	fallocBlockRef *ref = (fallocBlockRef *)((char *)heap->blockRefs + blockIndex * sizeof(fallocBlockRef));
+	fallocBlockHeader *hdr = (fallocBlockHeader *)(heap->blocks + blockIndex * heap->blockSize);
 	int index = blockIndex * 3 + offset;
 	//
 	float x1, y1; OffsetBlockRef(x, y, &x1, &y1);
-	b[index] = make_quad4(
-		make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
-		make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
-		make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREFCOLOR,
-		make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREFCOLOR);
+	if (!ref) { }
+	else if (ref->block == nullptr)
+	{
+		b[index] = make_quad4(
+			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREF2COLOR);
+	}
+	else
+	{
+		b[index] = make_quad4(
+			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
+			make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
+			make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREFCOLOR,
+			make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREFCOLOR);
+	}
 	// block
-	float x2 = x * 10;
-	float y2 = y * 20 + (blocksY / HEADERPITCH) + 3;
-	b[index + 1] = make_quad4(
-		make_float4(x2 + 0, y2 + 1, 1, 1), HEADERCOLOR,
-		make_float4(x2 + 3.9, y2 + 1, 1, 1), HEADERCOLOR,
-		make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
-		make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
-	b[index + 2] = make_quad4(
-		make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
-		make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
-		make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
-		make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
+	float x2 = x * 10; float y2 = y * 20 + (blocksY / HEADERPITCH) + 3;
+	if (!hdr) { }
+	else if (hdr->magic != FALLOC_MAGIC)
+	{
+		b[index + 1] = make_quad4(
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
+	} 
+	else 
+	{
+		b[index + 1] = make_quad4(
+			make_float4(x2 + 0, y2 + 1, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 3.9, y2 + 1, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
+		b[index + 2] = make_quad4(
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
+	}
 }
 
 static int GetFallocRenderQuads(size_t blocks)
@@ -208,8 +237,9 @@ void FallocVisualRender::Keyboard(unsigned char key)
 
 void FallocVisualRender::Display()
 {
+	size_t blocks = _fallocHost.blocksLength / _fallocHost.blockSize;
 	// run CUDA kernel to generate vertex positions
-	RunCuda(_fallocHost.blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
+	RunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
 
 	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
 	//glScalef(.02, .02, .02);
@@ -232,117 +262,13 @@ void FallocVisualRender::Display()
 	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-extern void LaunchFallocInit(fallocHeap *heap);
 void FallocVisualRender::Initialize()
 {
-	LaunchFallocInit((fallocHeap *)_fallocHost.heap);
-
+	size_t blocks = _fallocHost.blocksLength / _fallocHost.blockSize;
 	// create VBO
-	CreateVBO(_fallocHost.blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
-
+	CreateVBO(blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
 	// run the cuda part
-	RunCuda(_fallocHost.blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
+	RunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
 }
 
-#pragma endregion
-
-
-#pragma region junk
-/*
-/////////////////////////////
-///
-//struct vertex4 { float4 v, c; };
-#define MEMBER_OFFSET(s,m) ((char *)NULL + (offsetof(s,m)))
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-void RenderCreate();
-void Render();
-void RenderDispose();
-
-
-struct VertexXYZColor
-{
-float3 m_Pos;
-float3 m_Color;
-};
-
-VertexXYZColor g_Vertices[8] = {
-{ make_float3(  1,  1,  1 ), make_float3( 1, 1, 1 ) }, // 0
-{ make_float3( -1,  1,  1 ), make_float3( 0, 1, 1 ) }, // 1
-{ make_float3( -1, -1,  1 ), make_float3( 0, 0, 1 ) }, // 2
-{ make_float3(  1, -1,  1 ), make_float3( 1, 0, 1 ) }, // 3
-{ make_float3(  1, -1, -1 ), make_float3( 1, 0, 0 ) }, // 4
-{ make_float3( -1, -1, -1 ), make_float3( 0, 0, 0 ) }, // 5
-{ make_float3( -1,  1, -1 ), make_float3( 0, 1, 0 ) }, // 6
-{ make_float3(  1,  1, -1 ), make_float3( 1, 1, 0 ) }, // 7
-};
-
-GLuint g_Indices[24] = {
-0, 1, 2, 3,                 // Front face
-7, 4, 5, 6,                 // Back face
-6, 5, 2, 1,                 // Left face
-7, 0, 3, 4,                 // Right face
-7, 6, 1, 0,                 // Top face
-3, 2, 5, 4,                 // Bottom face
-};
-
-GLuint g_uiVerticesVBO = 0;
-GLuint g_uiIndicesVBO = 0;
-
-void RenderCreate()
-{
-glGenBuffers(1, &g_uiVerticesVBO);
-glGenBuffers(1, &g_uiIndicesVBO);
-
-// Copy the vertex data to the VBO
-glBindBuffer( GL_ARRAY_BUFFER, g_uiVerticesVBO );
-glBufferData( GL_ARRAY_BUFFER, sizeof(g_Vertices), g_Vertices, GL_STATIC_DRAW);
-glBindBuffer( GL_ARRAY_BUFFER, 0 );
-
-// Copy the index data to the VBO
-glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, g_uiIndicesVBO );
-glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(g_Indices), g_Indices, GL_STATIC_DRAW);
-glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
-}
-void Render()
-{
-
-// We need to enable the client stats for the vertex attributes we want 
-// to render even if we are not using client-side vertex arrays.
-glEnableClientState(GL_VERTEX_ARRAY);
-glEnableClientState(GL_COLOR_ARRAY);
-
-// Bind the vertices's VBO
-glBindBuffer( GL_ARRAY_BUFFER, g_uiVerticesVBO );
-glVertexPointer( 3, GL_FLOAT, sizeof(VertexXYZColor), MEMBER_OFFSET(VertexXYZColor,m_Pos) );
-glColorPointer( 3, GL_FLOAT, sizeof(VertexXYZColor), MEMBER_OFFSET(VertexXYZColor,m_Color) );
-
-// Bind the indices's VBO
-//glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, g_uiIndicesVBO );
-//glDrawElements( GL_QUADS, 24, GL_UNSIGNED_INT,  BUFFER_OFFSET( 0 ) );
-
-glDrawArrays(GL_QUADS, 0, 8);
-
-// Unbind buffers so client-side vertex arrays still work.
-glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
-glBindBuffer( GL_ARRAY_BUFFER, 0 );
-
-// Disable the client side arrays again.
-glDisableClientState(GL_VERTEX_ARRAY);
-glDisableClientState(GL_COLOR_ARRAY);
-}
-
-void RenderDispose()
-{
-if ( g_uiIndicesVBO != 0 )
-{
-glDeleteBuffersARB( 1, &g_uiIndicesVBO );
-g_uiIndicesVBO = 0;
-}
-if ( g_uiVerticesVBO != 0 )
-{
-glDeleteBuffersARB( 1, &g_uiVerticesVBO );
-g_uiVerticesVBO = 0;
-}
-}
-*/
 #pragma endregion

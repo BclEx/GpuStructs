@@ -26,6 +26,7 @@ typedef struct __align__(8)
 typedef struct __align__(8)
 {
 	unsigned short magic;		// magic number says we're valid
+	unsigned short type;		// type of block
 	unsigned short fmtoffset;	// offset of fmt string into buffer
 	unsigned short blockid;		// block ID of author
 	unsigned short threadid;	// thread ID of author
@@ -39,6 +40,8 @@ __device__ static runtimeHeap *_heap = nullptr;
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
 #define RUNTIME_ALIGNSIZE sizeof(long long)
+#define RUNTIMETYPE_PRINTF 1
+#define RUNTIMETYPE_ASSERT 2
 
 __device__ static char *moveNextPtr()
 {
@@ -66,24 +69,18 @@ __device__ static void runtimeRestrict(int threadid, int blockid)
 		_heap->restriction.blockid = blockid;
 }
 
-__device__ static void writeBlockHeader(char *ptr, char *fmtptr)
+__inline__ __device__ static void writeBlockHeader(unsigned short type, char *ptr, char *fmtptr)
 {
 	runtimeBlockHeader header;
 	header.magic = RUNTIME_MAGIC;
+	header.type = type;
 	header.fmtoffset = (unsigned short)(fmtptr - ptr);
 	header.blockid = gridDim.x*blockIdx.y + blockIdx.x;
 	header.threadid = blockDim.x*blockDim.y*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x;
 	*(runtimeBlockHeader *)(void *)ptr = header;
 }
 
-#pragma endregion
-
-
-//////////////////////
-// PRINTF
-#pragma region PRINTF
-
-__device__ static char *printfStrncpy(char *dest, const char *src, int n, char *end)
+__device__ static char *writeString(char *dest, const char *src, int n, char *end)
 {
 	// initialization and overflow check
 	if (!dest || src != 0 || dest >= end)
@@ -119,7 +116,7 @@ __device__ static char *copyArg(char *ptr, const char *arg, char *end)
 	if (!ptr || !arg)
 		return nullptr;
 	// strncpy does all our work. We just terminate.
-	if ((ptr = printfStrncpy(ptr, arg, _heap->blockSize, end)) != nullptr)
+	if ((ptr = writeString(ptr, arg, _heap->blockSize, end)) != nullptr)
 		*ptr = 0;
 	return ptr;
 }
@@ -139,6 +136,13 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 	return ptr;
 }
 
+#pragma endregion
+
+
+//////////////////////
+// PRINTF
+#pragma region PRINTF
+
 #define PRINTF_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
 	if ((start = moveNextPtr()) == nullptr) return 0; \
@@ -148,8 +152,8 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 	bufptr = copyArg(bufptr, argname, end);
 #define PRINTF_POSTAMBLE \
 	fmtstart = bufptr; \
-	end = printfStrncpy(bufptr, fmt, _heap->blockSize, end); \
-	writeBlockHeader(start, (end ? fmtstart : nullptr)); \
+	end = writeString(bufptr, fmt, _heap->blockSize, end); \
+	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
 __device__ static int __printf(const char *fmt)
@@ -262,8 +266,40 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg10);
 	PRINTF_POSTAMBLE;
 }
+
 #undef PRINTF_PREAMBLE
 #undef PRINTF_ARG
 #undef PRINTF_POSTAMBLE
+
+#pragma endregion
+
+//////////////////////
+// ASSERT
+#pragma region ASSERT
+
+#define ASSERT_PREAMBLE \
+	char *start, *end, *bufptr, *fmtstart; \
+	if ((start = moveNextPtr()) == nullptr) return; \
+	end = start + _heap->blockSize; \
+	bufptr = start + sizeof(runtimeBlockHeader);
+#define ASSERT_ARG(argname) \
+	bufptr = copyArg(bufptr, argname, end);
+#define ASSERT_POSTAMBLE \
+	fmtstart = bufptr; \
+	end = writeString(bufptr, fmt, _heap->blockSize, end); \
+	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
+
+__device__ static void __assert(const bool condition, const char *fmt)
+{
+	if (condition)
+	{
+		ASSERT_PREAMBLE;
+		ASSERT_POSTAMBLE;
+	}
+}
+
+#undef ASSERT_PREAMBLE
+#undef ASSERT_ARG
+#undef ASSERT_POSTAMBLE
 
 #pragma endregion

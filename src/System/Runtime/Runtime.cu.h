@@ -11,19 +11,6 @@
 // DEVICE SIDE
 // External function definitions for device-side code
 
-// Abuse of templates to simulate varargs
-__device__ int __printf(const char *fmt);
-template <typename T1> __device__ int __printf(const char *fmt, T1 arg1);
-template <typename T1, typename T2> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2);
-template <typename T1, typename T2, typename T3> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3);
-template <typename T1, typename T2, typename T3, typename T4> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4);
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10);
-
 //
 //	cuRuntimeRestrict
 //
@@ -39,6 +26,23 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 //
 #define RUNTIME_UNRESTRICTED -1
 __device__ void runtimeRestrict(int threadid, int blockid);
+
+
+// Abuse of templates to simulate varargs
+__device__ int __printf(const char *fmt);
+template <typename T1> __device__ int __printf(const char *fmt, T1 arg1);
+template <typename T1, typename T2> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2);
+template <typename T1, typename T2, typename T3> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3);
+template <typename T1, typename T2, typename T3, typename T4> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4);
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10);
+
+//
+__device__ void __assert(const bool condition, const char *fmt);
 
 #endif
 

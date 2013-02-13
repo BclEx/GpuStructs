@@ -155,3 +155,104 @@ void Visual::Main()
 	// start rendering mainloop
 	glutMainLoop();
 }
+
+
+#pragma region junk
+/*
+/////////////////////////////
+///
+//struct vertex4 { float4 v, c; };
+#define MEMBER_OFFSET(s,m) ((char *)NULL + (offsetof(s,m)))
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+void RenderCreate();
+void Render();
+void RenderDispose();
+
+
+struct VertexXYZColor
+{
+float3 m_Pos;
+float3 m_Color;
+};
+
+VertexXYZColor g_Vertices[8] = {
+{ make_float3(  1,  1,  1 ), make_float3( 1, 1, 1 ) }, // 0
+{ make_float3( -1,  1,  1 ), make_float3( 0, 1, 1 ) }, // 1
+{ make_float3( -1, -1,  1 ), make_float3( 0, 0, 1 ) }, // 2
+{ make_float3(  1, -1,  1 ), make_float3( 1, 0, 1 ) }, // 3
+{ make_float3(  1, -1, -1 ), make_float3( 1, 0, 0 ) }, // 4
+{ make_float3( -1, -1, -1 ), make_float3( 0, 0, 0 ) }, // 5
+{ make_float3( -1,  1, -1 ), make_float3( 0, 1, 0 ) }, // 6
+{ make_float3(  1,  1, -1 ), make_float3( 1, 1, 0 ) }, // 7
+};
+
+GLuint g_Indices[24] = {
+0, 1, 2, 3,                 // Front face
+7, 4, 5, 6,                 // Back face
+6, 5, 2, 1,                 // Left face
+7, 0, 3, 4,                 // Right face
+7, 6, 1, 0,                 // Top face
+3, 2, 5, 4,                 // Bottom face
+};
+
+GLuint g_uiVerticesVBO = 0;
+GLuint g_uiIndicesVBO = 0;
+
+void RenderCreate()
+{
+glGenBuffers(1, &g_uiVerticesVBO);
+glGenBuffers(1, &g_uiIndicesVBO);
+
+// Copy the vertex data to the VBO
+glBindBuffer( GL_ARRAY_BUFFER, g_uiVerticesVBO );
+glBufferData( GL_ARRAY_BUFFER, sizeof(g_Vertices), g_Vertices, GL_STATIC_DRAW);
+glBindBuffer( GL_ARRAY_BUFFER, 0 );
+
+// Copy the index data to the VBO
+glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, g_uiIndicesVBO );
+glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(g_Indices), g_Indices, GL_STATIC_DRAW);
+glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
+}
+void Render()
+{
+
+// We need to enable the client stats for the vertex attributes we want 
+// to render even if we are not using client-side vertex arrays.
+glEnableClientState(GL_VERTEX_ARRAY);
+glEnableClientState(GL_COLOR_ARRAY);
+
+// Bind the vertices's VBO
+glBindBuffer( GL_ARRAY_BUFFER, g_uiVerticesVBO );
+glVertexPointer( 3, GL_FLOAT, sizeof(VertexXYZColor), MEMBER_OFFSET(VertexXYZColor,m_Pos) );
+glColorPointer( 3, GL_FLOAT, sizeof(VertexXYZColor), MEMBER_OFFSET(VertexXYZColor,m_Color) );
+
+// Bind the indices's VBO
+//glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, g_uiIndicesVBO );
+//glDrawElements( GL_QUADS, 24, GL_UNSIGNED_INT,  BUFFER_OFFSET( 0 ) );
+
+glDrawArrays(GL_QUADS, 0, 8);
+
+// Unbind buffers so client-side vertex arrays still work.
+glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
+glBindBuffer( GL_ARRAY_BUFFER, 0 );
+
+// Disable the client side arrays again.
+glDisableClientState(GL_VERTEX_ARRAY);
+glDisableClientState(GL_COLOR_ARRAY);
+}
+
+void RenderDispose()
+{
+if ( g_uiIndicesVBO != 0 )
+{
+glDeleteBuffersARB( 1, &g_uiIndicesVBO );
+g_uiIndicesVBO = 0;
+}
+if ( g_uiVerticesVBO != 0 )
+{
+glDeleteBuffersARB( 1, &g_uiVerticesVBO );
+g_uiVerticesVBO = 0;
+}
+}
+*/
+#pragma endregion

@@ -8,31 +8,39 @@
 typedef struct __align__(8)
 {
 	unsigned short magic;		// magic number says we're valid
-	unsigned short count;
+	unsigned short count;		// number of blocks in sequence
 	unsigned short blockid;		// block ID of author
 	unsigned short threadid;	// thread ID of author
 } fallocBlockHeader;
 
-typedef struct _cuFallocBlockRef
+typedef struct __align__(8)
 {
-	fallocBlockHeader *b;
-	struct _cuFallocBlockRef *next;
+	fallocBlockHeader *block;	// block reference
+	unsigned short blockid;		// block ID of author
+	unsigned short threadid;	// thread ID of author
 } fallocBlockRef;
 
 typedef struct __align__(8)
 {
 	void *reserved;
 	size_t blockSize;
-	size_t blocks;
+	size_t blocksLength;
 	size_t blockRefsLength; // Size of circular buffer (set up by host)
 	fallocBlockRef *blockRefs; // Start of circular buffer (set up by host)
-	volatile fallocBlockHeader **freeBlockPtr; // Current atomically-incremented non-wrapped offset
-	volatile fallocBlockHeader **retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *freeBlockPtr; // Current atomically-incremented non-wrapped offset
+	volatile fallocBlockRef *retnBlockPtr; // Current atomically-incremented non-wrapped offset
+	char *blocks;
 } fallocHeap;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // HOST SIDE
+
+inline static void writeBlockRef(fallocBlockRef *ref, fallocBlockHeader *block)
+{
+	ref->block = block;
+	ref->blockid = 0;
+	ref->threadid = 0;
+}
 
 //
 //  cudaFallocInit
@@ -50,7 +58,8 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaEr
 	// fix up length to be a multiple of blockSize
 	if (!length || length % blockSize)
 		length += blockSize - (length % blockSize);
-	size_t blocks = (size_t)(length / blockSize);
+	size_t blocksLength = length;
+	size_t blocks = (size_t)(blocksLength / blockSize);
 	if (!blocks)
 		return host;
 	// fix up length to include fallocHeap + freeblocks
@@ -64,16 +73,30 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaEr
 	fallocHeap hostHeap;
 	hostHeap.reserved = reserved;
 	hostHeap.blockSize = blockSize;
-	hostHeap.blocks = blocks;
+	hostHeap.blocksLength = blocksLength;
 	hostHeap.blockRefsLength = blockRefsLength;
-	hostHeap.blockRefs = (fallocBlockRef *)heap + sizeof(fallocHeap);
-	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = (volatile fallocBlockHeader **)hostHeap.blockRefs;
+	hostHeap.blockRefs = (fallocBlockRef *)((char *)heap + sizeof(fallocHeap));
+	hostHeap.freeBlockPtr = hostHeap.retnBlockPtr = (volatile fallocBlockRef *)hostHeap.blockRefs;
+	hostHeap.blocks = (char *)hostHeap.blockRefs + blockRefsLength;
 	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(fallocHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
+		return host;
+	// initial blockrefs
+	char *block = hostHeap.blocks;
+	fallocBlockRef *hostBlockRefs = new fallocBlockRef[blocks];
+	int i;
+	fallocBlockRef *r;
+	for (i = 0, r = hostBlockRefs; i < blocks; i++, r++, block += blockSize)
+		writeBlockRef(r, (fallocBlockHeader *)block);
+	// transfer to heap
+	*error = cudaMemcpy(hostHeap.blockRefs, hostBlockRefs, sizeof(fallocBlockRef) * blocks, cudaMemcpyHostToDevice);
+	delete hostBlockRefs;
+	if (*error != cudaSuccess)
 		return host;
 	// return the heap
 	host.reserved = reserved;
 	host.heap = heap;
-	host.blocks = blocks;
+	host.blockSize = blockSize;
+	host.blocksLength = blocksLength;
 	host.length = length;
 	return host;
 }

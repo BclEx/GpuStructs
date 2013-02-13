@@ -11,8 +11,6 @@
 
 __global__ void TestFalloc(fallocHeap* heap)
 {
-fallocInit(heap);
-
 // create/free heap
 void* obj = fallocGetChunk(heap);
 fallocFreeChunk(heap, obj);
@@ -46,7 +44,8 @@ typedef struct
 {
 	void *reserved;
 	void *heap;
-	size_t blocks;
+	size_t blockSize;
+	size_t blocksLength;
 	size_t length;
 } cudaFallocHost;
 

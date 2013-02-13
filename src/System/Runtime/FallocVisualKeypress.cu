@@ -1,11 +1,6 @@
 #include "cuda_runtime_api.h"
 #include "Falloc.cu.h"
 
-__global__ static void Init(fallocHeap *heap)
-{
-	fallocInit(heap);
-}
-
 __device__ void *_testObj;
 __device__ fallocCtx *_testCtx;
 
@@ -30,13 +25,6 @@ __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 		fallocDisposeCtx(_testCtx);
 		break;
 	}
-}
-
-__host__ void LaunchFallocInit(fallocHeap *heap)
-{
-	dim3 heapBlock(1, 1, 1);
-	dim3 heapGrid(1, 1, 1);
-	Init<<<heapGrid, heapBlock>>>(heap);
 }
 
 __host__ void LaunchFallocKeypress(fallocHeap *heap, unsigned char key)

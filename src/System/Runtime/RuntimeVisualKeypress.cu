@@ -10,12 +10,21 @@ __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 	case 'a':
 		__printf("Test\n");
 		break;
+	case 'b':
+		__printf("Test %d\n", threadIdx.x);
+		break;
+	case 'c':
+		__assert(true, "Error");
+		break;
+	case 'd':
+		__assert(false, "Error");
+		break;
 	}
 }
 
 __host__ void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
 {
-	if (key == 'b')
+	if (key == 'z')
 	{
 		cudaRuntimeExecute(host);
 		return;

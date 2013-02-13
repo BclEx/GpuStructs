@@ -64,7 +64,7 @@ void Visual::Motion(int x, int y)
 		TranslateY += dy * -1.5f;
 	}
 	if (_mouseState & 4)
-		TranslateZ += dy * 0.2f;
+		TranslateZ += dy * -0.2f;
 	_mouseLastX = x;
 	_mouseLastY = y;
 }

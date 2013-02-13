@@ -12,7 +12,6 @@
 
 // External function definitions for device-side code
 typedef struct _cuFallocHeap fallocHeap;
-__device__ void fallocInit(fallocHeap *heap);
 __device__ void *fallocGetBlock(fallocHeap *heap);
 __device__ void fallocFreeBlock(fallocHeap *heap, void *obj);
 #if MULTIBLOCK
