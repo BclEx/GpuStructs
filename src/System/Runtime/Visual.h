@@ -120,7 +120,7 @@ public:
 		RotateX = 180.0, RotateY = 0.0;
 		//TranslateX = -200, TranslateY = 150.0, TranslateZ = -200.0;
 		//TranslateX = -30, TranslateY = 20.0, TranslateZ = -50.0;
-		TranslateX = 0, TranslateY = 0.0, TranslateZ = -8.0;
+		TranslateX = -3, TranslateY = 5.0, TranslateZ = -12.0;
 		//
 		//_timer = nullptr;
 		_fpsCount = 0; // FPS count for averaging

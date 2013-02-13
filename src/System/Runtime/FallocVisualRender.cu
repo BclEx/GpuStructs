@@ -31,17 +31,41 @@ typedef struct __align__(8)
 
 #define FALLOC_MAGIC (unsigned short)0x3412 // All our headers are prefixed with a magic number so we know they're ours
 
+//////////////////////
+// CONTEXT
+
+#define FALLOCNODE_MAGIC (unsigned short)0x7856 // All our headers are prefixed with a magic number so we know they're ours
+
+typedef struct __align__(8) _cuFallocNode
+{
+	struct _cuFallocNode *next;
+	struct _cuFallocNode *nextAvailable;
+	unsigned short freeOffset;
+	unsigned short magic;
+} fallocNode;
+
+typedef struct __align__(8)
+{
+	fallocNode node;
+	fallocNode *nodes;
+	fallocNode *availableNodes;
+	fallocHeap *heap;
+	size_t blockSize;
+} fallocCtx;
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
 #pragma region VISUAL
 
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
-#define BLOCKREFCOLOR make_float4(1, 0, 0, 1)
-#define BLOCKREF2COLOR make_float4(.7, 0, 0, 1)
+#define BLOCKREFCOLOR make_float4(.7, 0, 0, 1)
+#define BLOCKREF2COLOR make_float4(1, 0, 0, 1)
 #define HEADERCOLOR make_float4(0, 1, 0, 1)
-#define BLOCKCOLOR make_float4(0, 0, 1, 1)
-#define BLOCK2COLOR make_float4(0, 0, .7, 1)
+#define BLOCKCOLOR make_float4(0, 0, .7, 1)
+#define BLOCK2COLOR make_float4(0, 0, 1, 1)
+#define BLOCK3COLOR make_float4(0, .5, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
 #define MAX(a,b) (a > b ? a : b)
@@ -109,18 +133,18 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	else if (ref->block == nullptr)
 	{
 		b[index] = make_quad4(
-			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
-			make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
-			make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREF2COLOR,
-			make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREF2COLOR);
-	}
-	else
-	{
-		b[index] = make_quad4(
 			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
 			make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREFCOLOR,
 			make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREFCOLOR,
 			make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREFCOLOR);
+	}
+	else
+	{
+		b[index] = make_quad4(
+			make_float4(x1 + 0.0, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.9, y1 + 0.9, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.9, y1 + 0.0, 1, 1), BLOCKREF2COLOR,
+			make_float4(x1 + 0.0, y1 + 0.0, 1, 1), BLOCKREF2COLOR);
 	}
 	// block
 	float x2 = x * 10; float y2 = y * 20 + (blocksY / HEADERPITCH) + 3;
@@ -128,10 +152,10 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	else if (hdr->magic != FALLOC_MAGIC)
 	{
 		b[index + 1] = make_quad4(
-			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
 	} 
 	else 
 	{
@@ -140,11 +164,24 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 			make_float4(x2 + 3.9, y2 + 1, 1, 1), HEADERCOLOR,
 			make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
 			make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
-		b[index + 2] = make_quad4(
-			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
+		// block or node
+		fallocCtx *ctx = (fallocCtx *)((char *)hdr + sizeof(fallocBlockHeader));
+		if (!ctx || ctx->node.magic != FALLOCNODE_MAGIC)
+		{
+			b[index + 2] = make_quad4(
+				make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
+				make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
+				make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
+				make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
+		}
+		else 
+		{
+			b[index + 2] = make_quad4(
+				make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK3COLOR,
+				make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK3COLOR,
+				make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK3COLOR,
+				make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK3COLOR);
+		}
 	}
 }
 

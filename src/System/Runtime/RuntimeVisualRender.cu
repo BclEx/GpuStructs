@@ -36,8 +36,8 @@ typedef struct __align__(8)
 #define HEADERPITCH 4
 #define BLOCKREFCOLOR make_float4(1, 0, 0, 1)
 #define HEADERCOLOR make_float4(0, 1, 0, 1)
-#define BLOCKCOLOR make_float4(0, 0, 1, 1)
-#define BLOCK2COLOR make_float4(0, 0, .7, 1)
+#define BLOCKCOLOR make_float4(0, 0, .7, 1)
+#define BLOCK2COLOR make_float4(0, 0, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
 #define MAX(a,b) (a > b ? a : b)
@@ -85,10 +85,10 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	else if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= heap->blockSize)
 	{
 		b[index] = make_quad4(
-			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
-			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
 	}
 	else
 	{
@@ -98,10 +98,10 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 			make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
 			make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
 		b[index + 1] = make_quad4(
-			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
-			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
 	}
 }
 
