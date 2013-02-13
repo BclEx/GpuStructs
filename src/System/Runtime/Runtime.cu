@@ -42,6 +42,7 @@ __device__ static runtimeHeap *_heap = nullptr;
 #define RUNTIME_ALIGNSIZE sizeof(long long)
 #define RUNTIMETYPE_PRINTF 1
 #define RUNTIMETYPE_ASSERT 2
+#define RUNTIMETYPE_THROW 2
 
 __device__ static char *moveNextPtr()
 {
@@ -273,6 +274,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 
 #pragma endregion
 
+
 //////////////////////
 // ASSERT
 #pragma region ASSERT
@@ -301,5 +303,64 @@ __device__ static void __assert(const bool condition, const char *fmt)
 #undef ASSERT_PREAMBLE
 #undef ASSERT_ARG
 #undef ASSERT_POSTAMBLE
+
+#pragma endregion
+
+//////////////////////
+// THROW
+#pragma region THROW
+
+#define THROW_PREAMBLE \
+	char *start, *end, *bufptr, *fmtstart; \
+	if ((start = moveNextPtr()) == nullptr) return; \
+	end = start + _heap->blockSize; \
+	bufptr = start + sizeof(runtimeBlockHeader);
+#define THROW_ARG(argname) \
+	bufptr = copyArg(bufptr, argname, end);
+#define THROW_POSTAMBLE \
+	fmtstart = bufptr; \
+	end = writeString(bufptr, fmt, _heap->blockSize, end); \
+	writeBlockHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
+	__THROW;
+
+__device__ static void __throw(const char *fmt)
+{
+	THROW_PREAMBLE;
+	THROW_POSTAMBLE;
+}
+template <typename T1> __device__ static void __throw(const char *fmt, T1 arg1)
+{
+	THROW_PREAMBLE;
+	THROW_ARG(arg1);
+	THROW_POSTAMBLE;
+}
+template <typename T1, typename T2> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2)
+{
+	THROW_PREAMBLE;
+	THROW_ARG(arg1);
+	THROW_ARG(arg2);
+	THROW_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+{
+	THROW_PREAMBLE;
+	THROW_ARG(arg1);
+	THROW_ARG(arg2);
+	THROW_ARG(arg3);
+	THROW_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+{
+	THROW_PREAMBLE;
+	THROW_ARG(arg1);
+	THROW_ARG(arg2);
+	THROW_ARG(arg3);
+	THROW_ARG(arg4);
+	THROW_POSTAMBLE;
+}
+
+#undef THROW_PREAMBLE
+#undef THROW_ARG
+#undef THROW_POSTAMBLE
 
 #pragma endregion

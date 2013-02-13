@@ -43,6 +43,7 @@ static FILE *_stream;
 #define RUNTIME_ALIGNSIZE sizeof(long long)
 #define RUNTIMETYPE_PRINTF 1
 #define RUNTIMETYPE_ASSERT 2
+#define RUNTIMETYPE_THROW 3
 
 extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
@@ -126,6 +127,13 @@ static int executeRuntime(size_t blockSize, char *heap, int headings, int clear,
 			break;
 		case RUNTIMETYPE_ASSERT:
 			fprintf(_stream, "ASSERT: ");
+			if (hdr->fmtoffset == 0)
+				fprintf(_stream, "printf buffer overflow\n");
+			else
+				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			break;
+		case RUNTIMETYPE_THROW:
+			fprintf(_stream, "THROW: ");
 			if (hdr->fmtoffset == 0)
 				fprintf(_stream, "printf buffer overflow\n");
 			else

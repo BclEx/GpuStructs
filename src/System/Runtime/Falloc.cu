@@ -167,6 +167,7 @@ __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 
 const static int FALLOCNODE_SLACK = 0x10;
 #define FALLOCNODE_MAGIC (unsigned short)0x7856 // All our headers are prefixed with a magic number so we know they're ours
+#define FALLOCCTX_MAGIC (unsigned short)0xCC56 // All our headers are prefixed with a magic number so we know they're ours
 
 typedef struct __align__(8) _cuFallocNode
 {
@@ -183,6 +184,7 @@ typedef struct __align__(8)
 	fallocNode *availableNodes;
 	fallocHeap *heap;
 	size_t blockSize;
+	unsigned short magic;
 } fallocCtx;
 
 STATIC __device__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
@@ -200,6 +202,7 @@ STATIC __device__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
 	ctx->availableNodes = (fallocNode *)ctx;
 	ctx->heap = heap;
 	ctx->blockSize = heap->blockSize;
+	ctx->magic = FALLOCCTX_MAGIC;
 	// close node
 	if (freeOffset + FALLOCNODE_SLACK > blockSize)
 		ctx->availableNodes = nullptr;
