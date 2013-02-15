@@ -4,7 +4,7 @@
 
 __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 {
-	_heap = heap;
+	setRuntimeHeap(heap);
 	switch (key)
 	{
 	case 'a':

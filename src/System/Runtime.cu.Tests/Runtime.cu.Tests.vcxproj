@@ -19,15 +19,20 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SimpleTest.cpp" />
+    <ClCompile Include="FallocITest.cpp" />
+    <ClCompile Include="RuntimeITest.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="SimpleTest.cu" />
+    <CudaCompile Include="FallocITest.cu" />
+    <CudaCompile Include="RuntimeITest.cu" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="xunit">
       <HintPath>..\..\..\packages\xunit.1.9.1\lib\net20\xunit.dll</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="..\..\..\x64\Debug\Runtime.cu.lib" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2A992207-4EA5-4750-9401-AAD09DFDE7E5}</ProjectGuid>

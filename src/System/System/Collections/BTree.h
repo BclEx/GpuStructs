@@ -226,7 +226,7 @@ namespace Sys { namespace Collections {
 	/// NodeFind
 	/// </summary>
 	template<class TObj, class TKey, int MaxChildrenPerNode>
-	inline BTreeNode<TObj, TKey> * BTree<TObj, TKey, MaxChildrenPerNode>::NodeFind(TKey key) const
+	inline BTreeNode<TObj, TKey> *BTree<TObj, TKey, MaxChildrenPerNode>::NodeFind(TKey key) const
 	{
 		if (_root == nullptr)
 			return nullptr;
@@ -248,7 +248,7 @@ namespace Sys { namespace Collections {
 	/// NodeFindSmallestLargerEqual
 	/// </summary>
 	template<class TObj, class TKey, int MaxChildrenPerNode>
-	inline BTreeNode<TObj, TKey> * BTree<TObj, TKey, MaxChildrenPerNode>::NodeFindSmallestLargerEqual(TKey key) const
+	inline BTreeNode<TObj, TKey> *BTree<TObj, TKey, MaxChildrenPerNode>::NodeFindSmallestLargerEqual(TKey key) const
 	{
 		if (_root == nullptr)
 			return nullptr;
@@ -270,7 +270,7 @@ namespace Sys { namespace Collections {
 	/// NodeFindLargestSmallerEqual
 	/// </summary>
 	template<class TObj, class TKey, int MaxChildrenPerNode>
-	inline BTreeNode<TObj, TKey> * BTree<TObj, TKey, MaxChildrenPerNode>::NodeFindLargestSmallerEqual(TKey key) const
+	inline BTreeNode<TObj, TKey> *BTree<TObj, TKey, MaxChildrenPerNode>::NodeFindLargestSmallerEqual(TKey key) const
 	{
 		if (_root == nullptr)
 			return nullptr;

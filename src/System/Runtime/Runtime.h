@@ -1,9 +1,12 @@
 #ifndef __RUNTIME_H__
 #define __RUNTIME_H__
+#include <cuda_runtime.h>
 
 ///////////////////////////////////////////////////////////////////////////////
 // HOST SIDE
 // External function definitions for host-side code
+
+typedef void (*cudaAssertHandler)();
 
 typedef struct
 {
@@ -14,6 +17,7 @@ typedef struct
 	size_t blockSize;
 	size_t blocksLength;
 	size_t length;
+	cudaAssertHandler assertHandler;
 } cudaRuntimeHost;
 
 //
@@ -39,8 +43,14 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 256, size_t length
 //
 extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host);
 
+//	cudaRuntimeSetHandler
 //
-//	cudaRuntimePrintf
+//	Sets runtime handler for assert
+//
+extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler);
+
+//
+//	cudaRuntimeExecute
 //
 //	Dumps all printfs in the output buffer to the specified file pointer. If the output pointer is not specified,
 //	the default "stdout" is used.

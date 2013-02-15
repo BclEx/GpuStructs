@@ -91,8 +91,13 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
 	cudaFree(host.heap); host.heap = nullptr;
 }
 
+extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler)
+{
+	host.assertHandler = handler;
+}
+
 static bool outputPrintfData(size_t blockSize, char *fmt, char *data);
-static int executeRuntime(size_t blockSize, char *heap, int headings, int clear, char *bufstart, char *bufend, char *bufptr, char *endptr)
+static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, char *heap, int headings, int clear, char *bufstart, char *bufend, char *bufptr, char *endptr)
 {
 	// grab, piece-by-piece, each output element until we catch up with the circular buffer end pointer
 	int count = 0;
@@ -131,6 +136,7 @@ static int executeRuntime(size_t blockSize, char *heap, int headings, int clear,
 				fprintf(_stream, "printf buffer overflow\n");
 			else
 				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			//assertHandler();
 			break;
 		case RUNTIMETYPE_THROW:
 			fprintf(_stream, "THROW: ");
@@ -172,8 +178,8 @@ extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, b
 	char *endptr = ((blockEnd - blocks) % blocksLength) + blocks;
 	// for synchronous (i.e. after-kernel-exit) printf display, we have to handle circular buffer wrap carefully because we could miss those past "end".
 	if (sync)
-		executeRuntime(host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, endptr, blocks + blocksLength);
-	executeRuntime(host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, bufptr, endptr);
+		executeRuntime(host.assertHandler, host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, endptr, blocks + blocksLength);
+	executeRuntime(host.assertHandler, host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, bufptr, endptr);
 	host.blockStart = blockEnd;
 	// if we were synchronous, then we must ensure that the memory is cleared on exit otherwise another kernel launch with a different grid size could conflict.
 	if (sync)

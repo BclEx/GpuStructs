@@ -6,7 +6,7 @@
 /// <summary>
 /// Mem_Alloc16
 /// </summary>
-void * Mem_Alloc16(const int size, const memTag_t tag)
+void *Mem_Alloc16(const int size, const memTag_t tag)
 {
 	if (!size)
 		return nullptr;
@@ -43,4 +43,3 @@ char *Mem_CopyString(const char *in)
 	strcpy(out, in);
 	return out;
 }
-

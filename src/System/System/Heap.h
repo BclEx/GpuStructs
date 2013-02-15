@@ -146,7 +146,8 @@ private:
 /// BlockAlloc
 /// </summary>
 template<class T, int BlockSize, memTag_t MemTag>
-__device__ inline BlockAlloc<T, BlockSize, MemTag>::BlockAlloc(bool clear) : _blocks(nullptr), _free(nullptr), _total(0), _active(0), _allowAllocs(true), _clearAllocs(clear) { }
+__device__ inline BlockAlloc<T, BlockSize, MemTag>::BlockAlloc(bool clear)
+	: _blocks(nullptr), _free(nullptr), _total(0), _active(0), _allowAllocs(true), _clearAllocs(clear) { }
 template<class T, int BlockSize, memTag_t MemTag>
 __device__ inline BlockAlloc<T, BlockSize, MemTag>::~BlockAlloc() { Shutdown(); }
 

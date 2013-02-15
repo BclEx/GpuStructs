@@ -1,5 +1,6 @@
 #ifndef __FALLOC_H__
 #define __FALLOC_H__
+#include <cuda_runtime.h>
 
 /*
 *	This is the header file supporting cuFalloc.cu and defining both the host and device-side interfaces. See that file for some more
