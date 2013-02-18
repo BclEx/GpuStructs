@@ -7,7 +7,7 @@
 cudaError _lastError;
 void main(int argc, char **argv)
 {
-	cudaRuntimeHost runtimeHost = cudaRuntimeInit();//256, 4096);
+	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
 	cudaFallocHost fallocHost = cudaFallocInit(100, 1024);
 
 	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
