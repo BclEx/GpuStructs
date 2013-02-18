@@ -87,7 +87,7 @@ __inline__ __device__ static void writeBlockHeader(unsigned short type, char *pt
 __device__ static char *writeString(char *dest, const char *src, int n, char *end)
 {
 	// initialization and overflow check
-	if (!dest || src != 0 || dest >= end)
+	if (!dest || !src || dest >= end)
 		return nullptr;
 	// prepare to write the length specifier. We're guaranteed to have at least "RUNTIME_ALIGNSIZE" bytes left because we only write out in
 	// chunks that size, and blockSize is aligned with RUNTIME_ALIGNSIZE.
