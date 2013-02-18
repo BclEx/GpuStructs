@@ -1,4 +1,6 @@
 //[GL VBO] http://3dgep.com/?p=2596
+#define nullptr NULL
+//#define __THROW *(int*)0=0;
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #elif __CUDA_ARCH__ < 200
@@ -7,7 +9,7 @@
 #define STATIC
 #endif
 #include "cuda_runtime_api.h"
-#include <malloc.h>
+//#include <malloc.h>
 #include <string.h>
 
 typedef struct __align__(8)
@@ -238,7 +240,7 @@ STATIC __device__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc 
 		freeOffset += bytes;
 	}
 	//
-	void *obj = (__int8 *)node + node->freeOffset;
+	void *obj = (char *)node + node->freeOffset;
 	node->freeOffset = freeOffset;
 	// close node
 	if (alloc && (freeOffset + FALLOCNODE_SLACK > ctx->blockSize)) {
@@ -269,7 +271,7 @@ STATIC __device__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 	// first node && !overflow
 	if (node == &ctx->node && freeOffset < sizeof(fallocCtx)) __THROW;
 	node->freeOffset = (unsigned short)freeOffset;
-	return (__int8 *)node + freeOffset;
+	return (char *)node + freeOffset;
 }
 
 static __inline__ __device__ void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2)
