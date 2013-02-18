@@ -1,8 +1,10 @@
+#define nullptr NULL
+//#define __THROW *(int*)0=0;
 #if __CUDA_ARCH__ == 100 
 #error Atomics only used with > sm_10 architecture
 #endif
 #include "cuda_runtime_api.h"
-#include <malloc.h>
+//#include <malloc.h>
 #include <string.h>
 
 #define RUNTIME_UNRESTRICTED -1
@@ -129,7 +131,7 @@ __device__ static char *copyArg(char *ptr, const char *arg, char *end)
 template <typename T>
 __device__ static char *copyArg(char *ptr, T &arg, char *end)
 {
-	// initisalisation and overflow check. Alignment rules mean that we're at least CUPRINTF_ALIGN_SIZE away from "end", so we only need to check that one offset.
+	// initialization and overflow check. Alignment rules mean that we're at least CUPRINTF_ALIGN_SIZE away from "end", so we only need to check that one offset.
 	if (!ptr || (ptr + RUNTIME_ALIGNSIZE) >= end)
 		return nullptr;
 	// write the length and argument
@@ -295,7 +297,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
-__device__ static void __assert(const bool condition)
+__device__ static void __assertD(const bool condition)
 {
 	const char *fmt = nullptr;
 	if (condition)
@@ -304,7 +306,7 @@ __device__ static void __assert(const bool condition)
 		ASSERT_POSTAMBLE;
 	}
 }
-__device__ static void __assert(const bool condition, const char *fmt)
+__device__ static void __assertD(const bool condition, const char *fmt)
 {
 	if (condition)
 	{

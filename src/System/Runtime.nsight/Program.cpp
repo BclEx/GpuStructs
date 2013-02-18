@@ -8,6 +8,7 @@
 cudaError _lastError;
 int main(int argc, char **argv)
 {
+	printf("Start\n");
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
 	cudaFallocHost fallocHost = cudaFallocInit(100, 1024);
 

@@ -14,10 +14,10 @@ __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 		__printf("Test %d\n", threadIdx.x);
 		break;
 	case 'c':
-		__assert(true, "Error");
+		__assertD(true, "Error");
 		break;
 	case 'd':
-		__assert(false, "Error");
+		__assertD(false, "Error");
 		break;
 	}
 }

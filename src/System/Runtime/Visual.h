@@ -1,7 +1,7 @@
-#include "..\Runtime\Cuda.h"
-#include "..\Runtime\CudaGL.h"
-#include "..\Runtime\Falloc.h"
-#include "..\Runtime\Runtime.h"
+#include "../Runtime/Cuda.h"
+#include "../Runtime/CudaGL.h"
+#include "../Runtime/Falloc.h"
+#include "../Runtime/Runtime.h"
 
 // constants
 #define MAX_EPSILON_ERROR 10.0f
@@ -97,7 +97,7 @@ protected:
 			//sdkResetTimer(&timer);
 		}
 		char fps[256];
-		sprintf_s(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
+		sprintf(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
 		glutSetWindowTitle(fps);
 	}
 
@@ -117,10 +117,10 @@ public:
 	{
 		// mouse controls
 		_mouseState = 0;
-		RotateX = 180.0, RotateY = 0.0;
-		TranslateX = -200, TranslateY = 150.0, TranslateZ = -200.0;
-		//TranslateX = -30, TranslateY = 20.0, TranslateZ = -50.0;
-		//TranslateX = -3, TranslateY = 5.0, TranslateZ = -12.0;
+		RotateX = 180.0f, RotateY = 0.0f;
+		TranslateX = -200.0f, TranslateY = 150.0f, TranslateZ = -200.0f;
+		//TranslateX = -30f, TranslateY = 20.0f, TranslateZ = -50.0f;
+		//TranslateX = -3f, TranslateY = 5.0f, TranslateZ = -12.0f;
 		//
 		//_timer = nullptr;
 		_fpsCount = 0; // FPS count for averaging

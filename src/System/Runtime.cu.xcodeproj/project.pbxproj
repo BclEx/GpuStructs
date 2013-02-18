@@ -9,7 +9,29 @@
 /* Begin PBXBuildFile section */
 		273AED5D169A75DC00FE5172 /* Runtime_cu.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 273AED5C169A75DC00FE5172 /* Runtime_cu.1 */; };
 		276F0DFA169A7F8400FCB54E /* Program.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 276F0DF9169A7F8400FCB54E /* Program.cpp */; };
+		2E7DAF9216D1826A009AB1AC /* FallocHost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8716D1826A009AB1AC /* FallocHost.cpp */; };
+		2E7DAF9316D1826A009AB1AC /* RuntimeHost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8D16D1826A009AB1AC /* RuntimeHost.cpp */; };
+		2E7DAF9416D1826A009AB1AC /* Visual.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF9016D1826A009AB1AC /* Visual.cpp */; };
+		2EFE1FF916D18DAC0024399B /* RuntimeVisualRender.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8F16D1826A009AB1AC /* RuntimeVisualRender.cu */; };
+		2EFE1FFA16D18DE00024399B /* RuntimeVisualKeypress.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8E16D1826A009AB1AC /* RuntimeVisualKeypress.cu */; };
+		2EFE1FFB16D18DE40024399B /* Runtime.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8A16D1826A009AB1AC /* Runtime.cu */; };
+		2EFE1FFC16D18E7C0024399B /* Falloc.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8416D1826A009AB1AC /* Falloc.cu */; };
+		2EFE1FFD16D18E810024399B /* FallocVisualKeypress.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8816D1826A009AB1AC /* FallocVisualKeypress.cu */; };
+		2EFE1FFE16D18E810024399B /* FallocVisualRender.cu in Sources */ = {isa = PBXBuildFile; fileRef = 2E7DAF8916D1826A009AB1AC /* FallocVisualRender.cu */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXBuildRule section */
+		2EFE1FF216D18CD60024399B /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*.cu";
+			fileType = pattern.proxy;
+			isEditable = 1;
+			outputFiles = (
+			);
+			script = "nvcc \"$INPUT_FILE_NAME\"";
+		};
+/* End PBXBuildRule section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		273AED54169A75DC00FE5172 /* CopyFiles */ = {
@@ -28,7 +50,22 @@
 		273AED56169A75DC00FE5172 /* Runtime.cu */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Runtime.cu; sourceTree = BUILT_PRODUCTS_DIR; };
 		273AED5C169A75DC00FE5172 /* Runtime_cu.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = Runtime_cu.1; sourceTree = "<group>"; };
 		276F0DF9169A7F8400FCB54E /* Program.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Program.cpp; sourceTree = "<group>"; };
-		276F0DFC169A7F9600FCB54E /* Sample.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = Sample.cu; sourceTree = "<group>"; };
+		2E7DAF8216D1826A009AB1AC /* Cuda.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Cuda.h; path = Runtime/Cuda.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8316D1826A009AB1AC /* CudaGL.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CudaGL.h; path = Runtime/CudaGL.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8416D1826A009AB1AC /* Falloc.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Falloc.cu; path = Runtime/Falloc.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF8516D1826A009AB1AC /* Falloc.cu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Falloc.cu.h; path = Runtime/Falloc.cu.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8616D1826A009AB1AC /* Falloc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Falloc.h; path = Runtime/Falloc.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8716D1826A009AB1AC /* FallocHost.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = FallocHost.cpp; path = Runtime/FallocHost.cpp; sourceTree = SOURCE_ROOT; };
+		2E7DAF8816D1826A009AB1AC /* FallocVisualKeypress.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = FallocVisualKeypress.cu; path = Runtime/FallocVisualKeypress.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF8916D1826A009AB1AC /* FallocVisualRender.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = FallocVisualRender.cu; path = Runtime/FallocVisualRender.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF8A16D1826A009AB1AC /* Runtime.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Runtime.cu; path = Runtime/Runtime.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF8B16D1826A009AB1AC /* Runtime.cu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Runtime.cu.h; path = Runtime/Runtime.cu.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8C16D1826A009AB1AC /* Runtime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Runtime.h; path = Runtime/Runtime.h; sourceTree = SOURCE_ROOT; };
+		2E7DAF8D16D1826A009AB1AC /* RuntimeHost.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RuntimeHost.cpp; path = Runtime/RuntimeHost.cpp; sourceTree = SOURCE_ROOT; };
+		2E7DAF8E16D1826A009AB1AC /* RuntimeVisualKeypress.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = RuntimeVisualKeypress.cu; path = Runtime/RuntimeVisualKeypress.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF8F16D1826A009AB1AC /* RuntimeVisualRender.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = RuntimeVisualRender.cu; path = Runtime/RuntimeVisualRender.cu; sourceTree = SOURCE_ROOT; };
+		2E7DAF9016D1826A009AB1AC /* Visual.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = Visual.cpp; path = Runtime/Visual.cpp; sourceTree = SOURCE_ROOT; };
+		2E7DAF9116D1826A009AB1AC /* Visual.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Visual.h; path = Runtime/Visual.h; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,7 +98,22 @@
 		273AED59169A75DC00FE5172 /* Runtime.cu */ = {
 			isa = PBXGroup;
 			children = (
-				276F0DFC169A7F9600FCB54E /* Sample.cu */,
+				2E7DAF8216D1826A009AB1AC /* Cuda.h */,
+				2E7DAF8316D1826A009AB1AC /* CudaGL.h */,
+				2E7DAF8416D1826A009AB1AC /* Falloc.cu */,
+				2E7DAF8516D1826A009AB1AC /* Falloc.cu.h */,
+				2E7DAF8616D1826A009AB1AC /* Falloc.h */,
+				2E7DAF8716D1826A009AB1AC /* FallocHost.cpp */,
+				2E7DAF8816D1826A009AB1AC /* FallocVisualKeypress.cu */,
+				2E7DAF8916D1826A009AB1AC /* FallocVisualRender.cu */,
+				2E7DAF8A16D1826A009AB1AC /* Runtime.cu */,
+				2E7DAF8B16D1826A009AB1AC /* Runtime.cu.h */,
+				2E7DAF8C16D1826A009AB1AC /* Runtime.h */,
+				2E7DAF8D16D1826A009AB1AC /* RuntimeHost.cpp */,
+				2E7DAF8E16D1826A009AB1AC /* RuntimeVisualKeypress.cu */,
+				2E7DAF8F16D1826A009AB1AC /* RuntimeVisualRender.cu */,
+				2E7DAF9016D1826A009AB1AC /* Visual.cpp */,
+				2E7DAF9116D1826A009AB1AC /* Visual.h */,
 				276F0DF9169A7F8400FCB54E /* Program.cpp */,
 				273AED5C169A75DC00FE5172 /* Runtime_cu.1 */,
 			);
@@ -80,6 +132,7 @@
 				273AED54169A75DC00FE5172 /* CopyFiles */,
 			);
 			buildRules = (
+				2EFE1FF216D18CD60024399B /* PBXBuildRule */,
 			);
 			dependencies = (
 			);
@@ -119,7 +172,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EFE1FFD16D18E810024399B /* FallocVisualKeypress.cu in Sources */,
+				2EFE1FFE16D18E810024399B /* FallocVisualRender.cu in Sources */,
+				2EFE1FFC16D18E7C0024399B /* Falloc.cu in Sources */,
+				2EFE1FFB16D18DE40024399B /* Runtime.cu in Sources */,
+				2EFE1FFA16D18DE00024399B /* RuntimeVisualKeypress.cu in Sources */,
+				2EFE1FF916D18DAC0024399B /* RuntimeVisualRender.cu in Sources */,
 				276F0DFA169A7F8400FCB54E /* Program.cpp in Sources */,
+				2E7DAF9216D1826A009AB1AC /* FallocHost.cpp in Sources */,
+				2E7DAF9316D1826A009AB1AC /* RuntimeHost.cpp in Sources */,
+				2E7DAF9416D1826A009AB1AC /* Visual.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +198,7 @@
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				FRAMEWORK_SEARCH_PATHS = /Library/Frameworks;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
@@ -145,12 +208,30 @@
 					"$(inherited)",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/cuda/include,
+					/opt/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/cuda/lib,
+					/opt/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"-lcuda",
+					"-lcudart",
+					"-lglew",
+					"-framework",
+					GLUT,
+					"-framework",
+					OpenGL,
+				);
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -166,13 +247,32 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				FRAMEWORK_SEARCH_PATHS = /Library/Frameworks;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/cuda/include,
+					/opt/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/cuda/lib,
+					/opt/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				OTHER_LDFLAGS = (
+					"-lcuda",
+					"-lcudart",
+					"-lglew",
+					"-framework",
+					GLUT,
+					"-framework",
+					OpenGL,
+				);
 				SDKROOT = macosx;
 			};
 			name = Release;

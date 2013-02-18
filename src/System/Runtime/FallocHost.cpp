@@ -63,7 +63,7 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaEr
 	if (!blocks)
 		return host;
 	// fix up length to include fallocHeap + freeblocks
-	unsigned int blockRefsLength = blocks * sizeof(fallocBlockRef);
+	unsigned int blockRefsLength = (unsigned int)(blocks * sizeof(fallocBlockRef));
 	length = (length + blockRefsLength + sizeof(fallocHeap) + 15) & ~15;
 	// allocate a heap on the device and zero it
 	fallocHeap *heap;

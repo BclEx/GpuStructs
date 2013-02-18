@@ -1,3 +1,4 @@
+#define nullptr NULL
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
@@ -5,7 +6,11 @@
 #include "Runtime.h"
 #include <string.h>
 #include <stdio.h>
+#if defined (__APPLE__) || defined(MACOSX)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 
 #define RUNTIME_UNRESTRICTED -1
 

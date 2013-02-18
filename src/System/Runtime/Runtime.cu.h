@@ -3,7 +3,7 @@
 
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif __CUDA_ARCH__ < 200
+#elif __CUDA_ARCH__ < 2000
 #include "Runtime.cu"
 #else
 
@@ -44,8 +44,8 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10);
 
 // Assert
-__device__ void __assert(const bool condition);
-__device__ void __assert(const bool condition, const char *fmt);
+__device__ void __assertD(const bool condition);
+__device__ void __assertD(const bool condition, const char *fmt);
 
 // Abuse of templates to simulate varargs
 __device__ void __throw(const char *fmt);
