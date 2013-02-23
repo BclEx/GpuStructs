@@ -1,6 +1,8 @@
 #ifndef __RUNTIME_H__
 #define __RUNTIME_H__
+#ifndef nullptr
 #define nullptr NULL
+#endif
 #include <cuda_runtime.h>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -64,5 +66,26 @@ extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler h
 //		cudaSuccess if all is well.
 //
 extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = true);
+
+///////////////////////////////////////////////////////////////////////////////
+// VISUAL
+// Visual render for host-side code
+#ifdef VISUAL
+#include "Visual.h"
+
+class RuntimeVisualRender : public IVisualRender
+{
+private:
+	cudaRuntimeHost _runtimeHost;
+public:
+	RuntimeVisualRender(cudaRuntimeHost runtimeHost)
+		: _runtimeHost(runtimeHost) { }
+	virtual void Dispose();
+	virtual void Keyboard(unsigned char key);
+	virtual void Display();
+	virtual void Initialize();
+};
+
+#endif
 
 #endif // __RUNTIME_H__

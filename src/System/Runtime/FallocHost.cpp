@@ -1,9 +1,9 @@
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
-#include "cuda_runtime_api.h"
-#include "Falloc.h"
 #include <string.h>
+#include "Falloc.h"
+#include "cuda_runtime_api.h"
 
 typedef struct __align__(8)
 {

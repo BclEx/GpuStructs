@@ -1,5 +1,6 @@
-#include <cstdio>
-#include <cassert>
+//[GL VBO] http://3dgep.com/?p=2596
+//#include <cstdio>
+//#include <cassert>
 #include "Visual.h"
 
 float Visual::RotateX;

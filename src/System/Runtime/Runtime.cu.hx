@@ -1,10 +1,11 @@
+#ifndef nullptr
 #define nullptr NULL
+#endif
 //#define __THROW *(int*)0=0;
 #if __CUDA_ARCH__ == 100 
 #error Atomics only used with > sm_10 architecture
 #endif
-#include "cuda_runtime_api.h"
-//#include <malloc.h>
+#include "Cuda.h"
 #include <string.h>
 
 #define RUNTIME_UNRESTRICTED -1
@@ -163,25 +164,25 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
-__device__ static int __printf(const char *fmt)
+__device__ static int _printf(const char *fmt)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_POSTAMBLE;
 }
-template <typename T1> __device__ static int __printf(const char *fmt, T1 arg1)
+template <typename T1> __device__ static int _printf(const char *fmt, T1 arg1)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
 	PRINTF_ARG(arg2);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -189,7 +190,7 @@ template <typename T1, typename T2, typename T3> __device__ static int __printf(
 	PRINTF_ARG(arg3);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -198,7 +199,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 	PRINTF_ARG(arg4);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -208,7 +209,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5> __dev
 	PRINTF_ARG(arg5);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -219,7 +220,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg6);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -231,7 +232,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg7);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -258,7 +259,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg9);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -297,7 +298,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
-__device__ static void __assertD(const bool condition)
+__device__ static void _assert(const bool condition)
 {
 	const char *fmt = nullptr;
 	if (condition)
@@ -306,7 +307,7 @@ __device__ static void __assertD(const bool condition)
 		ASSERT_POSTAMBLE;
 	}
 }
-__device__ static void __assertD(const bool condition, const char *fmt)
+__device__ static void _assert(const bool condition, const char *fmt)
 {
 	if (condition)
 	{
@@ -320,6 +321,7 @@ __device__ static void __assertD(const bool condition, const char *fmt)
 #undef ASSERT_POSTAMBLE
 
 #pragma endregion
+
 
 //////////////////////
 // THROW
@@ -338,25 +340,25 @@ __device__ static void __assertD(const bool condition, const char *fmt)
 	writeBlockHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
 	__THROW;
 
-__device__ static void __throw(const char *fmt)
+__device__ static void _throw(const char *fmt)
 {
 	THROW_PREAMBLE;
 	THROW_POSTAMBLE;
 }
-template <typename T1> __device__ static void __throw(const char *fmt, T1 arg1)
+template <typename T1> __device__ static void _throw(const char *fmt, T1 arg1)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
 	THROW_ARG(arg2);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
@@ -364,7 +366,7 @@ template <typename T1, typename T2, typename T3> __device__ static void __throw(
 	THROW_ARG(arg3);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static void __throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
@@ -378,4 +380,201 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #undef THROW_ARG
 #undef THROW_POSTAMBLE
 
+#pragma endregion
+
+
+///////////////////////////////////////////////////////////////////////////////
+// VISUAL
+#pragma region VISUAL
+#ifdef VISUAL
+#include "Runtime.h"
+
+#define BLOCKPITCH 64
+#define HEADERPITCH 4
+#define BLOCKREFCOLOR make_float4(1, 0, 0, 1)
+#define HEADERCOLOR make_float4(0, 1, 0, 1)
+#define BLOCKCOLOR make_float4(0, 0, .7, 1)
+#define BLOCK2COLOR make_float4(0, 0, 1, 1)
+#define MARKERCOLOR make_float4(1, 1, 0, 1)
+
+#define MAX(a,b) (a > b ? a : b)
+
+static __global__ void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offset)
+{
+	int index = offset;
+	// heap
+	b[index] = make_quad4(
+		make_float4(00, 1, 1, 1), HEADERCOLOR,
+		make_float4(10, 1, 1, 1), HEADERCOLOR,
+		make_float4(10, 0, 1, 1), HEADERCOLOR,
+		make_float4(00, 0, 1, 1), HEADERCOLOR);
+	// free
+	float x1, y1;
+	if (heap->blockPtr)
+	{
+		size_t offset = ((char *)heap->blockPtr - (char *)heap->blocks);
+		offset %= heap->blocksLength;
+		offset /= heap->blockSize;
+		//
+		unsigned int x = offset % BLOCKPITCH;
+		unsigned int y = offset / BLOCKPITCH;
+		x1 = x * 10; y1 = y * 20 + 2;
+		b[index + 1] = make_quad4(
+			make_float4(x1 + 0, y1 + 1, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 1, y1 + 1, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 1, y1 + 0, 1, 1), MARKERCOLOR,
+			make_float4(x1 + 0, y1 + 0, 1, 1), MARKERCOLOR);
+	}
+}
+
+static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, runtimeHeap *heap, unsigned int offset)
+{
+	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+	int blockIndex = y * BLOCKPITCH + x;
+	if (blockIndex >= blocks)
+		return;
+	runtimeBlockHeader *hdr = (runtimeBlockHeader *)(heap->blocks + blockIndex * heap->blockSize);
+	int index = blockIndex * 2 + offset;
+	// block
+	float x2 = x * 10; float y2 = y * 20 + 2;
+	if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= heap->blockSize)
+	{
+		b[index] = make_quad4(
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCKCOLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCKCOLOR);
+	}
+	else
+	{
+		b[index] = make_quad4(
+			make_float4(x2 + 0, y2 + 1, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 3.9, y2 + 1, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 3.9, y2 + 0, 1, 1), HEADERCOLOR,
+			make_float4(x2 + 0, y2 + 0, 1, 1), HEADERCOLOR);
+		b[index + 1] = make_quad4(
+			make_float4(x2 + 0, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 19, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 9, y2 + 00, 1, 1), BLOCK2COLOR,
+			make_float4(x2 + 0, y2 + 00, 1, 1), BLOCK2COLOR);
+	}
+}
+
+static int GetRuntimeRenderQuads(size_t blocks)
+{ 
+	return 2 + (blocks * 2);
+}
+
+static void LaunchRuntimeRender(float4 *b, size_t blocks, runtimeHeap *heap)
+{
+	dim3 heapBlock(1, 1, 1);
+	dim3 heapGrid(1, 1, 1);
+	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
+	//
+	dim3 blockBlock(16, 16, 1);
+	dim3 blockGrid(MAX(BLOCKPITCH / 16, 1), MAX(blocks / BLOCKPITCH / 16, 1), 1);
+	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, blocks / BLOCKPITCH, heap, 2);
+}
+
+// _vbo variables
+static GLuint _vbo;
+static GLsizei _vboSize;
+static struct cudaGraphicsResource *_vboResource;
+
+static void RunCuda(size_t blocks, runtimeHeap *heap, struct cudaGraphicsResource **resource)
+{
+	// map OpenGL buffer object for writing from CUDA
+	checkCudaErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
+	float4 *b;
+	size_t size;
+	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&b, &size, *resource), exit(0));
+	//printf("CUDA mapped VBO: May access %ld bytes\n", size);
+	LaunchRuntimeRender(b, blocks, heap);
+	// unmap buffer object
+	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
+}
+
+static void CreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
+{
+	// create buffer object
+	glGenBuffers(1, vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+	// initialize buffer object
+	_vboSize = GetRuntimeRenderQuads(blocks) * 4;
+	unsigned int size = _vboSize * 2 * sizeof(float4);
+	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	// register this buffer object with CUDA
+	checkCudaErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
+	SDK_CHECK_ERROR_GL();
+}
+
+static void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
+{
+	// unregister this buffer object with CUDA
+	cudaGraphicsUnregisterResource(resource);
+	glBindBuffer(1, *vbo);
+	glDeleteBuffers(1, vbo);
+	*vbo = 0;
+}
+
+void RuntimeVisualRender::Dispose()
+{
+	if (_vbo)
+		DeleteVBO(&_vbo, _vboResource);
+}
+
+extern void LaunchRuntimeKeypress(cudaRuntimeHost &heap, unsigned char key);
+void RuntimeVisualRender::Keyboard(unsigned char key)
+{
+	switch (key)
+	{
+	case 'a':
+	case 'b':
+	case 'c':
+	case 'd':
+	case 'z':
+		LaunchRuntimeKeypress(_runtimeHost, key);
+		break;
+	}
+}
+
+void RuntimeVisualRender::Display()
+{
+	size_t blocks = _runtimeHost.blocksLength / _runtimeHost.blockSize;
+	// run CUDA kernel to generate vertex positions
+	RunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_vboResource);
+
+	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
+	//glScalef(.02, .02, .02);
+	// set view matrix
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glTranslatef(Visual::TranslateX, Visual::TranslateY, Visual::TranslateZ);
+	glRotatef(Visual::RotateX, 1.0, 0.0, 0.0);
+	glRotatef(Visual::RotateY, 0.0, 1.0, 0.0);
+
+	// render from the _vbo
+	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+	glVertexPointer(4, GL_FLOAT, sizeof(float4) * 2, 0);
+	glColorPointer(4, GL_FLOAT, sizeof(float4) * 2, (GLvoid*)sizeof(float4));
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+	glDrawArrays(GL_QUADS, 0, _vboSize);
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+void RuntimeVisualRender::Initialize()
+{
+	size_t blocks = _runtimeHost.blocksLength / _runtimeHost.blockSize;
+	// create VBO
+	CreateVBO(blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
+	// run the cuda part
+	RunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_vboResource);
+}
+
+#endif
 #pragma endregion

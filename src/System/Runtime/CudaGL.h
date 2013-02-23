@@ -1,5 +1,6 @@
 #ifndef __RUNTIME_CUDAGL_H__
 #define __RUNTIME_CUDAGL_H__
+#include <cstdio>
 
 #ifdef _WIN32
 #define WINDOWS_LEAN_AND_MEAN

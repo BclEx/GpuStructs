@@ -19,11 +19,12 @@
     <ClInclude Include="..\Runtime\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\Runtime\Falloc.cu" />
-    <CudaCompile Include="..\Runtime\FallocVisualRender.cu" />
     <CudaCompile Include="..\Runtime\FallocVisualKeypress.cu" />
-    <CudaCompile Include="..\Runtime\Runtime.cu" />
     <CudaCompile Include="..\Runtime\RuntimeVisualKeypress.cu" />
-    <CudaCompile Include="..\Runtime\RuntimeVisualRender.cu" />
+    <CudaCompile Include="..\Runtime\Program.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Runtime\Falloc.cu.hx" />
+    <None Include="..\Runtime\Runtime.cu.hx" />
   </ItemGroup>
 </Project>

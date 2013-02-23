@@ -1,11 +1,8 @@
-#include "../Runtime/Cuda.h"
+#ifndef _VISUAL_H__
+#define _VISUAL_H__
 #include "../Runtime/CudaGL.h"
-#include "../Runtime/Falloc.h"
-#include "../Runtime/Runtime.h"
 
 // constants
-#define MAX_EPSILON_ERROR 10.0f
-#define THRESHOLD         0.30f
 #define REFRESH_DELAY     10 //ms
 const unsigned int WindowWidth = 800;
 const unsigned int WindowHeight = 600;
@@ -33,32 +30,6 @@ public:
 	virtual void Display() = 0;
 	virtual void Keyboard(unsigned char key) = 0;
 	virtual void Initialize() = 0;
-};
-
-class FallocVisualRender : public IVisualRender
-{
-private:
-	cudaFallocHost _fallocHost;
-public:
-	FallocVisualRender(cudaFallocHost fallocHost)
-		: _fallocHost(fallocHost) { }
-	virtual void Dispose();
-	virtual void Keyboard(unsigned char key);
-	virtual void Display();
-	virtual void Initialize();
-};
-
-class RuntimeVisualRender : public IVisualRender
-{
-private:
-	cudaRuntimeHost _runtimeHost;
-public:
-	RuntimeVisualRender(cudaRuntimeHost runtimeHost)
-		: _runtimeHost(runtimeHost) { }
-	virtual void Dispose();
-	virtual void Keyboard(unsigned char key);
-	virtual void Display();
-	virtual void Initialize();
 };
 
 class Visual
@@ -171,3 +142,5 @@ public:
 		return true;
 	}
 };
+
+#endif // __VISUAL_H__

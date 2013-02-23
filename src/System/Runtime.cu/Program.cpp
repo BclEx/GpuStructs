@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
+#define VISUAL
 #include "../Runtime/Cuda.h"
-#include "../Runtime/Visual.h"
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"
 

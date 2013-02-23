@@ -171,18 +171,13 @@
     <Library Include="..\..\..\packages\glew.1.9.0\lib\x64\glew32.lib" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\Runtime\Falloc.cu">
-      <FileType>CppCode</FileType>
-    </CudaCompile>
     <ClCompile Include="..\Runtime\FallocHost.cpp" />
     <ClCompile Include="..\Runtime\RuntimeHost.cpp" />
     <ClCompile Include="..\Runtime\Visual.cpp" />
     <ClCompile Include="Program.cpp" />
     <CudaCompile Include="..\Runtime\FallocVisualKeypress.cu" />
-    <CudaCompile Include="..\Runtime\FallocVisualRender.cu" />
-    <CudaCompile Include="..\Runtime\Runtime.cu" />
+    <CudaCompile Include="..\Runtime\Program.cu" />
     <CudaCompile Include="..\Runtime\RuntimeVisualKeypress.cu" />
-    <CudaCompile Include="..\Runtime\RuntimeVisualRender.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Runtime\Cuda.h" />
@@ -192,6 +187,10 @@
     <ClInclude Include="..\Runtime\Runtime.cu.h" />
     <ClInclude Include="..\Runtime\Runtime.h" />
     <ClInclude Include="..\Runtime\Visual.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Runtime\Falloc.cu.hx" />
+    <None Include="..\Runtime\Runtime.cu.hx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -3,8 +3,8 @@
 
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif __CUDA_ARCH__ < 2000
-#include "Falloc.cu"
+#elif __CUDA_ARCH__ < 200
+#include "Falloc.cu.hx"
 #else
 
 ///////////////////////////////////////////////////////////////////////////////

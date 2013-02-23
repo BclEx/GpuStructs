@@ -1,7 +1,6 @@
-#define VISUAL
 #include "cuda_runtime_api.h"
-#include "Runtime.h"
-#include "Runtime.cu.h"
+#include "../Runtime/Runtime.h"
+#include "../Runtime/Runtime.cu.h"
 
 __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 {

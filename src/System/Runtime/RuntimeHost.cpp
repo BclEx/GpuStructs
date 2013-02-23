@@ -2,8 +2,6 @@
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
-#include "cuda_runtime_api.h"
-#include "Runtime.h"
 #include <string.h>
 #include <stdio.h>
 #if defined (__APPLE__) || defined(MACOSX)
@@ -11,6 +9,8 @@
 #else
 #include <malloc.h>
 #endif
+#include "Runtime.h"
+#include "cuda_runtime_api.h"
 
 #define RUNTIME_UNRESTRICTED -1
 

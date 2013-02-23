@@ -69,4 +69,4 @@ inline int gpuGetMaxGflopsDeviceId()
 	return bestDevice;
 }
 
-#endif /* __RUNTIME_CUDA_H__ */
+#endif // __RUNTIME_CUDA_H__

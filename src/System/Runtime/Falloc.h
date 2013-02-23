@@ -1,6 +1,8 @@
 #ifndef __FALLOC_H__
 #define __FALLOC_H__
+#ifndef nullptr
 #define nullptr NULL
+#endif
 #include <cuda_runtime.h>
 
 /*
@@ -76,5 +78,27 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length 
 //	Call this at exit, or before calling cudaFallocInit() again.
 //
 extern "C" void cudaFallocEnd(cudaFallocHost &host);
+
+
+///////////////////////////////////////////////////////////////////////////////
+// VISUAL
+// Visual render for host-side code
+#ifdef VISUAL
+#include "Visual.h"
+
+class FallocVisualRender : public IVisualRender
+{
+private:
+	cudaFallocHost _fallocHost;
+public:
+	FallocVisualRender(cudaFallocHost fallocHost)
+		: _fallocHost(fallocHost) { }
+	virtual void Dispose();
+	virtual void Keyboard(unsigned char key);
+	virtual void Display();
+	virtual void Initialize();
+};
+
+#endif
 
 #endif // __FALLOC_H__
