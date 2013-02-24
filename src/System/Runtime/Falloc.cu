@@ -1,14 +1,12 @@
+#if __CUDA_ARCH__ == 100 
+#error Atomics only used with > sm_10 architecture
+#elif _LIB || __CUDA_ARCH__ < 200
+
 #ifndef nullptr
 #define nullptr NULL
 #endif
 //#define __THROW *(int*)0=0;
-#if __CUDA_ARCH__ == 100
-#error Atomics only used with > sm_10 architecture
-#elif __CUDA_ARCH__ < 200
 #define STATIC static
-#else
-#define STATIC
-#endif
 #include <string.h>
 #include "Cuda.h"
 
@@ -90,74 +88,74 @@ static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 /*
 __device__ inline void *fallocGetBlocks(fallocHeap *heap, size_t length, size_t *allocLength = nullptr)
 {
-	if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
-	size_t blockSize = heap->blockSize;
-	// fix up length to be a multiple of blockSize
-	if (length % blockSize)
-		length += blockSize - (length % blockSize);
-	// set length, if requested
-	if (allocLength)
-		*allocLength = length - sizeof(fallocBlockHeader);
-	size_t blocks = (size_t)(length / blockSize);
-	if (blocks > heap->blocks) __THROW;
-	// single, equals: fallocGetBlock
-	if (blocks == 1)
-		return fallocGetBlock(heap);
-	// multiple, find a contiguous chuck
-	size_t index = blocks;
-	volatile fallocBlockHeader* block;
-	volatile fallocBlockHeader* endBlock = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap) + (blockSize * heap->blocks));
-	{ // critical
-		for (block = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap)); index && block < endBlock; block = (fallocBlockHeader*)((__int8*)block + (blockSize * block->count)))
-		{
-			if (block->magic != FALLOC_MAGIC)
-				__THROW;
-			index = (block->next ? index - 1 : blocks);
-		}
-		if (index)
-			return nullptr;
-		// found chuck, remove from blockRefs
-		endBlock = block;
-		block = (fallocBlockHeader*)((__int8*)block - (blockSize * blocks));
-		for (volatile fallocBlockHeader* chunk2 = heap->blockRefs; chunk2; chunk2 = chunk2->next)
-			if (chunk2 >= block && chunk2 <= endBlock)
-				chunk2->next = (chunk2->next ? chunk2->next->next : nullptr);
-		block->count = blocks;
-		block->next = nullptr;
-	}
-	return (void*)((__int8*)block + sizeof(fallocBlockHeader));
+if (threadIdx.x || threadIdx.y || threadIdx.z) __THROW;
+size_t blockSize = heap->blockSize;
+// fix up length to be a multiple of blockSize
+if (length % blockSize)
+length += blockSize - (length % blockSize);
+// set length, if requested
+if (allocLength)
+*allocLength = length - sizeof(fallocBlockHeader);
+size_t blocks = (size_t)(length / blockSize);
+if (blocks > heap->blocks) __THROW;
+// single, equals: fallocGetBlock
+if (blocks == 1)
+return fallocGetBlock(heap);
+// multiple, find a contiguous chuck
+size_t index = blocks;
+volatile fallocBlockHeader* block;
+volatile fallocBlockHeader* endBlock = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap) + (blockSize * heap->blocks));
+{ // critical
+for (block = (fallocBlockHeader*)((__int8*)heap + sizeof(fallocHeap)); index && block < endBlock; block = (fallocBlockHeader*)((__int8*)block + (blockSize * block->count)))
+{
+if (block->magic != FALLOC_MAGIC)
+__THROW;
+index = (block->next ? index - 1 : blocks);
+}
+if (index)
+return nullptr;
+// found chuck, remove from blockRefs
+endBlock = block;
+block = (fallocBlockHeader*)((__int8*)block - (blockSize * blocks));
+for (volatile fallocBlockHeader* chunk2 = heap->blockRefs; chunk2; chunk2 = chunk2->next)
+if (chunk2 >= block && chunk2 <= endBlock)
+chunk2->next = (chunk2->next ? chunk2->next->next : nullptr);
+block->count = blocks;
+block->next = nullptr;
+}
+return (void*)((__int8*)block + sizeof(fallocBlockHeader));
 }
 
 
 __device__ inline void fallocFreeBlocks(fallocHeap *heap, void *obj)
 {
-	volatile fallocBlockHeader* block = (fallocBlockHeader*)((__int8*)obj - sizeof(fallocBlockHeader));
-	if (block->magic != FALLOC_MAGIC)
-		__THROW;
-	size_t blocks = block->count;
-	// single, equals: fallocFreeChunk
-	if (blocks == 1)
-	{
-		{ // critical
-			block->next = heap->blockRefs;
-			heap->blockRefs = block;
-		}
-		return;
-	}
-	// retag blocks
-	size_t blockSize = heap->blockSize;
-	block->count = 1;
-	while (blocks-- > 1)
-	{
-		block = block->next = (fallocBlockHeader*)((__int8*)block + sizeof(fallocBlockHeader) + blockSize);
-		block->magic = FALLOC_MAGIC;
-		block->count = 1;
-		block->reserved = nullptr;
-	}
-	{ // critical
-		block->next = heap->blockRefs;
-		heap->blockRefs = block;
-	}
+volatile fallocBlockHeader* block = (fallocBlockHeader*)((__int8*)obj - sizeof(fallocBlockHeader));
+if (block->magic != FALLOC_MAGIC)
+__THROW;
+size_t blocks = block->count;
+// single, equals: fallocFreeChunk
+if (blocks == 1)
+{
+{ // critical
+block->next = heap->blockRefs;
+heap->blockRefs = block;
+}
+return;
+}
+// retag blocks
+size_t blockSize = heap->blockSize;
+block->count = 1;
+while (blocks-- > 1)
+{
+block = block->next = (fallocBlockHeader*)((__int8*)block + sizeof(fallocBlockHeader) + blockSize);
+block->magic = FALLOC_MAGIC;
+block->count = 1;
+block->reserved = nullptr;
+}
+{ // critical
+block->next = heap->blockRefs;
+heap->blockRefs = block;
+}
 }
 */
 #pragma endregion
@@ -297,6 +295,7 @@ template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fal
 #ifdef VISUAL
 #include "Falloc.h"
 
+#define MAX(a,b) (a > b ? a : b)
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
 #define BLOCKREFCOLOR make_float4(.7, 0, 0, 1)
@@ -308,8 +307,6 @@ template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fal
 #define BLOCK4COLOR make_float4(0, .7, 1, 1)
 #define BLOCK5COLOR make_float4(.5, .7, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
-
-#define MAX(a,b) (a > b ? a : b)
 
 static __inline__ __device__ void OffsetBlockRef(unsigned int x, unsigned int y, float *x1, float *y1)
 {
@@ -442,7 +439,34 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	}
 }
 
-static int GetFallocRenderQuads(size_t blocks)
+__device__ void *_fallocTestObj;
+__device__ fallocCtx *_fallocTestCtx;
+__global__ static void Keypress(fallocHeap *heap, unsigned char key)
+{
+	char *testString;
+	int *testInteger;
+	switch (key)
+	{
+	case 'a':
+		_fallocTestObj = fallocGetBlock(heap);
+		break;
+	case 'b':
+		fallocFreeBlock(heap, _fallocTestObj);
+		break;
+	case 'x':
+		_fallocTestCtx = fallocCreateCtx(heap);
+		break;
+	case 'y':
+		testString = (char *)falloc(_fallocTestCtx, 10);
+		testInteger = falloc<int>(_fallocTestCtx);
+		break;
+	case 'z':
+		fallocDisposeCtx(_fallocTestCtx);
+		break;
+	}
+}
+
+static size_t GetFallocRenderQuads(size_t blocks)
 { 
 	return 3 + (blocks * 4);
 }
@@ -454,16 +478,23 @@ static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
 	//
 	dim3 blockBlock(16, 16, 1);
-	dim3 blockGrid(MAX(BLOCKPITCH / 16, 1), MAX(blocks / BLOCKPITCH / 16, 1), 1);
-	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, blocks / BLOCKPITCH, heap, 3);
+	dim3 blockGrid((unsigned int)MAX(BLOCKPITCH / 16, 1), (unsigned int)MAX(blocks / BLOCKPITCH / 16, 1), 1);
+	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, (unsigned int)blocks / BLOCKPITCH, heap, 3);
+}
+
+static void LaunchFallocKeypress(fallocHeap *heap, unsigned char key)
+{
+	dim3 heapBlock(1, 1, 1);
+	dim3 heapGrid(1, 1, 1);
+	Keypress<<<heapGrid, heapBlock>>>(heap, key);
 }
 
 // _vbo variables
-static GLuint _vbo;
-static GLsizei _vboSize;
-static struct cudaGraphicsResource *_vboResource;
+static GLuint _fallocVbo;
+static GLsizei _fallocVboSize;
+static struct cudaGraphicsResource *_fallocVboResource;
 
-static void RunCuda(size_t blocks, fallocHeap *heap, struct cudaGraphicsResource **resource)
+static void FallocRunCuda(size_t blocks, fallocHeap *heap, struct cudaGraphicsResource **resource)
 {
 	// map OpenGL buffer object for writing from CUDA
 	checkCudaErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
@@ -476,14 +507,14 @@ static void RunCuda(size_t blocks, fallocHeap *heap, struct cudaGraphicsResource
 	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
 }
 
-static void CreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
+static void FallocCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
 {
 	// create buffer object
 	glGenBuffers(1, vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 	// initialize buffer object
-	_vboSize = GetFallocRenderQuads(blocks) * 4;
-	unsigned int size = _vboSize * 2 * sizeof(float4);
+	_fallocVboSize = (GLsizei)GetFallocRenderQuads(blocks) * 4;
+	unsigned int size = _fallocVboSize * 2 * sizeof(float4);
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	// register this buffer object with CUDA
@@ -491,7 +522,7 @@ static void CreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **
 	SDK_CHECK_ERROR_GL();
 }
 
-static void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
+static void FallocDeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 {
 	// unregister this buffer object with CUDA
 	cudaGraphicsUnregisterResource(resource);
@@ -502,11 +533,10 @@ static void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 
 void FallocVisualRender::Dispose()
 {
-	if (_vbo)
-		DeleteVBO(&_vbo, _vboResource);
+	if (_fallocVbo)
+		FallocDeleteVBO(&_fallocVbo, _fallocVboResource);
 }
 
-extern void LaunchFallocKeypress(fallocHeap *heap, unsigned char key);
 void FallocVisualRender::Keyboard(unsigned char key)
 {
 	switch (key)
@@ -525,7 +555,7 @@ void FallocVisualRender::Display()
 {
 	size_t blocks = _fallocHost.blocksLength / _fallocHost.blockSize;
 	// run CUDA kernel to generate vertex positions
-	RunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
+	FallocRunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_fallocVboResource);
 
 	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
 	//glScalef(.02, .02, .02);
@@ -537,13 +567,13 @@ void FallocVisualRender::Display()
 	glRotatef(Visual::RotateY, 0.0, 1.0, 0.0);
 
 	// render from the _vbo
-	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, _fallocVbo);
 	glVertexPointer(4, GL_FLOAT, sizeof(float4) * 2, 0);
 	glColorPointer(4, GL_FLOAT, sizeof(float4) * 2, (GLvoid*)sizeof(float4));
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
-	glDrawArrays(GL_QUADS, 0, _vboSize);
+	glDrawArrays(GL_QUADS, 0, _fallocVboSize);
 	glDisableClientState(GL_COLOR_ARRAY);
 	glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -552,10 +582,25 @@ void FallocVisualRender::Initialize()
 {
 	size_t blocks = _fallocHost.blocksLength / _fallocHost.blockSize;
 	// create VBO
-	CreateVBO(blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
+	FallocCreateVBO(blocks, &_fallocVbo, &_fallocVboResource, cudaGraphicsMapFlagsWriteDiscard);
 	// run the cuda part
-	RunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_vboResource);
+	FallocRunCuda(blocks, (fallocHeap *)_fallocHost.heap, &_fallocVboResource);
 }
+
+#undef MAX
+#undef BLOCKPITCH
+#undef HEADERPITCH
+#undef BLOCKREFCOLOR
+#undef BLOCKREF2COLOR
+#undef HEADERCOLOR
+#undef BLOCKCOLOR
+#undef BLOCK2COLOR
+#undef BLOCK3COLOR
+#undef BLOCK4COLOR
+#undef BLOCK5COLOR
+#undef MARKERCOLOR
 
 #endif
 #pragma endregion
+
+#endif // __CUDA_ARCH__

@@ -1,12 +1,13 @@
+#if __CUDA_ARCH__ == 100 
+#error Atomics only used with > sm_10 architecture
+#elif _LIB || __CUDA_ARCH__ < 200
+
 #ifndef nullptr
 #define nullptr NULL
 #endif
 //#define __THROW *(int*)0=0;
-#if __CUDA_ARCH__ == 100 
-#error Atomics only used with > sm_10 architecture
-#endif
-#include "Cuda.h"
 #include <string.h>
+#include "Cuda.h"
 
 #define RUNTIME_UNRESTRICTED -1
 
@@ -389,6 +390,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #ifdef VISUAL
 #include "Runtime.h"
 
+#define MAX(a,b) (a > b ? a : b)
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
 #define BLOCKREFCOLOR make_float4(1, 0, 0, 1)
@@ -397,9 +399,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #define BLOCK2COLOR make_float4(0, 0, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
-#define MAX(a,b) (a > b ? a : b)
-
-static __global__ void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offset)
+__global__ static void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offset)
 {
 	int index = offset;
 	// heap
@@ -427,7 +427,7 @@ static __global__ void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offs
 	}
 }
 
-static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, runtimeHeap *heap, unsigned int offset)
+__global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, runtimeHeap *heap, unsigned int offset)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -461,7 +461,27 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	}
 }
 
-static int GetRuntimeRenderQuads(size_t blocks)
+__global__ static void Keypress(runtimeHeap *heap, unsigned char key)
+{
+	setRuntimeHeap(heap);
+	switch (key)
+	{
+	case 'a':
+		_printf("Test\n");
+		break;
+	case 'b':
+		_printf("Test %d\n", threadIdx.x);
+		break;
+	case 'c':
+		_assert(true, "Error");
+		break;
+	case 'd':
+		_assert(false, "Error");
+		break;
+	}
+}
+
+static size_t GetRuntimeRenderQuads(size_t blocks)
 { 
 	return 2 + (blocks * 2);
 }
@@ -473,16 +493,29 @@ static void LaunchRuntimeRender(float4 *b, size_t blocks, runtimeHeap *heap)
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
 	//
 	dim3 blockBlock(16, 16, 1);
-	dim3 blockGrid(MAX(BLOCKPITCH / 16, 1), MAX(blocks / BLOCKPITCH / 16, 1), 1);
-	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, blocks / BLOCKPITCH, heap, 2);
+	dim3 blockGrid((unsigned int)MAX(BLOCKPITCH / 16, 1), (unsigned int)MAX(blocks / BLOCKPITCH / 16, 1), 1);
+	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, (unsigned int)blocks / BLOCKPITCH, heap, 2);
+}
+
+static void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
+{
+	if (key == 'z')
+	{
+		cudaRuntimeExecute(host);
+		return;
+	}
+	//cudaMemcpyToSymbol(_heap, heap, sizeof(runtimeHeap *));
+	dim3 heapBlock(1, 1, 1);
+	dim3 heapGrid(1, 1, 1);
+	Keypress<<<heapGrid, heapBlock>>>((runtimeHeap *)host.heap, key);
 }
 
 // _vbo variables
-static GLuint _vbo;
-static GLsizei _vboSize;
-static struct cudaGraphicsResource *_vboResource;
+static GLuint _runtimeVbo;
+static GLsizei _runtimeVboSize;
+static struct cudaGraphicsResource *_runtimeVboResource;
 
-static void RunCuda(size_t blocks, runtimeHeap *heap, struct cudaGraphicsResource **resource)
+static void RuntimeRunCuda(size_t blocks, runtimeHeap *heap, struct cudaGraphicsResource **resource)
 {
 	// map OpenGL buffer object for writing from CUDA
 	checkCudaErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
@@ -495,14 +528,14 @@ static void RunCuda(size_t blocks, runtimeHeap *heap, struct cudaGraphicsResourc
 	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
 }
 
-static void CreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
+static void RuntimeCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
 {
 	// create buffer object
 	glGenBuffers(1, vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 	// initialize buffer object
-	_vboSize = GetRuntimeRenderQuads(blocks) * 4;
-	unsigned int size = _vboSize * 2 * sizeof(float4);
+	_runtimeVboSize = (GLsizei)GetRuntimeRenderQuads(blocks) * 4;
+	unsigned int size = _runtimeVboSize * 2 * sizeof(float4);
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	// register this buffer object with CUDA
@@ -510,7 +543,7 @@ static void CreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **
 	SDK_CHECK_ERROR_GL();
 }
 
-static void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
+static void RuntimeDeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 {
 	// unregister this buffer object with CUDA
 	cudaGraphicsUnregisterResource(resource);
@@ -521,11 +554,10 @@ static void DeleteVBO(GLuint *vbo, struct cudaGraphicsResource *resource)
 
 void RuntimeVisualRender::Dispose()
 {
-	if (_vbo)
-		DeleteVBO(&_vbo, _vboResource);
+	if (_runtimeVbo)
+		RuntimeDeleteVBO(&_runtimeVbo, _runtimeVboResource);
 }
 
-extern void LaunchRuntimeKeypress(cudaRuntimeHost &heap, unsigned char key);
 void RuntimeVisualRender::Keyboard(unsigned char key)
 {
 	switch (key)
@@ -544,7 +576,7 @@ void RuntimeVisualRender::Display()
 {
 	size_t blocks = _runtimeHost.blocksLength / _runtimeHost.blockSize;
 	// run CUDA kernel to generate vertex positions
-	RunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_vboResource);
+	RuntimeRunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_runtimeVboResource);
 
 	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
 	//glScalef(.02, .02, .02);
@@ -556,13 +588,13 @@ void RuntimeVisualRender::Display()
 	glRotatef(Visual::RotateY, 0.0, 1.0, 0.0);
 
 	// render from the _vbo
-	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, _runtimeVbo);
 	glVertexPointer(4, GL_FLOAT, sizeof(float4) * 2, 0);
 	glColorPointer(4, GL_FLOAT, sizeof(float4) * 2, (GLvoid*)sizeof(float4));
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
-	glDrawArrays(GL_QUADS, 0, _vboSize);
+	glDrawArrays(GL_QUADS, 0, _runtimeVboSize);
 	glDisableClientState(GL_COLOR_ARRAY);
 	glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -571,10 +603,21 @@ void RuntimeVisualRender::Initialize()
 {
 	size_t blocks = _runtimeHost.blocksLength / _runtimeHost.blockSize;
 	// create VBO
-	CreateVBO(blocks, &_vbo, &_vboResource, cudaGraphicsMapFlagsWriteDiscard);
+	RuntimeCreateVBO(blocks, &_runtimeVbo, &_runtimeVboResource, cudaGraphicsMapFlagsWriteDiscard);
 	// run the cuda part
-	RunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_vboResource);
+	RuntimeRunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_runtimeVboResource);
 }
+
+#undef MAX
+#undef BLOCKPITCH
+#undef HEADERPITCH
+#undef BLOCKREFCOLOR
+#undef HEADERCOLOR
+#undef BLOCKCOLOR
+#undef BLOCK2COLOR
+#undef MARKERCOLOR
 
 #endif
 #pragma endregion
+
+#endif // __CUDA_ARCH__

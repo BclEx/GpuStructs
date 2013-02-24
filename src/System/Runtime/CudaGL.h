@@ -37,4 +37,4 @@ inline bool sdkCheckErrorGL(const char *file, const int line)
 	return ret_val;
 }
 
-#endif /* __RUNTIME_CUDAGL_H__ */
+#endif // __RUNTIME_CUDAGL_H__

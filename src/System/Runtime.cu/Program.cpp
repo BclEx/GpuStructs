@@ -1,5 +1,4 @@
-#include <cstdlib>
-#include <cstdio>
+#ifndef _LIB
 #define VISUAL
 #include "../Runtime/Cuda.h"
 #include "../Runtime/Runtime.h"
@@ -19,12 +18,13 @@ int main(int argc, char **argv)
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
 	Visual::Main();
 	atexit(Visual::Dispose);
-	// free
-    //Visual::Dispose();
+
 	cudaRuntimeEnd(runtimeHost);
 	cudaFallocEnd(fallocHost);
+
 	cudaDeviceReset();
 	printf("End.");
 	char c; scanf("%c", &c);
     return 1;
 }
+#endif

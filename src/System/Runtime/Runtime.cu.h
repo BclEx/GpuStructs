@@ -4,7 +4,7 @@
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #elif __CUDA_ARCH__ < 200
-#include "Runtime.cu.hx"
+#include "Runtime.cu"
 #else
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,6 +54,6 @@ template <typename T1, typename T2> __device__ void _throw(const char *fmt, T1 a
 template <typename T1, typename T2, typename T3> __device__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3);
 template <typename T1, typename T2, typename T3, typename T4> __device__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4);
 
-#endif
+#endif // __CUDA_ARCH__
 
 #endif // __RUNTIME_CU_H__

@@ -4,7 +4,7 @@
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #elif __CUDA_ARCH__ < 200
-#include "Falloc.cu.hx"
+#include "Falloc.cu"
 #else
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,6 +31,6 @@ template <typename T> __device__ T* falloc(fallocCtx *ctx) { return (T *)falloc(
 template <typename T> __device__ void fallocPush(fallocCtx *ctx, T t) { *((T *)falloc(ctx, sizeof(T), false)) = t; }
 template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
 
-#endif
+#endif // __CUDA_ARCH__
 
 #endif // __FALLOC_CU_H__

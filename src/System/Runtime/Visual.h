@@ -1,5 +1,6 @@
 #ifndef _VISUAL_H__
 #define _VISUAL_H__
+#pragma warning(disable: 4996)
 #include "../Runtime/CudaGL.h"
 
 // constants
