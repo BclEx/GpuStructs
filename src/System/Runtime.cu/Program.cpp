@@ -1,5 +1,4 @@
 #ifndef _LIB
-#define VISUAL
 #include "../Runtime/Cuda.h"
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"

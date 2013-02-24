@@ -1,6 +1,6 @@
 #if __CUDA_ARCH__ == 100 
 #error Atomics only used with > sm_10 architecture
-#elif _LIB || __CUDA_ARCH__ < 200
+#elif !defined(_LIB) | __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL
@@ -36,8 +36,8 @@ typedef struct __align__(8)
 	unsigned short threadid;	// thread ID of author
 } runtimeBlockHeader;
 
-__device__ static runtimeHeap *__runtimeHeap = nullptr;
-__device__ static void setRuntimeHeap(runtimeHeap *heap) { __runtimeHeap = heap; }
+__device__ static runtimeHeap *__runtimeHeap;
+__device__ static void setRuntimeHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -388,6 +388,9 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
+#ifndef __static__
+#define __static__ static
+#endif
 #include "Runtime.h"
 
 #define MAX(a,b) (a > b ? a : b)
@@ -399,7 +402,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #define BLOCK2COLOR make_float4(0, 0, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
-__global__ static void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offset)
+__global__ __static__ void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offset)
 {
 	int index = offset;
 	// heap
@@ -427,7 +430,7 @@ __global__ static void RenderHeap(quad4 *b, runtimeHeap *heap, unsigned int offs
 	}
 }
 
-__global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, runtimeHeap *heap, unsigned int offset)
+__global__ __static__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, runtimeHeap *heap, unsigned int offset)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -461,7 +464,7 @@ __global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	}
 }
 
-__global__ static void Keypress(runtimeHeap *heap, unsigned char key)
+__global__ __static__ void Keypress(runtimeHeap *heap, unsigned char key)
 {
 	setRuntimeHeap(heap);
 	switch (key)

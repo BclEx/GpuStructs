@@ -19,8 +19,8 @@
     <ClInclude Include="..\Runtime\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="Program.cu" />
     <CudaCompile Include="..\Runtime\Falloc.cu" />
     <CudaCompile Include="..\Runtime\Runtime.cu" />
+    <CudaCompile Include="Program.cu" />
   </ItemGroup>
 </Project>

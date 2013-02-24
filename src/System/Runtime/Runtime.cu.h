@@ -25,7 +25,7 @@
 //	NOTE: Restrictions last between invocations of kernels unless cudaRuntimeInit() is called again.
 //
 
-__device__ void setRuntimeHeap(runtimeHeap *heap);
+__device__ void setRuntimeHeap(void *heap);
 
 #define RUNTIME_UNRESTRICTED -1
 __device__ void runtimeRestrict(int threadid, int blockid);

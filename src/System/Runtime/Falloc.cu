@@ -1,12 +1,11 @@
-#if __CUDA_ARCH__ == 100 
+#if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif _LIB || __CUDA_ARCH__ < 200
+#elif !defined(_LIB) | __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL
 #endif
 //#define __THROW *(int*)0=0;
-#define STATIC static
 #include <string.h>
 #include "Cuda.h"
 
@@ -60,7 +59,7 @@ __inline__ __device__ static void writeBlockHeader(fallocBlockHeader *hdr, unsig
 	*hdr = header;
 }
 
-static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
+__inline__ __device__ static void *fallocGetBlock(fallocHeap *heap)
 {
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
@@ -73,7 +72,7 @@ static __inline__ __device__ void *fallocGetBlock(fallocHeap *heap)
 	return (void *)((char *)block + sizeof(fallocBlockHeader));
 }
 
-static __inline__ __device__ void fallocFreeBlock(fallocHeap *heap, void *obj)
+__inline__ __device__ static void fallocFreeBlock(fallocHeap *heap, void *obj)
 {
 	fallocBlockHeader *block = (fallocBlockHeader *)((char *)obj - sizeof(fallocBlockHeader));
 	if (block->magic != FALLOC_MAGIC || block->count > 1) __THROW;// bad magic or not a singular block
@@ -187,7 +186,7 @@ typedef struct __align__(8)
 	unsigned short magic;
 } fallocCtx;
 
-STATIC __device__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
+__device__ static fallocCtx *fallocCreateCtx(fallocHeap *heap)
 {
 	size_t blockSize = heap->blockSize;
 	if (sizeof(fallocCtx) > blockSize) __THROW;
@@ -209,14 +208,14 @@ STATIC __device__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
 	return ctx;
 }
 
-STATIC __device__ void fallocDisposeCtx(fallocCtx *ctx)
+__device__ static void fallocDisposeCtx(fallocCtx *ctx)
 {
 	fallocHeap *heap = ctx->heap;
 	for (fallocNode *node = ctx->nodes; node; node = node->next)
 		fallocFreeBlock(heap, node);
 }
 
-STATIC __device__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc = true)
+__device__ static void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc = true)
 {
 	if (bytes > (ctx->blockSize - sizeof(fallocCtx))) __THROW;
 	// find or add available node
@@ -251,7 +250,7 @@ STATIC __device__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc 
 	return obj;
 }
 
-STATIC __device__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
+__device__ static void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 {
 	fallocNode *node = ctx->availableNodes;
 	int freeOffset = (int)node->freeOffset - bytes;
@@ -272,12 +271,12 @@ STATIC __device__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 	return (char *)node + freeOffset;
 }
 
-static __inline__ __device__ void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2)
+__inline__ __device__ static void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2)
 {
 	mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset;
 }
 
-static __inline__ __device__ bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2)
+__inline__ __device__ static bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2)
 {
 	return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset);
 }
@@ -293,6 +292,9 @@ template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fal
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
+#ifndef __static__
+#define __static__
+#endif
 #include "Falloc.h"
 
 #define MAX(a,b) (a > b ? a : b)
@@ -308,14 +310,14 @@ template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fal
 #define BLOCK5COLOR make_float4(.5, .7, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
-static __inline__ __device__ void OffsetBlockRef(unsigned int x, unsigned int y, float *x1, float *y1)
+__inline__ __device__ static void OffsetBlockRef(unsigned int x, unsigned int y, float *x1, float *y1)
 {
 	x += (y % HEADERPITCH) * BLOCKPITCH; 
 	y /= HEADERPITCH;
 	*x1 = x * 1; *y1 = y * 1 + 1;
 }
 
-static __global__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offset)
+__global__ __static__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offset)
 {
 	int index = offset;
 	// heap
@@ -355,7 +357,7 @@ static __global__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offse
 	}
 }
 
-static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, fallocHeap *heap, unsigned int offset)
+__global__ __static__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, fallocHeap *heap, unsigned int offset)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -441,7 +443,7 @@ static __global__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 
 __device__ void *_fallocTestObj;
 __device__ fallocCtx *_fallocTestCtx;
-__global__ static void Keypress(fallocHeap *heap, unsigned char key)
+__global__ __static__ void Keypress(fallocHeap *heap, unsigned char key)
 {
 	char *testString;
 	int *testInteger;
