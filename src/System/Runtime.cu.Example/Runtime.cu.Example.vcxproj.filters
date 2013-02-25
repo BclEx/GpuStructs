@@ -3,4 +3,8 @@
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Runtime.cu" />
+    <CudaCompile Include="Falloc.cu" />
+  </ItemGroup>
 </Project>

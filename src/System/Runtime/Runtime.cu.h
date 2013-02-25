@@ -3,7 +3,7 @@
 
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif __CUDA_ARCH__ < 200
+#elif defined(__CUDA_ARCH__) & __CUDA_ARCH__ < 200
 #include "Runtime.cu"
 #else
 
@@ -25,7 +25,8 @@
 //	NOTE: Restrictions last between invocations of kernels unless cudaRuntimeInit() is called again.
 //
 
-__device__ void setRuntimeHeap(void *heap);
+extern "C" void setRuntimeHeap(void *heap);
+//__device__ void setRuntimeHeap(void *heap);
 
 #define RUNTIME_UNRESTRICTED -1
 __device__ void runtimeRestrict(int threadid, int blockid);

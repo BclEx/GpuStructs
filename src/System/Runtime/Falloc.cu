@@ -1,6 +1,8 @@
+//#if defined(_LIB)
+//errore
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif !defined(_LIB) | __CUDA_ARCH__ < 200
+#elif defined(_LIB) | __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL
@@ -292,9 +294,6 @@ template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fal
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
-#ifndef __static__
-#define __static__
-#endif
 #include "Falloc.h"
 
 #define MAX(a,b) (a > b ? a : b)
@@ -317,7 +316,7 @@ __inline__ __device__ static void OffsetBlockRef(unsigned int x, unsigned int y,
 	*x1 = x * 1; *y1 = y * 1 + 1;
 }
 
-__global__ __static__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offset)
+__global__ static void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int offset)
 {
 	int index = offset;
 	// heap
@@ -357,7 +356,7 @@ __global__ __static__ void RenderHeap(quad4 *b, fallocHeap *heap, unsigned int o
 	}
 }
 
-__global__ __static__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, fallocHeap *heap, unsigned int offset)
+__global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, fallocHeap *heap, unsigned int offset)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -443,7 +442,7 @@ __global__ __static__ void RenderBlock(quad4 *b, size_t blocks, unsigned int blo
 
 __device__ void *_fallocTestObj;
 __device__ fallocCtx *_fallocTestCtx;
-__global__ __static__ void Keypress(fallocHeap *heap, unsigned char key)
+__global__ static void Keypress(fallocHeap *heap, unsigned char key)
 {
 	char *testString;
 	int *testInteger;
