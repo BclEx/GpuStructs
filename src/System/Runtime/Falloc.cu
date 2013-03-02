@@ -1,8 +1,6 @@
-//#if defined(_LIB)
-//errore
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif defined(_LIB) | __CUDA_ARCH__ < 200
+#elif defined(_RTLIB) | __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL
@@ -10,6 +8,8 @@
 //#define __THROW *(int*)0=0;
 #include <string.h>
 #include "Cuda.h"
+
+#define __static__
 
 typedef struct __align__(8)
 {
@@ -61,7 +61,7 @@ __inline__ __device__ static void writeBlockHeader(fallocBlockHeader *hdr, unsig
 	*hdr = header;
 }
 
-__inline__ __device__ static void *fallocGetBlock(fallocHeap *heap)
+__device__ __static__ void *fallocGetBlock(fallocHeap *heap)
 {
 	// advance circular buffer
 	fallocBlockRef *blockRefs = heap->blockRefs;
@@ -74,7 +74,7 @@ __inline__ __device__ static void *fallocGetBlock(fallocHeap *heap)
 	return (void *)((char *)block + sizeof(fallocBlockHeader));
 }
 
-__inline__ __device__ static void fallocFreeBlock(fallocHeap *heap, void *obj)
+__device__ __static__ void fallocFreeBlock(fallocHeap *heap, void *obj)
 {
 	fallocBlockHeader *block = (fallocBlockHeader *)((char *)obj - sizeof(fallocBlockHeader));
 	if (block->magic != FALLOC_MAGIC || block->count > 1) __THROW;// bad magic or not a singular block
@@ -188,7 +188,7 @@ typedef struct __align__(8)
 	unsigned short magic;
 } fallocCtx;
 
-__device__ static fallocCtx *fallocCreateCtx(fallocHeap *heap)
+__device__ __static__ fallocCtx *fallocCreateCtx(fallocHeap *heap)
 {
 	size_t blockSize = heap->blockSize;
 	if (sizeof(fallocCtx) > blockSize) __THROW;
@@ -210,14 +210,14 @@ __device__ static fallocCtx *fallocCreateCtx(fallocHeap *heap)
 	return ctx;
 }
 
-__device__ static void fallocDisposeCtx(fallocCtx *ctx)
+__device__ __static__ void fallocDisposeCtx(fallocCtx *ctx)
 {
 	fallocHeap *heap = ctx->heap;
 	for (fallocNode *node = ctx->nodes; node; node = node->next)
 		fallocFreeBlock(heap, node);
 }
 
-__device__ static void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc = true)
+__device__ __static__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc = true)
 {
 	if (bytes > (ctx->blockSize - sizeof(fallocCtx))) __THROW;
 	// find or add available node
@@ -252,7 +252,7 @@ __device__ static void *falloc(fallocCtx *ctx, unsigned short bytes, bool alloc 
 	return obj;
 }
 
-__device__ static void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
+__device__ __static__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 {
 	fallocNode *node = ctx->availableNodes;
 	int freeOffset = (int)node->freeOffset - bytes;
@@ -273,19 +273,12 @@ __device__ static void *fallocRetract(fallocCtx *ctx, unsigned short bytes)
 	return (char *)node + freeOffset;
 }
 
-__inline__ __device__ static void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2)
-{
-	mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset;
-}
+__inline__ __device__ void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2) { mark = ctx->availableNodes; mark2 = ctx->availableNodes->freeOffset; }
+__inline__ __device__ bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2) { return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset); }
 
-__inline__ __device__ static bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2)
-{
-	return (mark == ctx->availableNodes && mark2 == ctx->availableNodes->freeOffset);
-}
-
-template <typename T> __device__ T* falloc(fallocCtx *ctx) { return (T *)falloc(ctx, sizeof(T), true); }
-template <typename T> __device__ void fallocPush(fallocCtx *ctx, T t) { *((T *)falloc(ctx, sizeof(T), false)) = t; }
-template <typename T> __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
+template <typename T> __inline__ __device__ T* falloc(fallocCtx *ctx) { return (T *)falloc(ctx, sizeof(T), true); }
+template <typename T> __inline__ __device__ void fallocPush(fallocCtx *ctx, T t) { *((T *)falloc(ctx, sizeof(T), false)) = t; }
+template <typename T> __inline__ __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
 
 #pragma endregion
 

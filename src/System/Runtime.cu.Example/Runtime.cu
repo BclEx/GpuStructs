@@ -2,7 +2,6 @@
 #include "..\..\System\Runtime\Runtime.cu.h"
 __global__ static void runtimeExample(void *r)
 {
-	//setRuntimeHeap(r);
 	_printf("test");
 }
 

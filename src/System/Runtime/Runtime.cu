@@ -1,6 +1,6 @@
 #if __CUDA_ARCH__ == 100 
 #error Atomics only used with > sm_10 architecture
-#elif defined(_LIB) | __CUDA_ARCH__ < 200
+#elif defined(_RTLIB) | __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL
@@ -9,6 +9,7 @@
 #include <string.h>
 #include "Cuda.h"
 
+#define __static__
 #define RUNTIME_UNRESTRICTED -1
 
 typedef struct __align__(8)
@@ -37,7 +38,7 @@ typedef struct __align__(8)
 } runtimeBlockHeader;
 
 __device__ runtimeHeap *__runtimeHeap;
-//__device__ void setRuntimeHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
+//__device__ __static__ void setRuntimeHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 extern "C" void setRuntimeHeap(void *heap) { cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(void *)); }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,7 +67,7 @@ __device__ static char *moveNextPtr()
 	return blocks + offset;
 }
 
-__device__ static void runtimeRestrict(int threadid, int blockid)
+extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 {
 	int threadMax = blockDim.x * blockDim.y * blockDim.z;
 	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)
@@ -166,25 +167,25 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
-__device__ static int _printf(const char *fmt)
+__device__ __static__ int _printf(const char *fmt)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_POSTAMBLE;
 }
-template <typename T1> __device__ static int _printf(const char *fmt, T1 arg1)
+template <typename T1> __device__ __static__ int _printf(const char *fmt, T1 arg1)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
 	PRINTF_ARG(arg2);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -192,7 +193,7 @@ template <typename T1, typename T2, typename T3> __device__ static int _printf(c
 	PRINTF_ARG(arg3);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -201,7 +202,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 	PRINTF_ARG(arg4);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -211,7 +212,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5> __dev
 	PRINTF_ARG(arg5);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -222,7 +223,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg6);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -234,7 +235,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg7);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -247,7 +248,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg8);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ __static__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -261,7 +262,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg9);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -300,7 +301,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
-__device__ static void _assert(const bool condition)
+__device__ __static__ void _assert(const bool condition)
 {
 	const char *fmt = nullptr;
 	if (condition)
@@ -309,7 +310,7 @@ __device__ static void _assert(const bool condition)
 		ASSERT_POSTAMBLE;
 	}
 }
-__device__ static void _assert(const bool condition, const char *fmt)
+__device__ __static__ void _assert(const bool condition, const char *fmt)
 {
 	if (condition)
 	{
@@ -342,25 +343,25 @@ __device__ static void _assert(const bool condition, const char *fmt)
 	writeBlockHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
 	__THROW;
 
-__device__ static void _throw(const char *fmt)
+__device__ __static__ void _throw(const char *fmt)
 {
 	THROW_PREAMBLE;
 	THROW_POSTAMBLE;
 }
-template <typename T1> __device__ static void _throw(const char *fmt, T1 arg1)
+template <typename T1> __device__ __static__ void _throw(const char *fmt, T1 arg1)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
 	THROW_ARG(arg2);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
@@ -368,7 +369,7 @@ template <typename T1, typename T2, typename T3> __device__ static void _throw(c
 	THROW_ARG(arg3);
 	THROW_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	THROW_PREAMBLE;
 	THROW_ARG(arg1);
@@ -489,6 +490,7 @@ static size_t GetRuntimeRenderQuads(size_t blocks)
 
 static void LaunchRuntimeRender(float4 *b, size_t blocks, runtimeHeap *heap)
 {
+	setRuntimeHeap(heap);
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
@@ -505,7 +507,7 @@ static void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
 		cudaRuntimeExecute(host);
 		return;
 	}
-	//cudaMemcpyToSymbol(_heap, heap, sizeof(runtimeHeap *));
+	setRuntimeHeap(host.heap);
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Keypress<<<heapGrid, heapBlock>>>((runtimeHeap *)host.heap, key);

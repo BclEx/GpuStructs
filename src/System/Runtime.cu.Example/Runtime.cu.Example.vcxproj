@@ -109,19 +109,16 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>
+      <CodeGeneration>compute_20,sm_20</CodeGeneration>
       <Include>$(SolutionDir)lib;%(Include)</Include>
       <Runtime>MTd</Runtime>
-      <Defines>WIN32</Defines>
     </CudaCompile>
-    <CudaLink>
-      <AdditionalLibraryDirectories>
-      </AdditionalLibraryDirectories>
-    </CudaLink>
-    <CudaLink>
-      <AdditionalDependencies>
-      </AdditionalDependencies>
-    </CudaLink>
+    <CudaLink />
+    <CudaLink />
+    <CudaLink />
+    <CudaLink />
+    <CudaLink />
+    <CudaLink />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

@@ -76,6 +76,65 @@ void Visual::TimerEvent(int value)
 	glutTimerFunc(REFRESH_DELAY, TimerEvent, 0);
 }
 
+void Visual::ComputeFPS()
+{
+	_fpsCount++;
+	if (_fpsCount == _fpsLimit)
+	{
+		_avgFps = 1.f; //1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+		_fpsCount = 0;
+		_fpsLimit = (int)(_avgFps > 1.f ? _avgFps : 1.f);
+		//sdkResetTimer(&timer);
+	}
+	char fps[256];
+	sprintf(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
+	glutSetWindowTitle(fps);
+}
+
+bool Visual::InitGL(IVisualRender* render, int *argc, char **argv)
+{
+	_render = render;
+	InitState();
+	glutInit(argc, argv);
+	int screenWidth = glutGet(GLUT_SCREEN_WIDTH);
+	int screenHeight = glutGet(GLUT_SCREEN_HEIGHT);
+	glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DEPTH | GLUT_DOUBLE);
+	glutInitWindowPosition((screenWidth - WindowWidth) / 2, (screenHeight - WindowHeight) / 2);
+	glutInitWindowSize(WindowWidth, WindowHeight);
+	glutCreateWindow("Cuda GL Interop (VBO)");
+	// register callbacks
+	glutDisplayFunc(Display);
+	glutKeyboardFunc(Keyboard);
+	glutMouseFunc(Mouse);
+	glutMotionFunc(Motion);
+	glutTimerFunc(REFRESH_DELAY, TimerEvent, 0);
+
+	// initialize necessary OpenGL extensions
+	glewInit();
+	if (!glewIsSupported("GL_VERSION_2_0"))
+	{
+		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
+		fflush(stderr);
+		return false;
+	}
+
+	// default initialization
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glEnable(GL_DEPTH_TEST);
+	glPointSize(5);
+
+	// viewport
+	glViewport(0, 0, WindowWidth, WindowHeight);
+
+	// projection
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluPerspective(80.0, (GLfloat)WindowWidth / (GLfloat)WindowHeight, 0.01, 500.0);
+
+	SDK_CHECK_ERROR_GL();
+	return true;
+}
+
 void Visual::Main()
 {
 	_render->Initialize();

@@ -1,4 +1,4 @@
-#ifndef _LIB
+#ifdef _CONSOLE
 #include "../Runtime/Cuda.h"
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"
