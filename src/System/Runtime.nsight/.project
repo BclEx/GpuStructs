@@ -116,16 +116,6 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Runtime/FallocHost.cpp</locationURI>
 		</link>
 		<link>
-			<name>FallocVisualKeypress.cu</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/FallocVisualKeypress.cu</locationURI>
-		</link>
-		<link>
-			<name>FallocVisualRender.cu</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/FallocVisualRender.cu</locationURI>
-		</link>
-		<link>
 			<name>Runtime.cu</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Runtime.cu</locationURI>
@@ -144,16 +134,6 @@
 			<name>RuntimeHost.cpp</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Runtime/RuntimeHost.cpp</locationURI>
-		</link>
-		<link>
-			<name>RuntimeVisualKeypress.cu</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/RuntimeVisualKeypress.cu</locationURI>
-		</link>
-		<link>
-			<name>RuntimeVisualRender.cu</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/RuntimeVisualRender.cu</locationURI>
 		</link>
 		<link>
 			<name>Visual.cpp</name>
