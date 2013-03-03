@@ -1,9 +1,9 @@
 #ifdef _CONSOLE
 #include <cstdlib>
 #include <cstdio>
-#include "../Runtime/Cuda.h"
-#include "../Runtime/Runtime.h"
-#include "../Runtime/Falloc.h"
+#include "../../src/Runtime.src/Cuda.h"
+#include "../../src/Runtime.src/Runtime.h"
+#include "../../src/Runtime.src/Falloc.h"
 
 cudaError _lastError;
 int main(int argc, char **argv)

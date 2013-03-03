@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Runtime.nsight</name>
+	<name>Runtime.cu</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -9,10 +9,6 @@
 			<name>org.eclipse.cdt.managedbuilder.core.genmakebuilder</name>
 			<triggers>clean,full,incremental,</triggers>
 			<arguments>
-				<dictionary>
-					<key>?children?</key>
-					<value>?name?=outputEntries\|?children?=?name?=entry\\\\\\\|\\\|?name?=entry\\\\\\\|\\\|\||</value>
-				</dictionary>
 				<dictionary>
 					<key>?name?</key>
 					<value></value>
@@ -35,7 +31,7 @@
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value>${workspace_loc:/Runtime.nsight/Debug}</value>
+					<value>${workspace_loc:/Runtime.cu/Debug}</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>
@@ -88,62 +84,62 @@
 		<link>
 			<name>Cuda.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Cuda.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Cuda.h</locationURI>
 		</link>
 		<link>
 			<name>CudaGL.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/CudaGL.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/CudaGL.h</locationURI>
 		</link>
 		<link>
 			<name>Falloc.cu</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Falloc.cu</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Falloc.cu</locationURI>
 		</link>
 		<link>
 			<name>Falloc.cu.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Falloc.cu.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Falloc.cu.h</locationURI>
 		</link>
 		<link>
 			<name>Falloc.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Falloc.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Falloc.h</locationURI>
 		</link>
 		<link>
 			<name>FallocHost.cpp</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/FallocHost.cpp</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/FallocHost.cpp</locationURI>
 		</link>
 		<link>
 			<name>Runtime.cu</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Runtime.cu</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Runtime.cu</locationURI>
 		</link>
 		<link>
 			<name>Runtime.cu.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Runtime.cu.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Runtime.cu.h</locationURI>
 		</link>
 		<link>
 			<name>Runtime.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Runtime.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Runtime.h</locationURI>
 		</link>
 		<link>
 			<name>RuntimeHost.cpp</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/RuntimeHost.cpp</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/RuntimeHost.cpp</locationURI>
 		</link>
 		<link>
 			<name>Visual.cpp</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Visual.cpp</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Visual.cpp</locationURI>
 		</link>
 		<link>
 			<name>Visual.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Runtime/Visual.h</locationURI>
+			<locationURI>PARENT-1-WORKSPACE_LOC/src/System/Runtime/Visual.h</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>
