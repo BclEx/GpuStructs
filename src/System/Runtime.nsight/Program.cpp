@@ -1,14 +1,13 @@
+#ifdef _CONSOLE
 #include <cstdlib>
 #include <cstdio>
 #include "../Runtime/Cuda.h"
-#include "../Runtime/Visual.h"
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"
 
 cudaError _lastError;
 int main(int argc, char **argv)
 {
-	printf("Start\n");
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
 	cudaFallocHost fallocHost = cudaFallocInit(100, 1024);
 
@@ -20,12 +19,13 @@ int main(int argc, char **argv)
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
 	Visual::Main();
 	atexit(Visual::Dispose);
-	// free
-    //Visual::Dispose();
+
 	cudaRuntimeEnd(runtimeHost);
 	cudaFallocEnd(fallocHost);
+
 	cudaDeviceReset();
 	printf("End.");
 	char c; scanf("%c", &c);
     return 1;
 }
+#endif

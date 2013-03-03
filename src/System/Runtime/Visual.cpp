@@ -1,6 +1,7 @@
 //[GL VBO] http://3dgep.com/?p=2596
 //#include <cstdio>
 //#include <cassert>
+#include <cstdlib>
 #include "Visual.h"
 
 float Visual::RotateX;
@@ -9,7 +10,7 @@ float Visual::TranslateX;
 float Visual::TranslateY;
 float Visual::TranslateZ;
 //
-IVisualRender* Visual::_render;
+IVisualRender *Visual::_render;
 int Visual::_mouseLastX;
 int Visual::_mouseLastY;
 int Visual::_mouseState;
@@ -91,7 +92,7 @@ void Visual::ComputeFPS()
 	glutSetWindowTitle(fps);
 }
 
-bool Visual::InitGL(IVisualRender* render, int *argc, char **argv)
+bool Visual::InitGL(IVisualRender *render, int *argc, char **argv)
 {
 	_render = render;
 	InitState();

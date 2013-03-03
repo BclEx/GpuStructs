@@ -59,19 +59,6 @@ protected:
 	static void Motion(int x, int y);
 	static void TimerEvent(int value);
 	static void ComputeFPS();
-	//{
-	//	_fpsCount++;
-	//	if (_fpsCount == _fpsLimit)
-	//	{
-	//		_avgFps = 1.f; //1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-	//		_fpsCount = 0;
-	//		_fpsLimit = (int)(_avgFps > 1.f ? _avgFps : 1.f);
-	//		//sdkResetTimer(&timer);
-	//	}
-	//	char fps[256];
-	//	sprintf(fps, "Cuda GL Interop (VBO): %3.1f fps (Max 100Hz)", _avgFps);
-	//	glutSetWindowTitle(fps);
-	//}
 
 public:
 	//inline ~Visual() { Dispose(); }
@@ -81,7 +68,7 @@ public:
 		if (_render)
 		{
 			_render->Dispose();
-			delete _render; _render = nullptr;
+			delete _render; _render = 0;
 		}
 	}
 	static void Main();
@@ -100,48 +87,6 @@ public:
 		_avgFps = 0.0f;
 	}
 	static bool InitGL(IVisualRender* render, int *argc, char **argv);
-	//{
-	//	_render = render;
-	//	InitState();
-	//	glutInit(argc, argv);
-	//	int screenWidth = glutGet(GLUT_SCREEN_WIDTH);
-	//	int screenHeight = glutGet(GLUT_SCREEN_HEIGHT);
-	//	glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DEPTH | GLUT_DOUBLE);
-	//	glutInitWindowPosition((screenWidth - WindowWidth) / 2, (screenHeight - WindowHeight) / 2);
-	//	glutInitWindowSize(WindowWidth, WindowHeight);
-	//	glutCreateWindow("Cuda GL Interop (VBO)");
-	//	// register callbacks
-	//	glutDisplayFunc(Display);
-	//	glutKeyboardFunc(Keyboard);
-	//	glutMouseFunc(Mouse);
-	//	glutMotionFunc(Motion);
-	//	glutTimerFunc(REFRESH_DELAY, TimerEvent, 0);
-
-	//	// initialize necessary OpenGL extensions
-	//	glewInit();
-	//	if (!glewIsSupported("GL_VERSION_2_0"))
-	//	{
-	//		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
-	//		fflush(stderr);
-	//		return false;
-	//	}
-
-	//	// default initialization
-	//	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	//	glEnable(GL_DEPTH_TEST);
-	//	glPointSize(5);
-
-	//	// viewport
-	//	glViewport(0, 0, WindowWidth, WindowHeight);
-
-	//	// projection
-	//	glMatrixMode(GL_PROJECTION);
-	//	glLoadIdentity();
-	//	gluPerspective(80.0, (GLfloat)WindowWidth / (GLfloat)WindowHeight, 0.01, 500.0);
-
-	//	SDK_CHECK_ERROR_GL();
-	//	return true;
-	//}
 };
 
 #endif // __VISUAL_H__

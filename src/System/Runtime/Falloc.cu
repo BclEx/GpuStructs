@@ -1,6 +1,6 @@
 #if __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif defined(_RTLIB) | __CUDA_ARCH__ < 200
+#elif defined(_RTLIB) || __CUDA_ARCH__ < 200
 
 #ifndef nullptr
 #define nullptr NULL

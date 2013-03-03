@@ -39,6 +39,11 @@
 									<listOptionValue builtIn="false" value="/opt/local/include"/>
 									<listOptionValue builtIn="false" value="/System/Library/Frameworks/GLUT.framework/Headers"/>
 								</option>
+								<option id="nvcc.compiler.def.symbols.1942532744" name="Defined symbols (-D)" superClass="nvcc.compiler.def.symbols" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="_CONSOLE"/>
+									<listOptionValue builtIn="false" value="VISUAL"/>
+									<listOptionValue builtIn="false" value="_RTLIB"/>
+								</option>
 								<inputType id="nvcc.compiler.input.cu.1852863145" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.205790578" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.1997440283" superClass="nvcc.compiler.input.c"/>
