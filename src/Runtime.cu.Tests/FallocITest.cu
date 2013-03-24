@@ -1,6 +1,6 @@
-#include "..\..\System\Runtime\Runtime.h"
-#include "..\..\System\Runtime\Runtime.cu.h"
-#include "..\..\System\Runtime\Falloc.cu.h"
+#include "..\Runtime.src\Runtime.h"
+#include "..\Runtime.src\Runtime.cu.h"
+#include "..\Runtime.src\Falloc.cu.h"
 
 __device__ static fallocHeap *_heap;
 #define TEST(id) \
@@ -16,13 +16,13 @@ __device__ static fallocHeap *_heap;
 // launches cuda kernel
 TEST(A) {
 	int gtid = blockIdx.x*blockDim.x + threadIdx.x;
-	__assert(gtid < 1);
+	_assert(gtid < 1);
 }}
 
 // alloc with get block
 TEST(0) {
 	void* obj = fallocGetBlock(_heap);
-	__assert(obj != nullptr);
+	_assert(obj != nullptr);
 	fallocFreeBlock(_heap, obj);
 }}
 
@@ -40,22 +40,22 @@ TEST(1) {
 // alloc with context
 TEST(2) {
 	fallocCtx *ctx = fallocCreateCtx(_heap);
-	__assert(ctx != nullptr);
+	_assert(ctx != nullptr);
 	char *testString = (char*)falloc(ctx, 10);
-	__assert(testString != nullptr);
+	_assert(testString != nullptr);
 	int *testInteger = falloc<int>(ctx);
-	__assert(testInteger != nullptr);
+	_assert(testInteger != nullptr);
 	fallocDisposeCtx(ctx);
 }}
 
 // alloc with context as stack
 TEST(3) {
 	fallocCtx *ctx = fallocCreateCtx(_heap);
-	__assert(ctx != nullptr);
+	_assert(ctx != nullptr);
 	fallocPush<int>(ctx, 1);
 	fallocPush<int>(ctx, 2);
 	int b = fallocPop<int>(ctx);
 	int a = fallocPop<int>(ctx);
-	__assert(b == 2 && a == 1);
+	_assert(b == 2 && a == 1);
 	fallocDisposeCtx(ctx);
 }}

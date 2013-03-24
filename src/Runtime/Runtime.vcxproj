@@ -24,7 +24,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v100</PlatformToolset>
     <LinkIncremental>true</LinkIncremental>
@@ -73,7 +73,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_MBCS;_RTLIB;VISUAL;_xCONSOLE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_MBCS;_RTLIB;VISUAL;_CONSOLE</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -166,24 +166,22 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Runtime\FallocHost.cpp" />
-    <ClCompile Include="..\Runtime\RuntimeHost.cpp" />
-    <ClCompile Include="..\Runtime\Visual.cpp" />
+    <ClCompile Include="..\Runtime.src\FallocHost.cpp" />
+    <ClCompile Include="..\Runtime.src\RuntimeHost.cpp" />
+    <ClCompile Include="..\Runtime.src\Visual.cpp" />
     <ClCompile Include="Program.cpp" />
-    <CudaCompile Include="..\Runtime\Falloc.cu" />
+    <CudaCompile Include="..\Runtime.src\Falloc.cu" />
+    <CudaCompile Include="..\Runtime.src\Runtime.cu" />
     <CudaCompile Include="Program.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Runtime\Cuda.h" />
-    <ClInclude Include="..\Runtime\CudaGL.h" />
-    <ClInclude Include="..\Runtime\Falloc.cu.h" />
-    <ClInclude Include="..\Runtime\Falloc.h" />
-    <ClInclude Include="..\Runtime\Runtime.cu.h" />
-    <ClInclude Include="..\Runtime\Runtime.h" />
-    <ClInclude Include="..\Runtime\Visual.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="..\Runtime\Runtime.cu" />
+    <ClInclude Include="..\Runtime.src\Cuda.h" />
+    <ClInclude Include="..\Runtime.src\CudaGL.h" />
+    <ClInclude Include="..\Runtime.src\Falloc.cu.h" />
+    <ClInclude Include="..\Runtime.src\Falloc.h" />
+    <ClInclude Include="..\Runtime.src\Runtime.cu.h" />
+    <ClInclude Include="..\Runtime.src\Runtime.h" />
+    <ClInclude Include="..\Runtime.src\Visual.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

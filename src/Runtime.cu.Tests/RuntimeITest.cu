@@ -1,6 +1,5 @@
-#include "..\..\System\Runtime\Runtime.h"
-#include "..\..\System\Runtime\Runtime.cu.h"
-//#include <cassert>
+#include "..\Runtime.src\Runtime.h"
+#include "..\Runtime.src\Runtime.cu.h"
 
 #define TEST(id) \
 	__global__ void runtimeTest##id(runtimeHeap *r); \

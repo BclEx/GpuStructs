@@ -8,7 +8,4 @@
     <CudaCompile Include="FallocITest.cu" />
     <CudaCompile Include="RuntimeITest.cu" />
   </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\..\..\x64\Debug\Runtime.cu.lib" />
-  </ItemGroup>
 </Project>

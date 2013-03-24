@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include "..\..\System\Runtime\Runtime.h"
-#include "..\..\System\Runtime\Falloc.h"
+#include "..\Runtime.src\Runtime.h"
+#include "..\Runtime.src\Falloc.h"
 using namespace System;
 using namespace Xunit;
 
