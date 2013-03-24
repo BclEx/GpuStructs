@@ -25,14 +25,13 @@
 //	NOTE: Restrictions last between invocations of kernels unless cudaRuntimeInit() is called again.
 //
 
-extern "C" void setRuntimeHeap(void *heap);
-//extern __device__ void setRuntimeHeap(void *heap);
+extern __device__ void runtimeSetHeap(void *heap);
 
 #define RUNTIME_UNRESTRICTED -1
 extern "C" __device__ void runtimeRestrict(int threadid, int blockid);
 
 // Abuse of templates to simulate varargs
-__device__ int _printf(const char *fmt);
+extern __device__ int _printf(const char *fmt);
 template <typename T1> extern __device__ int _printf(const char *fmt, T1 arg1);
 template <typename T1, typename T2> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2);
 template <typename T1, typename T2, typename T3> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3);

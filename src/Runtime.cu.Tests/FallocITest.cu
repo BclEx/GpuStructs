@@ -4,11 +4,11 @@
 
 __device__ static fallocHeap *_heap;
 #define TEST(id) \
-	__global__ void fallocTest##id(runtimeHeap *r, fallocHeap *f); \
-	void fallocTest##id##_host(cudaRuntimeHost &r, void *f) { fallocTest##id<<<1, 1>>>((runtimeHeap *)r.heap, (fallocHeap *)f); cudaRuntimeExecute(r); } \
-	__global__ void fallocTest##id(runtimeHeap *r, fallocHeap *f) \
+	__global__ void fallocTest##id(void *r, fallocHeap *f); \
+	void fallocTest##id##_host(cudaRuntimeHost &r, void *f) { cudaRuntimeSetHeap(r.heap); fallocTest##id<<<1, 1>>>(r.heap, (fallocHeap *)f); cudaRuntimeExecute(r); } \
+	__global__ void fallocTest##id(void *r, fallocHeap *f) \
 { \
-	setRuntimeHeap(r); \
+	runtimeSetHeap(r); \
 	_heap = f;
 
 //////////////////////////////////////////////////

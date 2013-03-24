@@ -9,7 +9,6 @@
 #include <string.h>
 #include "Cuda.h"
 
-#define __static__
 #define RUNTIME_UNRESTRICTED -1
 
 typedef struct __align__(8)
@@ -38,8 +37,16 @@ typedef struct __align__(8)
 } runtimeBlockHeader;
 
 __device__ runtimeHeap *__runtimeHeap;
-//__device__ __static__ void setRuntimeHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
-extern "C" void setRuntimeHeap(void *heap) { cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(void *)); }
+#if defined(_RTLIB) || __CUDA_ARCH__ < 200
+// inlined
+#define __static__ static
+__device__ __static__ void runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
+extern "C" void cudaRuntimeSetHeap(void *heap) { }
+#else
+#define __static__
+__device__ __static__ void runtimeSetHeap(void *heap) { }
+extern "C" void cudaRuntimeSetHeap(void *heap) { cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(void *)); }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -465,7 +472,7 @@ __global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 
 __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 {
-	//setRuntimeHeap(heap);
+	runtimeSetHeap(heap);
 	switch (key)
 	{
 	case 'a':
@@ -490,7 +497,7 @@ static size_t GetRuntimeRenderQuads(size_t blocks)
 
 static void LaunchRuntimeRender(float4 *b, size_t blocks, runtimeHeap *heap)
 {
-	setRuntimeHeap(heap);
+	cudaRuntimeSetHeap(heap);
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
@@ -507,7 +514,7 @@ static void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
 		cudaRuntimeExecute(host);
 		return;
 	}
-	setRuntimeHeap(host.heap);
+	cudaRuntimeSetHeap(host.heap);
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Keypress<<<heapGrid, heapBlock>>>((runtimeHeap *)host.heap, key);

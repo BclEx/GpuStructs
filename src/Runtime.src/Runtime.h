@@ -24,6 +24,11 @@ typedef struct
 } cudaRuntimeHost;
 
 //
+//	cudaRuntimeSetHeap
+//
+extern "C" void cudaRuntimeSetHeap(void *heap);
+
+//
 //	cudaRuntimeInit
 //
 //	Call this to initialize a runtime heap. If the buffer size needs to be changed, call cudaRuntimeEnd()
