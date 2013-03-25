@@ -101,7 +101,7 @@ extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler h
 	host.assertHandler = handler;
 }
 
-static bool outputPrintfData(size_t blockSize, char *fmt, char *data);
+static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *data);
 static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, char *heap, int headings, int clear, char *bufstart, char *bufend, char *bufptr, char *endptr)
 {
 	// grab, piece-by-piece, each output element until we catch up with the circular buffer end pointer
@@ -118,37 +118,43 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 			break;
 		// if the magic number isn't valid, then this write hasn't gone through yet and we'll wait until it does (or we're past the end for non-async printfs).
 		runtimeBlockHeader *hdr = (runtimeBlockHeader *)b;
-		if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= blockSize)
-		{
-			//fprintf(_stream, "Bad magic number in printf header\n");
-			break;
-		}
+		//if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= blockSize)
+		//{
+		//	fprintf(_stream, "Bad magic number in runtime header\n");
+		//	break;
+		//}
 		// Extract all the info and get this printf done
-		if (headings)
-			fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 		bool error = false;
 		switch (hdr->type)
 		{
 		case RUNTIMETYPE_PRINTF:
+			if (headings)
+				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			if (hdr->fmtoffset == 0)
 				fprintf(_stream, "printf buffer overflow\n");
 			else
-				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
 			break;
 		case RUNTIMETYPE_ASSERT:
+			if (headings)
+				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			fprintf(_stream, "ASSERT: ");
 			if (hdr->fmtoffset == 0)
 				fprintf(_stream, "printf buffer overflow\n");
 			else
-				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			fprintf(_stream, "\n");
 			//assertHandler();
 			break;
 		case RUNTIMETYPE_THROW:
+			if (headings)
+				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			fprintf(_stream, "THROW: ");
 			if (hdr->fmtoffset == 0)
 				fprintf(_stream, "printf buffer overflow\n");
 			else
-				error = !outputPrintfData(blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			fprintf(_stream, "\n");
 			break;
 		}
 		if (error)
@@ -194,7 +200,7 @@ extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, b
 
 #pragma region PRINTF
 
-static bool outputPrintfData(size_t blockSize, char *fmt, char *data)
+static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *data)
 {
 	// Format string is prefixed by a length that we don't need
 	fmt += RUNTIME_ALIGNSIZE;
@@ -203,7 +209,7 @@ static bool outputPrintfData(size_t blockSize, char *fmt, char *data)
 	while (p != nullptr)
 	{
 		// print up to the % character
-		*p = '\0'; fputs(fmt, _stream); *p = '%'; // Put back the %
+		*p = '\0'; fputs(fmt, stream); *p = '%'; // Put back the %
 		// now handle the format specifier
 		char *format = p++; // Points to the '%'
 		p += strcspn(p, "%cdiouxXeEfgGaAnps");
@@ -216,7 +222,7 @@ static bool outputPrintfData(size_t blockSize, char *fmt, char *data)
 		int arglen = *(int *)data;
 		if (arglen > blockSize)
 		{
-			fputs("Corrupt printf buffer data - aborting\n", _stream);
+			fputs("Corrupt printf buffer data - aborting\n", stream);
 			return false;
 		}
 		data += RUNTIME_ALIGNSIZE;
@@ -226,22 +232,73 @@ static bool outputPrintfData(size_t blockSize, char *fmt, char *data)
 		switch (specifier)
 		{
 			// these all take integer arguments
-		case 'c': case 'd': case 'i': case 'o': case 'u': case 'x': case 'X': case 'p': fprintf(_stream, format, *((int *)data)); break;
+		case 'c': case 'd': case 'i': case 'o': case 'u': case 'x': case 'X': case 'p': fprintf(stream, format, *((int *)data)); break;
 			// these all take float/double arguments, float vs. double thing
-		case 'e': case 'E': case 'f': case 'g': case 'G': case 'a': case 'A': if (arglen == 4) fprintf(_stream, format, *((float *)data)); else fprintf(_stream, format, *((double *)data)); break;
+		case 'e': case 'E': case 'f': case 'g': case 'G': case 'a': case 'A': if (arglen == 4) fprintf(stream, format, *((float *)data)); else fprintf(stream, format, *((double *)data)); break;
 			// Strings are handled in a special way
-		case 's': fprintf(_stream, format, (char *)data); break;
+		case 's': fprintf(stream, format, (char *)data); break;
 			// % is special
-		case '%': fprintf(_stream, "%%"); break;
+		case '%': fprintf(stream, "%%"); break;
 			// everything else is just printed out as-is
-		default: fprintf(_stream, format); break;
+		default: fprintf(stream, format); break;
 		}
 		data += RUNTIME_ALIGNSIZE; // move on to next argument
 		*p = c; fmt = p; // restore what we removed, and adjust fmt string to be past the specifier
 		p = strchr(fmt, '%'); // and get the next specifier
 	}
 	// print out the last of the string
-	fputs(fmt, _stream);
+	fputs(fmt, stream);
+	return true;
+}
+
+static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *data)
+{
+	// Format string is prefixed by a length that we don't need
+	fmt += RUNTIME_ALIGNSIZE;
+	// now run through it, printing everything we can. We must run to every % character, extract only that, and use printf to format it.
+	char *p = strchr(fmt, '%');
+	while (p != nullptr)
+	{
+		// print up to the % character
+		*p = '\0'; strcpy(stream, fmt); *p = '%'; // Put back the %
+		// now handle the format specifier
+		char *format = p++; // Points to the '%'
+		p += strcspn(p, "%cdiouxXeEfgGaAnps");
+		if (*p == '\0') // If no format specifier, print the whole thing
+		{
+			fmt = format;
+			break;
+		}
+		// cut out the format bit and use printf to print it. It's prefixed by its length.
+		int arglen = *(int *)data;
+		if (arglen > blockSize)
+		{
+			strcpy(stream, "Corrupt printf buffer data - aborting\n");
+			return false;
+		}
+		data += RUNTIME_ALIGNSIZE;
+		//
+		char specifier = *p++;
+		char c = *p; *p = '\0'; // store for later and clip
+		switch (specifier)
+		{
+			// these all take integer arguments
+		case 'c': case 'd': case 'i': case 'o': case 'u': case 'x': case 'X': case 'p': sprintf(stream, format, *((int *)data)); break;
+			// these all take float/double arguments, float vs. double thing
+		case 'e': case 'E': case 'f': case 'g': case 'G': case 'a': case 'A': if (arglen == 4) sprintf(stream, format, *((float *)data)); else sprintf(stream, format, *((double *)data)); break;
+			// Strings are handled in a special way
+		case 's': sprintf(stream, format, (char *)data); break;
+			// % is special
+		case '%': sprintf(stream, "%%"); break;
+			// everything else is just printed out as-is
+		default: sprintf(stream, format); break;
+		}
+		data += RUNTIME_ALIGNSIZE; // move on to next argument
+		*p = c; fmt = p; // restore what we removed, and adjust fmt string to be past the specifier
+		p = strchr(fmt, '%'); // and get the next specifier
+	}
+	// print out the last of the string
+	strcpy(stream, fmt);
 	return true;
 }
 

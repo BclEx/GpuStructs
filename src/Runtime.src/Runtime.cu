@@ -98,9 +98,7 @@ __inline__ __device__ static void writeBlockHeader(unsigned short type, char *pt
 __device__ static char *writeString(char *dest, const char *src, int maxLength, char *end)
 {
 	// initialization and overflow check
-	if (!dest || dest >= end)
-		return nullptr;
-	if (!src)
+	if (!dest || dest >= end) //|| !src)
 		return nullptr;
 	// prepare to write the length specifier. We're guaranteed to have at least "RUNTIME_ALIGNSIZE" bytes left because we only write out in
 	// chunks that size, and blockSize is aligned with RUNTIME_ALIGNSIZE.
@@ -108,7 +106,6 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 	int len = 0;
 	dest += RUNTIME_ALIGNSIZE;
 	// now copy the string
-
 	while (maxLength--)
 	{
 		if (dest >= end) // overflow check
@@ -131,7 +128,7 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 __device__ static char *copyArg(char *ptr, const char *arg, char *end)
 {
 	// initialization check
-	if (!ptr || !arg)
+	if (!ptr) // || !arg)
 		return nullptr;
 	// strncpy does all our work. We just terminate.
 	if ((ptr = writeString(ptr, arg, __runtimeHeap->blockSize, end)) != nullptr)
