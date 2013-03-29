@@ -2,21 +2,21 @@ properties {
   $base_dir = resolve-path .
   $build_dir = "$base_dir\build"
   $packageinfo_dir = "$base_dir\nuspecs"
-  $35_build_dir = "$build_dir\3.5\"
-  $40_build_dir = "$build_dir\4.0\"
+  $11_build_dir = "$build_dir\3.5\"
+  $20_build_dir = "$build_dir\4.0\"
   $release_dir = "$base_dir\Release"
   $sln_file = "$base_dir\GpuStructs.sln"
   $tools_dir = "$base_dir\tools"
   $version = "1.0.0" #Get-Version-From-Git-Tag
-  $35_config = "Release"
-  $40_config = "Release.4"
+  $11_config = "Release"
+  $20_config = "Release.2"
   $run_tests = $true
 }
 Framework "4.0"
 
 #include .\psake_ext.ps1
 	
-task default -depends Package
+task default -depends Release
 
 task Clean {
 	remove-item -force -recurse $build_dir -ErrorAction SilentlyContinue
@@ -29,14 +29,14 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	msbuild $sln_file /p:"OutDir=$35_build_dir;Configuration=$35_config"
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$40_build_dir;Configuration=$40_config"
+	msbuild $sln_file /p:"OutDir=$build_dir\11;Configuration=$11_config"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\20;Configuration=$20_config"
 }
 
 task Test -depends Compile -precondition { return $run_tests } {
 	$old = pwd
 	cd $build_dir
-	& $tools_dir\xUnit\xunit.console.clr4.exe "$40_build_dir\System.WebEx.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\11\System.WebEx.Tests.dll" /noshadow
 	cd $old
 }
 
