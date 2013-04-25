@@ -54,6 +54,23 @@ template <typename T1, typename T2> extern __device__ void _throw(const char *fm
 template <typename T1, typename T2, typename T3> extern __device__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3);
 template <typename T1, typename T2, typename T3, typename T4> extern __device__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4);
 
+// Memcpy
+__device__ inline char *_memcpy(char *dest, const char *src, size_t length)
+{
+	char *dest = dest;
+	for (size_t i = 0; i < length; ++i, ++src, ++dest)
+		*dest = *src;
+	return dest;
+}
+
+// Memset
+__device__ inline char *_memset(char *dest, const char value, size_t length)
+{
+	for (size_t i = 0; i < length; ++i, ++src, ++dest)
+		*dest = value;
+	return dest;
+}
+
 #endif // __CUDA_ARCH__
 
 #endif // __RUNTIME_CU_H__

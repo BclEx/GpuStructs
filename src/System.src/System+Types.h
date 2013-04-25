@@ -34,8 +34,8 @@ assert_sizeof(uint64,	8);
 
 #define MAX_TYPE(x) ((((1 << ((sizeof(x) - 1) * 8 - 1)) - 1) << 8) | 255)
 #define MIN_TYPE(x) (-MAX_TYPE(x) - 1)
-#define MAX_UNSIGNED_TYPE(x) ((((1U << ((sizeof(x) - 1) * 8)) - 1) << 8) | 255U)
-#define MIN_UNSIGNED_TYPE(x) 0
+#define MAX_UTYPE(x) ((((1U << ((sizeof(x) - 1) * 8)) - 1) << 8) | 255U)
+#define MIN_UTYPE(x) 0
 
 template<typename T> inline bool IsSignedType(const T t) { return _type_(-1) < 0; }
 template<class T> T	Max(T x, T y) { return (x > y ? x : y); }
