@@ -2,9 +2,9 @@
 #error Atomics only used with > sm_10 architecture
 #elif defined(_RTLIB) || __CUDA_ARCH__ < 200
 
-#ifndef nullptr
-#define nullptr NULL
-#endif
+//#ifndef nullptr
+//#define nullptr NULL
+//#endif
 //#define __THROW *(int*)0=0;
 #include <string.h>
 #include "Cuda.h"

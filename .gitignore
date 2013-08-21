@@ -1,3 +1,4 @@
+# project
 build/
 *.orig
 
@@ -19,7 +20,6 @@ _ReSharper.*/
 *resharper.user
 ipch/
 
-
 # OS X
 .DS_Store
 *.swp
@@ -31,9 +31,6 @@ xcuserdata
 !xcshareddata
 !xcschemes
 *.moved-aside
-
-
-
 
 # Eclipse
 *.pydevproject
