@@ -1,7 +1,7 @@
-#ifdef _CONSOLE
-#include "../Runtime.src/Cuda.h"
-#include "../Runtime.src/Runtime.h"
-#include "../Runtime.src/Falloc.h"
+#ifndef _LIB
+#include "Cuda.h"
+#include "Runtime.h"
+#include "Falloc.h"
 
 cudaError _lastError;
 int main(int argc, char **argv)

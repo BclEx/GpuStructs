@@ -1,8 +1,5 @@
 #ifndef __RUNTIME_H__
 #define __RUNTIME_H__
-#ifndef nullptr
-#define nullptr NULL
-#endif
 #include <cuda_runtime.h>
 
 ///////////////////////////////////////////////////////////////////////////////

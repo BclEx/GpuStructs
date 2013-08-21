@@ -1,5 +1,5 @@
-#include "..\Runtime.src\Runtime.h"
-#include "..\Runtime.src\Runtime.cu.h"
+#include "..\Runtime\Runtime.h"
+#include "..\Runtime\Runtime.cu.h"
 __global__ static void runtimeExample(void *r)
 {
 	runtimeSetHeap(r);

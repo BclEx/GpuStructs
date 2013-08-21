@@ -1,15 +1,13 @@
-#if __CUDA_ARCH__ == 100
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif defined(_RTLIB) || __CUDA_ARCH__ < 200
-
-//#ifndef nullptr
-//#define nullptr NULL
-//#endif
-//#define __THROW *(int*)0=0;
+//#elif defined(_LIB) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#endif
 #include <string.h>
 #include "Cuda.h"
 
-#define __static__
+///////////////////////////////////////////////////////////////////////////////
+// STRUCT
+#pragma region STRUCT
 
 typedef struct __align__(8)
 {
@@ -37,6 +35,14 @@ typedef struct __align__(8)
 	volatile fallocBlockRef *retnBlockPtr; // Current atomically-incremented non-wrapped offset
 	char *blocks;
 } fallocHeap;
+
+#pragma endregion
+
+#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#define __static__ static
+#else
+#define __static__
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -161,7 +167,6 @@ heap->blockRefs = block;
 */
 #pragma endregion
 
-
 //////////////////////
 // CONTEXT
 #pragma region CONTEXT
@@ -281,7 +286,6 @@ template <typename T> __inline__ __device__ void fallocPush(fallocCtx *ctx, T t)
 template <typename T> __inline__ __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
 
 #pragma endregion
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
@@ -437,8 +441,8 @@ __device__ void *_fallocTestObj;
 __device__ fallocCtx *_fallocTestCtx;
 __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 {
-	char *testString;
-	int *testInteger;
+	//char *testString;
+	//int *testInteger;
 	switch (key)
 	{
 	case 'a':
@@ -450,10 +454,10 @@ __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 	case 'x':
 		_fallocTestCtx = fallocCreateCtx(heap);
 		break;
-	case 'y':
-		testString = (char *)falloc(_fallocTestCtx, 10);
-		testInteger = falloc<int>(_fallocTestCtx);
-		break;
+	//case 'y':
+	//	testString = (char *)falloc(_fallocTestCtx, 10);
+	//	testInteger = falloc<int>(_fallocTestCtx);
+	//	break;
 	case 'z':
 		fallocDisposeCtx(_fallocTestCtx);
 		break;
@@ -596,5 +600,3 @@ void FallocVisualRender::Initialize()
 
 #endif
 #pragma endregion
-
-#endif // __CUDA_ARCH__

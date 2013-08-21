@@ -1,6 +1,3 @@
-//[GL VBO] http://3dgep.com/?p=2596
-//#include <cstdio>
-//#include <cassert>
 #include <cstdlib>
 #include "Visual.h"
 

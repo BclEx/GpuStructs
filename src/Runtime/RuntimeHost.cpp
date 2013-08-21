@@ -1,5 +1,4 @@
-#define nullptr NULL
-#if __CUDA_ARCH__ == 100
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
 #include <string.h>

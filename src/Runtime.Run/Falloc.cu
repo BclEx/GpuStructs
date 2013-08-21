@@ -1,5 +1,5 @@
-#include "..\Runtime.src\Falloc.h"
-#include "..\Runtime.src\Falloc.cu.h"
+#include "..\Runtime\Falloc.h"
+#include "..\Runtime\Falloc.cu.h"
 __global__ static void fallocExample(void *f)
 {
 	fallocGetBlock((fallocHeap *)f);

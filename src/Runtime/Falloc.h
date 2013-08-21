@@ -1,8 +1,5 @@
 #ifndef __FALLOC_H__
 #define __FALLOC_H__
-#ifndef nullptr
-#define nullptr NULL
-#endif
 #include <cuda_runtime.h>
 
 /*

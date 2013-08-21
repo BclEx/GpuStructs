@@ -1,15 +1,12 @@
-#if __CUDA_ARCH__ == 100 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif defined(_RTLIB) || __CUDA_ARCH__ < 200
-
-//#ifndef nullptr
-//#define nullptr NULL
-//#endif
-//#define __THROW *(int*)0=0;
+#endif
 #include <string.h>
 #include "Cuda.h"
 
-#define RUNTIME_UNRESTRICTED -1
+///////////////////////////////////////////////////////////////////////////////
+// STRUCT
+#pragma region STRUCT
 
 typedef struct __align__(8)
 {
@@ -37,8 +34,10 @@ typedef struct __align__(8)
 } runtimeBlockHeader;
 
 __device__ runtimeHeap *__runtimeHeap;
-#if defined(_RTLIB) || __CUDA_ARCH__ < 200
-// inlined
+
+#pragma endregion
+
+#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
 #define __static__ static
 __device__ __static__ void runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 extern "C" void cudaRuntimeSetHeap(void *heap) { }
@@ -116,7 +115,7 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 			break;
 	}
 	// now write out the padding bytes, and we have our length.
-	while (dest < end && ((long)dest & (RUNTIME_ALIGNSIZE - 1)) != 0)
+	while (dest < end && ((unsigned long long)dest & (RUNTIME_ALIGNSIZE - 1)) != 0)
 	{
 		len++;
 		*dest++ = 0;
@@ -125,7 +124,7 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 	return (dest < end ? dest : nullptr); // overflow means return nullptr
 }
 
-__device__ static char *copyArg(char *ptr, const char *arg, char *end)
+__device__ __static__ char *__copyArg(char *ptr, const char *arg, char *end)
 {
 	// initialization check
 	if (!ptr) // || !arg)
@@ -137,7 +136,7 @@ __device__ static char *copyArg(char *ptr, const char *arg, char *end)
 }
 
 template <typename T>
-__device__ static char *copyArg(char *ptr, T &arg, char *end)
+__device__ __static__ char *__copyArg(char *ptr, T &arg, char *end)
 {
 	// initialization and overflow check. Alignment rules mean that we're at least CUPRINTF_ALIGN_SIZE away from "end", so we only need to check that one offset.
 	if (!ptr || (ptr + RUNTIME_ALIGNSIZE) >= end)
@@ -153,7 +152,6 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 
 #pragma endregion
 
-
 //////////////////////
 // PRINTF
 #pragma region PRINTF
@@ -164,7 +162,7 @@ __device__ static char *copyArg(char *ptr, T &arg, char *end)
 	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define PRINTF_ARG(argname) \
-	bufptr = copyArg(bufptr, argname, end);
+	bufptr = __copyArg(bufptr, argname, end);
 #define PRINTF_POSTAMBLE \
 	fmtstart = bufptr; \
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
@@ -288,7 +286,6 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 
 #pragma endregion
 
-
 //////////////////////
 // ASSERT
 #pragma region ASSERT
@@ -299,7 +296,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define ASSERT_ARG(argname) \
-	bufptr = copyArg(bufptr, argname, end);
+	bufptr = __copyArg(bufptr, argname, end);
 #define ASSERT_POSTAMBLE \
 	fmtstart = bufptr; \
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
@@ -329,7 +326,6 @@ __device__ __static__ void _assert(const bool condition, const char *fmt)
 
 #pragma endregion
 
-
 //////////////////////
 // THROW
 #pragma region THROW
@@ -340,7 +336,7 @@ __device__ __static__ void _assert(const bool condition, const char *fmt)
 	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define THROW_ARG(argname) \
-	bufptr = copyArg(bufptr, argname, end);
+	bufptr = __copyArg(bufptr, argname, end);
 #define THROW_POSTAMBLE \
 	fmtstart = bufptr; \
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
@@ -388,7 +384,6 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ __stati
 #undef THROW_POSTAMBLE
 
 #pragma endregion
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
@@ -626,5 +621,3 @@ void RuntimeVisualRender::Initialize()
 
 #endif
 #pragma endregion
-
-#endif // __CUDA_ARCH__

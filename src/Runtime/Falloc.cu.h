@@ -1,10 +1,15 @@
 #ifndef __FALLOC_CU_H__
 #define __FALLOC_CU_H__
-
-#if __CUDA_ARCH__ == 100
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-#elif defined(__CUDA_ARCH__) & __CUDA_ARCH__ < 200
-#include "Falloc.cu"
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// DEVICE SIDE
+// External function definitions for device-side code
+
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+#include "Falloc.cu.native.h"
 #else
 
 ///////////////////////////////////////////////////////////////////////////////

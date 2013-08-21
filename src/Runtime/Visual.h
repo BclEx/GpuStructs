@@ -4,7 +4,7 @@
 #include "CudaGL.h"
 
 // constants
-#define REFRESH_DELAY     10 //ms
+#define REFRESH_DELAY 10 //ms
 const unsigned int WindowWidth = 800;
 const unsigned int WindowHeight = 600;
 
