@@ -33,12 +33,10 @@
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="Falloc.cu" />
-    <CudaCompile Include="Library.cu" />
     <CudaCompile Include="Runtime.cu" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Falloc.cu" />
-    <None Include="Library.cu" />
     <None Include="Runtime.cu" />
   </ItemGroup>
   <ItemGroup>
@@ -105,11 +103,15 @@
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <!--<CodeGeneration>compute_20,sm_20</CodeGeneration>-->
-      <CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>
+      <CodeGeneration>compute_20,sm_20</CodeGeneration>
+      <!--<CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>-->
       <Runtime>MTd</Runtime>
       <Include>$(SolutionDir)lib;%(Include)</Include>
+      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
     </CudaCompile>
+    <PostBuildEvent>
+      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_20 -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(SolutionDir)x64\Debug.cu\Runtime.lib"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <ClCompile>
@@ -132,11 +134,15 @@
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_11,sm_11</CodeGeneration>
-      <!--<CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>-->
-      <Include>$(SolutionDir)lib;%(Include)</Include>
+      <!--<CodeGeneration>compute_11,sm_11</CodeGeneration>-->
+      <CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>
       <Runtime>MT</Runtime>
+      <Include>$(SolutionDir)lib;%(Include)</Include>
+      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
     </CudaCompile>
+    <PostBuildEvent>
+      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_20 -lib "x64\Release.cu\FallocHost.obj" "x64\Release.cu\Falloc.cu.obj" "x64\Release.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Release.cu\Visual.obj" -o "$(SolutionDir)x64\Release.cu\Runtime.lib"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

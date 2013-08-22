@@ -1,6 +1,9 @@
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
+#ifndef __static__
+#define __static__
+#endif
 #include <string.h>
 #include "Cuda.h"
 
@@ -38,12 +41,10 @@ __device__ runtimeHeap *__runtimeHeap;
 #pragma endregion
 
 #if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
-#define __static__ static
-__device__ __static__ void runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
+extern "C" __device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 extern "C" void cudaRuntimeSetHeap(void *heap) { }
 #else
-#define __static__
-__device__ __static__ void runtimeSetHeap(void *heap) { }
+extern "C" __device__ void _runtimeSetHeap(void *heap) { }
 extern "C" void cudaRuntimeSetHeap(void *heap) { cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(void *)); }
 #endif
 
@@ -73,7 +74,7 @@ __device__ static char *moveNextPtr()
 	return blocks + offset;
 }
 
-extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
+__device__ __static__ void runtimeRestrict(int threadid, int blockid)
 {
 	int threadMax = blockDim.x * blockDim.y * blockDim.z;
 	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)
@@ -464,7 +465,7 @@ __global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 
 __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 {
-	runtimeSetHeap(heap);
+	_runtimeSetHeap(heap);
 	switch (key)
 	{
 	case 'a':

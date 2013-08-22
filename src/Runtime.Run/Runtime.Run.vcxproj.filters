@@ -4,7 +4,7 @@
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="Runtime.cu" />
-    <CudaCompile Include="Falloc.cu" />
+    <CudaCompile Include="TestRuntime.cu" />
+    <CudaCompile Include="TestFalloc.cu" />
   </ItemGroup>
 </Project>

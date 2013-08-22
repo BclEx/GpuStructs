@@ -1,6 +1,8 @@
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
-//#elif defined(_LIB) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#endif
+#ifndef __static__
+#define __static__
 #endif
 #include <string.h>
 #include "Cuda.h"
@@ -37,12 +39,6 @@ typedef struct __align__(8)
 } fallocHeap;
 
 #pragma endregion
-
-#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
-#define __static__ static
-#else
-#define __static__
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP

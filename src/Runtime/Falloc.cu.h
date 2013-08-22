@@ -9,6 +9,7 @@
 // External function definitions for device-side code
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+#define __static__ static
 #include "Falloc.cu.native.h"
 #else
 

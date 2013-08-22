@@ -11,7 +11,7 @@
 
 #define RUNTIME_UNRESTRICTED -1
 extern __device__ inline void runtimeSetHeap(void *heap) { }
-extern "C" __device__ inline void runtimeRestrict(int threadid, int blockid) { }
+extern __device__ inline void runtimeRestrict(int threadid, int blockid) { }
 
 // Abuse of templates to simulate varargs
 extern __device__ int _printf(const char *fmt);
