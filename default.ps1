@@ -2,14 +2,12 @@ properties {
   $base_dir = resolve-path .
   $build_dir = "$base_dir\build"
   $packageinfo_dir = "$base_dir\nuspecs"
-  $11_build_dir = "$build_dir\3.5\"
-  $20_build_dir = "$build_dir\4.0\"
   $release_dir = "$base_dir\Release"
   $sln_file = "$base_dir\GpuStructs.sln"
   $tools_dir = "$base_dir\tools"
-  $version = "1.0.0" #Get-Version-From-Git-Tag
-  $11_config = "Release"
-  $20_config = "Release.2"
+  $version = "1.0.0"
+  $config_cpu = "Release.cpu"
+  $config_cu = "Release.cu"
   $run_tests = $true
 }
 Framework "4.0"
@@ -29,8 +27,16 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	msbuild $sln_file /p:"OutDir=$build_dir\11;Configuration=$11_config"
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\20;Configuration=$20_config"
+	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu" /m
+	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=V" /m
 }
 
 task Test -depends Compile -precondition { return $run_tests } {

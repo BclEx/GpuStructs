@@ -1,7 +1,9 @@
+#pragma warning(disable: 4996)
 #ifndef _LIB
 #include "Cuda.h"
 #include "Runtime.h"
 #include "Falloc.h"
+#include <stdio.h>
 
 cudaError _lastError;
 int main(int argc, char **argv)
@@ -9,6 +11,7 @@ int main(int argc, char **argv)
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
 	cudaFallocHost fallocHost = cudaFallocInit(100, 1024);
 
+#if VISUAL
 	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
 	IVisualRender* render = new RuntimeVisualRender(runtimeHost);
 	//IVisualRender* render = new FallocVisualRender(fallocHost);
@@ -17,6 +20,7 @@ int main(int argc, char **argv)
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
 	Visual::Main();
 	atexit(Visual::Dispose);
+#endif
 
 	cudaRuntimeEnd(runtimeHost);
 	cudaFallocEnd(fallocHost);

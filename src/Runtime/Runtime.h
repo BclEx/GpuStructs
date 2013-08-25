@@ -23,7 +23,7 @@ typedef struct
 //
 //	cudaRuntimeSetHeap
 //
-extern "C" void cudaRuntimeSetHeap(void *heap);
+extern "C" cudaError_t cudaRuntimeSetHeap(void *heap);
 
 //
 //	cudaRuntimeInit
@@ -38,7 +38,7 @@ extern "C" void cudaRuntimeSetHeap(void *heap);
 //		length - Length, in bytes, of total space to reserve (in device global memory) for output.
 //
 // default 2k blocks, 1-meg heap
-extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 256, size_t length = 1048576, cudaError_t* error = nullptr, void* reserved = nullptr);
+extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 256, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
 
 //
 //	cudaRuntimeEnd

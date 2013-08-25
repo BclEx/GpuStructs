@@ -1,6 +1,6 @@
-#include "..\Runtime.src\Runtime.h"
-#include "..\Runtime.src\Runtime.cu.h"
-#include "..\Runtime.src\Falloc.cu.h"
+#include "..\Runtime\Runtime.h"
+#include "..\Runtime\Runtime.cu.h"
+#include "..\Runtime\Falloc.cu.h"
 
 __device__ static fallocHeap *_heap;
 #define TEST(id) \
@@ -8,7 +8,7 @@ __device__ static fallocHeap *_heap;
 	void fallocTest##id##_host(cudaRuntimeHost &r, void *f) { cudaRuntimeSetHeap(r.heap); fallocTest##id<<<1, 1>>>(r.heap, (fallocHeap *)f); cudaRuntimeExecute(r); } \
 	__global__ void fallocTest##id(void *r, fallocHeap *f) \
 { \
-	runtimeSetHeap(r); \
+	_runtimeSetHeap(r); \
 	_heap = f;
 
 //////////////////////////////////////////////////

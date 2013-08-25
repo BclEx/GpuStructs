@@ -1,5 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <LD>V</LD>
+    <LC>20</LC>
+  </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
       <Configuration>Debug.cpu</Configuration>
@@ -50,25 +54,13 @@
     <RootNamespace>Runtime</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v110</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v110</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v110</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v110</PlatformToolset>
@@ -90,9 +82,9 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <SDLCheck>true</SDLCheck>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PreprocessorDefinitions>WIN32;_MBCS;VISUAL;_LIB</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions Condition="'$(LD)'!='V'">WIN32;_MBCS;_LIB</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;_MBCS;VISUAL;_LIB</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -103,14 +95,13 @@
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_20,sm_20</CodeGeneration>
-      <!--<CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>-->
-      <Runtime>MTd</Runtime>
+      <CodeGeneration>compute_$(LC),sm_$(LC)</CodeGeneration>
       <Include>$(SolutionDir)lib;%(Include)</Include>
-      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+      <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
+      <GPUDebugInfo>true</GPUDebugInfo>
     </CudaCompile>
     <PostBuildEvent>
-      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_20 -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(SolutionDir)x64\Debug.cu\Runtime.lib"</Command>
+      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
@@ -119,9 +110,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <PreprocessorDefinitions>WIN32;_MBCS;_RTLIB;VISUAL;_xCONSOLE</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions Condition="'$(LD)'!='V'">WIN32;_MBCS;_LIB</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;_MBCS;VISUAL;_LIB</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -134,14 +125,12 @@
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <!--<CodeGeneration>compute_11,sm_11</CodeGeneration>-->
-      <CodeGeneration>compute_11,sm_11;compute_20,sm_20;compute_30,sm_30;compute_35,sm_35</CodeGeneration>
-      <Runtime>MT</Runtime>
+      <CodeGeneration>compute_$(LC),sm_$(LC)</CodeGeneration>
       <Include>$(SolutionDir)lib;%(Include)</Include>
-      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+      <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
     </CudaCompile>
     <PostBuildEvent>
-      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_20 -lib "x64\Release.cu\FallocHost.obj" "x64\Release.cu\Falloc.cu.obj" "x64\Release.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Release.cu\Visual.obj" -o "$(SolutionDir)x64\Release.cu\Runtime.lib"</Command>
+      <Command>"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Release.cu\FallocHost.obj" "x64\Release.cu\Falloc.cu.obj" "x64\Release.cu\RuntimeHost.obj" "x64\Release.cu\Runtime.cu.obj" "x64\Release.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
