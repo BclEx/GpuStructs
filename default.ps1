@@ -25,16 +25,16 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD="
-	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V"
-	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD="
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V"
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD="
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V"
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD="
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=V"
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD="
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=V"
+	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=" /m
+	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=V" /m
 }
 
 task Test -depends Compile -precondition { return $run_tests } {
