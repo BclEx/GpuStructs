@@ -82,8 +82,8 @@ template <typename T>
 __device__ inline bool _strcmp(const T *dest, const T *src)
 {
 	register unsigned char *a, *b;
-	a = (unsigned char *)left;
-	b = (unsigned char *)right;
+	a = (unsigned char *)dest;
+	b = (unsigned char *)src;
 	while (*a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b];
 }

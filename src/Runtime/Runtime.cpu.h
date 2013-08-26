@@ -2,6 +2,7 @@
 #define __RUNTIME_CPU_H__
 #include <stdio.h>
 #define __device__
+#define __constant__
 #include <assert.h>
 //#include <string.h>
 
@@ -85,8 +86,8 @@ template <typename T>
 __device__ inline bool _strncmp(const T *dest, const T *src, int n)
 {
 	register unsigned char *a, *b;
-	a = (unsigned char *)left;
-	b = (unsigned char *)right;
+	a = (unsigned char *)dest;
+	b = (unsigned char *)src;
 	while (n-- > 0 && *a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return (n < 0 ? 0 : _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b]);
 }
