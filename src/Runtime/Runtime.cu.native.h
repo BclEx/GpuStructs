@@ -4,7 +4,7 @@
 #ifndef __static__
 #define __static__
 #endif
-#include <string.h>
+//#include <string.h>
 #include "Cuda.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,17 +36,17 @@ typedef struct __align__(8)
 	unsigned short threadid;	// thread ID of author
 } runtimeBlockHeader;
 
-__device__ void *__runtimeHeap;
+#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+__shared__ static runtimeHeap *__runtimeHeap;
+__device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
+extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
+#else
+__device__ runtimeHeap *__runtimeHeap;
+extern __device__ void _runtimeSetHeap(void *heap) { }
+extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(__runtimeHeap, heap, sizeof(heap)); }
+#endif
 
 #pragma endregion
-
-//#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
-extern __device__ void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
-//#else
-//extern __device__ void _runtimeSetHeap(void *heap) { }
-//extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(__runtimeHeap, heap, sizeof(__runtimeHeap)); }
-//#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -61,29 +61,27 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
 __device__ static char *moveNextPtr()
 {
 	if (!__runtimeHeap) __THROW;
-	runtimeHeap *heap = (runtimeHeap *)__runtimeHeap;
 	// thread/block restriction check
-	runtimeRestriction restriction = heap->restriction;
+	runtimeRestriction restriction = __runtimeHeap->restriction;
 	if (restriction.blockid != RUNTIME_UNRESTRICTED && restriction.blockid != (blockIdx.x + gridDim.x*blockIdx.y))
 		return nullptr;
 	if (restriction.threadid != RUNTIME_UNRESTRICTED && restriction.threadid != (threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z))
 		return nullptr;
 	// advance pointer
-	char *blocks = heap->blocks;
-	size_t offset = atomicAdd((unsigned int *)&heap->blockPtr, heap->blockSize) - (size_t)blocks;
-	offset %= heap->blocksLength;
+	char *blocks = __runtimeHeap->blocks;
+	size_t offset = atomicAdd((unsigned int *)&__runtimeHeap->blockPtr, __runtimeHeap->blockSize) - (size_t)blocks;
+	offset %= __runtimeHeap->blocksLength;
 	return blocks + offset;
 }
 
 __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 {
-	runtimeHeap *heap = (runtimeHeap *)__runtimeHeap;
 	int threadMax = blockDim.x * blockDim.y * blockDim.z;
 	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)
-		heap->restriction.threadid = threadid;
+		__runtimeHeap->restriction.threadid = threadid;
 	int blockMax = gridDim.x * gridDim.y;
 	if ((blockid < blockMax && blockid >= 0) || blockid == RUNTIME_UNRESTRICTED)
-		heap->restriction.blockid = blockid;
+		__runtimeHeap->restriction.blockid = blockid;
 }
 
 __inline__ __device__ static void writeBlockHeader(unsigned short type, char *ptr, char *fmtptr)
@@ -160,16 +158,15 @@ __device__ __static__ char *__copyArg(char *ptr, T &arg, char *end)
 #pragma region PRINTF
 
 #define PRINTF_PREAMBLE \
-	runtimeHeap *heap = (runtimeHeap *)__runtimeHeap; \
 	char *start, *end, *bufptr, *fmtstart; \
 	if ((start = moveNextPtr()) == nullptr) return 0; \
-	end = start + heap->blockSize; \
+	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define PRINTF_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define PRINTF_POSTAMBLE \
 	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, heap->blockSize, end); \
+	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
@@ -295,16 +292,15 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 #pragma region ASSERT
 
 #define ASSERT_PREAMBLE \
-	runtimeHeap *heap = (runtimeHeap *)__runtimeHeap; \
 	char *start, *end, *bufptr, *fmtstart; \
 	if ((start = moveNextPtr()) == nullptr) return; \
-	end = start + heap->blockSize; \
+	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define ASSERT_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define ASSERT_POSTAMBLE \
 	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, heap->blockSize, end); \
+	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
 __device__ __static__ void _assert(const bool condition)
@@ -336,16 +332,15 @@ __device__ __static__ void _assert(const bool condition, const char *fmt)
 #pragma region THROW
 
 #define THROW_PREAMBLE \
-	runtimeHeap *heap = (runtimeHeap *)__runtimeHeap; \
 	char *start, *end, *bufptr, *fmtstart; \
 	if ((start = moveNextPtr()) == nullptr) return; \
-	end = start + heap->blockSize; \
+	end = start + __runtimeHeap->blockSize; \
 	bufptr = start + sizeof(runtimeBlockHeader);
 #define THROW_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define THROW_POSTAMBLE \
 	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, heap->blockSize, end); \
+	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
 	__THROW;
 

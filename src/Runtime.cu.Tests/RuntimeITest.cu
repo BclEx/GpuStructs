@@ -1,4 +1,3 @@
-#include "..\Runtime\Runtime.h"
 #include "..\Runtime\Runtime.cu.h"
 
 #define TEST(id) \

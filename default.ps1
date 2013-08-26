@@ -8,13 +8,11 @@ properties {
   $version = "1.0.0"
   $config_cpu = "Release.cpu"
   $config_cu = "Release.cu"
-  $run_tests = $true
+  $run_tests = $false
 }
 Framework "4.0"
-
-#include .\psake_ext.ps1
 	
-task default -depends Release
+task default -depends Package
 
 task Clean {
 	remove-item -force -recurse $build_dir -ErrorAction SilentlyContinue
@@ -27,16 +25,16 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu" /m
-	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V" /m
-	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=V" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35" /m
-	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=V" /m
+	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu"
+	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V"
+	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=30;LD=V"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35"
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=35;LD=V"
 }
 
 task Test -depends Compile -precondition { return $run_tests } {
@@ -55,18 +53,7 @@ task Dependency {
 	}
 }
 
-task Release -depends Dependency, Compile, Test {
-	cd $build_dir
-	& $tools_dir\7za.exe a $release_dir\BclEx-Web.zip `
-		*\System.WebEx.dll `
-		*\System.WebEx.xml `
-    	..\license.txt
-	if ($lastExitCode -ne 0) {
-		throw "Error: Failed to execute ZIP command"
-    }
-}
-
-task Package -depends Release {
+task Package -depends Dependency, Compile, Test {
 	$spec_files = @(Get-ChildItem $packageinfo_dir)
 	foreach ($spec in $spec_files)
 	{

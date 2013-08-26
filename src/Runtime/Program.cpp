@@ -5,7 +5,6 @@
 #include "Falloc.h"
 #include <stdio.h>
 
-cudaError _lastError;
 int main(int argc, char **argv)
 {
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);

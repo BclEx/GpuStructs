@@ -7,8 +7,6 @@
     <authors>Contoso</authors>
     <owners>Contoso</owners>
     <licenseUrl>http://www.opensource.org/licenses/mit-license.php</licenseUrl>
-    <projectUrl></projectUrl>
-    <iconUrl></iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>This package contains GPU data structures, and should be used as a simple runtime.</description>
     <releaseNotes></releaseNotes>
@@ -17,25 +15,10 @@
     <language>en-US</language>
   </metadata>
   <files>
-    <file src="build\3.5\System.Abstract.dll" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.xml" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Core.dll" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Core.xml" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Legacy.dll" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Legacy.xml" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Micro.dll" target="lib\net35" />
-    <file src="build\3.5\System.Abstract.Micro.xml" target="lib\net35" />
-    <file src="build\4.0\System.Abstract.dll" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.xml" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Core.dll" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Core.xml" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Legacy.dll" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Legacy.xml" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Micro.dll" target="lib\net40" />
-    <file src="build\4.0\System.Abstract.Micro.xml" target="lib\net40" />
-    <file src="src\System.Abstract\**\*.cs" target="src\System.Abstract" />
-    <file src="src\System.Abstract.Core\**\*.cs" target="src\System.Abstract.Core" />
-    <file src="src\System.Abstract.Legacy\**\*.cs" target="src\System.Abstract.Legacy" />
-    <file src="src\System.Abstract.Micro\**\*.cs" target="src\System.Abstract.Micro" />
+    <file src="build\cu\Runtime.*.lib" target="lib\native" />
+    <file src="src\Runtime\**\*.h" target="lib\native" />
+    <file src="src\Runtime\**\*.cpp" target="src\Runtime" />
+    <file src="src\Runtime\**\*.cu" target="src\Runtime" />
+    <file src="src\Runtime\**\*.h" target="src\Runtime" />
   </files>
 </package>

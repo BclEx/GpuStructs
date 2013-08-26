@@ -3,6 +3,7 @@
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
+#include "Runtime.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
@@ -14,7 +15,7 @@
 #include "Runtime.cu.native.h"
 #else
 
-//extern __constant__ void *__runtimeHeap;
+//extern __device__ void *__runtimeHeap;
 extern __device__ void _runtimeSetHeap(void *heap);
 extern __device__ void runtimeRestrict(int threadid, int blockid);
 

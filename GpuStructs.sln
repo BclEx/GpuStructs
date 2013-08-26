@@ -43,7 +43,6 @@ Global
 		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Release.cpu|x64.ActiveCfg = Release.cpu|x64
 		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Release.cpu|x64.Build.0 = Release.cpu|x64
 		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Release.cu|x64.ActiveCfg = Release.cu|x64
-		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Release.cu|x64.Build.0 = Release.cu|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
