@@ -15,7 +15,6 @@
 #include "Runtime.cu.native.h"
 #else
 
-//extern __device__ void *__runtimeHeap;
 extern __device__ void _runtimeSetHeap(void *heap);
 extern __device__ void runtimeRestrict(int threadid, int blockid);
 
