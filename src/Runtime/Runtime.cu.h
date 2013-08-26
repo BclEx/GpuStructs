@@ -58,8 +58,8 @@ template <typename T1, typename T2, typename T3, typename T4> extern __device__ 
 // DEVICE SIDE
 // External function definitions for device-side code
 
-extern const unsigned char _runtimeUpperToLower[];
-extern const unsigned char _runtimeCtypeMap[];
+extern __constant__ const unsigned char _runtimeUpperToLower[];
+extern __constant__ const unsigned char _runtimeCtypeMap[];
 
 #define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)

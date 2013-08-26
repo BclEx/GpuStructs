@@ -15,6 +15,7 @@
     <language>en-US</language>
   </metadata>
   <files>
+    <file src="build\cpu\Runtime.*.lib" target="lib\native" />
     <file src="build\cu\Runtime.*.lib" target="lib\native" />
     <file src="src\Runtime\**\*.h" target="include" />
     <file src="src\Runtime\**\*.cpp" target="src\Runtime" />

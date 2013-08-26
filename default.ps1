@@ -25,9 +25,9 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	#msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=" /m
-	#msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V" /m
-	msbuild $sln_file /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\cpu\;Configuration=$config_cpu;LD=V" /m
+	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=" /m
 	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=11;LD=V" /m
 	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=" /m
 	msbuild $sln_file /target:Rebuild /p:"OutDir=$build_dir\cu\;Configuration=$config_cu;LC=20;LD=V" /m
