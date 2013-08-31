@@ -29,14 +29,26 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7);
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8);
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9);
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> extern __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA);
+// Abuse of templates to simulate varargs
+extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt);
+template <typename T1> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1);
+template <typename T1, typename T2> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2);
+template <typename T1, typename T2, typename T3> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3);
+template <typename T1, typename T2, typename T3, typename T4> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4);
+template <typename T1, typename T2, typename T3, typename T4, typename T5> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9);
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA);
 
 // Assert
 #ifndef NASSERT
-extern __device__ void _assert(const int condition);
-extern __device__ void _assert(const int condition, const char *fmt);
+template <typename T1> extern __device__ void _assert(const T1 condition);
+template <typename T1> extern __device__ void _assert(const T1 condition, const char *fmt);
 #define ASSERTONLY(X) X
-inline void Coverage(int line) { }
+__device__ __forceinline__ void Coverage(int line) { }
 #define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
 #else
 #define _assert(X, ...)
@@ -57,8 +69,8 @@ template <typename T1, typename T2, typename T3, typename T4> extern __device__ 
 // DEVICE SIDE
 // External function definitions for device-side code
 
-extern __constant__ const unsigned char _runtimeUpperToLower[];
-extern __constant__ const unsigned char _runtimeCtypeMap[];
+extern __constant__ unsigned char *_runtimeUpperToLower;
+extern __constant__ unsigned char *_runtimeCtypeMap;
 
 #define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
@@ -69,22 +81,31 @@ extern __constant__ const unsigned char _runtimeCtypeMap[];
 #define _tolowerA(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
+template <typename T> struct array_t { size_t length; T *data; __device__ inline void operator=(T *rhs) { data = rhs; } __device__ inline operator T *() { return data; } };
 #define __arrayAlloc(t,Ti,length) (Ti*)((int*)malloc(sizeof(Ti)*length+4)+1);*((int*)t&-1)=length
-#define __arraySet(t,length) t;*((int*)&t-1)=length
-#define __arrayLength(t) *((int*)&t-1)
-#define __arraySetLength(t,length) *((int*)&t-1)=length
-#define __arrayClear(t,length) nullptr;*((int*)&t-1)=0
+#define __arrayLength(t) t.length
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp
 template <typename T>
-__device__ inline bool _strcmp(const T *dest, const T *src)
+__device__ inline int _strcmp(const T *dest, const T *src)
 {
 	register unsigned char *a, *b;
 	a = (unsigned char *)dest;
 	b = (unsigned char *)src;
 	while (*a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b];
+}
+
+// strncmp
+template <typename T>
+__device__ inline int _strncmp(const T *dest, const T *src, int n)
+{
+	register unsigned char *a, *b;
+	a = (unsigned char *)dest;
+	b = (unsigned char *)src;
+	while (n-- > 0 && *a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
+	return (n < 0 ? 0 : _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b]);
 }
 
 // memcpy
