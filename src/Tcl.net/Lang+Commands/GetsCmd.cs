@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "gets" command in Tcl.</summary>
 
-    class GetsCmd : Command
+    class GetsCmd : ICommand
     {
 
         /// <summary> This procedure is invoked to process the "gets" Tcl command.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             bool writeToVar = false; // If true write to var passes as arg
@@ -56,7 +56,7 @@ namespace Tcl.Lang
 
             try
             {
-                line = TclString.newInstance(new StringBuilder(64));
+                line = TclString.NewInstance(new StringBuilder(64));
                 lineLen = chan.read(interp, line, TclIO.READ_LINE, 0);
                 if (lineLen < 0)
                 {
@@ -70,7 +70,7 @@ namespace Tcl.Lang
                 }
                 if (writeToVar)
                 {
-                    interp.setVar(varName, line, 0);
+                    interp.SetVar(varName, line, 0);
                     interp.setResult(lineLen);
                 }
                 else

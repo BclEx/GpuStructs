@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "catch" command in Tcl.</summary>
 
-    class CatchCmd : Command
+    class CatchCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "catch" Tcl command.
         /// See the user documentation for details on what it does.
@@ -26,7 +26,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException if wrong number of arguments.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 2 && argv.Length != 3)
             {
@@ -42,16 +42,16 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                code = e.getCompletionCode();
+                code = e.GetCompletionCode();
             }
 
-            result = interp.getResult();
+            result = interp.GetResult();
 
             if (argv.Length == 3)
             {
                 try
                 {
-                    interp.setVar(argv[2], result, 0);
+                    interp.SetVar(argv[2], result, 0);
                 }
                 catch (TclException e)
                 {
@@ -60,7 +60,7 @@ namespace Tcl.Lang
             }
 
             interp.resetResult();
-            interp.setResult(TclInteger.newInstance((int)code));
+            interp.setResult(TclInteger.NewInstance((int)code));
             return TCL.CompletionCode.RETURN;
         }
     }

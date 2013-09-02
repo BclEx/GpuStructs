@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "eof" command in Tcl.</summary>
 
-    class EofCmd : Command
+    class EofCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "eof" Tcl command.
         /// See the user documentation for details on what it does.
@@ -23,7 +23,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; /* The channel being operated on this method */
@@ -43,11 +43,11 @@ namespace Tcl.Lang
 
             if (chan.eof())
             {
-                interp.setResult(TclInteger.newInstance(1));
+                interp.setResult(TclInteger.NewInstance(1));
             }
             else
             {
-                interp.setResult(TclInteger.newInstance(0));
+                interp.setResult(TclInteger.NewInstance(0));
             }
             return TCL.CompletionCode.RETURN;
         }

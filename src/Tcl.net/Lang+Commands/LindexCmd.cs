@@ -17,10 +17,10 @@ namespace Tcl.Lang
     * This class implements the built-in "lindex" command in Tcl.
     */
 
-    class LindexCmd : Command
+    class LindexCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 3)
             {

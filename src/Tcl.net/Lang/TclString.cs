@@ -67,14 +67,14 @@ namespace Tcl.Lang
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
 
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclString();
         }
 
         /// <summary> Implement this no-op for the InternalRep interface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 
@@ -100,7 +100,7 @@ namespace Tcl.Lang
         /// <summary> Create a new TclObject that has a string representation with
         /// the given string value.
         /// </summary>
-        public static TclObject newInstance(string str)
+        public static TclObject NewInstance(string str)
         {
             return new TclObject(new TclString(), str);
         }
@@ -109,14 +109,14 @@ namespace Tcl.Lang
         /// object. The passed in StringBuffer should not be modified after
         /// it is passed to this method.
         /// </summary>
-        internal static TclObject newInstance(StringBuilder sb)
+        internal static TclObject NewInstance(StringBuilder sb)
         {
             return new TclObject(new TclString(sb));
         }
 
-        internal static TclObject newInstance(System.Object o)
+        internal static TclObject NewInstance(System.Object o)
         {
-            return newInstance(o.ToString());
+            return NewInstance(o.ToString());
         }
 
         /// <summary> Create a TclObject with an internal TclString representation
@@ -126,11 +126,11 @@ namespace Tcl.Lang
         /// <param name="c">initial value of the string.
         /// </param>
 
-        internal static TclObject newInstance(char c)
+        internal static TclObject NewInstance(char c)
         {
             char[] charArray = new char[1];
             charArray[0] = c;
-            return newInstance(new string(charArray));
+            return NewInstance(new string(charArray));
         }
 
 

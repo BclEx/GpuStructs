@@ -17,10 +17,10 @@ namespace Tcl.Lang
     * This class implements the built-in "uplevel" command in Tcl.
     */
 
-    class UplevelCmd : Command
+    class UplevelCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             string optLevel;
             int result;
@@ -40,7 +40,7 @@ namespace Tcl.Lang
             optLevel = objv[1].ToString();
             // Java does not support passing a reference by refernece so use an array
             CallFrame[] frameArr = new CallFrame[1];
-            result = CallFrame.getFrame(interp, optLevel, frameArr);
+            result = CallFrame.GetFrame(interp, optLevel, frameArr);
             frame = frameArr[0];
 
             objc -= (result + 1);
@@ -52,8 +52,8 @@ namespace Tcl.Lang
 
             // Modify the interpreter state to execute in the given frame.
 
-            savedVarFrame = interp.varFrame;
-            interp.varFrame = frame;
+            savedVarFrame = interp.VarFrame;
+            interp.VarFrame = frame;
 
             // Execute the residual arguments as a command.
 
@@ -63,9 +63,9 @@ namespace Tcl.Lang
             }
             else
             {
-                cmd = TclString.newInstance(Util.concat(objv_index, objv.Length - 1, objv));
+                cmd = TclString.NewInstance(Util.concat(objv_index, objv.Length - 1, objv));
             }
-            cmd.preserve();
+            cmd.Preserve();
 
             try
             {
@@ -73,16 +73,16 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                if (e.getCompletionCode() == TCL.CompletionCode.ERROR)
+                if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.addErrorInfo("\n    (\"uplevel\" body line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (\"uplevel\" body line " + interp.errorLine + ")");
                 }
                 throw;
             }
             finally
             {
-                interp.varFrame = savedVarFrame;
-                cmd.release();
+                interp.VarFrame = savedVarFrame;
+                cmd.Release();
             }
             return TCL.CompletionCode.RETURN;
         }

@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "unset" command in Tcl.</summary>
 
-    class UnsetCmd : Command
+    class UnsetCmd : ICommand
     {
         /// <summary> Tcl_UnsetObjCmd -> UnsetCmd.cmdProc
         /// 
@@ -24,7 +24,7 @@ namespace Tcl.Lang
         /// not exist.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             switch (objv.Length)
             {

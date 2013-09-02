@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "continue" command in Tcl.</summary>
 
-    class ContinueCmd : Command
+    class ContinueCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "continue" Tcl command.
         /// See the user documentation for details on what it does.
@@ -21,7 +21,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException is always thrown.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 1)
             {

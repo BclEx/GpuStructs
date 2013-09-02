@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "format" command in Tcl.</summary>
 
-    class FormatCmd : Command
+    class FormatCmd : ICommand
     {
 
         private const int LEFT_JUSTIFY = 1;
@@ -53,7 +53,7 @@ namespace Tcl.Lang
         /// formatted string.  This loop occurs for ever '%' in the formatString.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
 
@@ -162,7 +162,7 @@ namespace Tcl.Lang
 
                     stoul = strtoul(format, fmtIndex);
                     intValue = (int)stoul.value;
-                    endIndex = stoul.index;
+                    endIndex = stoul.Index;
 
                     if (format[endIndex] == '$')
                     {
@@ -290,7 +290,7 @@ namespace Tcl.Lang
                 {
                     stoul = strtoul(format, fmtIndex);
                     width = (int)stoul.value;
-                    fmtIndex = stoul.index;
+                    fmtIndex = stoul.Index;
                 }
                 else if (format[fmtIndex] == '*')
                 {
@@ -321,7 +321,7 @@ namespace Tcl.Lang
 
                         stoul = strtoul(format, fmtIndex);
                         precision = (int)stoul.value;
-                        fmtIndex = stoul.index;
+                        fmtIndex = stoul.Index;
                     }
                     else if (format[fmtIndex] == '*')
                     {
@@ -467,35 +467,35 @@ namespace Tcl.Lang
 
                     case 'f':
                         {
-                            dblValue = TclDouble.get(interp, argv[argIndex]);
+                            dblValue = TclDouble.Get(interp, argv[argIndex]);
                             sbuf.Append(cvtDblToStr(dblValue, width, precision, fmtFlags, 10, "0123456789".ToCharArray(), "", FLOAT));
                             break;
                         }
 
                     case 'e':
                         {
-                            dblValue = TclDouble.get(interp, argv[argIndex]);
+                            dblValue = TclDouble.Get(interp, argv[argIndex]);
                             sbuf.Append(cvtDblToStr(dblValue, width, precision, fmtFlags, 10, "e".ToCharArray(), "", EXP));
                             break;
                         }
 
                     case 'E':
                         {
-                            dblValue = TclDouble.get(interp, argv[argIndex]);
+                            dblValue = TclDouble.Get(interp, argv[argIndex]);
                             sbuf.Append(cvtDblToStr(dblValue, width, precision, fmtFlags, 10, "E".ToCharArray(), "", EXP));
                             break;
                         }
 
                     case 'g':
                         {
-                            dblValue = TclDouble.get(interp, argv[argIndex]);
+                            dblValue = TclDouble.Get(interp, argv[argIndex]);
                             sbuf.Append(cvtDblToStr(dblValue, width, precision, fmtFlags, 10, "e".ToCharArray(), "", GENERIC));
                             break;
                         }
 
                     case 'G':
                         {
-                            dblValue = TclDouble.get(interp, argv[argIndex]);
+                            dblValue = TclDouble.Get(interp, argv[argIndex]);
                             sbuf.Append(cvtDblToStr(dblValue, width, precision, fmtFlags, 10, "E".ToCharArray(), "", GENERIC));
                             break;
                         }

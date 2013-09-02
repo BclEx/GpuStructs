@@ -14,7 +14,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "rename" command in Tcl.</summary>
 
-    class RenameCmd : Command
+    class RenameCmd : ICommand
     {
         /// <summary>----------------------------------------------------------------------
         /// 
@@ -32,7 +32,7 @@ namespace Tcl.Lang
         /// ----------------------------------------------------------------------
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             string oldName, newName;
 

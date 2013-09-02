@@ -63,8 +63,8 @@ namespace Tcl.Lang
 
         public static void Tcl_BackgroundError(Interp interp)
         {
-            interp.setErrorCode(TclInteger.newInstance(TCL_ERROR));
-            interp.addErrorInfo("Background Error");
+            interp.SetErrorCode(TclInteger.NewInstance(TCL_ERROR));
+            interp.AddErrorInfo("Background Error");
         }
 
         public static void Tcl_CreateCommand(Interp interp, string cmdName, Interp.dxObjCmdProc ObjCmdProc, object ClientData, Interp.dxCmdDeleteProc DbDeleteCmd)
@@ -106,7 +106,7 @@ namespace Tcl.Lang
 
         public static void Tcl_DecrRefCount(ref TclObject to)
         {
-            to.release();
+            to.Release();
             if (to.internalRep == null)
                 to = null;
         }
@@ -123,13 +123,13 @@ namespace Tcl.Lang
 
         public static void Tcl_DStringFree(ref TclObject str)
         {
-            str.release();
+            str.Release();
         }
 
         public static void Tcl_DStringInit(out TclObject str)
         {
-            str = TclString.newInstance("");
-            str.preserve();
+            str = TclString.NewInstance("");
+            str.Preserve();
         }
 
         public static int Tcl_DStringLength(TclObject str)
@@ -163,9 +163,9 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                if (e.getCompletionCode() == TCL.CompletionCode.RETURN)
+                if (e.GetCompletionCode() == TCL.CompletionCode.RETURN)
                     return TCL_RETURN;
-                else if (e.getCompletionCode() == TCL.CompletionCode.BREAK || interp.getResult().ToString() == "invoked \"break\" outside of a loop")
+                else if (e.GetCompletionCode() == TCL.CompletionCode.BREAK || interp.GetResult().ToString() == "invoked \"break\" outside of a loop")
                     return TCL_BREAK;
                 else
                     return TCL_ERROR;
@@ -177,14 +177,14 @@ namespace Tcl.Lang
             if (to != null)
                 for (int i = 0; i < to.Length; i++)
                     while (to[i] != null && to[i].refCount > 0)
-                        to[i].release();
+                        to[i].Release();
             to = null;
         }
 
         public static void Tcl_Free(ref TclObject to)
         {
             while (to.refCount > 0)
-                to.release();
+                to.Release();
         }
 
         public static void Tcl_Free<T>(ref T x) where T : class
@@ -258,7 +258,7 @@ namespace Tcl.Lang
         {
             try
             {
-                value = TclDouble.get(interp, to);
+                value = TclDouble.Get(interp, to);
                 return false;
             }
             catch
@@ -275,7 +275,7 @@ namespace Tcl.Lang
                 if (to.ToString() == "NaN")
                     value = Double.NaN;
                 else
-                    value = TclDouble.get(interp, to);
+                    value = TclDouble.Get(interp, to);
                 return false;
             }
             catch
@@ -357,7 +357,7 @@ namespace Tcl.Lang
 
         public static TclObject Tcl_GetObjResult(Interp interp)
         {
-            TclObject toReturn = interp.getResult();
+            TclObject toReturn = interp.GetResult();
             return toReturn;
         }
 
@@ -382,14 +382,14 @@ namespace Tcl.Lang
 
         public static string Tcl_GetStringResult(Interp interp)
         {
-            return interp.getResult().ToString();
+            return interp.GetResult().ToString();
         }
 
         public static TclObject Tcl_GetVar2Ex(Interp interp, string part1, string part2, VarFlag flags)
         {
             try
             {
-                Var[] result = Var.lookupVar(interp, part1, part2, flags, "read", false, true);
+                Var[] result = Var.LookupVar(interp, part1, part2, flags, "read", false, true);
                 if (result == null)
                 {
                     // lookupVar() returns null only if VarFlag.LEAVE_ERR_MSG is
@@ -402,7 +402,7 @@ namespace Tcl.Lang
                 Var array = result[1];
                 TclObject to = null;
 
-                if (var.isVarScalar() && !var.isVarUndefined())
+                if (var.isVarScalar() && !var.IsVarUndefined())
                 {
                     to = (TclObject)var.value;
                     //if ( to.typePtr != "String" )
@@ -424,11 +424,11 @@ namespace Tcl.Lang
                 }
                 else
                 {
-                    to = TclList.newInstance();
+                    to = TclList.NewInstance();
                     foreach (string key in ((Hashtable)array.value).Keys)
                     {
                         Var s = (Var)((Hashtable)array.value)[key];
-                        if (s.value != null) TclList.append(null, to, TclString.newInstance(s.value.ToString()));
+                        if (s.value != null) TclList.Append(null, to, TclString.NewInstance(s.value.ToString()));
                     }
                 }
                 return to;
@@ -488,13 +488,13 @@ namespace Tcl.Lang
 
         public static void Tcl_IncrRefCount(TclObject to)
         {
-            to.preserve();
+            to.Preserve();
         }
 
         public static void Tcl_LinkVar(Interp interp, string name, Object GetSet, VarFlags flags)
         {
             Debug.Assert(((flags & VarFlags.SQLITE3_LINK_READ_ONLY) != 0) || GetSet.GetType().Name == "SQLITE3_GETSET");
-            Var[] linkvar = Var.lookupVar(interp, name, null, VarFlag.GLOBAL_ONLY, "define", true, false);
+            Var[] linkvar = Var.LookupVar(interp, name, null, VarFlag.GLOBAL_ONLY, "define", true, false);
             linkvar[0].flags |= VarFlags.SQLITE3_LINK | flags;
             linkvar[0].sqlite3_get_set = GetSet;
             linkvar[0].refCount++;
@@ -504,7 +504,7 @@ namespace Tcl.Lang
         {
             try
             {
-                TclList.append(interp, to, elemObj);
+                TclList.Append(interp, to, elemObj);
                 return false;
             }
             catch
@@ -576,33 +576,33 @@ namespace Tcl.Lang
 
         public static TclObject Tcl_NewDoubleObj(double value)
         {
-            return TclDouble.newInstance(value);
+            return TclDouble.NewInstance(value);
         }
 
         public static TclObject Tcl_NewIntObj(int value)
         {
-            return TclInteger.newInstance(value);
+            return TclInteger.NewInstance(value);
         }
 
         public static TclObject Tcl_NewListObj(int nArg, TclObject[] aArg)
         {
-            TclObject to = TclList.newInstance();
+            TclObject to = TclList.NewInstance();
             for (int i = 0; i < nArg; i++)
-                TclList.append(null, to, aArg[i]);
+                TclList.Append(null, to, aArg[i]);
             return to;
         }
 
         public static TclObject Tcl_NewObj()
         {
-            return TclString.newInstance("");
+            return TclString.NewInstance("");
         }
 
         public static TclObject Tcl_NewStringObj(byte[] value, int iLength)
         {
             if (iLength > 0 && iLength < value.Length)
-                return TclString.newInstance(Encoding.UTF8.GetString(value, 0, iLength));
+                return TclString.NewInstance(Encoding.UTF8.GetString(value, 0, iLength));
             else
-                return TclString.newInstance(Encoding.UTF8.GetString(value, 0, value.Length));
+                return TclString.NewInstance(Encoding.UTF8.GetString(value, 0, value.Length));
         }
 
         public static TclObject Tcl_NewStringObj(string value, int iLength)
@@ -613,7 +613,7 @@ namespace Tcl.Lang
                 value = value.Split('\0')[0];
             if (iLength <= 0)
                 iLength = value.Length;
-            return TclString.newInstance(value.Substring(0, iLength));
+            return TclString.NewInstance(value.Substring(0, iLength));
         }
 
         public static TclObject Tcl_NewWideIntObj(long value)
@@ -626,9 +626,9 @@ namespace Tcl.Lang
             try
             {
                 if (part2 == null)
-                    interp.setVar(toName, toValue, flags);
+                    interp.SetVar(toName, toValue, flags);
                 else
-                    interp.setVar(toName.ToString(), part2.ToString(), toValue.ToString(), flags);
+                    interp.SetVar(toName.ToString(), part2.ToString(), toValue.ToString(), flags);
                 return false;
             }
             catch
@@ -649,7 +649,7 @@ namespace Tcl.Lang
         public static void Tcl_SetBooleanObj(TclObject to, int result)
         {
             to.stringRep = TclBoolean.newInstance(result != 0).ToString();
-            to.preserve();
+            to.Preserve();
         }
 
         public static bool Tcl_SetCommandInfo(Interp interp, string command, WrappedCommand value)
@@ -669,17 +669,17 @@ namespace Tcl.Lang
           )
         {
             while (to.Shared)
-                to.release();
+                to.Release();
             TclInteger.set(to, result);
-            to.preserve();
+            to.Preserve();
         }
 
         public static void Tcl_SetLongObj(TclObject to, long result)
         {
             while (to.Shared)
-                to.release();
+                to.Release();
             TclLong.set(to, result);
-            to.preserve();
+            to.Preserve();
         }
 
         public static void Tcl_SetObjResult(Interp interp, TclObject to)
@@ -702,17 +702,17 @@ namespace Tcl.Lang
 
         public static void Tcl_SetVar(Interp interp, string part, string value, int flags)
         {
-            interp.setVar(part, value, (VarFlag)flags);
+            interp.SetVar(part, value, (VarFlag)flags);
         }
 
         public static void Tcl_SetVar2(Interp interp, string part1, string part2, string value, int flags)
         {
-            interp.setVar(part1, part2, value, (VarFlag)flags);
+            interp.SetVar(part1, part2, value, (VarFlag)flags);
         }
 
         public static void Tcl_SetVar2(Interp interp, string part1, string part2, TclObject value, int flags)
         {
-            interp.setVar(part1, part2, value, (VarFlag)flags);
+            interp.SetVar(part1, part2, value, (VarFlag)flags);
         }
 
         public static void Tcl_UnregisterChannel(Interp interp, Channel chan)

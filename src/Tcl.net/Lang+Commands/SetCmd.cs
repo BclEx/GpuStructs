@@ -18,9 +18,9 @@ namespace Tcl.Lang
     * This class implements the built-in "set" command in Tcl.
     */
 
-    class SetCmd : Command
+    class SetCmd : ICommand
     {
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             bool debug;
 
@@ -33,7 +33,7 @@ namespace Tcl.Lang
             else if (argv.Length == 3)
             {
                 System.Diagnostics.Debug.WriteLine("setting value of \"" + argv[1].ToString() + "\" to \"" + argv[2].ToString() + "\"");
-                interp.setResult(interp.setVar(argv[1], argv[2], 0));
+                interp.setResult(interp.SetVar(argv[1], argv[2], 0));
             }
             else
             {

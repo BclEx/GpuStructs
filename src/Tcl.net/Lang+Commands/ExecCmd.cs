@@ -21,13 +21,13 @@ namespace Tcl.Lang
     * This class implements the built-in "exec" command in Tcl.
     */
 
-    class ExecCmd : Command
+    class ExecCmd : ICommand
     {
 
         /// <summary> Reference to Runtime.exec, null when JDK < 1.3</summary>
         private static System.Reflection.MethodInfo execMethod;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int firstWord; /* Index to the first non-switch arg */
             int argLen = argv.Length; /* No of args to copy to argStrs     */
@@ -158,15 +158,15 @@ namespace Tcl.Lang
 
                 if (exit != 0)
                 {
-                    TclObject childstatus = TclList.newInstance();
-                    TclList.append(interp, childstatus, TclString.newInstance("CHILDSTATUS"));
+                    TclObject childstatus = TclList.NewInstance();
+                    TclList.Append(interp, childstatus, TclString.NewInstance("CHILDSTATUS"));
 
                     // We don't know how to find the child's pid
-                    TclList.append(interp, childstatus, TclString.newInstance("?PID?"));
+                    TclList.Append(interp, childstatus, TclString.NewInstance("?PID?"));
 
-                    TclList.append(interp, childstatus, TclInteger.newInstance(exit));
+                    TclList.Append(interp, childstatus, TclInteger.NewInstance(exit));
 
-                    interp.setErrorCode(childstatus);
+                    interp.SetErrorCode(childstatus);
                 }
 
                 //when the subprocess writes to its stderr stream or returns

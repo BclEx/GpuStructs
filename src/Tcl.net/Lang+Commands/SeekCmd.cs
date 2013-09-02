@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "seek" command in Tcl.</summary>
 
-    class SeekCmd : Command
+    class SeekCmd : ICommand
     {
 
         private static readonly string[] validOrigins = new string[] { "start", "current", "end" };
@@ -26,7 +26,7 @@ namespace Tcl.Lang
         /// See the user documentation for details on what it does.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; /* The channel being operated on this method */

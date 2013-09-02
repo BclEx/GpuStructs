@@ -38,7 +38,7 @@ namespace Tcl.Lang
         /// </exception>
         private TclBoolean(Interp interp, string str)
         {
-            value = Util.getBoolean(interp, str);
+            value = Util.GetBoolean(interp, str);
         }
 
         /// <summary> Returns a dupilcate of the current object.
@@ -46,14 +46,14 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="tobj">the TclObject that contains this ObjType.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclBoolean(value);
         }
 
         /// <summary> Implement this no-op for the InternalRep interface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 

@@ -15,7 +15,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "fconfigure" command in Tcl.</summary>
 
-    class FconfigureCmd : Command
+    class FconfigureCmd : ICommand
     {
 
         private static readonly string[] validCmds = new string[] { "-blocking", "-buffering", "-buffersize", "-encoding", "-eofchar", "-translation" };
@@ -37,7 +37,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; // The channel being operated on this method
@@ -58,20 +58,20 @@ namespace Tcl.Lang
             if (argv.Length == 2)
             {
                 // return list of all name/value pairs for this channelId
-                TclObject list = TclList.newInstance();
+                TclObject list = TclList.NewInstance();
 
-                TclList.append(interp, list, TclString.newInstance("-blocking"));
-                TclList.append(interp, list, TclBoolean.newInstance(chan.Blocking));
+                TclList.Append(interp, list, TclString.NewInstance("-blocking"));
+                TclList.Append(interp, list, TclBoolean.newInstance(chan.Blocking));
 
-                TclList.append(interp, list, TclString.newInstance("-buffering"));
-                TclList.append(interp, list, TclString.newInstance(TclIO.getBufferingString(chan.Buffering)));
+                TclList.Append(interp, list, TclString.NewInstance("-buffering"));
+                TclList.Append(interp, list, TclString.NewInstance(TclIO.getBufferingString(chan.Buffering)));
 
-                TclList.append(interp, list, TclString.newInstance("-buffersize"));
-                TclList.append(interp, list, TclInteger.newInstance(chan.BufferSize));
+                TclList.Append(interp, list, TclString.NewInstance("-buffersize"));
+                TclList.Append(interp, list, TclInteger.NewInstance(chan.BufferSize));
 
                 // -encoding
 
-                TclList.append(interp, list, TclString.newInstance("-encoding"));
+                TclList.Append(interp, list, TclString.NewInstance("-encoding"));
 
                 System.Text.Encoding javaEncoding = chan.Encoding;
                 string tclEncoding;
@@ -83,33 +83,33 @@ namespace Tcl.Lang
                 {
                     tclEncoding = EncodingCmd.getTclName(javaEncoding);
                 }
-                TclList.append(interp, list, TclString.newInstance(tclEncoding));
+                TclList.Append(interp, list, TclString.NewInstance(tclEncoding));
 
                 // -eofchar
 
-                TclList.append(interp, list, TclString.newInstance("-eofchar"));
+                TclList.Append(interp, list, TclString.NewInstance("-eofchar"));
                 if (chan.ReadOnly)
                 {
                     char eofChar = chan.InputEofChar;
-                    TclList.append(interp, list, (eofChar == 0) ? TclString.newInstance("") : TclString.newInstance(eofChar));
+                    TclList.Append(interp, list, (eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                 }
                 else if (chan.WriteOnly)
                 {
                     char eofChar = chan.OutputEofChar;
-                    TclList.append(interp, list, (eofChar == 0) ? TclString.newInstance("") : TclString.newInstance(eofChar));
+                    TclList.Append(interp, list, (eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                 }
                 else if (chan.ReadWrite)
                 {
                     char inEofChar = chan.InputEofChar;
                     char outEofChar = chan.OutputEofChar;
 
-                    TclObject eofchar_pair = TclList.newInstance();
+                    TclObject eofchar_pair = TclList.NewInstance();
 
-                    TclList.append(interp, eofchar_pair, (inEofChar == 0) ? TclString.newInstance("") : TclString.newInstance(inEofChar));
+                    TclList.Append(interp, eofchar_pair, (inEofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(inEofChar));
 
-                    TclList.append(interp, eofchar_pair, (outEofChar == 0) ? TclString.newInstance("") : TclString.newInstance(outEofChar));
+                    TclList.Append(interp, eofchar_pair, (outEofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(outEofChar));
 
-                    TclList.append(interp, list, eofchar_pair);
+                    TclList.Append(interp, list, eofchar_pair);
                 }
                 else
                 {
@@ -118,24 +118,24 @@ namespace Tcl.Lang
 
                 // -translation
 
-                TclList.append(interp, list, TclString.newInstance("-translation"));
+                TclList.Append(interp, list, TclString.NewInstance("-translation"));
 
                 if (chan.ReadOnly)
                 {
-                    TclList.append(interp, list, TclString.newInstance(TclIO.getTranslationString(chan.InputTranslation)));
+                    TclList.Append(interp, list, TclString.NewInstance(TclIO.getTranslationString(chan.InputTranslation)));
                 }
                 else if (chan.WriteOnly)
                 {
-                    TclList.append(interp, list, TclString.newInstance(TclIO.getTranslationString(chan.OutputTranslation)));
+                    TclList.Append(interp, list, TclString.NewInstance(TclIO.getTranslationString(chan.OutputTranslation)));
                 }
                 else if (chan.ReadWrite)
                 {
-                    TclObject translation_pair = TclList.newInstance();
+                    TclObject translation_pair = TclList.NewInstance();
 
-                    TclList.append(interp, translation_pair, TclString.newInstance(TclIO.getTranslationString(chan.InputTranslation)));
-                    TclList.append(interp, translation_pair, TclString.newInstance(TclIO.getTranslationString(chan.OutputTranslation)));
+                    TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.InputTranslation)));
+                    TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.OutputTranslation)));
 
-                    TclList.append(interp, list, translation_pair);
+                    TclList.Append(interp, list, translation_pair);
                 }
                 else
                 {
@@ -196,23 +196,23 @@ namespace Tcl.Lang
                             if (chan.ReadOnly)
                             {
                                 char eofChar = chan.InputEofChar;
-                                interp.setResult((eofChar == 0) ? TclString.newInstance("") : TclString.newInstance(eofChar));
+                                interp.setResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                             }
                             else if (chan.WriteOnly)
                             {
                                 char eofChar = chan.OutputEofChar;
-                                interp.setResult((eofChar == 0) ? TclString.newInstance("") : TclString.newInstance(eofChar));
+                                interp.setResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                             }
                             else if (chan.ReadWrite)
                             {
                                 char inEofChar = chan.InputEofChar;
                                 char outEofChar = chan.OutputEofChar;
 
-                                TclObject eofchar_pair = TclList.newInstance();
+                                TclObject eofchar_pair = TclList.NewInstance();
 
-                                TclList.append(interp, eofchar_pair, (inEofChar == 0) ? TclString.newInstance("") : TclString.newInstance(inEofChar));
+                                TclList.Append(interp, eofchar_pair, (inEofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(inEofChar));
 
-                                TclList.append(interp, eofchar_pair, (outEofChar == 0) ? TclString.newInstance("") : TclString.newInstance(outEofChar));
+                                TclList.Append(interp, eofchar_pair, (outEofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(outEofChar));
 
                                 interp.setResult(eofchar_pair);
                             }
@@ -237,10 +237,10 @@ namespace Tcl.Lang
                             }
                             else if (chan.ReadWrite)
                             {
-                                TclObject translation_pair = TclList.newInstance();
+                                TclObject translation_pair = TclList.NewInstance();
 
-                                TclList.append(interp, translation_pair, TclString.newInstance(TclIO.getTranslationString(chan.InputTranslation)));
-                                TclList.append(interp, translation_pair, TclString.newInstance(TclIO.getTranslationString(chan.OutputTranslation)));
+                                TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.InputTranslation)));
+                                TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.OutputTranslation)));
 
                                 interp.setResult(translation_pair);
                             }

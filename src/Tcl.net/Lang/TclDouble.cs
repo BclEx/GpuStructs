@@ -33,14 +33,14 @@ namespace Tcl.Lang
         {
             value = Util.getDouble(interp, str);
         }
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclDouble(value);
         }
-        public void dispose()
+        public void Dispose()
         {
         }
-        public static TclObject newInstance(double d)
+        public static TclObject NewInstance(double d)
         // Initial value.
         {
             return new TclObject(new TclDouble(d));
@@ -85,7 +85,7 @@ namespace Tcl.Lang
                 tobj.InternalRep = new TclDouble(interp, tobj.ToString());
             }
         }
-        public static double get(Interp interp, TclObject tobj)
+        public static double Get(Interp interp, TclObject tobj)
         {
             InternalRep rep = tobj.InternalRep;
             TclDouble tdouble;

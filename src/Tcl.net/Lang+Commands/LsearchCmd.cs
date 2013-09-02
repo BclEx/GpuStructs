@@ -17,7 +17,7 @@ namespace Tcl.Lang
     * This class implements the built-in "lsearch" command in Tcl.
     */
 
-    class LsearchCmd : Command
+    class LsearchCmd : ICommand
     {
 
         private static readonly string[] options = new string[] { "-ascii", "-decreasing", "-dictionary", "-exact", "-increasing", "-integer", "-glob", "-real", "-regexp", "-sorted" };
@@ -59,7 +59,7 @@ namespace Tcl.Lang
         *-----------------------------------------------------------------------------
         */
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             int mode = GLOB;
             int dataType = ASCII;
@@ -146,7 +146,7 @@ namespace Tcl.Lang
                         break;
 
                     case REAL:
-                        patDouble = TclDouble.get(interp, patObj);
+                        patDouble = TclDouble.Get(interp, patObj);
                         break;
                 }
             }
@@ -210,7 +210,7 @@ namespace Tcl.Lang
 
                         case REAL:
                             {
-                                double objDouble = TclDouble.get(interp, listv[i]);
+                                double objDouble = TclDouble.Get(interp, listv[i]);
                                 if (patDouble == objDouble)
                                 {
                                     match = 0;
@@ -310,7 +310,7 @@ namespace Tcl.Lang
 
                                     case REAL:
                                         {
-                                            double objDouble = TclDouble.get(interp, listv[i]);
+                                            double objDouble = TclDouble.Get(interp, listv[i]);
                                             match = (objDouble == patDouble);
                                             break;
                                         }

@@ -14,7 +14,7 @@ namespace Tcl.Lang
     /// 
     /// </summary>
 
-    class ScanCmd : Command
+    class ScanCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "scan" Tcl command.
         /// See the user documentation for details on what it does.
@@ -35,7 +35,7 @@ namespace Tcl.Lang
         /// consistent w/ the current C-version of Tcl.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             if (argv.Length < 3)
@@ -155,8 +155,8 @@ namespace Tcl.Lang
                                 {
                                     if (System.Char.IsDigit(frmtArr[frmtIndex]))
                                     {
-                                        strul = Util.strtoul(new string(frmtArr), frmtIndex, base_);
-                                        frmtIndex = strul.index;
+                                        strul = Util.Strtoul(new string(frmtArr), frmtIndex, base_);
+                                        frmtIndex = strul.Index;
                                         width = (int)strul.value;
                                         widthFlag = true;
                                         cont = true;
@@ -251,18 +251,18 @@ namespace Tcl.Lang
 
                                     if (widthFlag)
                                     {
-                                        strul = Util.strtoul(new string(scanArr, 0, width + scanIndex), scanIndex, base_);
+                                        strul = Util.Strtoul(new string(scanArr, 0, width + scanIndex), scanIndex, base_);
                                     }
                                     else
                                     {
-                                        strul = Util.strtoul(new string(scanArr), scanIndex, base_);
+                                        strul = Util.Strtoul(new string(scanArr), scanIndex, base_);
                                     }
                                     if (strul.errno != 0)
                                     {
                                         scanOK = false;
                                         break;
                                     }
-                                    scanIndex = strul.index;
+                                    scanIndex = strul.Index;
 
                                     if (!discardFlag)
                                     {
@@ -270,7 +270,7 @@ namespace Tcl.Lang
                                         if (argIndex == argv.Length)
                                             numMatched--;
                                         else
-                                            testAndSetVar(interp, argv, argIndex++, TclInteger.newInstance(i));
+                                            testAndSetVar(interp, argv, argIndex++, TclInteger.NewInstance(i));
                                     }
                                 }
                                 break;
@@ -284,7 +284,7 @@ namespace Tcl.Lang
                                 }
                                 if (!discardFlag && !scanArrDone)
                                 {
-                                    testAndSetVar(interp, argv, argIndex++, TclInteger.newInstance(scanArr[scanIndex++]));
+                                    testAndSetVar(interp, argv, argIndex++, TclInteger.NewInstance(scanArr[scanIndex++]));
                                 }
                                 break;
                             }
@@ -317,7 +317,7 @@ namespace Tcl.Lang
                                     if (!discardFlag)
                                     {
                                         string str = new string(scanArr, tempIndex, scanIndex - tempIndex);
-                                        testAndSetVar(interp, argv, argIndex++, TclString.newInstance(str));
+                                        testAndSetVar(interp, argv, argIndex++, TclString.NewInstance(str));
                                     }
                                 }
                                 break;
@@ -337,11 +337,11 @@ namespace Tcl.Lang
 
                                     if (widthFlag)
                                     {
-                                        strd = Util.strtod(new string(scanArr, 0, width + scanIndex), scanIndex);
+                                        strd = Util.Strtod(new string(scanArr, 0, width + scanIndex), scanIndex);
                                     }
                                     else
                                     {
-                                        strd = Util.strtod(new string(scanArr), scanIndex);
+                                        strd = Util.Strtod(new string(scanArr), scanIndex);
                                     }
                                     if (strd.errno != 0)
                                     {
@@ -353,7 +353,7 @@ namespace Tcl.Lang
                                     if (!discardFlag)
                                     {
                                         double d = strd.value * negateScan;
-                                        testAndSetVar(interp, argv, argIndex++, TclDouble.newInstance(d));
+                                        testAndSetVar(interp, argv, argIndex++, TclDouble.NewInstance(d));
                                     }
                                 }
                                 break;
@@ -476,7 +476,7 @@ namespace Tcl.Lang
                                 if (!discardFlag)
                                 {
                                     string str = new string(scanArr, startIndex, endIndex);
-                                    testAndSetVar(interp, argv, argIndex++, TclString.newInstance(str));
+                                    testAndSetVar(interp, argv, argIndex++, TclString.NewInstance(str));
                                 }
                                 break;
                             }
@@ -529,7 +529,7 @@ namespace Tcl.Lang
             {
                 errorDiffVars(interp);
             }
-            interp.setResult(TclInteger.newInstance(numMatched));
+            interp.setResult(TclInteger.NewInstance(numMatched));
             return TCL.CompletionCode.RETURN;
         }
 
@@ -601,7 +601,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    interp.setVar(argv[argIndex].ToString(), tobj, 0);
+                    interp.SetVar(argv[argIndex].ToString(), tobj, 0);
                 }
                 catch (TclException e)
                 {

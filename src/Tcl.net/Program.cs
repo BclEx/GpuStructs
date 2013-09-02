@@ -34,30 +34,30 @@ class csTCL
         fileName = args[0];
       }
 
-      TclObject argv = TclList.newInstance();
-      argv.preserve();
+      TclObject argv = TclList.NewInstance();
+      argv.Preserve();
       try
       {
         int i = 0;
         int argc = args.Length;
         if ((System.Object)fileName == null)
         {
-          interp.setVar("argv0", "tcl.lang.Shell", TCL.VarFlag.GLOBAL_ONLY);
-          interp.setVar("tcl_interactive", "1", TCL.VarFlag.GLOBAL_ONLY);
+          interp.SetVar("argv0", "tcl.lang.Shell", TCL.VarFlag.GLOBAL_ONLY);
+          interp.SetVar("tcl_interactive", "1", TCL.VarFlag.GLOBAL_ONLY);
         }
         else
         {
-          interp.setVar("argv0", fileName, TCL.VarFlag.GLOBAL_ONLY);
-          interp.setVar("tcl_interactive", "0", TCL.VarFlag.GLOBAL_ONLY);
+          interp.SetVar("argv0", fileName, TCL.VarFlag.GLOBAL_ONLY);
+          interp.SetVar("tcl_interactive", "0", TCL.VarFlag.GLOBAL_ONLY);
           i++;
           argc--;
         }
         for (; i < args.Length; i++)
         {
-          TclList.append(interp, argv, TclString.newInstance(args[i]));
+          TclList.Append(interp, argv, TclString.NewInstance(args[i]));
         }
-        interp.setVar("argv", argv, TCL.VarFlag.GLOBAL_ONLY);
-        interp.setVar("argc", System.Convert.ToString(argc), TCL.VarFlag.GLOBAL_ONLY);
+        interp.SetVar("argv", argv, TCL.VarFlag.GLOBAL_ONLY);
+        interp.SetVar("argc", System.Convert.ToString(argc), TCL.VarFlag.GLOBAL_ONLY);
       }
       catch (TclException e)
       {
@@ -65,7 +65,7 @@ class csTCL
       }
       finally
       {
-        argv.release();
+        argv.Release();
       }
 
       // Normally we would do application specific initialization here.
@@ -85,7 +85,7 @@ class csTCL
         }
         catch (TclException e)
         {
-          TCL.CompletionCode code = e.getCompletionCode();
+          TCL.CompletionCode code = e.GetCompletionCode();
           if (code == TCL.CompletionCode.RETURN)
           {
             code = interp.updateReturnInfo();
@@ -97,9 +97,9 @@ class csTCL
           }
           else if (code == TCL.CompletionCode.ERROR)
           {
-            System.Console.Error.WriteLine(interp.getResult().ToString());
-            if (Tcl.Lang.ConsoleThread.debug) System.Diagnostics.Debug.WriteLine(interp.getResult().ToString());
-            System.Diagnostics.Debug.Assert(false, interp.getResult().ToString());
+            System.Console.Error.WriteLine(interp.GetResult().ToString());
+            if (Tcl.Lang.ConsoleThread.debug) System.Diagnostics.Debug.WriteLine(interp.GetResult().ToString());
+            System.Diagnostics.Debug.Assert(false, interp.GetResult().ToString());
           }
           else
           {
@@ -186,11 +186,11 @@ namespace Tcl.Lang
           }
 
           bool eval_exception = true;
-          TclObject commandObj = TclString.newInstance(command);
+          TclObject commandObj = TclString.NewInstance(command);
 
           try
           {
-            commandObj.preserve();
+            commandObj.Preserve();
             Enclosing_Instance.interp.recordAndEval(commandObj, 0);
             eval_exception = false;
           }
@@ -201,13 +201,13 @@ namespace Tcl.Lang
               WriteLine("eval returned exceptional condition");
             }
 
-            TCL.CompletionCode code = e.getCompletionCode();
+            TCL.CompletionCode code = e.GetCompletionCode();
             switch (code)
             {
 
               case TCL.CompletionCode.ERROR:
 
-                Enclosing_Instance.putLine(Enclosing_Instance.err, Enclosing_Instance.interp.getResult().ToString());
+                Enclosing_Instance.putLine(Enclosing_Instance.err, Enclosing_Instance.interp.GetResult().ToString());
                 break;
 
               case TCL.CompletionCode.BREAK:
@@ -226,7 +226,7 @@ namespace Tcl.Lang
           }
           finally
           {
-            commandObj.release();
+            commandObj.Release();
           }
 
           if (!eval_exception)
@@ -237,7 +237,7 @@ namespace Tcl.Lang
             }
 
 
-            string evalResult = Enclosing_Instance.interp.getResult().ToString();
+            string evalResult = Enclosing_Instance.interp.GetResult().ToString();
 
             if (Tcl.Lang.ConsoleThread.debug)
             {
@@ -354,8 +354,8 @@ namespace Tcl.Lang
       interp = i;
       sbuf = new System.Text.StringBuilder(100);
 
-      out_Renamed = TclIO.getStdChannel(StdChannel.STDOUT);
-      err = TclIO.getStdChannel(StdChannel.STDERR);
+      out_Renamed = TclIO.GetStdChannel(StdChannel.STDOUT);
+      err = TclIO.GetStdChannel(StdChannel.STDERR);
     }
     override public void Run()
     {
@@ -400,7 +400,7 @@ namespace Tcl.Lang
         TclEvent Tevent = new AnonymousClassTclEvent(command, this); // end TclEvent innerclass
 
         // Add the event to the thread safe event queue
-        interp.getNotifier().queueEvent(Tevent, TCL.QUEUE_TAIL);
+        interp.getNotifier().QueueEvent(Tevent, TCL.QUEUE.TAIL);
 
         // Tell this thread to wait until the event has been processed.
         Tevent.sync();
@@ -420,9 +420,9 @@ namespace Tcl.Lang
     {
       try
       {
-        channel.write(interp, s);
-        channel.write(interp, "\n");
-        channel.flush(interp);
+        channel.Write(interp, s);
+        channel.Write(interp, "\n");
+        channel.Flush(interp);
       }
       catch (System.IO.IOException ex)
       {
@@ -440,8 +440,8 @@ namespace Tcl.Lang
     {
       try
       {
-        channel.write(interp, s);
-        channel.flush(interp);
+        channel.Write(interp, s);
+        channel.Flush(interp);
       }
       catch (System.IO.IOException ex)
       {

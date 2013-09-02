@@ -153,7 +153,7 @@ namespace Tcl.Lang
         /// <param name="s">the string to write 
         /// </param>
 
-        public override void write(Interp interp, TclObject outData)
+        public override void Write(Interp interp, TclObject outData)
         {
 
             checkWrite(interp);

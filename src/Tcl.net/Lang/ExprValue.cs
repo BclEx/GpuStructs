@@ -10,12 +10,10 @@ See the file "license.terms" for information on usage and redistribution of this
 using System;
 namespace Tcl.Lang
 {
-
-    /// <summary> Describes an expression value, which can be either an integer (the
-    /// usual case), a double-precision floating-point value, or a string.
+    /// <summary>
+    /// Describes an expression value, which can be either an integer (the usual case), a double-precision floating-point value, or a string.
     /// A given number has only one value at a time.
     /// </summary>
-
     class ExprValue
     {
         internal const int ERROR = 0;
@@ -23,40 +21,29 @@ namespace Tcl.Lang
         internal const int DOUBLE = 2;
         internal const int STRING = 3;
 
-        /// <summary> Integer value, if any.</summary>
-        internal long intValue;
+        internal long IntValue; // Integer value, if any.
+        internal double DoubleValue; // Floating-point value, if any.
+        internal string StringValue; // Used to hold a string value, if any.
+        internal int Type; // Type of value: INT, DOUBLE, or STRING.
 
-        /// <summary> Floating-point value, if any.</summary>
-        internal double doubleValue;
-
-        /// <summary> Used to hold a string value, if any.</summary>
-        internal string stringValue;
-
-        /// <summary> Type of value: INT, DOUBLE, or STRING.</summary>
-        internal int type;
-
-        /// <summary> Constructors.</summary>
         internal ExprValue()
         {
-            type = ERROR;
+            Type = ERROR;
         }
-
         internal ExprValue(long i)
         {
-            intValue = i;
-            type = INT;
+            IntValue = i;
+            Type = INT;
         }
-
         internal ExprValue(double d)
         {
-            doubleValue = d;
-            type = DOUBLE;
+            DoubleValue = d;
+            Type = DOUBLE;
         }
-
         internal ExprValue(string s)
         {
-            stringValue = s;
-            type = STRING;
+            StringValue = s;
+            Type = STRING;
         }
     }
 }

@@ -20,7 +20,7 @@ namespace Tcl.Lang
     * This class implements the built-in "file" command in Tcl.
     */
 
-    class FileCmd : Command
+    class FileCmd : ICommand
     {
 
         /// <summary> Reference to File.listRoots, null when JDK < 1.2</summary>
@@ -69,7 +69,7 @@ namespace Tcl.Lang
         private const int OPT_FORCE = 0;
         private const int OPT_LAST = 1;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2)
             {
@@ -492,11 +492,11 @@ namespace Tcl.Lang
                         FileInfo[] roots = (FileInfo[])listRootsMethod.Invoke(null, (System.Object[])new System.Object[0]);
                         if (roots != null)
                         {
-                            TclObject list = TclList.newInstance();
+                            TclObject list = TclList.NewInstance();
                             for (int i = 0; i < roots.Length; i++)
                             {
                                 string root = roots[i].FullName;
-                                TclList.append(interp, list, TclString.newInstance(root));
+                                TclList.Append(interp, list, TclString.NewInstance(root));
                             }
                             interp.setResult(list);
                         }
@@ -619,12 +619,12 @@ namespace Tcl.Lang
             try
             {
                 int mtime = getMtime(interp, fileName, fileObj);
-                TclObject mtimeObj = TclInteger.newInstance(mtime);
-                TclObject atimeObj = TclInteger.newInstance(mtime);
-                TclObject ctimeObj = TclInteger.newInstance(mtime);
-                interp.setVar(varName, "atime", atimeObj, 0);
-                interp.setVar(varName, "ctime", ctimeObj, 0);
-                interp.setVar(varName, "mtime", mtimeObj, 0);
+                TclObject mtimeObj = TclInteger.NewInstance(mtime);
+                TclObject atimeObj = TclInteger.NewInstance(mtime);
+                TclObject ctimeObj = TclInteger.NewInstance(mtime);
+                interp.SetVar(varName, "atime", atimeObj, 0);
+                interp.SetVar(varName, "ctime", ctimeObj, 0);
+                interp.SetVar(varName, "mtime", mtimeObj, 0);
             }
             catch (System.Security.SecurityException e)
             {
@@ -637,8 +637,8 @@ namespace Tcl.Lang
 
             try
             {
-                TclObject sizeObj = TclInteger.newInstance((int)SupportClass.FileLength(fileObj));
-                interp.setVar(varName, "size", sizeObj, 0);
+                TclObject sizeObj = TclInteger.NewInstance((int)SupportClass.FileLength(fileObj));
+                interp.SetVar(varName, "size", sizeObj, 0);
             }
             catch (System.Exception e)
             {
@@ -647,8 +647,8 @@ namespace Tcl.Lang
 
             try
             {
-                TclObject typeObj = TclString.newInstance(getType(interp, fileName, fileObj));
-                interp.setVar(varName, "type", typeObj, 0);
+                TclObject typeObj = TclString.NewInstance(getType(interp, fileName, fileObj));
+                interp.SetVar(varName, "type", typeObj, 0);
             }
             catch (System.Exception e)
             {
@@ -657,7 +657,7 @@ namespace Tcl.Lang
             try
             {
                 TclObject uidObj = TclBoolean.newInstance(isOwner(interp, fileObj));
-                interp.setVar(varName, "uid", uidObj, 0);
+                interp.SetVar(varName, "uid", uidObj, 0);
             }
             catch (TclException e)
             {
@@ -861,8 +861,8 @@ namespace Tcl.Lang
                     {
 
                         TclObject[] joinArrayObj = new TclObject[2];
-                        joinArrayObj[0] = TclString.newInstance(fileName);
-                        joinArrayObj[1] = TclString.newInstance(fileList[i]);
+                        joinArrayObj[0] = TclString.NewInstance(fileName);
+                        joinArrayObj[1] = TclString.NewInstance(fileList[i]);
 
                         string child = FileUtil.joinPath(interp, joinArrayObj, 0, 2);
                         deleteOneFile(interp, child, force);
@@ -968,8 +968,8 @@ namespace Tcl.Lang
                         string tailName = getTail(interp, sourceName);
 
                         TclObject[] joinArrayObj = new TclObject[2];
-                        joinArrayObj[0] = TclString.newInstance(targetName);
-                        joinArrayObj[1] = TclString.newInstance(tailName);
+                        joinArrayObj[0] = TclString.NewInstance(targetName);
+                        joinArrayObj[1] = TclString.NewInstance(tailName);
 
                         string fullTargetName = FileUtil.joinPath(interp, joinArrayObj, 0, 2);
 

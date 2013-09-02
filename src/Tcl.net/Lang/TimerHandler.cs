@@ -64,19 +64,19 @@ namespace Tcl.Lang
 
             lock (notifier)
             {
-                generation = notifier.timerGeneration;
+                generation = notifier.TimerGeneration;
 
-                for (i = 0; i < notifier.timerList.Count; i++)
+                for (i = 0; i < notifier.TimerList.Count; i++)
                 {
-                    TimerHandler q = (TimerHandler)notifier.timerList[i];
+                    TimerHandler q = (TimerHandler)notifier.TimerList[i];
                     if (atTime < q.atTime)
                     {
                         break;
                     }
                 }
-                notifier.timerList.Insert(i, this);
+                notifier.TimerList.Insert(i, this);
 
-                if (System.Threading.Thread.CurrentThread != notifier.primaryThread)
+                if (System.Threading.Thread.CurrentThread != notifier.PrimaryThread)
                 {
                     System.Threading.Monitor.PulseAll(notifier);
                 }
@@ -95,11 +95,11 @@ namespace Tcl.Lang
 
                 lock (notifier)
                 {
-                    for (int i = 0; i < notifier.timerList.Count; i++)
+                    for (int i = 0; i < notifier.TimerList.Count; i++)
                     {
-                        if (notifier.timerList[i] == this)
+                        if (notifier.TimerList[i] == this)
                         {
-                            notifier.timerList.RemoveAt(i);
+                            notifier.TimerList.RemoveAt(i);
 
                             /*
                             * We can return now because the same timer can be

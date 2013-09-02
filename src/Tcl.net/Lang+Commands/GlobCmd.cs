@@ -20,7 +20,7 @@ namespace Tcl.Lang
     * This class implements the built-in "glob" command in Tcl.
     */
 
-    class GlobCmd : Command
+    class GlobCmd : ICommand
     {
 
         /*
@@ -37,7 +37,7 @@ namespace Tcl.Lang
         private const int OPT_NOCOMPLAIN = 0;
         private const int OPT_LAST = 1;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             bool noComplain = false; // If false, error msg will be returned 
             int index; // index of the char just after the end 
@@ -80,8 +80,8 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 1, argv, "?switches? name ?name ...?");
             }
 
-            resultList = TclList.newInstance();
-            resultList.preserve();
+            resultList = TclList.NewInstance();
+            resultList.Preserve();
 
             for (i = firstArg; i < argv.Length; i++)
             {
@@ -236,7 +236,7 @@ namespace Tcl.Lang
             }
             finally
             {
-                resultList.release();
+                resultList.Release();
             }
             return TCL.CompletionCode.RETURN;
         }
@@ -781,7 +781,7 @@ namespace Tcl.Lang
             {
                 if (Directory.Exists(f.FullName))
                 {
-                    TclList.append(interp, resultList, TclString.newInstance(prettyFileName));
+                    TclList.Append(interp, resultList, TclString.NewInstance(prettyFileName));
                 }
             }
             else
@@ -793,7 +793,7 @@ namespace Tcl.Lang
                     tmpBool = Directory.Exists(f.FullName);
                 if (tmpBool)
                 {
-                    TclList.append(interp, resultList, TclString.newInstance(prettyFileName));
+                    TclList.Append(interp, resultList, TclString.NewInstance(prettyFileName));
                 }
             }
         }

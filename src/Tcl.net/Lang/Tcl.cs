@@ -64,17 +64,12 @@ namespace Tcl.Lang
             BREAK = 3,
             CONTINUE = 4,
             EXIT = 5
-        };
+        }
 
-
-        // The following value is used by the Interp::commandComplete(). It's used
-        // to report that a script is not complete.
-
+        // The following value is used by the Interp::commandComplete(). It's used to report that a script is not complete.
         protected internal const int INCOMPLETE = 10;
 
-        // Flag values to pass to TCL.Tcl_DoOneEvent to disable searches
-        // for some kinds of events:
-
+        // Flag values to pass to TCL.Tcl_DoOneEvent to disable searches for some kinds of events:
         public const int DONT_WAIT = (1 << 1);
         public const int WINDOW_EVENTS = (1 << 2);
         public const int FILE_EVENTS = (1 << 3);
@@ -82,29 +77,25 @@ namespace Tcl.Lang
         public const int IDLE_EVENTS = (1 << 5);
         public const int ALL_EVENTS = (~DONT_WAIT);
 
-        // The largest positive and negative integer values that can be
-        // represented in Tcl.
-
+        // The largest positive and negative integer values that can be represented in Tcl.
         internal const long INT_MAX = 2147483647;
         internal const long INT_MIN = - 2147483648;
 
-        // These values are used by Util.strtoul and Util.strtod to
-        // report conversion errors.
-
+        // These values are used by Util.strtoul and Util.strtod to report conversion errors.
         internal const int INVALID_INTEGER = -1;
         internal const int INTEGER_RANGE = -2;
         internal const int INVALID_DOUBLE = -3;
         internal const int DOUBLE_RANGE = -4;
 
-        // Positions to pass to TCL.Tcl_QueueEvent. THESE VALUES
-        // MUST BE CONSISTANT WITH THE C IMPLEMENTATION OF TCL.
-
-        public const int QUEUE_TAIL = 0;
-        public const int QUEUE_HEAD = 1;
-        public const int QUEUE_MARK = 2;
+        // Positions to pass to TCL.Tcl_QueueEvent. THESE VALUES MUST BE CONSISTANT WITH THE C IMPLEMENTATION OF TCL.
+        public enum QUEUE
+        {
+            TAIL = 0,
+            HEAD = 1,
+            MARK = 2,
+        }
 
         // Flags used to control the TclIndex.get method.
-
         public const int EXACT = 1; // Matches must be exact.
 
         // Flag values passed to recordAndEval and/or evalObj.

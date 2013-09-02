@@ -14,11 +14,11 @@ namespace Tcl.Lang
     /// <summary>
     /// This class implements the built-in "join" command in Tcl.
     /// </summary>
-    class JoinCmd : Command
+    class JoinCmd : ICommand
     {
 
         /// <summary> See Tcl user documentation for details.</summary>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             string sep = null;
 

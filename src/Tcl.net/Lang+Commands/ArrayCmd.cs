@@ -14,7 +14,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "array" command in Tcl.</summary>
 
-    class ArrayCmd : Command
+    class ArrayCmd : ICommand
     {
         internal static Type procClass = null;
 
@@ -35,7 +35,7 @@ namespace Tcl.Lang
         /// See the user documentation for details on what it does.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             Var var = null, array = null;
             bool notArray = false;
@@ -53,7 +53,7 @@ namespace Tcl.Lang
 
 
             varName = objv[2].ToString();
-            Var[] retArray = Var.lookupVar(interp, varName, null, 0, null, false, false);
+            Var[] retArray = Var.LookupVar(interp, varName, null, 0, null, false, false);
 
             // Assign the values returned in the array
             if (retArray != null)
@@ -62,7 +62,7 @@ namespace Tcl.Lang
                 array = retArray[1];
             }
 
-            if ((var == null) || !var.isVarArray() || var.isVarUndefined())
+            if ((var == null) || !var.isVarArray() || var.IsVarUndefined())
             {
                 notArray = true;
             }
@@ -181,7 +181,7 @@ namespace Tcl.Lang
                         }
 
                         Hashtable table = (Hashtable)var.value;
-                        TclObject tobj = TclList.newInstance();
+                        TclObject tobj = TclList.NewInstance();
 
                         string arrayName = objv[2].ToString();
                         string key, strValue;
@@ -197,7 +197,7 @@ namespace Tcl.Lang
                         {
                             key = ((string)e.Key);
                             var2 = (Var)e.Value;
-                            if (var2.isVarUndefined())
+                            if (var2.IsVarUndefined())
                             {
                                 continue;
                             }
@@ -210,8 +210,8 @@ namespace Tcl.Lang
 
                             strValue = interp.getVar(arrayName, key, 0).ToString();
 
-                            TclList.append(interp, tobj, TclString.newInstance(key));
-                            TclList.append(interp, tobj, TclString.newInstance(strValue));
+                            TclList.Append(interp, tobj, TclString.NewInstance(key));
+                            TclList.Append(interp, tobj, TclString.NewInstance(strValue));
                         }
                         interp.setResult(tobj);
                         break;
@@ -237,7 +237,7 @@ namespace Tcl.Lang
                         }
 
                         Hashtable table = (Hashtable)var.value;
-                        TclObject tobj = TclList.newInstance();
+                        TclObject tobj = TclList.NewInstance();
                         string key;
 
                         // Go through each key in the hash table.  If there is a 
@@ -248,7 +248,7 @@ namespace Tcl.Lang
                         {
                             key = (string)e.Key;
                             Var elem = (Var)e.Value;
-                            if (!elem.isVarUndefined())
+                            if (!elem.IsVarUndefined())
                             {
                                 if ((System.Object)pattern != null)
                                 {
@@ -257,7 +257,7 @@ namespace Tcl.Lang
                                         continue;
                                     }
                                 }
-                                TclList.append(interp, tobj, TclString.newInstance(key));
+                                TclList.Append(interp, tobj, TclString.NewInstance(key));
                             }
                         }
                         interp.setResult(tobj);
@@ -334,7 +334,7 @@ namespace Tcl.Lang
                             name2 = TclList.index(interp, objv[3], i++).ToString();
 
                             strValue = TclList.index(interp, objv[3], i).ToString();
-                            interp.setVar(name1, name2, TclString.newInstance(strValue), 0);
+                            interp.SetVar(name1, name2, TclString.NewInstance(strValue), 0);
                         }
                         break;
                     }
@@ -441,7 +441,7 @@ namespace Tcl.Lang
                             {
                                 name = (string)e.Key;
                                 Var elem = (Var)e.Value;
-                                if (var.isVarUndefined())
+                                if (var.IsVarUndefined())
                                 {
                                     continue;
                                 }

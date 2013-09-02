@@ -19,7 +19,7 @@ namespace Tcl.Lang
     /// 
     /// </summary>
 
-    class InterpAliasCmd : CommandWithDispose
+    class InterpAliasCmd : ICommandWithDispose
     {
 
         // Name of alias command in slave interp.
@@ -52,7 +52,7 @@ namespace Tcl.Lang
         // This is the interpreter with the aliasTable in Slave.
 
         private Interp slaveInterp;
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             targetInterp.preserve();
             targetInterp.nestLevel++;
@@ -64,15 +64,15 @@ namespace Tcl.Lang
             // in the target interp's global namespace.
 
             TclObject[] prefv = TclList.getElements(interp, prefix);
-            TclObject cmd = TclList.newInstance();
-            cmd.preserve();
+            TclObject cmd = TclList.NewInstance();
+            cmd.Preserve();
             TclList.replace(interp, cmd, 0, 0, prefv, 0, prefv.Length - 1);
             TclList.replace(interp, cmd, prefv.Length, 0, argv, 1, argv.Length - 1);
             TclObject[] cmdv = TclList.getElements(interp, cmd);
 
             TCL.CompletionCode result = targetInterp.invoke(cmdv, Interp.INVOKE_NO_TRACEBACK);
 
-            cmd.release();
+            cmd.Release();
             targetInterp.nestLevel--;
 
             // Check if we are at the bottom of the stack for the target interpreter.
@@ -92,7 +92,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        result = e.getCompletionCode();
+                        result = e.GetCompletionCode();
                     }
                 }
             }
@@ -101,7 +101,7 @@ namespace Tcl.Lang
             interp.transferResult(targetInterp, result);
             return TCL.CompletionCode.RETURN;
         }
-        public void disposeCmd()
+        public void Dispose()
         {
             if ((System.Object)aliasEntry != null)
             {
@@ -113,8 +113,8 @@ namespace Tcl.Lang
                 SupportClass.HashtableRemove(targetInterp.targetTable, slaveCmd);
             }
 
-            name.release();
-            prefix.release();
+            name.Release();
+            prefix.Release();
         }
         internal static void create(Interp interp, Interp slaveInterp, Interp masterInterp, TclObject name, TclObject targetName, int objIx, TclObject[] objv)
         {
@@ -124,17 +124,17 @@ namespace Tcl.Lang
             InterpAliasCmd alias = new InterpAliasCmd();
 
             alias.name = name;
-            name.preserve();
+            name.Preserve();
 
             alias.slaveInterp = slaveInterp;
             alias.targetInterp = masterInterp;
 
-            alias.prefix = TclList.newInstance();
-            alias.prefix.preserve();
-            TclList.append(interp, alias.prefix, targetName);
+            alias.prefix = TclList.NewInstance();
+            alias.prefix.Preserve();
+            TclList.Append(interp, alias.prefix, targetName);
             TclList.insert(interp, alias.prefix, 1, objv, objIx, objv.Length - 1);
 
-            slaveInterp.createCommand(inString, alias);
+            slaveInterp.CreateCommand(inString, alias);
             alias.slaveCmd = NamespaceCmd.findCommand(slaveInterp, inString, null, 0);
 
             try
@@ -207,14 +207,14 @@ namespace Tcl.Lang
         }
         internal static void list(Interp interp, Interp slaveInterp)
         {
-            TclObject result = TclList.newInstance();
+            TclObject result = TclList.NewInstance();
             interp.setResult(result);
 
             IEnumerator aliases = slaveInterp.aliasTable.Values.GetEnumerator();
             while (aliases.MoveNext())
             {
                 InterpAliasCmd alias = (InterpAliasCmd)aliases.Current;
-                TclList.append(interp, result, alias.name);
+                TclList.Append(interp, result, alias.name);
             }
         }
         internal WrappedCommand getTargetCmd(Interp interp)

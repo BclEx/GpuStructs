@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "upvar" command in Tcl.</summary>
 
-    class UpvarCmd : Command
+    class UpvarCmd : ICommand
     {
         /// <summary> Tcl_UpvarObjCmd -> UpvarCmd.cmdProc
         /// 
@@ -21,7 +21,7 @@ namespace Tcl.Lang
         /// See the user documentation for details on what it does.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             CallFrame frame;
             string frameSpec, otherVarName, myVarName;
@@ -41,7 +41,7 @@ namespace Tcl.Lang
             frameSpec = objv[1].ToString();
             // Java does not support passing a reference by refernece so use an array
             CallFrame[] frameArr = new CallFrame[1];
-            result = CallFrame.getFrame(interp, frameSpec, frameArr);
+            result = CallFrame.GetFrame(interp, frameSpec, frameArr);
             frame = frameArr[0];
             objc -= (result + 1);
             if ((objc & 1) != 0)

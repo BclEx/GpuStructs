@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "case" command in Tcl.</summary>
 
-    class CaseCmd : Command
+    class CaseCmd : ICommand
     {
         /// <summary> Executes a "case" statement. See Tcl user
         /// documentation for details.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException If incorrect number of arguments.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 3)
             {
@@ -133,10 +133,10 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    if (e.getCompletionCode() == TCL.CompletionCode.ERROR)
+                    if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                     {
 
-                        interp.addErrorInfo("\n    (\"" + caseArgv[body - 1] + "\" arm line " + interp.errorLine + ")");
+                        interp.AddErrorInfo("\n    (\"" + caseArgv[body - 1] + "\" arm line " + interp.errorLine + ")");
                     }
                     throw;
                 }

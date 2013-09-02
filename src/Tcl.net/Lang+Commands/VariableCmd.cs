@@ -15,9 +15,9 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "variable" command in Tcl.</summary>
 
-    class VariableCmd : Command
+    class VariableCmd : ICommand
     {
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
 
 
@@ -34,7 +34,7 @@ namespace Tcl.Lang
 
 
                 varName = objv[i].ToString();
-                Var[] result = Var.lookupVar(interp, varName, null, (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG), "define", true, false);
+                Var[] result = Var.LookupVar(interp, varName, null, (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG), "define", true, false);
                 if (result == null)
                 {
                     // FIXME:
@@ -77,7 +77,7 @@ namespace Tcl.Lang
                 // If we are executing inside a Tcl procedure, create a local
                 // variable linked to the new namespace variable "varName".
 
-                if ((interp.varFrame != null) && interp.varFrame.isProcCallFrame)
+                if ((interp.VarFrame != null) && interp.VarFrame.IsProcCallFrame)
                 {
 
                     // varName might have a scope qualifier, but the name for the

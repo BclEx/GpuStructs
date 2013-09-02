@@ -16,7 +16,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "encoding" command in Tcl.</summary>
 
-    class EncodingCmd : Command
+    class EncodingCmd : ICommand
     {
         // FIXME: Make sure this is a global property and not a per-interp
         // property!
@@ -45,7 +45,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2)
             {
@@ -122,10 +122,10 @@ namespace Tcl.Lang
                             throw new TclNumArgsException(interp, 2, argv, null);
                         }
 
-                        TclObject list = TclList.newInstance();
+                        TclObject list = TclList.NewInstance();
                         for (int i = 0; i < tclNames.Length; i++)
                         {
-                            TclList.append(interp, list, TclString.newInstance(tclNames[i]));
+                            TclList.Append(interp, list, TclString.NewInstance(tclNames[i]));
                         }
                         interp.setResult(list);
                         break;

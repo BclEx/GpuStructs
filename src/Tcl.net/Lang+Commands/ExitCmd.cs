@@ -12,11 +12,11 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "exit" command in Tcl.</summary>
-    class ExitCmd : Command
+    class ExitCmd : ICommand
     {
 
         /// <summary> See Tcl user documentation for details.</summary>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int code;
 

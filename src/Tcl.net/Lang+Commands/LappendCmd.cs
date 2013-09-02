@@ -14,7 +14,7 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "lappend" command in Tcl.</summary>
-    class LappendCmd : Command
+    class LappendCmd : ICommand
     {
         /// <summary> 
         /// Tcl_LappendObjCmd -> LappendCmd.cmdProc
@@ -23,7 +23,7 @@ namespace Tcl.Lang
         /// See the user documentation for details on what it does.
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             TclObject varValue, newValue = null;
             int i;//int numElems, i, j;
@@ -43,16 +43,16 @@ namespace Tcl.Lang
                 {
                     // The variable doesn't exist yet. Just create it with an empty
                     // initial value.
-                    varValue = TclList.newInstance();
+                    varValue = TclList.NewInstance();
 
                     try
                     {
-                        newValue = interp.setVar(objv[1], varValue, 0);
+                        newValue = interp.SetVar(objv[1], varValue, 0);
                     }
                     finally
                     {
                         if (newValue == null)
-                            varValue.release(); // free unneeded object
+                            varValue.Release(); // free unneeded object
                     }
 
                     interp.resetResult();
@@ -105,7 +105,7 @@ namespace Tcl.Lang
                             break;
                         }
                     }
-                    varValue = TclList.newInstance();
+                    varValue = TclList.NewInstance();
                     createdNewObj = true;
                 }
 
@@ -119,7 +119,7 @@ namespace Tcl.Lang
                 // Insert the new elements at the end of the list.
 
                 for (i = 2; i < objv.Length; i++)
-                    TclList.append(interp, varValue, objv[i]);
+                    TclList.Append(interp, varValue, objv[i]);
 
                 // No need to call varValue.invalidateStringRep() since it
                 // is called during the TclList.append operation.
@@ -131,13 +131,13 @@ namespace Tcl.Lang
                 try
                 {
 
-                    newValue = interp.setVar(objv[1].ToString(), varValue, 0);
+                    newValue = interp.SetVar(objv[1].ToString(), varValue, 0);
                 }
                 catch (TclException e)
                 {
                     if (createdNewObj && !createVar)
                     {
-                        varValue.release(); // free unneeded obj
+                        varValue.Release(); // free unneeded obj
                     }
                     throw;
                 }

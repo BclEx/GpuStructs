@@ -242,16 +242,16 @@ namespace Tcl.Lang
             System.Diagnostics.Debug.WriteLine("Entered TclParse.get()");
             System.Diagnostics.Debug.WriteLine("numTokens is " + numTokens);
 
-            obj = TclList.newInstance();
+            obj = TclList.NewInstance();
             try
             {
                 if (commentSize > 0)
                 {
-                    TclList.append(interp, obj, TclString.newInstance(new string(inString, commentStart, commentSize)));
+                    TclList.Append(interp, obj, TclString.NewInstance(new string(inString, commentStart, commentSize)));
                 }
                 else
                 {
-                    TclList.append(interp, obj, TclString.newInstance("-"));
+                    TclList.Append(interp, obj, TclString.NewInstance("-"));
                 }
 
                 if (commandStart >= (endIndex + 1))
@@ -259,8 +259,8 @@ namespace Tcl.Lang
                     commandStart = endIndex;
                 }
                 cmd = new string(inString, commandStart, commandSize);
-                TclList.append(interp, obj, TclString.newInstance(cmd));
-                TclList.append(interp, obj, TclInteger.newInstance(numWords));
+                TclList.Append(interp, obj, TclString.NewInstance(cmd));
+                TclList.Append(interp, obj, TclInteger.NewInstance(numWords));
 
                 for (i = 0; i < numTokens; i++)
                 {
@@ -306,12 +306,12 @@ namespace Tcl.Lang
 
                     System.Diagnostics.Debug.WriteLine("typeString is " + typeString);
 
-                    TclList.append(interp, obj, TclString.newInstance(typeString));
-                    TclList.append(interp, obj, TclString.newInstance(token.TokenString));
-                    TclList.append(interp, obj, TclInteger.newInstance(token.numComponents));
+                    TclList.Append(interp, obj, TclString.NewInstance(typeString));
+                    TclList.Append(interp, obj, TclString.NewInstance(token.TokenString));
+                    TclList.Append(interp, obj, TclInteger.NewInstance(token.numComponents));
                 }
                 nextIndex = commandStart + commandSize;
-                TclList.append(interp, obj, TclString.newInstance(new string(inString, nextIndex, (endIndex - nextIndex))));
+                TclList.Append(interp, obj, TclString.NewInstance(new string(inString, nextIndex, (endIndex - nextIndex))));
             }
             catch (TclException e)
             {

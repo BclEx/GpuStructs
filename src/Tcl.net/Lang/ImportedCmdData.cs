@@ -21,7 +21,7 @@ namespace Tcl.Lang
     /// another namespace.
     /// </summary>
 
-    class ImportedCmdData : Command, CommandWithDispose
+    class ImportedCmdData : ICommand, ICommandWithDispose
     {
         internal WrappedCommand realCmd; // "Real" command that this imported command
         // refers to.
@@ -38,7 +38,7 @@ namespace Tcl.Lang
 
         /// <summary> Called when the command is invoked in the interp.</summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             NamespaceCmd.invokeImportedCmd(interp, this, objv);
             return TCL.CompletionCode.RETURN;
@@ -46,7 +46,7 @@ namespace Tcl.Lang
 
         /// <summary> Called when the command is deleted from the interp.</summary>
 
-        public void disposeCmd()
+        public void Dispose()
         {
             NamespaceCmd.deleteImportedCmd(this);
         }

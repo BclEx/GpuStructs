@@ -40,12 +40,12 @@ namespace Tcl.Lang
         /// <summary> Called to free any storage for the type's internal rep.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public void dispose()
+        public void Dispose()
         {
             int size = vector.Count;
             for (int i = 0; i < size; i++)
             {
-                ((TclObject)vector[i]).release();
+                ((TclObject)vector[i]).Release();
             }
         }
 
@@ -56,7 +56,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             int size = vector.Count;
             TclList newList = new TclList(size);
@@ -64,7 +64,7 @@ namespace Tcl.Lang
             for (int i = 0; i < size; i++)
             {
                 TclObject tobj = (TclObject)vector[i];
-                tobj.preserve();
+                tobj.Preserve();
                 newList.vector.Add(tobj);
             }
 
@@ -114,7 +114,7 @@ namespace Tcl.Lang
         /// <returns> the TclObject with the given list value.
         /// </returns>
 
-        public static TclObject newInstance()
+        public static TclObject NewInstance()
         {
             return new TclObject(new TclList());
         }
@@ -166,11 +166,11 @@ namespace Tcl.Lang
                 }
                 else
                 {
-                    TclObject tobj = TclString.newInstance(res.elem);
-                    tobj.preserve();
+                    TclObject tobj = TclString.NewInstance(res.Elem);
+                    tobj.Preserve();
                     v.Add(tobj);
                 }
-                i = res.elemEnd;
+                i = res.ElemEnd;
             }
         }
 
@@ -188,7 +188,7 @@ namespace Tcl.Lang
         /// </param>
         /// <exception cref=""> TclException if tobj cannot be converted into a list.
         /// </exception>
-        public static void append(Interp interp, TclObject tobj, TclObject elemObj)
+        public static void Append(Interp interp, TclObject tobj, TclObject elemObj)
         {
             if (tobj.Shared)
             {
@@ -198,7 +198,7 @@ namespace Tcl.Lang
             tobj.invalidateStringRep();
 
             TclList tlist = (TclList)tobj.InternalRep;
-            elemObj.preserve();
+            elemObj.Preserve();
             tlist.vector.Add(elemObj);
         }
 
@@ -373,13 +373,13 @@ namespace Tcl.Lang
                 for (i = 0; i < count; i++)
                 {
                     TclObject obj = (TclObject)tlist.vector[index];
-                    obj.release();
+                    obj.Release();
                     tlist.vector.RemoveAt(index);
                 }
             }
             for (i = from; i <= to; i++)
             {
-                elements[i].preserve();
+                elements[i].Preserve();
                 tlist.vector.Insert(index++, elements[i]);
             }
         }

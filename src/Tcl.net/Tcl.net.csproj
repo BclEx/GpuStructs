@@ -44,11 +44,11 @@
     <Compile Include="Lang\CallFrame.cs" />
     <Compile Include="Lang\CharPointer.cs" />
     <Compile Include="Lang\CObject.cs" />
-    <Compile Include="Lang\Command.cs" />
-    <Compile Include="Lang\CommandWithDispose.cs" />
+    <Compile Include="Lang\ICommand.cs" />
+    <Compile Include="Lang\ICommandWithDispose.cs" />
     <Compile Include="Lang\DebugInfo.cs" />
     <Compile Include="Lang\Env.cs" />
-    <Compile Include="Lang\EventDeleter.cs" />
+    <Compile Include="Lang\IEventDeleter.cs" />
     <Compile Include="Lang\EventuallyFreed.cs" />
     <Compile Include="Lang\Expression.cs" />
     <Compile Include="Lang\ExprValue.cs" />
@@ -283,8 +283,8 @@
     <None Include="Lang\CallFrame.cu" />
     <None Include="Lang\CharPointer.cu" />
     <None Include="Lang\CObject.cu" />
-    <None Include="Lang\Command.cu" />
-    <None Include="Lang\CommandWithDispose.cu" />
+    <None Include="Lang\ICommand.cu" />
+    <None Include="Lang\ICommandWithDispose.cu" />
     <None Include="Lang\Util.cu" />
     <None Include="Lang\Var.cu" />
     <None Include="Lang\VarTrace.cu" />
@@ -304,7 +304,7 @@
     <None Include="Lang\TraceRecord.cu" />
     <None Include="Lang\DebugInfo.cu" />
     <None Include="Lang\Env.cu" />
-    <None Include="Lang\EventDeleter.cu" />
+    <None Include="Lang\IEventDeleter.cu" />
     <None Include="Lang\EventuallyFreed.cu" />
     <None Include="Lang\Expression.cu" />
     <None Include="Lang\ExprValue.cu" />

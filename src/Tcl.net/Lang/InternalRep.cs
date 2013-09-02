@@ -32,7 +32,7 @@ namespace Tcl.Lang
 
     public interface InternalRep
     {
-        void dispose();
-        InternalRep duplicate();
+        void Dispose();
+        InternalRep Duplicate();
     } // end InternalRep
 }

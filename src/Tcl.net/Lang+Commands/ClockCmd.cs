@@ -23,7 +23,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "clock" command in Tcl.</summary>
 
-    class ClockCmd : Command
+    class ClockCmd : ICommand
     {
 
         private static readonly string[] validCmds = new string[] { "clicks", "format", "scan", "seconds" };
@@ -49,7 +49,7 @@ namespace Tcl.Lang
 
         internal const int EPOCH_YEAR = 1970;
         internal const int MILLIS_PER_HOUR = 60 * 60 * 1000;
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             int clockVal; // Time value as seconds of epoch.
             string dateString; // Time value as string.

@@ -15,14 +15,14 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "regsub" command in Tcl.</summary>
 
-    class RegsubCmd : Command
+    class RegsubCmd : ICommand
     {
 
         private static readonly string[] validOpts = new string[] { "-all", "-nocase", "--" };
         private const int OPT_ALL = 0;
         private const int OPT_NOCASE = 1;
         private const int OPT_LAST = 2;
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             bool all = false;
             bool nocase = false;
@@ -105,14 +105,14 @@ namespace Tcl.Lang
                     result = sb.ToString();
                 }
 
-                TclObject obj = TclString.newInstance(result);
+                TclObject obj = TclString.NewInstance(result);
                 if (varName == null)
                     interp.setResult(result);
                 else
                 {
                     try
                     {
-                        interp.setVar(varName, obj, 0);
+                        interp.SetVar(varName, obj, 0);
                     }
                     catch (TclException e)
                     {

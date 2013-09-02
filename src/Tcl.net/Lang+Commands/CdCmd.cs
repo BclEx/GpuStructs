@@ -16,10 +16,10 @@ namespace Tcl.Lang
 
     // This class implements the built-in "cd" command in Tcl.
 
-    class CdCmd : Command
+    class CdCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             string dirName;
 

@@ -19,7 +19,7 @@ namespace Tcl.Lang
     * This class implements the built-in "after" command in Tcl.
     */
 
-    class AfterCmd : Command
+    class AfterCmd : ICommand
     {
 
         /*
@@ -38,7 +38,7 @@ namespace Tcl.Lang
         internal const int OPT_IDLE = 1;
         internal const int OPT_INFO = 2;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int i;
             Notifier notifier = (Notifier)interp.getNotifier();
@@ -125,7 +125,7 @@ namespace Tcl.Lang
                 }
 
                 TclObject cmd = getCmdObject(argv);
-                cmd.preserve();
+                cmd.Preserve();
 
                 assocData.lastAfterId++;
                 TimerInfo timerInfo = new TimerInfo(this, notifier, ms);
@@ -165,7 +165,7 @@ namespace Tcl.Lang
                     }
 
                     TclObject arg = getCmdObject(argv);
-                    arg.preserve();
+                    arg.Preserve();
 
                     /*
                     * Search the timer/idle handler by id or by command.
@@ -201,7 +201,7 @@ namespace Tcl.Lang
 
                         info = getAfterEvent(arg.ToString());
                     }
-                    arg.release();
+                    arg.Release();
 
                     /*
                     * Cancel the handler.
@@ -212,12 +212,12 @@ namespace Tcl.Lang
                         if (info is TimerInfo)
                         {
                             ((TimerInfo)info).cancel();
-                            ((TimerInfo)info).command.release();
+                            ((TimerInfo)info).command.Release();
                         }
                         else
                         {
-                            ((IdleInfo)info).cancel();
-                            ((IdleInfo)info).command.release();
+                            ((IdleInfo)info).Cancel();
+                            ((IdleInfo)info).command.Release();
                         }
 
                         SupportClass.VectorRemoveElement(assocData.handlers, info);
@@ -232,7 +232,7 @@ namespace Tcl.Lang
                     }
 
                     TclObject cmd2 = getCmdObject(argv);
-                    cmd2.preserve();
+                    cmd2.Preserve();
                     assocData.lastAfterId++;
 
                     IdleInfo idleInfo = new IdleInfo(this, notifier);
@@ -253,7 +253,7 @@ namespace Tcl.Lang
                         * No id is given. Return a list of current after id's.
                         */
 
-                        TclObject list = TclList.newInstance();
+                        TclObject list = TclList.NewInstance();
                         for (i = 0; i < assocData.handlers.Count; i++)
                         {
                             int id;
@@ -266,7 +266,7 @@ namespace Tcl.Lang
                             {
                                 id = ((IdleInfo)obj).id;
                             }
-                            TclList.append(interp, list, TclString.newInstance("after#" + id));
+                            TclList.Append(interp, list, TclString.NewInstance("after#" + id));
                         }
                         interp.resetResult();
                         interp.setResult(list);
@@ -288,9 +288,9 @@ namespace Tcl.Lang
 
                         throw new TclException(interp, "event \"" + argv[2] + "\" doesn't exist");
                     }
-                    TclObject list2 = TclList.newInstance();
-                    TclList.append(interp, list2, ((info is TimerInfo) ? ((TimerInfo)info).command : ((IdleInfo)info).command));
-                    TclList.append(interp, list2, TclString.newInstance((info is TimerInfo) ? "timer" : "idle"));
+                    TclObject list2 = TclList.NewInstance();
+                    TclList.Append(interp, list2, ((info is TimerInfo) ? ((TimerInfo)info).command : ((IdleInfo)info).command));
+                    TclList.Append(interp, list2, TclString.NewInstance((info is TimerInfo) ? "timer" : "idle"));
 
                     interp.resetResult();
                     interp.setResult(list2);
@@ -307,7 +307,7 @@ namespace Tcl.Lang
             }
             else
             {
-                TclObject cmd = TclString.newInstance(Util.concat(2, argv.Length - 1, argv));
+                TclObject cmd = TclString.NewInstance(Util.concat(2, argv.Length - 1, argv));
                 return cmd;
             }
         }
@@ -320,7 +320,7 @@ namespace Tcl.Lang
                 return null;
             }
 
-            StrtoulResult res = Util.strtoul(inString, 6, 10);
+            StrtoulResult res = Util.Strtoul(inString, 6, 10);
             if (res.errno != 0)
             {
                 return null;
@@ -391,12 +391,12 @@ namespace Tcl.Lang
                     if (info is TimerInfo)
                     {
                         ((TimerInfo)info).cancel();
-                        ((TimerInfo)info).command.release();
+                        ((TimerInfo)info).command.Release();
                     }
                     else
                     {
-                        ((IdleInfo)info).cancel();
-                        ((IdleInfo)info).command.release();
+                        ((IdleInfo)info).Cancel();
+                        ((IdleInfo)info).command.Release();
                     }
                 }
                 Enclosing_Instance.assocData = null;
@@ -451,12 +451,12 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    interp.addErrorInfo("\n    (\"after\" script)");
+                    interp.AddErrorInfo("\n    (\"after\" script)");
                     interp.backgroundError();
                 }
                 finally
                 {
-                    command.release();
+                    command.Release();
                     command = null;
                 }
             }
@@ -501,7 +501,7 @@ namespace Tcl.Lang
             {
                 InitBlock(enclosingInstance);
             }
-            public override void processIdleEvent()
+            public override void ProcessIdleEvent()
             {
                 try
                 {
@@ -510,12 +510,12 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    interp.addErrorInfo("\n    (\"after\" script)");
+                    interp.AddErrorInfo("\n    (\"after\" script)");
                     interp.backgroundError();
                 }
                 finally
                 {
-                    command.release();
+                    command.Release();
                     command = null;
                 }
             }

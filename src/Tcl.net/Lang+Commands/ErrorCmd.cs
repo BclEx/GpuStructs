@@ -17,10 +17,10 @@ namespace Tcl.Lang
     * This class implements the built-in "error" command in Tcl.
     */
 
-    class ErrorCmd : Command
+    class ErrorCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2 || argv.Length > 4)
             {
@@ -34,14 +34,14 @@ namespace Tcl.Lang
 
                 if (!errorInfo.Equals(""))
                 {
-                    interp.addErrorInfo(errorInfo);
+                    interp.AddErrorInfo(errorInfo);
                     interp.errAlreadyLogged = true;
                 }
             }
 
             if (argv.Length == 4)
             {
-                interp.setErrorCode(argv[3]);
+                interp.SetErrorCode(argv[3]);
             }
 
             interp.setResult(argv[1]);

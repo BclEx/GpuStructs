@@ -19,7 +19,7 @@ namespace Tcl.Lang
     * This class implements the built-in "binary" command in Tcl.
     */
 
-    class BinaryCmd : Command
+    class BinaryCmd : ICommand
     {
 
         private static readonly string[] validCmds = new string[] { "format", "scan" };
@@ -38,7 +38,7 @@ namespace Tcl.Lang
         // End of format was found.
         private const char FORMAT_END = ' ';
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int arg; // Index of next argument to consume.
             char[] format = null; // User specified format string.
@@ -615,7 +615,7 @@ namespace Tcl.Lang
                                             }
                                         }
 
-                                        interp.setVar(argv[arg++], TclByteArray.newInstance(src, offset, size), 0);
+                                        interp.SetVar(argv[arg++], TclByteArray.newInstance(src, offset, size), 0);
 
                                         offset += count;
                                         break;
@@ -677,7 +677,7 @@ namespace Tcl.Lang
                                             }
                                         }
 
-                                        interp.setVar(argv[arg++], TclString.newInstance(s.ToString()), 0);
+                                        interp.SetVar(argv[arg++], TclString.NewInstance(s.ToString()), 0);
 
                                         offset += (count + 7) / 8;
                                         break;
@@ -739,7 +739,7 @@ namespace Tcl.Lang
                                             }
                                         }
 
-                                        interp.setVar(argv[arg++], TclString.newInstance(s.ToString()), 0);
+                                        interp.SetVar(argv[arg++], TclString.NewInstance(s.ToString()), 0);
 
                                         offset += (count + 1) / 2;
                                         break;
@@ -802,17 +802,17 @@ namespace Tcl.Lang
                                             {
                                                 break;
                                             }
-                                            valueObj = TclList.newInstance();
+                                            valueObj = TclList.NewInstance();
                                             int thisOffset = offset;
                                             for (int ix = 0; ix < count; ix++)
                                             {
-                                                TclList.append(null, valueObj, ScanNumber(src, thisOffset, cmd));
+                                                TclList.Append(null, valueObj, ScanNumber(src, thisOffset, cmd));
                                                 thisOffset += size;
                                             }
                                             offset += count * size;
                                         }
 
-                                        interp.setVar(argv[arg++], valueObj, 0);
+                                        interp.SetVar(argv[arg++], valueObj, 0);
 
                                         break;
                                     }
@@ -942,7 +942,7 @@ namespace Tcl.Lang
         {
             if (type == 'd')
             {
-                double dvalue = TclDouble.get(interp, src);
+                double dvalue = TclDouble.Get(interp, src);
                 MemoryStream ms = new MemoryStream(resultBytes, cursor, 8);
                 BinaryWriter writer = new BinaryWriter(ms);
                 writer.Write(dvalue);
@@ -952,7 +952,7 @@ namespace Tcl.Lang
             }
             else if (type == 'f')
             {
-                float fvalue = (float)TclDouble.get(interp, src);
+                float fvalue = (float)TclDouble.Get(interp, src);
                 MemoryStream ms = new MemoryStream(resultBytes, cursor, 4);
                 BinaryWriter writer = new BinaryWriter(ms);
                 writer.Write(fvalue);
@@ -1003,30 +1003,30 @@ namespace Tcl.Lang
 
                 case 'c':
                     {
-                        return TclInteger.newInstance((sbyte)src[pos]);
+                        return TclInteger.NewInstance((sbyte)src[pos]);
                     }
 
                 case 's':
                     {
                         short value = (short)((src[pos] & 0xff) + ((src[pos + 1] & 0xff) << 8));
-                        return TclInteger.newInstance((int)value);
+                        return TclInteger.NewInstance((int)value);
                     }
 
                 case 'S':
                     {
                         short value = (short)((src[pos + 1] & 0xff) + ((src[pos] & 0xff) << 8));
-                        return TclInteger.newInstance((int)value);
+                        return TclInteger.NewInstance((int)value);
                     }
 
                 case 'i':
                     {
                         int value = (src[pos] & 0xff) + ((src[pos + 1] & 0xff) << 8) + ((src[pos + 2] & 0xff) << 16) + ((src[pos + 3] & 0xff) << 24);
-                        return TclInteger.newInstance(value);
+                        return TclInteger.NewInstance(value);
                     }
                 case 'I':
                     {
                         int value = (src[pos + 3] & 0xff) + ((src[pos + 2] & 0xff) << 8) + ((src[pos + 1] & 0xff) << 16) + ((src[pos] & 0xff) << 24);
-                        return TclInteger.newInstance(value);
+                        return TclInteger.NewInstance(value);
                     }
                 case 'f':
                     {
@@ -1035,7 +1035,7 @@ namespace Tcl.Lang
                         double fvalue = reader.ReadSingle();
                         reader.Close();
                         ms.Close();
-                        return TclDouble.newInstance(fvalue);
+                        return TclDouble.NewInstance(fvalue);
                     }
                 case 'd':
                     {
@@ -1044,7 +1044,7 @@ namespace Tcl.Lang
                         double dvalue = reader.ReadDouble();
                         reader.Close();
                         ms.Close();
-                        return TclDouble.newInstance(dvalue);
+                        return TclDouble.NewInstance(dvalue);
                     }
             }
             return null;

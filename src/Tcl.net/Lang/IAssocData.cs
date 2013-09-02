@@ -8,8 +8,6 @@ Copyright (c) 2012 Sky Morey
 See the file "license.terms" for information on usage and redistribution of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 */
 #endregion
-using System;
-
 namespace Tcl.Lang
 {
     /// <summary> This interface is the API for registering named data objects in the

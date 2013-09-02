@@ -639,7 +639,7 @@ namespace Tcl.Lang
         }
         internal static TclObject splitPath(Interp interp, string path)
         {
-            TclObject resultListObj = TclList.newInstance();
+            TclObject resultListObj = TclList.NewInstance();
             TclObject componentObj;
             string component = "";
             string tmpPath;
@@ -669,8 +669,8 @@ namespace Tcl.Lang
                     int absIndex = getWinAbsPath(tmpPath, absBuf);
                     if (absIndex > 0)
                     {
-                        componentObj = TclString.newInstance(absBuf.ToString());
-                        TclList.append(interp, resultListObj, componentObj);
+                        componentObj = TclString.NewInstance(absBuf.ToString());
+                        TclList.Append(interp, resultListObj, componentObj);
                         tmpPath = tmpPath.Substring(absIndex);
                         foundComponent = true;
                     }
@@ -717,8 +717,8 @@ namespace Tcl.Lang
                             // Degenerate unix path can't be split.  Return a list with one
                             // element:  ":" prepended to "path".
 
-                            componentObj = TclString.newInstance(":" + path);
-                            TclList.append(interp, resultListObj, componentObj);
+                            componentObj = TclString.NewInstance(":" + path);
+                            TclList.Append(interp, resultListObj, componentObj);
                             return resultListObj;
 
                         case 0:
@@ -728,8 +728,8 @@ namespace Tcl.Lang
                                 // If path == ":", then return a list with ":" as its only
                                 // element.
 
-                                componentObj = TclString.newInstance(":");
-                                TclList.append(interp, resultListObj, componentObj);
+                                componentObj = TclString.NewInstance(":");
+                                TclList.Append(interp, resultListObj, componentObj);
                                 return resultListObj;
                             }
 
@@ -763,8 +763,8 @@ namespace Tcl.Lang
 
                     if (path[0] == '/')
                     {
-                        componentObj = TclString.newInstance("/");
-                        TclList.append(interp, resultListObj, componentObj);
+                        componentObj = TclString.NewInstance("/");
+                        TclList.Append(interp, resultListObj, componentObj);
                         tmpPath = path.Substring(1);
                         foundComponent = true;
                     }
@@ -788,8 +788,8 @@ namespace Tcl.Lang
 
                     if (sIndex == 0)
                     {
-                        componentObj = TclString.newInstance("::");
-                        TclList.append(interp, resultListObj, componentObj);
+                        componentObj = TclString.NewInstance("::");
+                        TclList.Append(interp, resultListObj, componentObj);
                         foundComponent = true;
                         tmpPath = tmpPath.Substring(sIndex + 1);
                         continue;
@@ -858,8 +858,8 @@ namespace Tcl.Lang
 
                     component = component + ":";
                 }
-                componentObj = TclString.newInstance(component);
-                TclList.append(interp, resultListObj, componentObj);
+                componentObj = TclString.NewInstance(component);
+                TclList.Append(interp, resultListObj, componentObj);
                 foundComponent = true;
                 tmpPath = tmpPath.Substring(sIndex + 1);
             }
@@ -902,7 +902,7 @@ namespace Tcl.Lang
             {
                 // 	    fileName = path;
                 TclObject[] joinArrayObj = new TclObject[1];
-                joinArrayObj[0] = TclString.newInstance(path);
+                joinArrayObj[0] = TclString.NewInstance(path);
                 fileName = joinPath(interp, joinArrayObj, 0, 1);
             }
             else
@@ -926,7 +926,7 @@ namespace Tcl.Lang
                 // 	if (splitArrayObj.length < 2) {
                 // 	    fileName = user;
                 // 	} else {
-                splitArrayObj[0] = TclString.newInstance(user);
+                splitArrayObj[0] = TclString.NewInstance(user);
                 fileName = joinPath(interp, splitArrayObj, 0, splitArrayObj.Length);
                 // 	}
             }

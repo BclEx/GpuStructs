@@ -12,13 +12,13 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "if" command in Tcl.</summary>
-    class IfCmd : Command
+    class IfCmd : ICommand
     {
 
         /// <summary> See Tcl user documentation for details.</summary>
         /// <exception cref=""> TclException If incorrect number of arguments.
         /// </exception>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int i;
             bool value;
@@ -42,15 +42,15 @@ namespace Tcl.Lang
                 try
                 {
 
-                    value = interp.expr.evalBoolean(interp, argv[i].ToString());
+                    value = interp.expr.EvalBoolean(interp, argv[i].ToString());
                 }
                 catch (TclException e)
                 {
-                    switch (e.getCompletionCode())
+                    switch (e.GetCompletionCode())
                     {
 
                         case TCL.CompletionCode.ERROR:
-                            interp.addErrorInfo("\n    (\"if\" test expression)");
+                            interp.AddErrorInfo("\n    (\"if\" test expression)");
                             break;
                     }
                     throw;
@@ -75,11 +75,11 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        switch (e.getCompletionCode())
+                        switch (e.GetCompletionCode())
                         {
 
                             case TCL.CompletionCode.ERROR:
-                                interp.addErrorInfo("\n    (\"if\" then script line " + interp.errorLine + ")");
+                                interp.AddErrorInfo("\n    (\"if\" then script line " + interp.errorLine + ")");
                                 break;
                         }
                         throw;
@@ -132,11 +132,11 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                switch (e.getCompletionCode())
+                switch (e.GetCompletionCode())
                 {
 
                     case TCL.CompletionCode.ERROR:
-                        interp.addErrorInfo("\n    (\"if\" else script line " + interp.errorLine + ")");
+                        interp.AddErrorInfo("\n    (\"if\" else script line " + interp.errorLine + ")");
                         break;
                 }
                 throw;

@@ -33,14 +33,14 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclIndex(index, table);
         }
 
         /// <summary> Implement this no-op for the InternalRep interface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 

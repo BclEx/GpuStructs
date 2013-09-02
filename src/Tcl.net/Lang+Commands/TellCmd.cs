@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "tell" command in Tcl.</summary>
 
-    class TellCmd : Command
+    class TellCmd : ICommand
     {
 
         /// <summary> This procedure is invoked to process the "tell" Tcl command.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; /* The channel being operated on this method */
@@ -45,7 +45,7 @@ namespace Tcl.Lang
 
             try
             {
-                interp.setResult(TclInteger.newInstance((int)chan.tell()));
+                interp.setResult(TclInteger.NewInstance((int)chan.tell()));
             }
             catch (IOException e)
             {

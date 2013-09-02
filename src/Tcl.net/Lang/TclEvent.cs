@@ -68,7 +68,7 @@ namespace Tcl.Lang
                 throw new TclRuntimeError("TclEvent is not queued when sync() is called");
             }
 
-            if (System.Threading.Thread.CurrentThread == notifier.primaryThread)
+            if (System.Threading.Thread.CurrentThread == notifier.PrimaryThread)
             {
                 while (!isProcessed)
                 {

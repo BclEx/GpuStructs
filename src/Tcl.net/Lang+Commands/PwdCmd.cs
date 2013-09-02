@@ -17,10 +17,10 @@ namespace Tcl.Lang
     * This class implements the built-in "pwd" command in Tcl.
     */
 
-    class PwdCmd : Command
+    class PwdCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 1)
             {

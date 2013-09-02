@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "while" command in Tcl.</summary>
 
-    class WhileCmd : Command
+    class WhileCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "while" Tcl command.
         /// See the user documentation for details on what it does.
@@ -26,7 +26,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException if script causes error.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 3)
             {
@@ -37,7 +37,7 @@ namespace Tcl.Lang
             TclObject command = argv[2];
 
             {
-                while (interp.expr.evalBoolean(interp, test))
+                while (interp.expr.EvalBoolean(interp, test))
                 {
                     try
                     {
@@ -45,7 +45,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        switch (e.getCompletionCode())
+                        switch (e.GetCompletionCode())
                         {
 
                             case TCL.CompletionCode.BREAK:
@@ -57,7 +57,7 @@ namespace Tcl.Lang
 
 
                             case TCL.CompletionCode.ERROR:
-                                interp.addErrorInfo("\n    (\"while\" body line " + interp.errorLine + ")");
+                                interp.AddErrorInfo("\n    (\"while\" body line " + interp.errorLine + ")");
                                 throw;
 
 

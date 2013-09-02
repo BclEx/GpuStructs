@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "Foreach" command in Tcl.</summary>
 
-    class ForeachCmd : Command
+    class ForeachCmd : ICommand
     {
         /// <summary> Tcl_ForeachObjCmd -> ForeachCmd.cmdProc
         /// 
@@ -28,7 +28,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException if script causes error.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             if (objv.Length < 4 || (objv.Length % 2) != 0)
             {
@@ -82,7 +82,7 @@ namespace Tcl.Lang
                         // Test and see if the name variable is an array.
 
 
-                        Var[] result = Var.lookupVar(interp, name[x].ToString(), null, 0, null, false, false);
+                        Var[] result = Var.LookupVar(interp, name[x].ToString(), null, 0, null, false, false);
                         Var var = null;
 
                         if (result != null)
@@ -101,11 +101,11 @@ namespace Tcl.Lang
                         {
                             if (base_ + j >= TclList.getLength(interp, value[x]))
                             {
-                                interp.setVar(TclList.index(interp, name[x], j), TclString.newInstance(""), 0);
+                                interp.SetVar(TclList.index(interp, name[x], j), TclString.NewInstance(""), 0);
                             }
                             else
                             {
-                                interp.setVar(TclList.index(interp, name[x], j), TclList.index(interp, value[x], base_ + j), 0);
+                                interp.SetVar(TclList.index(interp, name[x], j), TclList.index(interp, value[x], base_ + j), 0);
                             }
                         }
                         catch (TclException e)
@@ -124,7 +124,7 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    switch (e.getCompletionCode())
+                    switch (e.GetCompletionCode())
                     {
 
                         case TCL.CompletionCode.BREAK:
@@ -137,7 +137,7 @@ namespace Tcl.Lang
 
 
                         case TCL.CompletionCode.ERROR:
-                            interp.addErrorInfo("\n    (\"foreach\" body line " + interp.errorLine + ")");
+                            interp.AddErrorInfo("\n    (\"foreach\" body line " + interp.errorLine + ")");
                             throw;
 
 

@@ -17,9 +17,9 @@ namespace Tcl.Lang
     * This class implements the built-in "append" command in Tcl.
     */
 
-    class AppendCmd : Command
+    class AppendCmd : ICommand
     {
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             TclObject varValue = null;
 
@@ -36,7 +36,7 @@ namespace Tcl.Lang
             {
                 for (int i = 2; i < objv.Length; i++)
                 {
-                    varValue = interp.setVar(objv[1], objv[i], TCL.VarFlag.APPEND_VALUE);
+                    varValue = interp.SetVar(objv[1], objv[i], TCL.VarFlag.APPEND_VALUE);
                 }
 
                 if (varValue != null)

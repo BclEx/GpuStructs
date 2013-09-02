@@ -72,13 +72,13 @@ namespace Tcl.Lang
                     {
                         stringRep = internalRep.ToString();
                     }
-                    ((CObject)internalRep).makeReference(this);
+                    ((CObject)internalRep).MakeReference(this);
                 }
 
                 //System.out.println("TclObject setInternalRep for \"" + stringRep + "\"");
                 //System.out.println("from \"" + internalRep.getClass().getName() +
                 //    "\" to \"" + rep.getClass().getName() + "\"");
-                internalRep.dispose();
+                internalRep.Dispose();
                 internalRep = value;
             }
 
@@ -287,7 +287,7 @@ namespace Tcl.Lang
                     stringRep = internalRep.ToString();
                 }
             }
-            TclObject newObj = new TclObject(internalRep.duplicate());
+            TclObject newObj = new TclObject(internalRep.Duplicate());
             newObj.stringRep = this.stringRep;
             newObj.refCount = 0;
             return newObj;
@@ -317,7 +317,7 @@ namespace Tcl.Lang
                         stringRep = internalRep.ToString();
                     }
                 }
-                TclObject newObj = new TclObject(internalRep.duplicate());
+                TclObject newObj = new TclObject(internalRep.Duplicate());
                 newObj.stringRep = this.stringRep;
                 newObj.refCount = 1;
                 refCount--;
@@ -338,12 +338,12 @@ namespace Tcl.Lang
         /// </summary>
         /// <exception cref=""> TclRuntimeError if the object has already been deallocated.
         /// </exception>
-        public void preserve()
+        public void Preserve()
         {
             disposedCheck();
             if (internalRep is CObject)
             {
-                ((CObject)internalRep).incrRefCount();
+                ((CObject)internalRep).IncrRefCount();
             }
             _preserve();
         }
@@ -366,12 +366,12 @@ namespace Tcl.Lang
         /// interested in the value of this object. If the refCount reaches 0,
         /// the obejct will be deallocated.
         /// </summary>
-        public void release()
+        public void Release()
         {
             disposedCheck();
             if (internalRep is CObject)
             {
-                ((CObject)internalRep).decrRefCount();
+                ((CObject)internalRep).DecrRefCount();
             }
             _release();
         }
@@ -388,7 +388,7 @@ namespace Tcl.Lang
             refCount--;
             if (refCount <= 0)
             {
-                internalRep.dispose();
+                internalRep.Dispose();
 
                 // Setting these to null will ensure that any attempt to use
                 // this object will result in a Java NullPointerException.

@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "expr" command in Tcl.</summary>
 
-    class ExprCmd : Command
+    class ExprCmd : ICommand
     {
         /// <summary> Evaluates a Tcl expression. See Tcl user documentation for
         /// details.
@@ -21,7 +21,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException If malformed expression.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2)
             {

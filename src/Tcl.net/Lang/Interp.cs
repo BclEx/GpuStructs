@@ -37,7 +37,7 @@ namespace Tcl.Lang
         {
             get
             {
-                return dbg.fileName;
+                return dbg.Filename;
             }
 
         }
@@ -104,18 +104,18 @@ namespace Tcl.Lang
         // Points to top-most in stack of all nested procedure
         // invocations.  null means there are no active procedures.
 
-        internal CallFrame frame;
+        internal CallFrame Frame;
 
         // Points to the call frame whose variables are currently in use
         // (same as frame unless an "uplevel" command is being
         // executed).  null means no procedure is active or "uplevel 0" is
         // being exec'ed.
 
-        internal CallFrame varFrame;
+        internal CallFrame VarFrame;
 
         // The interpreter's global namespace.
 
-        internal NamespaceCmd.Namespace globalNs;
+        internal NamespaceCmd.Namespace GlobalNs;
 
         // Hash table used to keep track of hidden commands on a per-interp basis.
 
@@ -196,18 +196,18 @@ namespace Tcl.Lang
         // parser will evaluate commands and retrieve variable values from 
         // the interp.
 
-        internal int noEval;
+        internal int NoEval;
 
         // Used in the Expression.java file for the 
         // SrandFunction.class and RandFunction.class.
         // Set to true if a seed has been set.
 
-        internal bool randSeedInit;
+        internal bool RandSeedInit;
 
         // Used in the Expression.java file for the SrandFunction.class and
         // RandFunction.class.  Stores the value of the seed.
 
-        internal long randSeed;
+        internal long RandSeed;
 
         // If returnCode is TCL.CompletionCode.ERROR, stores the errorInfo.
 
@@ -299,18 +299,18 @@ namespace Tcl.Lang
             // don't need to create a new TclObject instance every time the
             // interpreter result is set to empty.
 
-            m_nullResult = TclString.newInstance("");
-            m_nullResult.preserve(); // Increment refCount to 1
-            m_nullResult.preserve(); // Increment refCount to 2 (shared)
-            m_result = TclString.newInstance(""); //m_nullResult; // correcponds to iPtr->objResultPtr
-            m_result.preserve();
+            m_nullResult = TclString.NewInstance("");
+            m_nullResult.Preserve(); // Increment refCount to 1
+            m_nullResult.Preserve(); // Increment refCount to 2 (shared)
+            m_result = TclString.NewInstance(""); //m_nullResult; // correcponds to iPtr->objResultPtr
+            m_result.Preserve();
 
             expr = new Expression();
             nestLevel = 0;
             maxNestingDepth = 1000;
 
-            frame = null;
-            varFrame = null;
+            Frame = null;
+            VarFrame = null;
 
             returnCode = TCL.CompletionCode.OK;
             errorInfo = null;
@@ -328,9 +328,9 @@ namespace Tcl.Lang
             assocData = null;
 
 
-            globalNs = null; // force creation of global ns below
-            globalNs = NamespaceCmd.createNamespace(this, null, null);
-            if (globalNs == null)
+            GlobalNs = null; // force creation of global ns below
+            GlobalNs = NamespaceCmd.createNamespace(this, null, null);
+            if (GlobalNs == null)
             {
                 throw new TclRuntimeError("Interp(): can't create global namespace");
             }
@@ -339,12 +339,12 @@ namespace Tcl.Lang
             // Init things that are specific to the Jacl implementation
 
             workingDir = new FileInfo(System.Environment.CurrentDirectory);
-            noEval = 0;
+            NoEval = 0;
 
-            notifier = Notifier.getNotifierForThread(System.Threading.Thread.CurrentThread);
-            notifier.preserve();
+            notifier = Notifier.GetNotifierForThread(System.Threading.Thread.CurrentThread);
+            notifier.Preserve();
 
-            randSeedInit = false;
+            RandSeedInit = false;
 
             deleted = false;
             errInProgress = false;
@@ -379,27 +379,27 @@ namespace Tcl.Lang
                 // Set up tcl_platform, tcl_version, tcl_library and other
                 // global variables.
 
-                setVar("tcl_platform", "platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
-                setVar("tcl_platform", "byteOrder", "bigEndian", TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_platform", "platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_platform", "byteOrder", "bigEndian", TCL.VarFlag.GLOBAL_ONLY);
 
-                setVar("tcl_platform", "os", Environment.OSVersion.Platform.ToString(), TCL.VarFlag.GLOBAL_ONLY);
-                setVar("tcl_platform", "osVersion", Environment.OSVersion.Version.ToString(), TCL.VarFlag.GLOBAL_ONLY);
-                setVar("tcl_platform", "machine", Util.tryGetSystemProperty("os.arch", "?"), TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_platform", "os", Environment.OSVersion.Platform.ToString(), TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_platform", "osVersion", Environment.OSVersion.Version.ToString(), TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_platform", "machine", Util.tryGetSystemProperty("os.arch", "?"), TCL.VarFlag.GLOBAL_ONLY);
 
-                setVar("tcl_version", TCL_VERSION, TCL.VarFlag.GLOBAL_ONLY);
-                setVar("tcl_patchLevel", TCL_PATCH_LEVEL, TCL.VarFlag.GLOBAL_ONLY);
-                setVar("tcl_library", "resource:/tcl/lang/library", TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_version", TCL_VERSION, TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_patchLevel", TCL_PATCH_LEVEL, TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("tcl_library", "resource:/tcl/lang/library", TCL.VarFlag.GLOBAL_ONLY);
                 if (Util.Windows)
                 {
-                    setVar("tcl_platform", "host_platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("tcl_platform", "host_platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
                 }
                 else if (Util.Mac)
                 {
-                    setVar("tcl_platform", "host_platform", "macintosh", TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("tcl_platform", "host_platform", "macintosh", TCL.VarFlag.GLOBAL_ONLY);
                 }
                 else
                 {
-                    setVar("tcl_platform", "host_platform", "unix", TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("tcl_platform", "host_platform", "unix", TCL.VarFlag.GLOBAL_ONLY);
                 }
 
                 // Create the env array an populated it with proper
@@ -419,7 +419,7 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                System.Diagnostics.Debug.WriteLine(getResult().ToString());
+                System.Diagnostics.Debug.WriteLine(GetResult().ToString());
                 SupportClass.WriteStackTrace(e, Console.Error);
                 throw new TclRuntimeError("unexpected TclException: " + e.Message, e);
             }
@@ -442,7 +442,7 @@ namespace Tcl.Lang
 
             if (notifier != null)
             {
-                notifier.release();
+                notifier.Release();
                 notifier = null;
             }
 
@@ -457,7 +457,7 @@ namespace Tcl.Lang
 
 
             // FIXME : check impl of TclTeardownNamespace
-            NamespaceCmd.teardownNamespace(globalNs);
+            NamespaceCmd.teardownNamespace(GlobalNs);
 
             // Delete all variables.
 
@@ -474,7 +474,7 @@ namespace Tcl.Lang
 
             if (errorInfoObj != null)
             {
-                errorInfoObj.preserve();
+                errorInfoObj.Preserve();
             }
 
             try
@@ -488,23 +488,23 @@ namespace Tcl.Lang
 
             if (errorCodeObj != null)
             {
-                errorCodeObj.preserve();
+                errorCodeObj.Preserve();
             }
 
-            frame = null;
-            varFrame = null;
+            Frame = null;
+            VarFrame = null;
 
             try
             {
                 if (errorInfoObj != null)
                 {
-                    setVar("errorInfo", null, errorInfoObj, TCL.VarFlag.GLOBAL_ONLY);
-                    errorInfoObj.release();
+                    SetVar("errorInfo", null, errorInfoObj, TCL.VarFlag.GLOBAL_ONLY);
+                    errorInfoObj.Release();
                 }
                 if (errorCodeObj != null)
                 {
-                    setVar("errorCode", null, errorCodeObj, TCL.VarFlag.GLOBAL_ONLY);
-                    errorCodeObj.release();
+                    SetVar("errorCode", null, errorCodeObj, TCL.VarFlag.GLOBAL_ONLY);
+                    errorCodeObj.Release();
                 }
             }
             catch (TclException e)
@@ -549,15 +549,15 @@ namespace Tcl.Lang
             // Finish deleting the global namespace.
 
             // FIXME : check impl of Tcl_DeleteNamespace
-            NamespaceCmd.deleteNamespace(globalNs);
-            globalNs = null;
+            NamespaceCmd.deleteNamespace(GlobalNs);
+            GlobalNs = null;
 
             // Free up the result *after* deleting variables, since variable
             // deletion could have transferred ownership of the result string
             // to Tcl.
 
-            frame = null;
-            varFrame = null;
+            Frame = null;
+            VarFrame = null;
             resolvers = null;
 
             resetResult();
@@ -568,82 +568,82 @@ namespace Tcl.Lang
         }
         protected internal void createCommands()
         {
-            Extension.loadOnDemand(this, "after", "tcl.lang.AfterCmd");
-            Extension.loadOnDemand(this, "append", "tcl.lang.AppendCmd");
-            Extension.loadOnDemand(this, "array", "tcl.lang.ArrayCmd");
-            Extension.loadOnDemand(this, "binary", "tcl.lang.BinaryCmd");
-            Extension.loadOnDemand(this, "break", "tcl.lang.BreakCmd");
-            Extension.loadOnDemand(this, "case", "tcl.lang.CaseCmd");
-            Extension.loadOnDemand(this, "catch", "tcl.lang.CatchCmd");
-            Extension.loadOnDemand(this, "cd", "tcl.lang.CdCmd");
-            Extension.loadOnDemand(this, "clock", "tcl.lang.ClockCmd");
-            Extension.loadOnDemand(this, "close", "tcl.lang.CloseCmd");
-            Extension.loadOnDemand(this, "continue", "tcl.lang.ContinueCmd");
-            Extension.loadOnDemand(this, "concat", "tcl.lang.ConcatCmd");
-            Extension.loadOnDemand(this, "encoding", "tcl.lang.EncodingCmd");
-            Extension.loadOnDemand(this, "eof", "tcl.lang.EofCmd");
-            Extension.loadOnDemand(this, "eval", "tcl.lang.EvalCmd");
-            Extension.loadOnDemand(this, "error", "tcl.lang.ErrorCmd");
+            Extension.LoadOnDemand(this, "after", "tcl.lang.AfterCmd");
+            Extension.LoadOnDemand(this, "append", "tcl.lang.AppendCmd");
+            Extension.LoadOnDemand(this, "array", "tcl.lang.ArrayCmd");
+            Extension.LoadOnDemand(this, "binary", "tcl.lang.BinaryCmd");
+            Extension.LoadOnDemand(this, "break", "tcl.lang.BreakCmd");
+            Extension.LoadOnDemand(this, "case", "tcl.lang.CaseCmd");
+            Extension.LoadOnDemand(this, "catch", "tcl.lang.CatchCmd");
+            Extension.LoadOnDemand(this, "cd", "tcl.lang.CdCmd");
+            Extension.LoadOnDemand(this, "clock", "tcl.lang.ClockCmd");
+            Extension.LoadOnDemand(this, "close", "tcl.lang.CloseCmd");
+            Extension.LoadOnDemand(this, "continue", "tcl.lang.ContinueCmd");
+            Extension.LoadOnDemand(this, "concat", "tcl.lang.ConcatCmd");
+            Extension.LoadOnDemand(this, "encoding", "tcl.lang.EncodingCmd");
+            Extension.LoadOnDemand(this, "eof", "tcl.lang.EofCmd");
+            Extension.LoadOnDemand(this, "eval", "tcl.lang.EvalCmd");
+            Extension.LoadOnDemand(this, "error", "tcl.lang.ErrorCmd");
             if (!Util.Mac)
             {
-                Extension.loadOnDemand(this, "exec", "tcl.lang.ExecCmd");
+                Extension.LoadOnDemand(this, "exec", "tcl.lang.ExecCmd");
             }
-            Extension.loadOnDemand(this, "exit", "tcl.lang.ExitCmd");
-            Extension.loadOnDemand(this, "expr", "tcl.lang.ExprCmd");
-            Extension.loadOnDemand(this, "fblocked", "tcl.lang.FblockedCmd");
-            Extension.loadOnDemand(this, "fconfigure", "tcl.lang.FconfigureCmd");
-            Extension.loadOnDemand(this, "file", "tcl.lang.FileCmd");
-            Extension.loadOnDemand(this, "flush", "tcl.lang.FlushCmd");
-            Extension.loadOnDemand(this, "for", "tcl.lang.ForCmd");
-            Extension.loadOnDemand(this, "foreach", "tcl.lang.ForeachCmd");
-            Extension.loadOnDemand(this, "format", "tcl.lang.FormatCmd");
-            Extension.loadOnDemand(this, "gets", "tcl.lang.GetsCmd");
-            Extension.loadOnDemand(this, "global", "tcl.lang.GlobalCmd");
-            Extension.loadOnDemand(this, "glob", "tcl.lang.GlobCmd");
-            Extension.loadOnDemand(this, "if", "tcl.lang.IfCmd");
-            Extension.loadOnDemand(this, "incr", "tcl.lang.IncrCmd");
-            Extension.loadOnDemand(this, "info", "tcl.lang.InfoCmd");
-            Extension.loadOnDemand(this, "interp", "tcl.lang.InterpCmd");
-            Extension.loadOnDemand(this, "list", "tcl.lang.ListCmd");
-            Extension.loadOnDemand(this, "join", "tcl.lang.JoinCmd");
-            Extension.loadOnDemand(this, "lappend", "tcl.lang.LappendCmd");
-            Extension.loadOnDemand(this, "lindex", "tcl.lang.LindexCmd");
-            Extension.loadOnDemand(this, "linsert", "tcl.lang.LinsertCmd");
-            Extension.loadOnDemand(this, "llength", "tcl.lang.LlengthCmd");
-            Extension.loadOnDemand(this, "lrange", "tcl.lang.LrangeCmd");
-            Extension.loadOnDemand(this, "lreplace", "tcl.lang.LreplaceCmd");
-            Extension.loadOnDemand(this, "lsearch", "tcl.lang.LsearchCmd");
-            Extension.loadOnDemand(this, "lset", "tcl.lang.LsetCmd");
-            Extension.loadOnDemand(this, "lsort", "tcl.lang.LsortCmd");
-            Extension.loadOnDemand(this, "namespace", "tcl.lang.NamespaceCmd");
-            Extension.loadOnDemand(this, "open", "tcl.lang.OpenCmd");
-            Extension.loadOnDemand(this, "package", "tcl.lang.PackageCmd");
-            Extension.loadOnDemand(this, "proc", "tcl.lang.ProcCmd");
-            Extension.loadOnDemand(this, "puts", "tcl.lang.PutsCmd");
-            Extension.loadOnDemand(this, "pwd", "tcl.lang.PwdCmd");
-            Extension.loadOnDemand(this, "read", "tcl.lang.ReadCmd");
-            Extension.loadOnDemand(this, "regsub", "tcl.lang.RegsubCmd");
-            Extension.loadOnDemand(this, "rename", "tcl.lang.RenameCmd");
-            Extension.loadOnDemand(this, "return", "tcl.lang.ReturnCmd");
-            Extension.loadOnDemand(this, "scan", "tcl.lang.ScanCmd");
-            Extension.loadOnDemand(this, "seek", "tcl.lang.SeekCmd");
-            Extension.loadOnDemand(this, "set", "tcl.lang.SetCmd");
-            Extension.loadOnDemand(this, "socket", "tcl.lang.SocketCmd");
-            Extension.loadOnDemand(this, "source", "tcl.lang.SourceCmd");
-            Extension.loadOnDemand(this, "split", "tcl.lang.SplitCmd");
-            Extension.loadOnDemand(this, "string", "tcl.lang.StringCmd");
-            Extension.loadOnDemand(this, "subst", "tcl.lang.SubstCmd");
-            Extension.loadOnDemand(this, "switch", "tcl.lang.SwitchCmd");
-            Extension.loadOnDemand(this, "tell", "tcl.lang.TellCmd");
-            Extension.loadOnDemand(this, "time", "tcl.lang.TimeCmd");
-            Extension.loadOnDemand(this, "trace", "tcl.lang.TraceCmd");
-            Extension.loadOnDemand(this, "unset", "tcl.lang.UnsetCmd");
-            Extension.loadOnDemand(this, "update", "tcl.lang.UpdateCmd");
-            Extension.loadOnDemand(this, "uplevel", "tcl.lang.UplevelCmd");
-            Extension.loadOnDemand(this, "upvar", "tcl.lang.UpvarCmd");
-            Extension.loadOnDemand(this, "variable", "tcl.lang.VariableCmd");
-            Extension.loadOnDemand(this, "vwait", "tcl.lang.VwaitCmd");
-            Extension.loadOnDemand(this, "while", "tcl.lang.WhileCmd");
+            Extension.LoadOnDemand(this, "exit", "tcl.lang.ExitCmd");
+            Extension.LoadOnDemand(this, "expr", "tcl.lang.ExprCmd");
+            Extension.LoadOnDemand(this, "fblocked", "tcl.lang.FblockedCmd");
+            Extension.LoadOnDemand(this, "fconfigure", "tcl.lang.FconfigureCmd");
+            Extension.LoadOnDemand(this, "file", "tcl.lang.FileCmd");
+            Extension.LoadOnDemand(this, "flush", "tcl.lang.FlushCmd");
+            Extension.LoadOnDemand(this, "for", "tcl.lang.ForCmd");
+            Extension.LoadOnDemand(this, "foreach", "tcl.lang.ForeachCmd");
+            Extension.LoadOnDemand(this, "format", "tcl.lang.FormatCmd");
+            Extension.LoadOnDemand(this, "gets", "tcl.lang.GetsCmd");
+            Extension.LoadOnDemand(this, "global", "tcl.lang.GlobalCmd");
+            Extension.LoadOnDemand(this, "glob", "tcl.lang.GlobCmd");
+            Extension.LoadOnDemand(this, "if", "tcl.lang.IfCmd");
+            Extension.LoadOnDemand(this, "incr", "tcl.lang.IncrCmd");
+            Extension.LoadOnDemand(this, "info", "tcl.lang.InfoCmd");
+            Extension.LoadOnDemand(this, "interp", "tcl.lang.InterpCmd");
+            Extension.LoadOnDemand(this, "list", "tcl.lang.ListCmd");
+            Extension.LoadOnDemand(this, "join", "tcl.lang.JoinCmd");
+            Extension.LoadOnDemand(this, "lappend", "tcl.lang.LappendCmd");
+            Extension.LoadOnDemand(this, "lindex", "tcl.lang.LindexCmd");
+            Extension.LoadOnDemand(this, "linsert", "tcl.lang.LinsertCmd");
+            Extension.LoadOnDemand(this, "llength", "tcl.lang.LlengthCmd");
+            Extension.LoadOnDemand(this, "lrange", "tcl.lang.LrangeCmd");
+            Extension.LoadOnDemand(this, "lreplace", "tcl.lang.LreplaceCmd");
+            Extension.LoadOnDemand(this, "lsearch", "tcl.lang.LsearchCmd");
+            Extension.LoadOnDemand(this, "lset", "tcl.lang.LsetCmd");
+            Extension.LoadOnDemand(this, "lsort", "tcl.lang.LsortCmd");
+            Extension.LoadOnDemand(this, "namespace", "tcl.lang.NamespaceCmd");
+            Extension.LoadOnDemand(this, "open", "tcl.lang.OpenCmd");
+            Extension.LoadOnDemand(this, "package", "tcl.lang.PackageCmd");
+            Extension.LoadOnDemand(this, "proc", "tcl.lang.ProcCmd");
+            Extension.LoadOnDemand(this, "puts", "tcl.lang.PutsCmd");
+            Extension.LoadOnDemand(this, "pwd", "tcl.lang.PwdCmd");
+            Extension.LoadOnDemand(this, "read", "tcl.lang.ReadCmd");
+            Extension.LoadOnDemand(this, "regsub", "tcl.lang.RegsubCmd");
+            Extension.LoadOnDemand(this, "rename", "tcl.lang.RenameCmd");
+            Extension.LoadOnDemand(this, "return", "tcl.lang.ReturnCmd");
+            Extension.LoadOnDemand(this, "scan", "tcl.lang.ScanCmd");
+            Extension.LoadOnDemand(this, "seek", "tcl.lang.SeekCmd");
+            Extension.LoadOnDemand(this, "set", "tcl.lang.SetCmd");
+            Extension.LoadOnDemand(this, "socket", "tcl.lang.SocketCmd");
+            Extension.LoadOnDemand(this, "source", "tcl.lang.SourceCmd");
+            Extension.LoadOnDemand(this, "split", "tcl.lang.SplitCmd");
+            Extension.LoadOnDemand(this, "string", "tcl.lang.StringCmd");
+            Extension.LoadOnDemand(this, "subst", "tcl.lang.SubstCmd");
+            Extension.LoadOnDemand(this, "switch", "tcl.lang.SwitchCmd");
+            Extension.LoadOnDemand(this, "tell", "tcl.lang.TellCmd");
+            Extension.LoadOnDemand(this, "time", "tcl.lang.TimeCmd");
+            Extension.LoadOnDemand(this, "trace", "tcl.lang.TraceCmd");
+            Extension.LoadOnDemand(this, "unset", "tcl.lang.UnsetCmd");
+            Extension.LoadOnDemand(this, "update", "tcl.lang.UpdateCmd");
+            Extension.LoadOnDemand(this, "uplevel", "tcl.lang.UplevelCmd");
+            Extension.LoadOnDemand(this, "upvar", "tcl.lang.UpvarCmd");
+            Extension.LoadOnDemand(this, "variable", "tcl.lang.VariableCmd");
+            Extension.LoadOnDemand(this, "vwait", "tcl.lang.VwaitCmd");
+            Extension.LoadOnDemand(this, "while", "tcl.lang.WhileCmd");
 
 
             // Add "regexp" and related commands to this interp.
@@ -654,7 +654,7 @@ namespace Tcl.Lang
             // "package require java" in the interp. We need to create a small
             // command that will load when "package require java" is called.
 
-            Extension.loadOnDemand(this, "jaclloadjava", "tcl.lang.JaclLoadJavaCmd");
+            Extension.LoadOnDemand(this, "jaclloadjava", "tcl.lang.JaclLoadJavaCmd");
 
             try
             {
@@ -662,7 +662,7 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                System.Diagnostics.Debug.WriteLine(getResult().ToString());
+                System.Diagnostics.Debug.WriteLine(GetResult().ToString());
                 SupportClass.WriteStackTrace(e, Console.Error);
                 throw new TclRuntimeError("unexpected TclException: " + e.Message, e);
             }
@@ -708,7 +708,7 @@ namespace Tcl.Lang
                 mgr = new BgErrorMgr(this);
                 setAssocData("tclBgError", mgr);
             }
-            mgr.addBgError();
+            mgr.AddBgError();
         }
 
         /*-----------------------------------------------------------------
@@ -717,25 +717,25 @@ namespace Tcl.Lang
         *
         *-----------------------------------------------------------------
         */
-        public TclObject setVar(TclObject nameObj, TclObject value, TCL.VarFlag flags)
+        public TclObject SetVar(TclObject nameObj, TclObject value, TCL.VarFlag flags)
         {
             return Var.setVar(this, nameObj, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
         }
-        public TclObject setVar(string name, TclObject value, TCL.VarFlag flags)
+        public TclObject SetVar(string name, TclObject value, TCL.VarFlag flags)
         {
             return Var.setVar(this, name, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
         }
-        public TclObject setVar(string name1, string name2, TclObject value, TCL.VarFlag flags)
+        public TclObject SetVar(string name1, string name2, TclObject value, TCL.VarFlag flags)
         {
             return Var.setVar(this, name1, name2, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
         }
-        public void setVar(string name, string strValue, TCL.VarFlag flags)
+        public void SetVar(string name, string strValue, TCL.VarFlag flags)
         {
-            Var.setVar(this, name, TclString.newInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
+            Var.setVar(this, name, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
         }
-        public void setVar(string name1, string name2, string strValue, TCL.VarFlag flags)
+        public void SetVar(string name1, string name2, string strValue, TCL.VarFlag flags)
         {
-            Var.setVar(this, name1, name2, TclString.newInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
+            Var.setVar(this, name1, name2, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
         }
         public TclObject getVar(TclObject nameObj, TCL.VarFlag flags)
         {
@@ -797,7 +797,7 @@ namespace Tcl.Lang
         {
             Var.untraceVar(this, part1, part2, flags, trace);
         }
-        public void createCommand(string cmdName, Command cmdImpl)
+        public void CreateCommand(string cmdName, ICommand cmdImpl)
         // Command object to associate with
         // cmdName.
         {
@@ -839,7 +839,7 @@ namespace Tcl.Lang
             }
             else
             {
-                ns = globalNs;
+                ns = GlobalNs;
                 tail = cmdName;
             }
 
@@ -972,7 +972,7 @@ namespace Tcl.Lang
             }
             else
             {
-                ns = globalNs;
+                ns = GlobalNs;
                 tail = cmdName;
             }
 
@@ -1070,7 +1070,7 @@ namespace Tcl.Lang
                 if (cmd.ns != null)
                 {
                     name.Append(cmd.ns.fullName);
-                    if (cmd.ns != interp.globalNs)
+                    if (cmd.ns != interp.GlobalNs)
                     {
                         name.Append("::");
                     }
@@ -1140,9 +1140,9 @@ namespace Tcl.Lang
             }
 
             cmd.deleted = true;
-            if (cmd.cmd is CommandWithDispose)
+            if (cmd.cmd is ICommandWithDispose)
             {
-                ((CommandWithDispose)cmd.cmd).disposeCmd();
+                ((ICommandWithDispose)cmd.cmd).Dispose();
             }
             if (cmd.deleteProc != null)
             {
@@ -1254,7 +1254,7 @@ namespace Tcl.Lang
             if (cmd.cmd is Procedure)
             {
                 Procedure p = (Procedure)cmd.cmd;
-                p.ns = cmd.ns;
+                p.NS = cmd.ns;
             }
 
             // Now check for an alias loop. If we detect one, put everything back
@@ -1325,7 +1325,7 @@ namespace Tcl.Lang
                 nextAlias = (InterpAliasCmd)aliasCmd.cmd;
             }
         }
-        public Command getCommand(string cmdName)
+        public ICommand getCommand(string cmdName)
         // String name of the command.
         {
             //  Find the desired command and return it.
@@ -1375,7 +1375,7 @@ namespace Tcl.Lang
         *-----------------------------------------------------------------
         */
 
-        public TclObject getResult()
+        public TclObject GetResult()
         {
             return m_result;
         }
@@ -1395,14 +1395,14 @@ namespace Tcl.Lang
 
             if (m_result != m_nullResult)
             {
-                m_result.release();
+                m_result.Release();
             }
 
             m_result = r;
 
             if (m_result != m_nullResult)
             {
-                m_result.preserve();
+                m_result.Preserve();
             }
         }
         public void setResult(string r)
@@ -1414,18 +1414,18 @@ namespace Tcl.Lang
             }
             else
             {
-                setResult(TclString.newInstance(r));
+                setResult(TclString.NewInstance(r));
             }
         }
         public void setResult(int r)
         // An int result.
         {
-            setResult(TclInteger.newInstance(r));
+            setResult(TclInteger.NewInstance(r));
         }
         public void setResult(double r)
         // A double result.
         {
-            setResult(TclDouble.newInstance(r));
+            setResult(TclDouble.NewInstance(r));
         }
         public void setResult(bool r)
         // A boolean result.
@@ -1436,9 +1436,9 @@ namespace Tcl.Lang
         {
             if (m_result != m_nullResult)
             {
-                m_result.release();
-                m_result = TclString.newInstance(""); //m_nullResult;
-                m_result.preserve();
+                m_result.Release();
+                m_result = TclString.NewInstance(""); //m_nullResult;
+                m_result.Preserve();
                 if (!m_nullResult.Shared)
                 {
                     throw new TclRuntimeError("m_nullResult is not shared");
@@ -1453,12 +1453,12 @@ namespace Tcl.Lang
         {
             TclObject result;
 
-            result = getResult();
+            result = GetResult();
             if (result.Shared)
             {
                 result = result.duplicate();
             }
-            TclList.append(this, result, TclObj.newInstance(Element));
+            TclList.Append(this, result, TclObj.newInstance(Element));
             setResult(result);
         }
 
@@ -1467,12 +1467,12 @@ namespace Tcl.Lang
         {
             TclObject result;
 
-            result = getResult();
+            result = GetResult();
             if (result.Shared)
             {
                 result = result.duplicate();
             }
-            TclList.append(this, result, TclString.newInstance(Element));
+            TclList.Append(this, result, TclString.NewInstance(Element));
             setResult(result);
         }
         public void eval(string inString, int flags)
@@ -1483,7 +1483,7 @@ namespace Tcl.Lang
             CharPointer script = new CharPointer(inString);
             try
             {
-                Parser.eval2(this, script.array, script.index, script.length(), flags);
+                Parser.eval2(this, script._array, script._index, script.Length(), flags);
             }
             catch (TclException e)
             {
@@ -1498,7 +1498,7 @@ namespace Tcl.Lang
                 // evaluated code. Note that we don't propagate an exception that
                 // has a TCL.CompletionCode.RETURN error code when updateReturnInfo() returns TCL.CompletionCode.OK.
 
-                TCL.CompletionCode result = e.getCompletionCode();
+                TCL.CompletionCode result = e.GetCompletionCode();
 
                 if (result == TCL.CompletionCode.RETURN)
                 {
@@ -1533,11 +1533,11 @@ namespace Tcl.Lang
             TclObject cmd = null;
             try
             {
-                cmd = TclList.newInstance();
-                TclList.append(this, cmd, TclString.newInstance("history"));
-                TclList.append(this, cmd, TclString.newInstance("add"));
-                TclList.append(this, cmd, script);
-                cmd.preserve();
+                cmd = TclList.NewInstance();
+                TclList.Append(this, cmd, TclString.NewInstance("history"));
+                TclList.Append(this, cmd, TclString.NewInstance("add"));
+                TclList.Append(this, cmd, script);
+                cmd.Preserve();
                 eval(cmd, TCL.EVAL_GLOBAL);
             }
             catch (System.Exception e)
@@ -1545,7 +1545,7 @@ namespace Tcl.Lang
             }
             finally
             {
-                cmd.release();
+                cmd.Release();
             }
 
             // Execute the command.
@@ -1576,9 +1576,9 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                if (e.getCompletionCode() == TCL.CompletionCode.ERROR)
+                if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    addErrorInfo("\n    (file \"" + sFilename + "\" line " + errorLine + ")");
+                    AddErrorInfo("\n    (file \"" + sFilename + "\" line " + errorLine + ")");
                 }
                 throw;
             }
@@ -1843,17 +1843,17 @@ namespace Tcl.Lang
         internal static BackSlashResult backslash(string s, int i, int len)
         {
             CharPointer script = new CharPointer(s.Substring(0, (len) - (0)));
-            script.index = i;
-            return Parser.backslash(script.array, script.index);
+            script._index = i;
+            return Parser.backslash(script._array, script._index);
         }
 
 
-        public void setErrorCode(TclObject code)
+        public void SetErrorCode(TclObject code)
         // The errorCode object.
         {
             try
             {
-                setVar("errorCode", null, code, TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("errorCode", null, code, TCL.VarFlag.GLOBAL_ONLY);
                 errCodeSet = true;
             }
             catch (TclException excp)
@@ -1865,7 +1865,7 @@ namespace Tcl.Lang
         }
 
 
-        public void addErrorInfo(string message)
+        public void AddErrorInfo(string message)
         // The message to record.
         {
             if (!errInProgress)
@@ -1875,7 +1875,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    setVar("errorInfo", null, getResult().ToString(), TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("errorInfo", null, GetResult().ToString(), TCL.VarFlag.GLOBAL_ONLY);
                 }
                 catch (TclException e1)
                 {
@@ -1889,7 +1889,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        setVar("errorCode", null, "NONE", TCL.VarFlag.GLOBAL_ONLY);
+                        SetVar("errorCode", null, "NONE", TCL.VarFlag.GLOBAL_ONLY);
                     }
                     catch (TclException e1)
                     {
@@ -1900,7 +1900,7 @@ namespace Tcl.Lang
 
             try
             {
-                setVar("errorInfo", null, message, TCL.VarFlag.APPEND_VALUE | TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("errorInfo", null, message, TCL.VarFlag.APPEND_VALUE | TCL.VarFlag.GLOBAL_ONLY);
             }
             catch (TclException e1)
             {
@@ -1934,7 +1934,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    setVar("errorCode", null, ((System.Object)errorCode != null) ? errorCode : "NONE", TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("errorCode", null, ((System.Object)errorCode != null) ? errorCode : "NONE", TCL.VarFlag.GLOBAL_ONLY);
                 }
                 catch (TclException e)
                 {
@@ -1948,7 +1948,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        setVar("errorInfo", null, errorInfo, TCL.VarFlag.GLOBAL_ONLY);
+                        SetVar("errorInfo", null, errorInfo, TCL.VarFlag.GLOBAL_ONLY);
                     }
                     catch (TclException e)
                     {
@@ -2129,30 +2129,30 @@ namespace Tcl.Lang
 
                 if (!sourceInterp.errAlreadyLogged)
                 {
-                    sourceInterp.addErrorInfo("");
+                    sourceInterp.AddErrorInfo("");
                 }
                 sourceInterp.errAlreadyLogged = true;
 
                 resetResult();
 
                 obj = sourceInterp.getVar("errorInfo", TCL.VarFlag.GLOBAL_ONLY);
-                setVar("errorInfo", obj, TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("errorInfo", obj, TCL.VarFlag.GLOBAL_ONLY);
 
                 obj = sourceInterp.getVar("errorCode", TCL.VarFlag.GLOBAL_ONLY);
-                setVar("errorCode", obj, TCL.VarFlag.GLOBAL_ONLY);
+                SetVar("errorCode", obj, TCL.VarFlag.GLOBAL_ONLY);
 
                 errInProgress = true;
                 errCodeSet = true;
             }
 
             returnCode = result;
-            setResult(sourceInterp.getResult());
+            setResult(sourceInterp.GetResult());
             sourceInterp.resetResult();
 
             if (result != TCL.CompletionCode.OK)
             {
 
-                throw new TclException(this, getResult().ToString(), result);
+                throw new TclException(this, GetResult().ToString(), result);
             }
         }
         internal void hideCommand(string cmdName, string hiddenCmdToken)
@@ -2199,7 +2199,7 @@ namespace Tcl.Lang
 
             // Check that the command is really in global namespace
 
-            if (cmd.ns != globalNs)
+            if (cmd.ns != GlobalNs)
             {
                 throw new TclException(this, "can only hide global namespace commands" + " (use rename then hide)");
             }
@@ -2274,7 +2274,7 @@ namespace Tcl.Lang
             // check. (If it was not, we would not really know how to
             // handle it).
 
-            if (cmd.ns != globalNs)
+            if (cmd.ns != GlobalNs)
             {
 
                 // This case is theoritically impossible,
@@ -2334,16 +2334,16 @@ namespace Tcl.Lang
         }
         internal TCL.CompletionCode invokeGlobal(TclObject[] objv, int flags)
         {
-            CallFrame savedVarFrame = varFrame;
+            CallFrame savedVarFrame = VarFrame;
 
             try
             {
-                varFrame = null;
+                VarFrame = null;
                 return invoke(objv, flags);
             }
             finally
             {
-                varFrame = savedVarFrame;
+                VarFrame = savedVarFrame;
             }
         }
         internal TCL.CompletionCode invoke(TclObject[] objv, int flags)
@@ -2380,8 +2380,8 @@ namespace Tcl.Lang
                         if (cmd != null)
                         {
                             localObjv = new TclObject[objv.Length + 1];
-                            localObjv[0] = TclString.newInstance("unknown");
-                            localObjv[0].preserve();
+                            localObjv[0] = TclString.NewInstance("unknown");
+                            localObjv[0].Preserve();
                             for (int i = 0; i < objv.Length; i++)
                             {
                                 localObjv[i + 1] = objv[i];
@@ -2411,11 +2411,11 @@ namespace Tcl.Lang
             TCL.CompletionCode result = TCL.CompletionCode.OK;
             try
             {
-                cmd.cmd.cmdProc(this, objv);
+                cmd.cmd.CmdProc(this, objv);
             }
             catch (TclException e)
             {
-                result = e.getCompletionCode();
+                result = e.GetCompletionCode();
             }
 
             // If we invoke a procedure, which was implemented as AutoloadStub,
@@ -2467,7 +2467,7 @@ namespace Tcl.Lang
                     }
                 }
                 ds.Append("\"");
-                addErrorInfo(ds.ToString());
+                AddErrorInfo(ds.ToString());
                 errInProgress = true;
             }
 
@@ -2475,7 +2475,7 @@ namespace Tcl.Lang
 
             if (localObjv != null)
             {
-                localObjv[0].release();
+                localObjv[0].Release();
             }
 
             return result;

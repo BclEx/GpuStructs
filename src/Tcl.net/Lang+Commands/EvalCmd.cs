@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "eval" command in Tcl.</summary>
 
-    class EvalCmd : Command
+    class EvalCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "eval" Tcl command.
         /// See the user documentation for details on what it does.
@@ -26,7 +26,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException if script causes error.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2)
             {
@@ -47,9 +47,9 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                if (e.getCompletionCode() == TCL.CompletionCode.ERROR)
+                if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.addErrorInfo("\n    (\"eval\" body line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (\"eval\" body line " + interp.errorLine + ")");
                 }
                 throw;
             }

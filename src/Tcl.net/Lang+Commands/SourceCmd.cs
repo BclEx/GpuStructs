@@ -17,10 +17,10 @@ namespace Tcl.Lang
     * This class implements the built-in "source" command in Tcl.
     */
 
-    class SourceCmd : Command
+    class SourceCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             string fileName = null;
             bool url = false;
@@ -66,7 +66,7 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                TCL.CompletionCode code = e.getCompletionCode();
+                TCL.CompletionCode code = e.GetCompletionCode();
 
                 if (code == TCL.CompletionCode.RETURN)
                 {
@@ -83,7 +83,7 @@ namespace Tcl.Lang
                     * Record information telling where the error occurred.
                     */
 
-                    interp.addErrorInfo("\n    (file line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (file line " + interp.errorLine + ")");
                     throw;
                 }
                 else

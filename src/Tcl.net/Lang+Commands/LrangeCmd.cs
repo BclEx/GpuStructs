@@ -13,13 +13,13 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "lrange" command in Tcl.</summary>
 
-    class LrangeCmd : Command
+    class LrangeCmd : ICommand
     {
         /// <summary> See Tcl user documentation for details.</summary>
         /// <exception cref=""> TclException If incorrect number of arguments.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 4)
             {
@@ -71,20 +71,20 @@ namespace Tcl.Lang
                 return TCL.CompletionCode.RETURN;
             }
 
-            TclObject list = TclList.newInstance();
+            TclObject list = TclList.NewInstance();
 
-            list.preserve();
+            list.Preserve();
             try
             {
                 for (int i = first; i <= last; i++)
                 {
-                    TclList.append(interp, list, TclList.index(interp, argv[1], i));
+                    TclList.Append(interp, list, TclList.index(interp, argv[1], i));
                 }
                 interp.setResult(list);
             }
             finally
             {
-                list.release();
+                list.Release();
             }
             return TCL.CompletionCode.RETURN;
         }

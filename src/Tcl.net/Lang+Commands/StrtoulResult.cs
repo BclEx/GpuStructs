@@ -27,7 +27,7 @@ namespace Tcl.Lang
 
         // If errno is 0, points to the character right after the number
 
-        internal int index;
+        internal int Index;
 
         // If errno is 0, contains the value of the number.
 
@@ -36,7 +36,7 @@ namespace Tcl.Lang
         internal StrtoulResult(long v, int i, int e)
         {
             value = v;
-            index = i;
+            Index = i;
             errno = e;
         }
     } // end StrtoulResult

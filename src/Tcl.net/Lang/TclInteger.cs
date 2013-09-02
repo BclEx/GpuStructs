@@ -43,14 +43,14 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclInteger(value);
         }
 
         /// <summary> Implement this no-op for the InternalRep interface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 
@@ -77,7 +77,7 @@ namespace Tcl.Lang
         /// <returns> the TclObject with the given integer value.
         /// </returns>
 
-        public static TclObject newInstance(int i)
+        public static TclObject NewInstance(int i)
         {
             return new TclObject(new TclInteger(i));
         }

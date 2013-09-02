@@ -27,7 +27,7 @@ namespace Tcl.Lang
     /// </summary>
 
 
-    public class NamespaceCmd : InternalRep, Command
+    public class NamespaceCmd : InternalRep, ICommand
     {
 
         // Flag passed to getNamespaceForQualName to indicate that it should
@@ -102,13 +102,13 @@ namespace Tcl.Lang
 
         internal static Namespace getCurrentNamespace(Interp interp)
         {
-            if (interp.varFrame != null)
+            if (interp.VarFrame != null)
             {
-                return interp.varFrame.ns;
+                return interp.VarFrame.NS;
             }
             else
             {
-                return interp.globalNs;
+                return interp.GlobalNs;
             }
         }
 
@@ -130,7 +130,7 @@ namespace Tcl.Lang
 
         internal static Namespace getGlobalNamespace(Interp interp)
         {
-            return interp.globalNs;
+            return interp.GlobalNs;
         }
 
 
@@ -179,34 +179,34 @@ namespace Tcl.Lang
             }
 
             ns.activationCount++;
-            frame.ns = ns;
-            frame.isProcCallFrame = isProcCallFrame;
-            frame.objv = null;
+            frame.NS = ns;
+            frame.IsProcCallFrame = isProcCallFrame;
+            frame.Objv = null;
 
-            frame.caller = interp.frame;
-            frame.callerVar = interp.varFrame;
+            frame.Caller = interp.Frame;
+            frame.CallerVar = interp.VarFrame;
 
-            if (interp.varFrame != null)
+            if (interp.VarFrame != null)
             {
-                frame.level = (interp.varFrame.level + 1);
+                frame.Level = (interp.VarFrame.Level + 1);
             }
             else
             {
-                frame.level = 1;
+                frame.Level = 1;
             }
 
             // FIXME : does Jacl need a procPtr in the CallFrame class?
             //frame.procPtr = null; 	   // no called procedure
 
-            frame.varTable = null; // and no local variables
+            frame.VarTable = null; // and no local variables
 
             // Compiled locals are not part of Jacl's CallFrame
 
             // Push the new call frame onto the interpreter's stack of procedure
             // call frames making it the current frame.
 
-            interp.frame = frame;
-            interp.varFrame = frame;
+            interp.Frame = frame;
+            interp.VarFrame = frame;
         }
 
 
@@ -233,7 +233,7 @@ namespace Tcl.Lang
 
         internal static void popCallFrame(Interp interp)
         {
-            CallFrame frame = interp.frame;
+            CallFrame frame = interp.Frame;
             int saveErrFlag;
             Namespace ns;
 
@@ -242,8 +242,8 @@ namespace Tcl.Lang
             // invoked by the variable deletion don't see the partially-deleted
             // frame.
 
-            interp.frame = frame.caller;
-            interp.varFrame = frame.callerVar;
+            interp.Frame = frame.Caller;
+            interp.VarFrame = frame.CallerVar;
 
             // Delete the local variables. As a hack, we save then restore the
             // ERR_IN_PROGRESS flag in the interpreter. The problem is that there
@@ -258,10 +258,10 @@ namespace Tcl.Lang
 
             saveErrFlag = (interp.flags & Parser.ERR_IN_PROGRESS);
 
-            if (frame.varTable != null)
+            if (frame.VarTable != null)
             {
-                Var.deleteVars(interp, frame.varTable);
-                frame.varTable = null;
+                Var.DeleteVars(interp, frame.VarTable);
+                frame.VarTable = null;
             }
 
             interp.flags |= saveErrFlag;
@@ -270,13 +270,13 @@ namespace Tcl.Lang
             // namespace is "dying" and there are no more active call frames,
             // call Tcl_DeleteNamespace to destroy it.
 
-            ns = frame.ns;
+            ns = frame.NS;
             ns.activationCount--;
             if (((ns.flags & NS_DYING) != 0) && (ns.activationCount == 0))
             {
                 deleteNamespace(ns);
             }
-            frame.ns = null;
+            frame.NS = null;
         }
 
         /*
@@ -312,7 +312,7 @@ namespace Tcl.Lang
             // If there is no active namespace, the interpreter is being
             // initialized. 
 
-            if ((globalNs == null) && (interp.varFrame == null))
+            if ((globalNs == null) && (interp.VarFrame == null))
             {
                 // Treat this namespace as the global namespace, and avoid
                 // looking for a parent.
@@ -508,7 +508,7 @@ namespace Tcl.Lang
                     // occurred while it was being torn down.  Try to clear the
                     // variable list one last time.
 
-                    Var.deleteVars(ns.interp, ns.varTable);
+                    Var.DeleteVars(ns.interp, ns.varTable);
 
                     ns.childTable.Clear();
                     ns.cmdTable.Clear();
@@ -595,13 +595,13 @@ namespace Tcl.Lang
                     errorCodeStr = null;
                 }
 
-                Var.deleteVars(interp, ns.varTable);
+                Var.DeleteVars(interp, ns.varTable);
 
                 if ((System.Object)errorInfoStr != null)
                 {
                     try
                     {
-                        interp.setVar("errorInfo", errorInfoStr, TCL.VarFlag.GLOBAL_ONLY);
+                        interp.SetVar("errorInfo", errorInfoStr, TCL.VarFlag.GLOBAL_ONLY);
                     }
                     catch (TclException e)
                     {
@@ -612,7 +612,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        interp.setVar("errorCode", errorCodeStr, TCL.VarFlag.GLOBAL_ONLY);
+                        interp.SetVar("errorCode", errorCodeStr, TCL.VarFlag.GLOBAL_ONLY);
                     }
                     catch (TclException e)
                     {
@@ -623,7 +623,7 @@ namespace Tcl.Lang
             else
             {
                 // Variable table should be cleared.
-                Var.deleteVars(interp, ns.varTable);
+                Var.DeleteVars(interp, ns.varTable);
             }
 
             // Remove the namespace from its parent's child hashtable.
@@ -857,7 +857,7 @@ namespace Tcl.Lang
 
             for (i = 0; i < ns.numExportPatterns; i++)
             {
-                TclList.append(interp, obj, TclString.newInstance(ns.exportArray[i]));
+                TclList.Append(interp, obj, TclString.NewInstance(ns.exportArray[i]));
             }
             return;
         }
@@ -924,21 +924,21 @@ namespace Tcl.Lang
             {
                 TclObject[] objv = new TclObject[2];
 
-                objv[0] = TclString.newInstance("auto_import");
-                objv[0].preserve();
-                objv[1] = TclString.newInstance(pattern);
-                objv[1].preserve();
+                objv[0] = TclString.NewInstance("auto_import");
+                objv[0].Preserve();
+                objv[1] = TclString.NewInstance(pattern);
+                objv[1].Preserve();
 
                 cmd = autoCmd;
                 try
                 {
                     // Invoke the command with the arguments
-                    cmd.cmd.cmdProc(interp, objv);
+                    cmd.cmd.CmdProc(interp, objv);
                 }
                 finally
                 {
-                    objv[0].release();
-                    objv[1].release();
+                    objv[0].Release();
+                    objv[1].Release();
                 }
 
                 interp.resetResult();
@@ -1023,7 +1023,7 @@ namespace Tcl.Lang
 
                         ds = new StringBuilder();
                         ds.Append(ns.fullName);
-                        if (ns != interp.globalNs)
+                        if (ns != interp.GlobalNs)
                         {
                             ds.Append("::");
                         }
@@ -1050,7 +1050,7 @@ namespace Tcl.Lang
                         data = new ImportedCmdData();
 
                         // Create the imported command inside the interp
-                        interp.createCommand(ds.ToString(), data);
+                        interp.CreateCommand(ds.ToString(), data);
 
                         // Lookup in the namespace for the new WrappedCommand
                         importedCmd = findCommand(interp, ds.ToString(), ns, (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG));
@@ -1231,7 +1231,7 @@ namespace Tcl.Lang
         internal static void invokeImportedCmd(Interp interp, ImportedCmdData data, TclObject[] objv)
         {
             WrappedCommand realCmd = data.realCmd;
-            realCmd.cmd.cmdProc(interp, objv);
+            realCmd.cmd.CmdProc(interp, objv);
         }
 
 
@@ -1426,13 +1426,13 @@ namespace Tcl.Lang
             }
             else if (ns == null)
             {
-                if (interp.varFrame != null)
+                if (interp.VarFrame != null)
                 {
-                    ns = interp.varFrame.ns;
+                    ns = interp.VarFrame.NS;
                 }
                 else
                 {
-                    ns = interp.globalNs;
+                    ns = interp.GlobalNs;
                 }
             }
 
@@ -2138,7 +2138,7 @@ namespace Tcl.Lang
         private const int OPT_WHICH = 13;
 
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
 
             int i, opt;
@@ -2319,13 +2319,13 @@ namespace Tcl.Lang
             // Create a list containing the full names of all child namespaces
             // whose names match the specified pattern, if any.
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
             foreach (Namespace childNs in ns.childTable.Values)
             {
                 if (((System.Object)pattern == null) || Util.stringMatch(childNs.fullName, pattern))
                 {
-                    elem = TclString.newInstance(childNs.fullName);
-                    TclList.append(interp, list, elem);
+                    elem = TclString.NewInstance(childNs.fullName);
+                    TclList.Append(interp, list, elem);
                 }
             }
             interp.setResult(list);
@@ -2401,22 +2401,22 @@ namespace Tcl.Lang
             // commands are interpreted properly when they are executed later,
             // by the "namespace inscope" command.
 
-            list = TclList.newInstance();
-            TclList.append(interp, list, TclString.newInstance("namespace"));
-            TclList.append(interp, list, TclString.newInstance("inscope"));
+            list = TclList.NewInstance();
+            TclList.Append(interp, list, TclString.NewInstance("namespace"));
+            TclList.Append(interp, list, TclString.NewInstance("inscope"));
 
             currNs = getCurrentNamespace(interp);
             if (currNs == getGlobalNamespace(interp))
             {
-                obj = TclString.newInstance("::");
+                obj = TclString.NewInstance("::");
             }
             else
             {
-                obj = TclString.newInstance(currNs.fullName);
+                obj = TclString.NewInstance(currNs.fullName);
             }
 
-            TclList.append(interp, list, obj);
-            TclList.append(interp, list, objv[2]);
+            TclList.Append(interp, list, obj);
+            TclList.Append(interp, list, objv[2]);
 
             interp.setResult(list);
             return;
@@ -2606,7 +2606,7 @@ namespace Tcl.Lang
                 {
                     // FIXME : result hack, we get the interp result and throw it!
 
-                    throw new TclException(interp, interp.getResult().ToString());
+                    throw new TclException(interp, interp.GetResult().ToString());
                 }
             }
 
@@ -2634,9 +2634,9 @@ namespace Tcl.Lang
             }
             catch (TclException ex)
             {
-                if (ex.getCompletionCode() == TCL.CompletionCode.ERROR)
+                if (ex.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.addErrorInfo("\n    (in namespace eval \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (in namespace eval \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
                 }
                 throw ex;
             }
@@ -2725,7 +2725,7 @@ namespace Tcl.Lang
                 else
                 {
                     // create list with export patterns
-                    TclObject list = TclList.newInstance();
+                    TclObject list = TclList.NewInstance();
                     appendExportList(interp, currNs, list);
                     interp.setResult(list);
                     return;
@@ -2953,16 +2953,16 @@ namespace Tcl.Lang
                     TclObject list;
                     string cmd;
 
-                    list = TclList.newInstance();
+                    list = TclList.NewInstance();
                     for (i = 4; i < objv.Length; i++)
                     {
                         try
                         {
-                            TclList.append(interp, list, objv[i]);
+                            TclList.Append(interp, list, objv[i]);
                         }
                         catch (TclException ex)
                         {
-                            list.release(); // free unneeded obj
+                            list.Release(); // free unneeded obj
                             throw ex;
                         }
                     }
@@ -2971,14 +2971,14 @@ namespace Tcl.Lang
                     concatObjv[1] = list;
                     cmd = Util.concat(0, 1, concatObjv);
                     interp.eval(cmd); // do not pass TCL_EVAL_DIRECT, for compiler only
-                    list.release(); // we're done with the list object
+                    list.Release(); // we're done with the list object
                 }
             }
             catch (TclException ex)
             {
-                if (ex.getCompletionCode() == TCL.CompletionCode.ERROR)
+                if (ex.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.addErrorInfo("\n    (in namespace inscope \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (in namespace inscope \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
                 }
                 throw ex;
             }
@@ -3353,7 +3353,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        public void dispose()
+        public void Dispose()
         {
             bool debug;
             System.Diagnostics.Debug.WriteLine("dispose() called for namespace object " + (otherValue == null ? null : otherValue.ns));
@@ -3405,7 +3405,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             System.Diagnostics.Debug.WriteLine("duplicate() called for namespace object " + (otherValue == null ? null : otherValue.ns));
 

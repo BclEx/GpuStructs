@@ -100,13 +100,13 @@ namespace Tcl.Lang
 
                 interp.interpChanTable = new Hashtable();
 
-                chan = getStdChannel(StdChannel.STDIN);
+                chan = GetStdChannel(StdChannel.STDIN);
                 registerChannel(interp, chan);
 
-                chan = getStdChannel(StdChannel.STDOUT);
+                chan = GetStdChannel(StdChannel.STDOUT);
                 registerChannel(interp, chan);
 
-                chan = getStdChannel(StdChannel.STDERR);
+                chan = GetStdChannel(StdChannel.STDERR);
                 registerChannel(interp, chan);
             }
 
@@ -114,7 +114,7 @@ namespace Tcl.Lang
         }
 
 
-        public static Channel getStdChannel(int type)
+        public static Channel GetStdChannel(int type)
         {
             Channel chan = null;
 

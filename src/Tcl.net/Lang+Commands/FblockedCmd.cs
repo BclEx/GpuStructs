@@ -14,7 +14,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "fblocked" command in Tcl.</summary>
 
-    class FblockedCmd : Command
+    class FblockedCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "fblocked" Tcl command.
         /// See the user documentation for details on what it does.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; // The channel being operated on this method

@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "open" command in Tcl.</summary>
 
-    class OpenCmd : Command
+    class OpenCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "open" Tcl command.
         /// See the user documentation for details on what it does.
@@ -24,7 +24,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             bool pipeline = false; /* True if opening pipeline chan */

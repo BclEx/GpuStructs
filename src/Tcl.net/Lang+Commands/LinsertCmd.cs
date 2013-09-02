@@ -13,13 +13,13 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "linsert" command in Tcl.</summary>
 
-    class LinsertCmd : Command
+    class LinsertCmd : ICommand
     {
         /// <summary> See Tcl user documentation for details.</summary>
         /// <exception cref=""> TclException If incorrect number of arguments.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 4)
             {
@@ -49,7 +49,7 @@ namespace Tcl.Lang
             {
                 if (isDuplicate)
                 {
-                    list.release();
+                    list.Release();
                 }
                 throw;
             }

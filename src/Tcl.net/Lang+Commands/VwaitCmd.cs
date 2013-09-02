@@ -16,10 +16,10 @@ namespace Tcl.Lang
     * This class implements the built-in "vwait" command in Tcl.
     */
 
-    class VwaitCmd : Command
+    class VwaitCmd : ICommand
     {
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 2)
             {

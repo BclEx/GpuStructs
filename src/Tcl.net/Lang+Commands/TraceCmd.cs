@@ -20,7 +20,7 @@ namespace Tcl.Lang
     /// user documentation for more details.
     /// </summary>
 
-    class TraceCmd : Command
+    class TraceCmd : ICommand
     {
 
         // Valid sub-commands for the trace command.
@@ -56,23 +56,23 @@ namespace Tcl.Lang
         private static TclObject[] initOptStr()
         {
             TclObject[] strings = new TclObject[8];
-            strings[0] = TclString.newInstance("error");
-            strings[1] = TclString.newInstance("r");
-            strings[2] = TclString.newInstance("w");
-            strings[3] = TclString.newInstance("rw");
-            strings[4] = TclString.newInstance("u");
-            strings[5] = TclString.newInstance("ru");
-            strings[6] = TclString.newInstance("wu");
-            strings[7] = TclString.newInstance("rwu");
+            strings[0] = TclString.NewInstance("error");
+            strings[1] = TclString.NewInstance("r");
+            strings[2] = TclString.NewInstance("w");
+            strings[3] = TclString.NewInstance("rw");
+            strings[4] = TclString.NewInstance("u");
+            strings[5] = TclString.NewInstance("ru");
+            strings[6] = TclString.NewInstance("wu");
+            strings[7] = TclString.NewInstance("rwu");
 
             for (int i = 0; i < 8; i++)
             {
-                strings[i].preserve();
+                strings[i].Preserve();
             }
 
             return strings;
         }
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             int len;
 
@@ -186,9 +186,9 @@ namespace Tcl.Lang
                     if (traces2 != null)
                     {
                         len = traces2.Count;
-                        TclObject list = TclList.newInstance();
+                        TclObject list = TclList.NewInstance();
                         TclObject cmd = null;
-                        list.preserve();
+                        list.Preserve();
 
                         try
                         {
@@ -204,17 +204,17 @@ namespace Tcl.Lang
                                     int modeInt = (int)mode;
                                     modeInt /= ((int)TCL.VarFlag.TRACE_READS);
 
-                                    cmd = TclList.newInstance();
-                                    TclList.append(interp, cmd, opStr[modeInt]);
-                                    TclList.append(interp, cmd, TclString.newInstance(proc.command));
-                                    TclList.append(interp, list, cmd);
+                                    cmd = TclList.NewInstance();
+                                    TclList.Append(interp, cmd, opStr[modeInt]);
+                                    TclList.Append(interp, cmd, TclString.NewInstance(proc.command));
+                                    TclList.Append(interp, list, cmd);
                                 }
                             }
                             interp.setResult(list);
                         }
                         finally
                         {
-                            list.release();
+                            list.Release();
                         }
                     }
                     break;

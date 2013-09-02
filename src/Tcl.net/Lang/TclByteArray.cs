@@ -67,14 +67,14 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclByteArray(bytes, 0, used);
         }
 
         /// <summary> Implement this no-op for the InternalRep interface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 

@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "subst" command in Tcl.</summary>
 
-    class SubstCmd : Command
+    class SubstCmd : ICommand
     {
         private static readonly string[] validCmds = new string[] { "-nobackslashes", "-nocommands", "-novariables" };
 
@@ -31,7 +31,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException if wrong # of args or invalid argument(s).
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int currentObjIndex, len, i;
             int objc = argv.Length - 1;
@@ -95,8 +95,8 @@ namespace Tcl.Lang
                     {
                         interp.evalFlags = Parser.TCL_BRACKET_TERM;
                         interp.eval(s.Substring(i + 1, (len) - (i + 1)));
-                        TclObject interp_result = interp.getResult();
-                        interp_result.preserve();
+                        TclObject interp_result = interp.GetResult();
+                        interp_result.Preserve();
                         res = new ParseResult(interp_result, i + interp.termOffset);
                     }
                     catch (TclException e)
@@ -106,8 +106,8 @@ namespace Tcl.Lang
                     }
                     i = res.nextIndex + 2;
 
-                    result.Append(res.value.ToString());
-                    res.release();
+                    result.Append(res.Value.ToString());
+                    res.Release();
                 }
                 else if (c == '\r')
                 {
@@ -122,8 +122,8 @@ namespace Tcl.Lang
                     ParseResult vres = Parser.parseVar(interp, s.Substring(i, (len) - (i)));
                     i += vres.nextIndex;
 
-                    result.Append(vres.value.ToString());
-                    vres.release();
+                    result.Append(vres.Value.ToString());
+                    vres.Release();
                 }
                 else if ((c == '\\') && doBackslashes)
                 {

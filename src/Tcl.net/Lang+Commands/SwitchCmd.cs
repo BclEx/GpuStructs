@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "switch" command in Tcl.</summary>
 
-    class SwitchCmd : Command
+    class SwitchCmd : ICommand
     {
 
         private static readonly string[] validCmds = new string[] { "-exact", "-glob", "-regexp", "--" };
@@ -20,7 +20,7 @@ namespace Tcl.Lang
         private const int GLOB = 1;
         private const int REGEXP = 2;
         private const int LAST = 3;
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int i, mode, body;
             bool matched;
@@ -136,10 +136,10 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    if (e.getCompletionCode() == TCL.CompletionCode.ERROR)
+                    if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                     {
 
-                        interp.addErrorInfo("\n    (\"" + switchArgv[i] + "\" arm line " + interp.errorLine + ")");
+                        interp.AddErrorInfo("\n    (\"" + switchArgv[i] + "\" arm line " + interp.errorLine + ")");
                     }
                     throw;
                 }

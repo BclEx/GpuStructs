@@ -16,7 +16,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the body of a Tcl procedure.</summary>
 
-    public class Procedure : Command, CommandWithDispose
+    public class Procedure : ICommand, ICommandWithDispose
     {
 
         // The formal parameters of the procedure and their default values.
@@ -24,7 +24,7 @@ namespace Tcl.Lang
         //     argList[0][1] = if non-null, default value of the 1st formal param
 
 
-        internal TclObject[][] argList;
+        internal TclObject[][] ArgList;
 
         // True if this proc takes an variable number of arguments. False
         // otherwise.
@@ -37,7 +37,7 @@ namespace Tcl.Lang
         internal int body_length;
 
         // The namespace that the Command is defined in
-        internal NamespaceCmd.Namespace ns;
+        internal NamespaceCmd.Namespace NS;
 
         // Name of the source file that contains this procedure. May be null, which
         // indicates that the source file is unknown.
@@ -51,7 +51,7 @@ namespace Tcl.Lang
 
         internal Procedure(Interp interp, NamespaceCmd.Namespace ns, string name, TclObject args, TclObject b, string sFileName, int sLineNumber)
         {
-            this.ns = ns;
+            this.NS = ns;
             srcFileName = sFileName;
             srcLineNumber = sLineNumber;
 
@@ -59,10 +59,10 @@ namespace Tcl.Lang
             // each argument specifier.
 
             int numArgs = TclList.getLength(interp, args);
-            argList = new TclObject[numArgs][];
+            ArgList = new TclObject[numArgs][];
             for (int i = 0; i < numArgs; i++)
             {
-                argList[i] = new TclObject[2];
+                ArgList[i] = new TclObject[2];
             }
 
             for (int i = 0; i < numArgs; i++)
@@ -82,21 +82,21 @@ namespace Tcl.Lang
                     throw new TclException(interp, "too many fields in argument " + "specifier \"" + argSpec + "\"");
                 }
 
-                argList[i][0] = TclList.index(interp, argSpec, 0);
-                argList[i][0].preserve();
+                ArgList[i][0] = TclList.index(interp, argSpec, 0);
+                ArgList[i][0].Preserve();
                 if (specLen == 2)
                 {
-                    argList[i][1] = TclList.index(interp, argSpec, 1);
-                    argList[i][1].preserve();
+                    ArgList[i][1] = TclList.index(interp, argSpec, 1);
+                    ArgList[i][1].Preserve();
                 }
                 else
                 {
-                    argList[i][1] = null;
+                    ArgList[i][1] = null;
                 }
             }
 
 
-            if (numArgs > 0 && (argList[numArgs - 1][0].ToString().Equals("args")))
+            if (numArgs > 0 && (ArgList[numArgs - 1][0].ToString().Equals("args")))
             {
                 isVarArgs = true;
             }
@@ -107,9 +107,9 @@ namespace Tcl.Lang
 
 
             body = new CharPointer(b.ToString());
-            body_length = body.length();
+            body_length = body.Length();
         }
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             // Create the call frame and parameter bindings
 
@@ -120,11 +120,11 @@ namespace Tcl.Lang
             interp.pushDebugStack(srcFileName, srcLineNumber);
             try
             {
-                Parser.eval2(interp, body.array, body.index, body_length, 0);
+                Parser.eval2(interp, body._array, body._index, body_length, 0);
             }
             catch (TclException e)
             {
-                TCL.CompletionCode code = e.getCompletionCode();
+                TCL.CompletionCode code = e.GetCompletionCode();
                 if (code == TCL.CompletionCode.RETURN)
                 {
                     TCL.CompletionCode realCode = interp.updateReturnInfo();
@@ -137,7 +137,7 @@ namespace Tcl.Lang
                 else if (code == TCL.CompletionCode.ERROR)
                 {
 
-                    interp.addErrorInfo("\n    (procedure \"" + argv[0] + "\" line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (procedure \"" + argv[0] + "\" line " + interp.errorLine + ")");
                     throw;
                 }
                 else if (code == TCL.CompletionCode.BREAK)
@@ -171,32 +171,32 @@ namespace Tcl.Lang
 
                 if (interp.errInProgress)
                 {
-                    frame.dispose();
+                    frame.Dispose();
                     interp.errInProgress = true;
                 }
                 else
                 {
-                    frame.dispose();
+                    frame.Dispose();
                 }
             }
             return TCL.CompletionCode.RETURN;
         }
-        public void disposeCmd()
+        public void Dispose()
         {
             //body.release();
             body = null;
-            for (int i = 0; i < argList.Length; i++)
+            for (int i = 0; i < ArgList.Length; i++)
             {
-                argList[i][0].release();
-                argList[i][0] = null;
+                ArgList[i][0].Release();
+                ArgList[i][0] = null;
 
-                if (argList[i][1] != null)
+                if (ArgList[i][1] != null)
                 {
-                    argList[i][1].release();
-                    argList[i][1] = null;
+                    ArgList[i][1].Release();
+                    ArgList[i][1] = null;
                 }
             }
-            argList = null;
+            ArgList = null;
         }
 
         internal static bool isProc(WrappedCommand cmd)

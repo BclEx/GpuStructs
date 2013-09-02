@@ -10,6 +10,7 @@ See the file "license.terms" for information on usage and redistribution of this
 #endregion
 using System;
 using System.Collections;
+using System.Threading;
 
 namespace Tcl.Lang
 {
@@ -34,229 +35,157 @@ namespace Tcl.Lang
     // Notifier.getNotifierForThread() ), which returns the Notifier for that
     // interpreter (thread).
 
-    public class Notifier : EventDeleter
+    public class Notifier : IEventDeleter
     {
+        private TclEvent _firstEvent; // First pending event, or null if none.
+        private TclEvent _lastEvent; // Last pending event, or null if none.
+        private TclEvent _markerEvent; // Last high-priority event in queue, or null if none.
+        private TclEvent _servicedEvent = null; // Event that was just processed by serviceEvent
+        internal Thread PrimaryThread; // The primary thread of this notifier. Only this thread should process events from the event queue.
+        private static Hashtable _notifierTable; // Stores the Notifier for each thread.
+        internal ArrayList TimerList; // List of registered timer handlers.
+        internal int TimerGeneration; // Used to distinguish older timer handlers from recently-created ones.
+        internal bool TimerPending; // True if there is a pending timer event in the event queue, false otherwise.
+        internal ArrayList IdleList; // List of registered idle handlers.
+        internal int IdleGeneration; // Used to distinguish older idle handlers from recently-created ones.
+        private int _refCount; // Reference count of the notifier. It's used to tell when a notifier is no longer needed.
 
-        // First pending event, or null if none.
-
-        private TclEvent firstEvent;
-
-        // Last pending event, or null if none.
-
-        private TclEvent lastEvent;
-
-        // Last high-priority event in queue, or null if none.
-
-        private TclEvent markerEvent;
-
-        // Event that was just processed by serviceEvent
-
-        private TclEvent servicedEvent = null;
-
-        // The primary thread of this notifier. Only this thread should process
-        // events from the event queue.
-
-        internal System.Threading.Thread primaryThread;
-
-        // Stores the Notifier for each thread.
-
-        private static Hashtable notifierTable;
-
-        // List of registered timer handlers.
-
-        internal ArrayList timerList;
-
-        // Used to distinguish older timer handlers from recently-created ones.
-
-        internal int timerGeneration;
-
-        // True if there is a pending timer event in the event queue, false
-        // otherwise.
-
-        internal bool timerPending;
-
-        // List of registered idle handlers.
-
-        internal ArrayList idleList;
-
-        // Used to distinguish older idle handlers from recently-created ones.
-
-        internal int idleGeneration;
-
-        // Reference count of the notifier. It's used to tell when a notifier
-        // is no longer needed.
-
-        internal int refCount;
-
-        private Notifier(System.Threading.Thread primaryTh)
+        private Notifier(Thread primaryThread)
         {
-            primaryThread = primaryTh;
-            firstEvent = null;
-            lastEvent = null;
-            markerEvent = null;
-
-            timerList = new ArrayList(10);
-            timerGeneration = 0;
-            idleList = new ArrayList(10);
-            idleGeneration = 0;
-            timerPending = false;
-            refCount = 0;
+            PrimaryThread = primaryThread;
+            _firstEvent = null;
+            _lastEvent = null;
+            _markerEvent = null;
+            TimerList = new ArrayList(10);
+            TimerGeneration = 0;
+            IdleList = new ArrayList(10);
+            IdleGeneration = 0;
+            TimerPending = false;
+            _refCount = 0;
         }
-        public static Notifier getNotifierForThread(System.Threading.Thread thread)
-        // The thread that owns this Notifier.
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="thread">The thread that owns this Notifier.</param>
+        /// <returns></returns>
+        public static Notifier GetNotifierForThread(Thread thread)
         {
-            lock (typeof(Tcl.Lang.Notifier))
+            lock (typeof(Notifier))
             {
-                Notifier notifier = (Notifier)notifierTable[thread];
+                Notifier notifier = (Notifier)_notifierTable[thread];
                 if (notifier == null)
                 {
                     notifier = new Notifier(thread);
-                    SupportClass.PutElement(notifierTable, thread, notifier);
+                    SupportClass.PutElement(_notifierTable, thread, notifier);
                 }
-
                 return notifier;
             }
         }
-        public void preserve()
+
+        public void Preserve()
         {
             lock (this)
             {
-                if (refCount < 0)
-                {
+                if (_refCount < 0)
                     throw new TclRuntimeError("Attempting to preserve a freed Notifier");
-                }
-                ++refCount;
+                ++_refCount;
             }
         }
-        public void release()
+
+        public void Release()
         {
             lock (this)
             {
-                if ((refCount == 0) && (primaryThread != null))
-                {
+                if (_refCount == 0 && PrimaryThread != null)
                     throw new TclRuntimeError("Attempting to release a Notifier before it's preserved");
-                }
-                if (refCount <= 0)
-                {
+                if (_refCount <= 0)
                     throw new TclRuntimeError("Attempting to release a freed Notifier");
-                }
-                --refCount;
-                if (refCount == 0)
+                --_refCount;
+                if (_refCount == 0)
                 {
-                    SupportClass.HashtableRemove(notifierTable, primaryThread);
-                    primaryThread = null;
+                    SupportClass.HashtableRemove(_notifierTable, PrimaryThread);
+                    PrimaryThread = null;
                 }
             }
         }
-        public void queueEvent(TclEvent evt, int position)
-        // One of TCL.QUEUE_TAIL,
-        // TCL.QUEUE_HEAD or TCL.QUEUE_MARK.
+
+        // One of TCL.QUEUE_TAIL, TCL.QUEUE_HEAD or TCL.QUEUE_MARK.
+        public void QueueEvent(TclEvent evt, TCL.QUEUE position)
         {
             lock (this)
             {
                 evt.notifier = this;
-
-                if (position == TCL.QUEUE_TAIL)
+                if (position == TCL.QUEUE.TAIL)
                 {
                     // Append the event on the end of the queue.
-
                     evt.next = null;
-
-                    if (firstEvent == null)
-                    {
-                        firstEvent = evt;
-                    }
+                    if (_firstEvent == null)
+                        _firstEvent = evt;
                     else
-                    {
-                        lastEvent.next = evt;
-                    }
-                    lastEvent = evt;
+                        _lastEvent.next = evt;
+                    _lastEvent = evt;
                 }
-                else if (position == TCL.QUEUE_HEAD)
+                else if (position == TCL.QUEUE.HEAD)
                 {
                     // Push the event on the head of the queue.
-
-                    evt.next = firstEvent;
-                    if (firstEvent == null)
-                    {
-                        lastEvent = evt;
-                    }
-                    firstEvent = evt;
+                    evt.next = _firstEvent;
+                    if (_firstEvent == null)
+                        _lastEvent = evt;
+                    _firstEvent = evt;
                 }
-                else if (position == TCL.QUEUE_MARK)
+                else if (position == TCL.QUEUE.MARK)
                 {
-                    // Insert the event after the current marker event and advance
-                    // the marker to the new event.
-
-                    if (markerEvent == null)
+                    // Insert the event after the current marker event and advance the marker to the new event.
+                    if (_markerEvent == null)
                     {
-                        evt.next = firstEvent;
-                        firstEvent = evt;
+                        evt.next = _firstEvent;
+                        _firstEvent = evt;
                     }
                     else
                     {
-                        evt.next = markerEvent.next;
-                        markerEvent.next = evt;
+                        evt.next = _markerEvent.next;
+                        _markerEvent.next = evt;
                     }
-                    markerEvent = evt;
+                    _markerEvent = evt;
                     if (evt.next == null)
-                    {
-                        lastEvent = evt;
-                    }
+                        _lastEvent = evt;
                 }
                 else
                 {
                     // Wrong flag.
-
                     throw new TclRuntimeError("wrong position \"" + position + "\", must be TCL.QUEUE_HEAD, TCL.QUEUE_TAIL or TCL.QUEUE_MARK");
                 }
-
-                if (System.Threading.Thread.CurrentThread != primaryThread)
-                {
-                    System.Threading.Monitor.PulseAll(this);
-                }
+                if (Thread.CurrentThread != PrimaryThread)
+                    Monitor.PulseAll(this);
             }
         }
-        public void deleteEvents(EventDeleter deleter)
-        // The deleter that checks whether an event
-        // should be removed.
+
+        // The deleter that checks whether an event should be removed.
+        public void deleteEvents(IEventDeleter deleter)
         {
             lock (this)
             {
-                TclEvent evt, prev;
                 TclEvent servicedEvent = null;
-
-                // Handle the special case of deletion of a single event that was just
-                // processed by the serviceEvent() method.
-
+                // Handle the special case of deletion of a single event that was just processed by the serviceEvent() method.
                 if (deleter == this)
                 {
-                    servicedEvent = this.servicedEvent;
+                    servicedEvent = _servicedEvent;
                     if (servicedEvent == null)
                         throw new TclRuntimeError("servicedEvent was not set by serviceEvent()");
-                    this.servicedEvent = null;
+                    _servicedEvent = null;
                 }
-
-                for (prev = null, evt = firstEvent; evt != null; evt = evt.next)
+                for (TclEvent prev = null, evt = _firstEvent; evt != null; evt = evt.next)
                 {
-                    if (((servicedEvent == null) && (deleter.deleteEvent(evt) == 1)) || (evt == servicedEvent))
+                    if ((servicedEvent == null && deleter.DeleteEvent(evt)) || evt == servicedEvent)
                     {
-                        if (evt == firstEvent)
-                        {
-                            firstEvent = evt.next;
-                        }
+                        if (evt == _firstEvent)
+                            _firstEvent = evt.next;
                         else
-                        {
                             prev.next = evt.next;
-                        }
                         if (evt.next == null)
-                        {
-                            lastEvent = prev;
-                        }
-                        if (evt == markerEvent)
-                        {
-                            markerEvent = prev;
-                        }
+                            _lastEvent = prev;
+                        if (evt == _markerEvent)
+                            _markerEvent = prev;
                         if (evt == servicedEvent)
                         {
                             servicedEvent = null;
@@ -264,17 +193,14 @@ namespace Tcl.Lang
                         }
                     }
                     else
-                    {
                         prev = evt;
-                    }
                 }
                 if (servicedEvent != null)
-                {
                     throw new TclRuntimeError("servicedEvent was not removed from the queue");
-                }
             }
         }
-        public int deleteEvent(TclEvent evt)
+
+        public bool DeleteEvent(TclEvent evt)
         {
             throw new TclRuntimeError("The Notifier.deleteEvent() method should not be called");
         }
@@ -331,7 +257,7 @@ namespace Tcl.Lang
                         }
                     }
                     // Remove this specific event from the queue
-                    servicedEvent = evt;
+                    _servicedEvent = evt;
                     deleteEvents(this);
                     return 1;
                 }
@@ -359,7 +285,7 @@ namespace Tcl.Lang
             {
                 TclEvent evt;
 
-                for (evt = firstEvent; evt != null; evt = evt.next)
+                for (evt = _firstEvent; evt != null; evt = evt.next)
                 {
                     if ((evt.isProcessing == false) && (evt.isProcessed == false) && (evt != skipEvent))
                     {
@@ -406,16 +332,16 @@ namespace Tcl.Lang
                 // event queue. We can't process expired times right away,
                 // because there may already be other events on the queue.
 
-                if (!timerPending && (timerList.Count > 0))
+                if (!TimerPending && (TimerList.Count > 0))
                 {
-                    TimerHandler h = (TimerHandler)timerList[0];
+                    TimerHandler h = (TimerHandler)TimerList[0];
 
                     if (h.atTime <= sysTime)
                     {
                         TimerEvent Tevent = new TimerEvent();
                         Tevent.notifier = this;
-                        queueEvent(Tevent, TCL.QUEUE_TAIL);
-                        timerPending = true;
+                        QueueEvent(Tevent, TCL.QUEUE.TAIL);
+                        TimerPending = true;
                     }
                 }
 
@@ -468,9 +394,9 @@ namespace Tcl.Lang
 
                     lock (this)
                     {
-                        if (timerList.Count > 0)
+                        if (TimerList.Count > 0)
                         {
-                            TimerHandler h = (TimerHandler)timerList[0];
+                            TimerHandler h = (TimerHandler)TimerList[0];
                             long waitTime = h.atTime - sysTime;
                             if (waitTime > 0)
                             {
@@ -495,8 +421,8 @@ namespace Tcl.Lang
         private int serviceIdle()
         {
             int result = 0;
-            int gen = idleGeneration;
-            idleGeneration++;
+            int gen = IdleGeneration;
+            IdleGeneration++;
 
             // The code below is trickier than it may look, for the following
             // reasons:
@@ -512,15 +438,15 @@ namespace Tcl.Lang
             //    the handler from the list before calling it. Otherwise an
             //    infinite loop could result.
 
-            while (idleList.Count > 0)
+            while (IdleList.Count > 0)
             {
-                IdleHandler h = (IdleHandler)idleList[0];
-                if (h.generation > gen)
+                IdleHandler h = (IdleHandler)IdleList[0];
+                if (h.Generation > gen)
                 {
                     break;
                 }
-                idleList.RemoveAt(0);
-                if (h.invoke() != 0)
+                IdleList.RemoveAt(0);
+                if (h.Invoke() != 0)
                 {
                     result = 1;
                 }
@@ -530,7 +456,7 @@ namespace Tcl.Lang
         }
         static Notifier()
         {
-            notifierTable = new Hashtable();
+            _notifierTable = new Hashtable();
         }
     } // end Notifier
 
@@ -550,8 +476,8 @@ namespace Tcl.Lang
             }
 
             long sysTime = (System.DateTime.Now.Ticks - 621355968000000000) / 10000;
-            int gen = notifier.timerGeneration;
-            notifier.timerGeneration++;
+            int gen = notifier.TimerGeneration;
+            notifier.TimerGeneration++;
 
             // The code below is trickier than it may look, for the following
             // reasons:
@@ -576,9 +502,9 @@ namespace Tcl.Lang
             //	  time, we don't have to worry about newer generation timers
             //	  appearing before later ones.
 
-            while (notifier.timerList.Count > 0)
+            while (notifier.TimerList.Count > 0)
             {
-                TimerHandler h = (TimerHandler)notifier.timerList[0];
+                TimerHandler h = (TimerHandler)notifier.TimerList[0];
                 if (h.generation > gen)
                 {
                     break;
@@ -587,11 +513,11 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                notifier.timerList.RemoveAt(0);
+                notifier.TimerList.RemoveAt(0);
                 h.invoke();
             }
 
-            notifier.timerPending = false;
+            notifier.TimerPending = false;
             return 1;
         }
     } // end TimerEvent

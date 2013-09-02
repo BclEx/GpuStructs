@@ -12,7 +12,7 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "break" command in Tcl.</summary>
-    class BreakCmd : Command
+    class BreakCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "break" Tcl command.
         /// See the user documentation for details on what it does.
@@ -20,7 +20,7 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException is always thrown.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 1)
             {

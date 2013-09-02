@@ -17,10 +17,10 @@ namespace Tcl.Lang
   * This class implements the built-in "return" command in Tcl.
   */
 
-  class ReturnCmd : Command
+  class ReturnCmd : ICommand
   {
 
-    public TCL.CompletionCode cmdProc( Interp interp, TclObject[] argv )
+    public TCL.CompletionCode CmdProc( Interp interp, TclObject[] argv )
     {
       interp.errorCode = null;
       interp.errorInfo = null;

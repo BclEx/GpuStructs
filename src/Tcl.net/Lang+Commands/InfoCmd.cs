@@ -15,7 +15,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "info" command in Tcl.</summary>
 
-    class InfoCmd : Command
+    class InfoCmd : ICommand
     {
         private static readonly string[] validCmds = new string[] { "args", "body", "cmdcount", "commands", "complete", "default", "exists", "globals", "hostname", "level", "library", "loaded", "locals", "nameofexecutable", "patchlevel", "procs", "script", "sharedlibextension", "tclversion", "vars" };
 
@@ -52,7 +52,7 @@ namespace Tcl.Lang
         /// </param>
         /// <exception cref=""> TclException if wrong # of args or invalid argument(s).
         /// </exception>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             int index;
 
@@ -187,11 +187,11 @@ namespace Tcl.Lang
 
             // Build a return list containing the arguments.
 
-            listObj = TclList.newInstance();
-            for (int i = 0; i < proc.argList.Length; i++)
+            listObj = TclList.NewInstance();
+            for (int i = 0; i < proc.ArgList.Length; i++)
             {
-                TclObject s = TclString.newInstance(proc.argList[i][0]);
-                TclList.append(interp, listObj, s);
+                TclObject s = TclString.NewInstance(proc.ArgList[i][0]);
+                TclList.Append(interp, listObj, s);
             }
             interp.setResult(listObj);
             return;
@@ -352,7 +352,7 @@ namespace Tcl.Lang
             // namespace was requested in the pattern, qualify the command names
             // with the namespace name.
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
 
             if (ns != null)
             {
@@ -365,13 +365,13 @@ namespace Tcl.Lang
                         if (specificNsInPattern)
                         {
                             cmd = (WrappedCommand)search.Value;
-                            elemObj = TclString.newInstance(interp.getCommandFullName(cmd));
+                            elemObj = TclString.NewInstance(interp.getCommandFullName(cmd));
                         }
                         else
                         {
-                            elemObj = TclString.newInstance(cmdName);
+                            elemObj = TclString.NewInstance(cmdName);
                         }
-                        TclList.append(interp, list, elemObj);
+                        TclList.Append(interp, list, elemObj);
                     }
                 }
 
@@ -391,7 +391,7 @@ namespace Tcl.Lang
                         {
                             if (ns.cmdTable[cmdName] == null)
                             {
-                                TclList.append(interp, list, TclString.newInstance(cmdName));
+                                TclList.Append(interp, list, TclString.NewInstance(cmdName));
                             }
                         }
                     }
@@ -475,23 +475,23 @@ namespace Tcl.Lang
                 throw new TclException(interp, "\"" + procName + "\" isn't a procedure");
             }
 
-            for (int i = 0; i < proc.argList.Length; i++)
+            for (int i = 0; i < proc.ArgList.Length; i++)
             {
 
-                if (argName.Equals(proc.argList[i][0].ToString()))
+                if (argName.Equals(proc.ArgList[i][0].ToString()))
                 {
 
                     varName = objv[4].ToString();
                     try
                     {
-                        if (proc.argList[i][1] != null)
+                        if (proc.ArgList[i][1] != null)
                         {
-                            interp.setVar(varName, proc.argList[i][1], 0);
+                            interp.SetVar(varName, proc.ArgList[i][1], 0);
                             interp.setResult(1);
                         }
                         else
                         {
-                            interp.setVar(varName, "", 0);
+                            interp.SetVar(varName, "", 0);
                             interp.setResult(0);
                         }
                     }
@@ -536,13 +536,13 @@ namespace Tcl.Lang
 
 
             varName = objv[2].ToString();
-            Var[] result = Var.lookupVar(interp, varName, null, 0, "access", false, false);
+            Var[] result = Var.LookupVar(interp, varName, null, 0, "access", false, false);
             if (result != null)
             {
                 var = result[0];
             }
 
-            if ((var != null) && !var.isVarUndefined())
+            if ((var != null) && !var.IsVarUndefined())
             {
                 interp.setResult(true);
             }
@@ -599,19 +599,19 @@ namespace Tcl.Lang
             // Scan through the global :: namespace's variable table and create a
             // list of all global variables that match the pattern.
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
 
             for (search = globalNs.varTable.GetEnumerator(); search.MoveNext(); )
             {
                 varName = ((string)search.Key);
                 var = (Var)search.Value;
-                if (var.isVarUndefined())
+                if (var.IsVarUndefined())
                 {
                     continue;
                 }
                 if (((System.Object)pattern == null) || Util.stringMatch(varName, pattern))
                 {
-                    TclList.append(interp, list, TclString.newInstance(varName));
+                    TclList.Append(interp, list, TclString.NewInstance(varName));
                 }
             }
 
@@ -691,13 +691,13 @@ namespace Tcl.Lang
             if (objv.Length == 2)
             {
                 // just "info level"
-                if (interp.varFrame == null)
+                if (interp.VarFrame == null)
                 {
                     interp.setResult(0);
                 }
                 else
                 {
-                    interp.setResult(interp.varFrame.level);
+                    interp.setResult(interp.VarFrame.Level);
                 }
                 return;
             }
@@ -707,32 +707,32 @@ namespace Tcl.Lang
 
                 if (level <= 0)
                 {
-                    if (interp.varFrame == null)
+                    if (interp.VarFrame == null)
                     {
 
                         throw new TclException(interp, "bad level \"" + objv[2].ToString() + "\"");
                     }
 
-                    level += interp.varFrame.level;
+                    level += interp.VarFrame.Level;
                 }
 
-                for (frame = interp.varFrame; frame != null; frame = frame.callerVar)
+                for (frame = interp.VarFrame; frame != null; frame = frame.CallerVar)
                 {
-                    if (frame.level == level)
+                    if (frame.Level == level)
                     {
                         break;
                     }
                 }
-                if ((frame == null) || frame.objv == null)
+                if ((frame == null) || frame.Objv == null)
                 {
 
                     throw new TclException(interp, "bad level \"" + objv[2].ToString() + "\"");
                 }
 
-                list = TclList.newInstance();
-                for (int i = 0; i < frame.objv.Length; i++)
+                list = TclList.NewInstance();
+                for (int i = 0; i < frame.Objv.Length; i++)
                 {
-                    TclList.append(interp, list, TclString.newInstance(frame.objv[i]));
+                    TclList.Append(interp, list, TclString.NewInstance(frame.Objv[i]));
                 }
                 interp.setResult(list);
                 return;
@@ -848,7 +848,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, "?pattern?");
             }
 
-            if (interp.varFrame == null || !interp.varFrame.isProcCallFrame)
+            if (interp.VarFrame == null || !interp.VarFrame.IsProcCallFrame)
             {
                 return;
             }
@@ -857,7 +857,7 @@ namespace Tcl.Lang
             // ones stored in the call frame), then the variables in the local hash
             // table (if one exists).
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
             AppendLocals(interp, list, pattern, false);
             interp.setResult(list);
             return;
@@ -887,7 +887,7 @@ namespace Tcl.Lang
             Hashtable localVarTable;
             IDictionaryEnumerator search;
 
-            localVarTable = interp.varFrame.varTable;
+            localVarTable = interp.VarFrame.VarTable;
 
             // Compiled locals do not exist in Jacl
 
@@ -897,11 +897,11 @@ namespace Tcl.Lang
                 {
                     var = (Var)search.Value;
                     varName = (string)search.Key;
-                    if (!var.isVarUndefined() && (includeLinks || !var.isVarLink()))
+                    if (!var.IsVarUndefined() && (includeLinks || !var.isVarLink()))
                     {
                         if (((System.Object)pattern == null) || Util.stringMatch(varName, pattern))
                         {
-                            TclList.append(interp, list, TclString.newInstance(varName));
+                            TclList.Append(interp, list, TclString.NewInstance(varName));
                         }
                     }
                 }
@@ -944,9 +944,9 @@ namespace Tcl.Lang
 
             if ((System.Object)nameOfExecutable != null)
             {
-                TclObject result = TclList.newInstance();
-                TclList.append(interp, result, TclString.newInstance(nameOfExecutable));
-                TclList.append(interp, result, TclString.newInstance("tcl.lang.Shell"));
+                TclObject result = TclList.NewInstance();
+                TclList.Append(interp, result, TclString.NewInstance(nameOfExecutable));
+                TclList.Append(interp, result, TclString.NewInstance("tcl.lang.Shell"));
                 interp.setResult(result);
             }
 
@@ -1029,7 +1029,7 @@ namespace Tcl.Lang
             // Scan through the current namespace's command table and return a list
             // of all procs that match the pattern.
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
             for (search = currNs.cmdTable.GetEnumerator(); search.MoveNext(); )
             {
                 cmdName = ((string)search.Key);
@@ -1045,7 +1045,7 @@ namespace Tcl.Lang
                 {
                     if (((System.Object)pattern == null) || Util.stringMatch(cmdName, pattern))
                     {
-                        TclList.append(interp, list, TclString.newInstance(cmdName));
+                        TclList.Append(interp, list, TclString.NewInstance(cmdName));
                     }
                 }
             }
@@ -1231,9 +1231,9 @@ namespace Tcl.Lang
                 return;
             }
 
-            list = TclList.newInstance();
+            list = TclList.NewInstance();
 
-            if ((interp.varFrame == null) || !interp.varFrame.isProcCallFrame || specificNsInPattern)
+            if ((interp.VarFrame == null) || !interp.VarFrame.IsProcCallFrame || specificNsInPattern)
             {
                 // There is no frame pointer, the frame pointer was pushed only
                 // to activate a namespace, or we are in a procedure call frame
@@ -1245,19 +1245,19 @@ namespace Tcl.Lang
                 {
                     varName = ((string)search.Key);
                     var = (Var)search.Value;
-                    if (!var.isVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
+                    if (!var.IsVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
                     {
                         if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
                         {
                             if (specificNsInPattern)
                             {
-                                elemObj = TclString.newInstance(Var.getVariableFullName(interp, var));
+                                elemObj = TclString.NewInstance(Var.getVariableFullName(interp, var));
                             }
                             else
                             {
-                                elemObj = TclString.newInstance(varName);
+                                elemObj = TclString.NewInstance(varName);
                             }
-                            TclList.append(interp, list, elemObj);
+                            TclList.Append(interp, list, elemObj);
                         }
                     }
                 }
@@ -1276,7 +1276,7 @@ namespace Tcl.Lang
                     {
                         varName = ((string)search.Key);
                         var = (Var)search.Value;
-                        if (!var.isVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
+                        if (!var.IsVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
                         {
                             if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
                             {
@@ -1284,7 +1284,7 @@ namespace Tcl.Lang
                                 // Skip vars defined in current namespace
                                 if (ns.varTable[varName] == null)
                                 {
-                                    TclList.append(interp, list, TclString.newInstance(varName));
+                                    TclList.Append(interp, list, TclString.NewInstance(varName));
                                 }
                             }
                         }

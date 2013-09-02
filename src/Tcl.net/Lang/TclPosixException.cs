@@ -111,12 +111,12 @@ namespace Tcl.Lang
 
             string msg = getPosixMsg(errno);
 
-            TclObject threeEltListObj = TclList.newInstance();
-            TclList.append(interp, threeEltListObj, TclString.newInstance("POSIX"));
-            TclList.append(interp, threeEltListObj, TclString.newInstance(getPosixId(errno)));
-            TclList.append(interp, threeEltListObj, TclString.newInstance(msg));
+            TclObject threeEltListObj = TclList.NewInstance();
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance("POSIX"));
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance(getPosixId(errno)));
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance(msg));
 
-            interp.setErrorCode(threeEltListObj);
+            interp.SetErrorCode(threeEltListObj);
 
             if (interp != null)
             {
@@ -130,12 +130,12 @@ namespace Tcl.Lang
 
             string msg = getPosixMsg(errno);
 
-            TclObject threeEltListObj = TclList.newInstance();
-            TclList.append(interp, threeEltListObj, TclString.newInstance("POSIX"));
-            TclList.append(interp, threeEltListObj, TclString.newInstance(getPosixId(errno)));
-            TclList.append(interp, threeEltListObj, TclString.newInstance(msg));
+            TclObject threeEltListObj = TclList.NewInstance();
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance("POSIX"));
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance(getPosixId(errno)));
+            TclList.Append(interp, threeEltListObj, TclString.NewInstance(msg));
 
-            interp.setErrorCode(threeEltListObj);
+            interp.SetErrorCode(threeEltListObj);
 
             if (interp != null)
             {

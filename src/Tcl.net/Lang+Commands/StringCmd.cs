@@ -15,7 +15,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "string" command in Tcl.</summary>
 
-    class StringCmd : Command
+    class StringCmd : ICommand
     {
 
         private static readonly string[] options = new string[] { "bytelength", "compare", "equal", "first", "index", "is", "last", "length", "map", "match", "range", "repeat", "replace", "tolower", "toupper", "totitle", "trim", "trimleft", "trimright", "wordend", "wordstart" };
@@ -89,7 +89,7 @@ namespace Tcl.Lang
         /// ----------------------------------------------------------------------
         /// </summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             if (objv.Length < 2)
             {
@@ -375,12 +375,12 @@ namespace Tcl.Lang
                                     // If strtoul gets to the end, we know we either
                                     // received an acceptable int, or over/underflow
 
-                                    if (Expression.looksLikeInt(string1, length1, 0))
+                                    if (Expression.LooksLikeInt(string1, length1, 0))
                                     {
                                         char c = string1[0];
                                         int signIx = (c == '-' || c == '+') ? 1 : 0;
-                                        StrtoulResult res = Util.strtoul(string1, signIx, 0);
-                                        if (res.index == length1)
+                                        StrtoulResult res = Util.Strtoul(string1, signIx, 0);
+                                        if (res.Index == length1)
                                         {
                                             if (res.errno == TCL.INTEGER_RANGE)
                                             {
@@ -393,7 +393,7 @@ namespace Tcl.Lang
 
                                     char c2 = string1[0];
                                     int signIx2 = (c2 == '-' || c2 == '+') ? 1 : 0;
-                                    StrtodResult res2 = Util.strtod(string1, signIx2);
+                                    StrtodResult res2 = Util.Strtod(string1, signIx2);
                                     if (res2.errno == TCL.DOUBLE_RANGE)
                                     {
                                         // if (errno == ERANGE), then it was an over/underflow
@@ -451,7 +451,7 @@ namespace Tcl.Lang
 
                                     char c = string1[0];
                                     int signIx = (c == '-' || c == '+') ? 1 : 0;
-                                    StrtoulResult res = Util.strtoul(string1, signIx, 0);
+                                    StrtoulResult res = Util.Strtoul(string1, signIx, 0);
                                     if (res.errno == TCL.INTEGER_RANGE)
                                     {
                                         // if (errno == ERANGE), then it was an over/underflow
@@ -462,7 +462,7 @@ namespace Tcl.Lang
                                         result = false;
                                         failat = -1;
                                     }
-                                    else if (res.index == 0)
+                                    else if (res.Index == 0)
                                     {
                                         // In this case, nothing like a number was found
 
@@ -474,8 +474,8 @@ namespace Tcl.Lang
                                         // Go onto SPACE, since we are
                                         // allowed trailing whitespace
 
-                                        failat = res.index;
-                                        for (int i = res.index; i < length1; i++)
+                                        failat = res.Index;
+                                        for (int i = res.Index; i < length1; i++)
                                         {
                                             if (!System.Char.IsWhiteSpace(string1[i]))
                                             {
@@ -509,7 +509,7 @@ namespace Tcl.Lang
 
                                     char c = string1[0];
                                     int signIx = (c == '-' || c == '+') ? 1 : 0;
-                                    StrtoulResult res = Util.strtoul(string1, signIx, 0);
+                                    StrtoulResult res = Util.Strtoul(string1, signIx, 0);
                                     if (res.errno == TCL.INTEGER_RANGE)
                                     {
                                         // if (errno == ERANGE), then it was an over/underflow
@@ -520,7 +520,7 @@ namespace Tcl.Lang
                                         result = false;
                                         failat = -1;
                                     }
-                                    else if (res.index == 0)
+                                    else if (res.Index == 0)
                                     {
                                         // In this case, nothing like a number was found
 
@@ -532,8 +532,8 @@ namespace Tcl.Lang
                                         // Go onto SPACE, since we are
                                         // allowed trailing whitespace
 
-                                        failat = res.index;
-                                        for (int i = res.index; i < length1; i++)
+                                        failat = res.Index;
+                                        for (int i = res.Index; i < length1; i++)
                                         {
                                             if (!System.Char.IsWhiteSpace(string1[i]))
                                             {
@@ -625,7 +625,7 @@ namespace Tcl.Lang
 
                         if ((!result) && (failVarObj != null))
                         {
-                            interp.setVar(failVarObj, TclInteger.newInstance(failat), 0);
+                            interp.SetVar(failVarObj, TclInteger.NewInstance(failat), 0);
                         }
                         interp.setResult(result);
                         break;
@@ -778,7 +778,7 @@ namespace Tcl.Lang
                             cmpStrings = mapStrings;
                         }
 
-                        TclObject result = TclString.newInstance("");
+                        TclObject result = TclString.NewInstance("");
                         int p, str1;
                         for (p = 0, str1 = 0; str1 < length1; str1++)
                         {
@@ -906,7 +906,7 @@ namespace Tcl.Lang
                         string string1 = objv[2].ToString();
                         if (string1.Length > 0)
                         {
-                            TclObject tstr = TclString.newInstance("");
+                            TclObject tstr = TclString.NewInstance("");
                             for (index = 0; index < count; index++)
                             {
                                 TclString.append(tstr, string1);
@@ -957,7 +957,7 @@ namespace Tcl.Lang
                                 end = start.Substring(ind);
                             }
 
-                            TclObject tstr = TclString.newInstance(string1.Substring(0, (first) - (0)));
+                            TclObject tstr = TclString.NewInstance(string1.Substring(0, (first) - (0)));
 
                             if (objv.Length == 6)
                             {

@@ -16,7 +16,7 @@ namespace Tcl.Lang
     * This class implements the built-in "update" command in Tcl.
     */
 
-    class UpdateCmd : Command
+    class UpdateCmd : ICommand
     {
 
         /*
@@ -27,7 +27,7 @@ namespace Tcl.Lang
 
         internal const int OPT_IDLETASKS = 0;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             int flags;
 

@@ -13,17 +13,17 @@ namespace Tcl.Lang
     /// <summary>
     /// This class implements the built-in "global" command in Tcl.
     /// </summary>
-    class GlobalCmd : Command
+    class GlobalCmd : ICommand
     {
         /// <summary>
         /// See Tcl user documentation for details.
         /// </summary>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             if (objv.Length < 2)
                 throw new TclNumArgsException(interp, 1, objv, "varName ?varName ...?");
             //  If we are not executing inside a Tcl procedure, just return.
-            if ((interp.varFrame == null) || !interp.varFrame.isProcCallFrame)
+            if ((interp.VarFrame == null) || !interp.VarFrame.IsProcCallFrame)
                 return TCL.CompletionCode.RETURN;
             for (int i = 1; i < objv.Length; i++)
             {

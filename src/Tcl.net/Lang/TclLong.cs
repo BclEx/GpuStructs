@@ -42,14 +42,14 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this InternalRep.
         /// </param>
-        public InternalRep duplicate()
+        public InternalRep Duplicate()
         {
             return new TclLong(value);
         }
 
         /// <summary> Implement this no-op for the InternalRep longerface.</summary>
 
-        public void dispose()
+        public void Dispose()
         {
         }
 

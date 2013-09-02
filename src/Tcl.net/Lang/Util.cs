@@ -111,7 +111,7 @@ namespace Tcl.Lang
         {
             // Do nothing.  This should never be called.
         }
-        internal static StrtoulResult strtoul(string s, int start, int base_)
+        internal static StrtoulResult Strtoul(string s, int start, int base_)
         // Base for conversion.  Must be less than 37.  If 0,
         // then the base is chosen from the leading characters
         // of string:  "0x" means hex, "0" means octal, 
@@ -256,14 +256,14 @@ namespace Tcl.Lang
                 sign = false;
             }
 
-            StrtoulResult res = strtoul(s, i, 0);
+            StrtoulResult res = Strtoul(s, i, 0);
             if (res.errno < 0)
             {
                 if (res.errno == TCL.INTEGER_RANGE)
                 {
                     if (interp != null)
                     {
-                        interp.setErrorCode(TclString.newInstance(intTooBigCode));
+                        interp.SetErrorCode(TclString.NewInstance(intTooBigCode));
                     }
                     throw new TclException(interp, "integer value too large to represent");
                 }
@@ -272,9 +272,9 @@ namespace Tcl.Lang
                     throw new TclException(interp, "expected integer but got \"" + s + "\"" + checkBadOctal(interp, s));
                 }
             }
-            else if (res.index < len)
+            else if (res.Index < len)
             {
-                for (i = res.index; i < len; i++)
+                for (i = res.Index; i < len; i++)
                 {
                     if (!System.Char.IsWhiteSpace(s[i]))
                     {
@@ -324,14 +324,14 @@ namespace Tcl.Lang
                 sign = false;
             }
 
-            StrtoulResult res = strtoul(s, i, 0);
+            StrtoulResult res = Strtoul(s, i, 0);
             if (res.errno < 0)
             {
                 if (res.errno == TCL.INTEGER_RANGE)
                 {
                     if (interp != null)
                     {
-                        interp.setErrorCode(TclString.newInstance(intTooBigCode));
+                        interp.SetErrorCode(TclString.NewInstance(intTooBigCode));
                     }
                     throw new TclException(interp, "integer value too large to represent");
                 }
@@ -340,9 +340,9 @@ namespace Tcl.Lang
                     throw new TclException(interp, "expected integer but got \"" + s + "\"" + checkBadOctal(interp, s));
                 }
             }
-            else if (res.index < len)
+            else if (res.Index < len)
             {
-                for (i = res.index; i < len; i++)
+                for (i = res.Index; i < len; i++)
                 {
                     if (!System.Char.IsWhiteSpace(s[i]))
                     {
@@ -444,7 +444,7 @@ namespace Tcl.Lang
             }
             return "";
         }
-        internal static StrtodResult strtod(string s, int start)
+        internal static StrtodResult Strtod(string s, int start)
         // The index to the char where the number starts.
         {
             //bool sign;
@@ -595,14 +595,14 @@ namespace Tcl.Lang
                 sign = false;
             }
 
-            StrtodResult res = strtod(s, i);
+            StrtodResult res = Strtod(s, i);
             if (res.errno != 0)
             {
                 if (res.errno == TCL.DOUBLE_RANGE)
                 {
                     if (interp != null)
                     {
-                        interp.setErrorCode(TclString.newInstance(fpTooBigCode));
+                        interp.SetErrorCode(TclString.NewInstance(fpTooBigCode));
                     }
                     throw new TclException(interp, "floating-point value too large to represent");
                 }
@@ -1287,7 +1287,7 @@ namespace Tcl.Lang
         {
             return TrimRight(str, " \n\t\r");
         }
-        internal static bool getBoolean(Interp interp, string inString)
+        internal static bool GetBoolean(Interp interp, string inString)
         {
             string s = inString.ToLower();
 
@@ -1419,7 +1419,7 @@ namespace Tcl.Lang
 
             if ((flags & TCL.VarFlag.TRACE_READS) != 0)
             {
-                interp.setVar(name1, name2, TclInteger.newInstance(Util.precision), flags & TCL.VarFlag.GLOBAL_ONLY);
+                interp.SetVar(name1, name2, TclInteger.NewInstance(Util.precision), flags & TCL.VarFlag.GLOBAL_ONLY);
                 return;
             }
 
@@ -1452,11 +1452,11 @@ namespace Tcl.Lang
                 value = "";
             }
 
-            StrtoulResult r = Util.strtoul(value, 0, 10);
+            StrtoulResult r = Util.Strtoul(value, 0, 10);
 
-            if ((r == null) || (r.value <= 0) || (r.value > TCL_MAX_PREC) || (r.value > 100) || (r.index == 0) || (r.index != value.Length))
+            if ((r == null) || (r.value <= 0) || (r.value > TCL_MAX_PREC) || (r.value > 100) || (r.Index == 0) || (r.Index != value.Length))
             {
-                interp.setVar(name1, name2, TclInteger.newInstance(Util.precision), TCL.VarFlag.GLOBAL_ONLY);
+                interp.SetVar(name1, name2, TclInteger.NewInstance(Util.precision), TCL.VarFlag.GLOBAL_ONLY);
                 throw new TclException(interp, "improper value for precision");
             }
 

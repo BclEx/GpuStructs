@@ -12,11 +12,11 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "concat" command in Tcl.</summary>
-    class ConcatCmd : Command
+    class ConcatCmd : ICommand
     {
 
         /// <summary> See Tcl user documentation for details.</summary>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             interp.setResult(Util.concat(1, argv.Length, argv));
             return TCL.CompletionCode.RETURN;

@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "for" command in Tcl.</summary>
 
-    class ForCmd : Command
+    class ForCmd : ICommand
     {
         /*
         * This procedure is invoked to process the "for" Tcl command.
@@ -24,7 +24,7 @@ namespace Tcl.Lang
         * @exception TclException if script causes error.
         */
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length != 5)
             {
@@ -44,13 +44,13 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                interp.addErrorInfo("\n    (\"for\" initial command)");
+                interp.AddErrorInfo("\n    (\"for\" initial command)");
                 throw;
             }
 
             while (!done)
             {
-                if (!interp.expr.evalBoolean(interp, test))
+                if (!interp.expr.EvalBoolean(interp, test))
                 {
                     break;
                 }
@@ -61,7 +61,7 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    switch (e.getCompletionCode())
+                    switch (e.GetCompletionCode())
                     {
 
                         case TCL.CompletionCode.BREAK:
@@ -74,7 +74,7 @@ namespace Tcl.Lang
 
 
                         case TCL.CompletionCode.ERROR:
-                            interp.addErrorInfo("\n    (\"for\" body line " + interp.errorLine + ")");
+                            interp.AddErrorInfo("\n    (\"for\" body line " + interp.errorLine + ")");
                             throw;
 
 
@@ -92,7 +92,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        switch (e.getCompletionCode())
+                        switch (e.GetCompletionCode())
                         {
 
                             case TCL.CompletionCode.BREAK:
@@ -105,7 +105,7 @@ namespace Tcl.Lang
 
 
                             default:
-                                interp.addErrorInfo("\n    (\"for\" loop-end command)");
+                                interp.AddErrorInfo("\n    (\"for\" loop-end command)");
                                 throw;
 
                         }

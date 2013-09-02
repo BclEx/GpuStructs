@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "read" command in Tcl.</summary>
 
-    class ReadCmd : Command
+    class ReadCmd : ICommand
     {
 
         /// <summary> This procedure is invoked to process the "read" Tcl command.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; // The channel being operated on this 
@@ -100,7 +100,7 @@ namespace Tcl.Lang
                 }
                 else
                 {
-                    result = TclString.newInstance(new StringBuilder(64));
+                    result = TclString.NewInstance(new StringBuilder(64));
                 }
                 if (readAll)
                 {

@@ -443,9 +443,9 @@ namespace Tcl.Lang
                                 {
                                     break;
                                 }
-                                if (!code.brace)
+                                if (!code.Brace)
                                 {
-                                    size = code.size;
+                                    size = code.Size;
                                     elemStart = nextElem;
                                     int s;
 
@@ -459,7 +459,7 @@ namespace Tcl.Lang
                                     }
                                 }
                                 elemCount++;
-                                nextElem = code.elemEnd;
+                                nextElem = code.ElemEnd;
                             }
 
                             if ((code == null) || nakedbs)
@@ -533,9 +533,9 @@ namespace Tcl.Lang
                                     //TclFindElement(NULL, nextElem, listEnd - nextElem,
                                     //  &(tokenPtr->start), &nextElem,
                                     //  &(tokenPtr->size), NULL);
-                                    token.script_index = nextElem + (code.brace ? 1 : 0);
-                                    token.size = code.size;
-                                    nextElem = code.elemEnd;
+                                    token.script_index = nextElem + (code.Brace ? 1 : 0);
+                                    token.size = code.Size;
+                                    nextElem = code.ElemEnd;
                                     if (token.script_index + token.size == listEnd)
                                     {
                                         parse.getToken(wordIndex - 1).size = listEnd - parse.getToken(wordIndex - 1).script_index;//tokenPtr[-1].size = listEnd - tokenPtr[-1].start;
@@ -902,9 +902,9 @@ namespace Tcl.Lang
             return parse;
         }
 
-        public static void evalObjv(Interp interp, TclObject[] objv, int length, int flags)
+        public static void EvalObjv(Interp interp, TclObject[] objv, int length, int flags)
         {
-            Command cmd;
+            ICommand cmd;
             WrappedCommand wCmd = null;
             TclObject[] newObjv;
             int i;
@@ -922,7 +922,7 @@ namespace Tcl.Lang
             if (interp.deleted)
             {
                 interp.setResult("attempt to call eval in deleted interpreter");
-                interp.setErrorCode(TclString.newInstance("CORE IDELETE {attempt to call eval in deleted interpreter}"));
+                interp.SetErrorCode(TclString.NewInstance("CORE IDELETE {attempt to call eval in deleted interpreter}"));
                 throw new TclException(TCL.CompletionCode.ERROR);
             }
 
@@ -959,8 +959,8 @@ namespace Tcl.Lang
                     {
                         newObjv[i + 1] = objv[i];
                     }
-                    newObjv[0] = TclString.newInstance("unknown");
-                    newObjv[0].preserve();
+                    newObjv[0] = TclString.NewInstance("unknown");
+                    newObjv[0].Preserve();
                     cmd = interp.getCommand("unknown");
                     if (cmd == null)
                     {
@@ -970,25 +970,25 @@ namespace Tcl.Lang
                     }
                     else
                     {
-                        evalObjv(interp, newObjv, length, 0);
+                        EvalObjv(interp, newObjv, length, 0);
                     }
-                    newObjv[0].release();
+                    newObjv[0].Release();
                     return;
                 }
 
                 // Finally, invoke the Command's cmdProc.
 
                 interp.cmdCount++;
-                savedVarFrame = interp.varFrame;
+                savedVarFrame = interp.VarFrame;
                 if ((flags & TCL.EVAL_GLOBAL) != 0)
                 {
-                    interp.varFrame = null;
+                    interp.VarFrame = null;
                 }
 
                 int rc = 0;
                 if (cmd != null)
                 {
-                    if (cmd.cmdProc(interp, objv) == TCL.CompletionCode.EXIT)
+                    if (cmd.CmdProc(interp, objv) == TCL.CompletionCode.EXIT)
                         throw new TclException(TCL.CompletionCode.EXIT);
                 }
                 else
@@ -1001,7 +1001,7 @@ namespace Tcl.Lang
                         throw new TclException(TCL.CompletionCode.ERROR);
                     }
                 }
-                interp.varFrame = savedVarFrame;
+                interp.VarFrame = savedVarFrame;
             }
             finally
             {
@@ -1065,11 +1065,11 @@ namespace Tcl.Lang
             msg = new string(script_array, cmdIndex, offset);
             if (!(interp.errInProgress))
             {
-                interp.addErrorInfo("\n    while executing\n\"" + msg + ellipsis + "\"");
+                interp.AddErrorInfo("\n    while executing\n\"" + msg + ellipsis + "\"");
             }
             else
             {
-                interp.addErrorInfo("\n    invoked from within\n\"" + msg + ellipsis + "\"");
+                interp.AddErrorInfo("\n    invoked from within\n\"" + msg + ellipsis + "\"");
             }
             interp.errAlreadyLogged = false;
             e.errIndex = cmdIndex + offset;
@@ -1130,7 +1130,7 @@ namespace Tcl.Lang
 
                         token.script_index--;
                         //interp.nestLevel--;
-                        value = interp.getResult();
+                        value = interp.GetResult();
                         break;
 
 
@@ -1155,7 +1155,7 @@ namespace Tcl.Lang
                         // the variable.  This should be removed when the new expr
                         // parser is implemented.
 
-                        if (interp.noEval == 0)
+                        if (interp.NoEval == 0)
                         {
                             if (index != null)
                             {
@@ -1166,7 +1166,7 @@ namespace Tcl.Lang
                                 }
                                 finally
                                 {
-                                    index.release();
+                                    index.Release();
                                 }
                             }
                             else
@@ -1176,8 +1176,8 @@ namespace Tcl.Lang
                         }
                         else
                         {
-                            value = TclString.newInstance("");
-                            value.preserve();
+                            value = TclString.NewInstance("");
+                            value.Preserve();
                         }
                         count -= token.numComponents;
                         tIndex += token.numComponents;
@@ -1200,17 +1200,17 @@ namespace Tcl.Lang
                     }
                     else
                     {
-                        result = TclString.newInstance(p);
+                        result = TclString.NewInstance(p);
                     }
-                    result.preserve();
+                    result.Preserve();
                 }
                 else
                 {
                     if (result.Shared)
                     {
-                        result.release();
+                        result.Release();
                         result = result.duplicate();
-                        result.preserve();
+                        result.Preserve();
                     }
                     if (value != null)
                     {
@@ -1264,10 +1264,10 @@ namespace Tcl.Lang
                 numBytes = script_length - script_index;
             }
             interp.resetResult();
-            savedVarFrame = interp.varFrame;
+            savedVarFrame = interp.VarFrame;
             if ((flags & TCL.EVAL_GLOBAL) != 0)
             {
-                interp.varFrame = null;
+                interp.VarFrame = null;
             }
 
             // Each iteration through the following loop parses the next
@@ -1303,7 +1303,7 @@ namespace Tcl.Lang
                     // The test on noEval is temporary.  As soon as the new expr
                     // parser is implemented it should be removed.
 
-                    if (parse.numWords > 0 && interp.noEval == 0)
+                    if (parse.numWords > 0 && interp.NoEval == 0)
                     {
                         // Generate an array of objects for the words of the command.
 
@@ -1346,7 +1346,7 @@ namespace Tcl.Lang
                                         if (elements.Length == 0)
                                         {
                                             elements = new TclObject[1];
-                                            elements[0] = TclString.newInstance("{}");
+                                            elements[0] = TclString.NewInstance("{}");
                                             TclList.setListFromAny(null, elements[0]);
                                         }
                                         numElements = elements.Length;
@@ -1359,7 +1359,7 @@ namespace Tcl.Lang
                                         while (numElements-- != 0)
                                         {
                                             objv[objIdx] = elements[numElements];
-                                            objv[objIdx].preserve();
+                                            objv[objIdx].Preserve();
                                             objIdx--;
                                         }
                                         objUsed = objv.Length - 1;
@@ -1372,7 +1372,7 @@ namespace Tcl.Lang
                             // Execute the command and free the objects for its words.
                             try
                             {
-                                evalObjv(interp, objv, bytesLeft, 0);
+                                EvalObjv(interp, objv, bytesLeft, 0);
                             }
                             catch (System.StackOverflowException e)
                             {
@@ -1388,7 +1388,7 @@ namespace Tcl.Lang
                             // free resources that had been allocated
                             // to the command.
 
-                            if (e.getCompletionCode() == TCL.CompletionCode.ERROR && !(interp.errAlreadyLogged))
+                            if (e.GetCompletionCode() == TCL.CompletionCode.ERROR && !(interp.errAlreadyLogged))
                             {
                                 commandLength = parse.commandSize;
 
@@ -1413,7 +1413,7 @@ namespace Tcl.Lang
 
                                     commandLength -= 1;
                                 }
-                                interp.varFrame = savedVarFrame;
+                                interp.VarFrame = savedVarFrame;
                                 logCommandInfo(interp, script_array, script_index, parse.commandStart, commandLength, e);
                                 throw e;
                             }
@@ -1424,7 +1424,7 @@ namespace Tcl.Lang
                         {
                             for (i = 0; i < objUsed; i++)
                             {
-                                objv[i].release();
+                                objv[i].Release();
                             }
                             objUsed = 0;
 
@@ -1446,7 +1446,7 @@ namespace Tcl.Lang
                         // bracket in the script.  Return immediately.
 
                         interp.termOffset = (src_index - 1) - script_index;
-                        interp.varFrame = savedVarFrame;
+                        interp.VarFrame = savedVarFrame;
                         return;
                     }
                 }
@@ -1462,7 +1462,7 @@ namespace Tcl.Lang
             }
 
             interp.termOffset = src_index - script_index;
-            interp.varFrame = savedVarFrame;
+            interp.VarFrame = savedVarFrame;
             return;
         }
         public static TclParse parseVarName(Interp interp, char[] script_array, int script_index, int numBytes, TclParse parse, bool append)
@@ -1675,11 +1675,11 @@ namespace Tcl.Lang
 
 
             CharPointer src = new CharPointer(inString);
-            parse = parseVarName(interp, src.array, src.index, -1, null, false);
+            parse = parseVarName(interp, src._array, src._index, -1, null, false);
             if (parse.result != TCL.CompletionCode.OK)
             {
 
-                throw new TclException(interp, interp.getResult().ToString());
+                throw new TclException(interp, interp.GetResult().ToString());
             }
 
             try
@@ -1713,13 +1713,13 @@ namespace Tcl.Lang
 
             do
             {
-                parse = parseCommand(null, src.array, src.index, length, null, 0, false);
+                parse = parseCommand(null, src._array, src._index, length, null, 0, false);
 
-                src.index = parse.commandStart + parse.commandSize;
+                src._index = parse.commandStart + parse.commandSize;
 
                 parse.release(); // Release parser resources
 
-                if (src.index >= length)
+                if (src._index >= length)
                 {
                     break;
                 }
@@ -1787,14 +1787,14 @@ namespace Tcl.Lang
                         {
 
                             string str = new string(script_array, script_index, endIndex - script_index);
-                            StrtoulResult res = Util.strtoul(str, 0, 16);
+                            StrtoulResult res = Util.Strtoul(str, 0, 16);
                             if (res.errno == 0)
                             {
                                 // We force res.value to be a 8-bit (ASCII) character
                                 // so that it is compatible with Tcl.
 
                                 char b = (char)(res.value & 0xff);
-                                return new BackSlashResult(b, script_index + res.index);
+                                return new BackSlashResult(b, script_index + res.Index);
                             }
                         }
                     }

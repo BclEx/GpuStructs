@@ -18,7 +18,7 @@ namespace Tcl.Lang
     * which is used to sort Tcl lists.  See user documentation for more details.
     */
 
-    class LsortCmd : Command
+    class LsortCmd : ICommand
     {
 
         /*
@@ -45,7 +45,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if (argv.Length < 2)
             {
@@ -145,7 +145,7 @@ namespace Tcl.Lang
             {
                 if (isDuplicate)
                 {
-                    list.release();
+                    list.Release();
                 }
                 throw;
             }

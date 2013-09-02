@@ -37,7 +37,7 @@ namespace Tcl.Lang
 
         internal NamespaceCmd.Namespace ns; // The namespace where the command is located
 
-        internal Command cmd; // The actual Command interface that we are wrapping.
+        internal ICommand cmd; // The actual Command interface that we are wrapping.
 
         internal bool deleted; // Means that the command is in the process
         // of being deleted. Other attempts to

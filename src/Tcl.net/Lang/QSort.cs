@@ -192,14 +192,14 @@ namespace Tcl.Lang
             {
                 if (compare(a[ix], a[uniqueIx - 1]) == 0)
                 {
-                    a[ix].release();
+                    a[ix].Release();
                 }
                 else
                 {
                     if (ix != uniqueIx)
                     {
                         a[uniqueIx] = a[ix];
-                        a[uniqueIx].preserve();
+                        a[uniqueIx].Preserve();
                     }
                     uniqueIx++;
                 }
@@ -301,7 +301,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e1)
                     {
-                        sortInterp.addErrorInfo("\n    (converting list element from string to integer)");
+                        sortInterp.AddErrorInfo("\n    (converting list element from string to integer)");
                         throw e1;
                     }
                     break;
@@ -309,8 +309,8 @@ namespace Tcl.Lang
                 case REAL:
                     try
                     {
-                        double f1 = TclDouble.get(sortInterp, obj1);
-                        double f2 = TclDouble.get(sortInterp, obj2);
+                        double f1 = TclDouble.Get(sortInterp, obj1);
+                        double f2 = TclDouble.Get(sortInterp, obj2);
 
                         if (f1 > f2)
                         {
@@ -323,7 +323,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e2)
                     {
-                        sortInterp.addErrorInfo("\n    (converting list element from string to real)");
+                        sortInterp.AddErrorInfo("\n    (converting list element from string to real)");
                         throw e2;
                     }
                     break;
@@ -340,13 +340,13 @@ namespace Tcl.Lang
                     }
                     catch (TclException e3)
                     {
-                        sortInterp.addErrorInfo("\n    (user-defined comparison command)");
+                        sortInterp.AddErrorInfo("\n    (user-defined comparison command)");
                         throw e3;
                     }
 
                     try
                     {
-                        code = TclInteger.get(sortInterp, sortInterp.getResult());
+                        code = TclInteger.get(sortInterp, sortInterp.GetResult());
                     }
                     catch (TclException e)
                     {

@@ -14,7 +14,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "puts" command in Tcl.</summary>
 
-    class PutsCmd : Command
+    class PutsCmd : ICommand
     {
         /// <summary> Prints the given string to a channel. See Tcl user
         /// documentation for details.
@@ -25,7 +25,7 @@ namespace Tcl.Lang
         /// <param name="argv">command arguments.
         /// </param>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
 
             Channel chan; // The channel being operated on this method
@@ -86,12 +86,12 @@ namespace Tcl.Lang
             {
                 if (newline)
                 {
-                    chan.write(interp, argv[i]);
-                    chan.write(interp, "\n");
+                    chan.Write(interp, argv[i]);
+                    chan.Write(interp, "\n");
                 }
                 else
                 {
-                    chan.write(interp, argv[i]);
+                    chan.Write(interp, argv[i]);
                 }
             }
             catch (IOException e)

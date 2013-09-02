@@ -14,7 +14,7 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "incr" command in Tcl.</summary>
-    class IncrCmd : Command
+    class IncrCmd : ICommand
     {
         /// <summary> This procedure is invoked to process the "incr" Tcl command.
         /// See the user documentation for details on what it does.
@@ -23,7 +23,7 @@ namespace Tcl.Lang
         /// integer.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             int incrAmount;
             TclObject newValue;
@@ -47,7 +47,7 @@ namespace Tcl.Lang
                 }
                 catch (TclException e)
                 {
-                    interp.addErrorInfo("\n    (reading increment)");
+                    interp.AddErrorInfo("\n    (reading increment)");
                     throw;
                 }
             }

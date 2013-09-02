@@ -13,7 +13,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "proc" command in Tcl.</summary>
 
-    class ProcCmd : Command
+    class ProcCmd : ICommand
     {
         /// <summary> 
         /// Tcl_ProcObjCmd -> ProcCmd.cmdProc
@@ -28,12 +28,12 @@ namespace Tcl.Lang
         /// <exception cref=""> TclException If incorrect number of arguments.
         /// </exception>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             Procedure proc;
             string fullName, procName;
             NamespaceCmd.Namespace ns, altNs, cxtNs;
-            Command cmd;
+            ICommand cmd;
             StringBuilder ds;
 
             if (objv.Length != 4)
@@ -94,7 +94,7 @@ namespace Tcl.Lang
             }
             ds.Append(procName);
 
-            interp.createCommand(ds.ToString(), proc);
+            interp.CreateCommand(ds.ToString(), proc);
 
             // Now initialize the new procedure's cmdPtr field. This will be used
             // later when the procedure is called to determine what namespace the

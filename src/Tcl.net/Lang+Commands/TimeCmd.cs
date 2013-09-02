@@ -13,11 +13,11 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "time" command in Tcl.</summary>
 
-    class TimeCmd : Command
+    class TimeCmd : ICommand
     {
         /// <summary> See Tcl user documentation for details.</summary>
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             if ((argv.Length < 2) || (argv.Length > 3))
             {
@@ -43,11 +43,11 @@ namespace Tcl.Lang
             long uSecs = (((endTime - startTime) / 10) / count);
             if (uSecs == 1)
             {
-                interp.setResult(TclString.newInstance("1 microsecond per iteration"));
+                interp.setResult(TclString.NewInstance("1 microsecond per iteration"));
             }
             else
             {
-                interp.setResult(TclString.newInstance(uSecs + " microseconds per iteration"));
+                interp.setResult(TclString.NewInstance(uSecs + " microseconds per iteration"));
             }
             return TCL.CompletionCode.RETURN;
         }

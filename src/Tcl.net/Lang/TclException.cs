@@ -89,7 +89,7 @@ namespace Tcl.Lang
             : this(interp, msg, ccode, -1)
         {
         }
-        public TCL.CompletionCode getCompletionCode()
+        public TCL.CompletionCode GetCompletionCode()
         {
             return compCode;
         }

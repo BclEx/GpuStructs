@@ -488,7 +488,7 @@ namespace Tcl.Lang
         /// <param name="outData">the TclObject that holds the data to write.
         /// </param>
 
-        public virtual void write(Interp interp, TclObject outData)
+        public virtual void Write(Interp interp, TclObject outData)
         {
 
             checkWrite(interp);
@@ -511,9 +511,9 @@ namespace Tcl.Lang
         /// <param name="outStr">the String object to write.
         /// </param>
 
-        public void write(Interp interp, string outStr)
+        public void Write(Interp interp, string outStr)
         {
-            write(interp, TclString.newInstance(outStr));
+            Write(interp, TclString.NewInstance(outStr));
         }
 
         /// <summary> Close the Channel.  The channel is only closed, it is 
@@ -565,7 +565,7 @@ namespace Tcl.Lang
         /// <exception cref=""> IOEcception is thrown for all other flush errors.
         /// </exception>
 
-        public void flush(Interp interp)
+        public void Flush(Interp interp)
         {
 
             checkWrite(interp);

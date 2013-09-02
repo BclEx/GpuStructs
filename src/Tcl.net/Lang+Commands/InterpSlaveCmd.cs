@@ -23,7 +23,7 @@ namespace Tcl.Lang
   /// in it.
   /// </summary>
 
-  class InterpSlaveCmd : CommandWithDispose, IAssocData
+  class InterpSlaveCmd : ICommandWithDispose, IAssocData
   {
 
     private static readonly string[] options = new string[] { "alias", "aliases", "eval", "expose", "hide", "hidden", "issafe", "invokehidden", "marktrusted" };
@@ -58,7 +58,7 @@ namespace Tcl.Lang
     // Interpreter object command.
 
     internal WrappedCommand interpCmd;
-    public TCL.CompletionCode cmdProc( Interp interp, TclObject[] objv )
+    public TCL.CompletionCode CmdProc( Interp interp, TclObject[] objv )
     {
       if ( objv.Length < 2 )
       {
@@ -187,7 +187,7 @@ namespace Tcl.Lang
     /// ----------------------------------------------------------------------
     /// </summary>
 
-    public void disposeCmd()
+    public void Dispose()
     {
       // Unlink the slave from its master interpreter.
 
@@ -269,7 +269,7 @@ namespace Tcl.Lang
       }
       else
       {
-        TclObject obj = TclList.newInstance();
+        TclObject obj = TclList.NewInstance();
 
         TclList.insert( interp, obj, 0, objv, 0, objv.Length - 2 );
         masterInterp = InterpCmd.getInterp( interp, obj );
@@ -296,12 +296,12 @@ namespace Tcl.Lang
       slave.path = pathString;
       slave.slaveInterp = slaveInterp;
 
-      masterInterp.createCommand( pathString, slaveInterp.slave );
+      masterInterp.CreateCommand( pathString, slaveInterp.slave );
       slaveInterp.slave.interpCmd = NamespaceCmd.findCommand( masterInterp, pathString, null, 0 );
 
       SupportClass.PutElement( masterInterp.slaveTable, pathString, slaveInterp.slave );
 
-      slaveInterp.setVar( "tcl_interactive", "0", TCL.VarFlag.GLOBAL_ONLY );
+      slaveInterp.SetVar( "tcl_interactive", "0", TCL.VarFlag.GLOBAL_ONLY );
 
       // Inherit the recursion limit.
 
@@ -340,20 +340,20 @@ namespace Tcl.Lang
         }
         else
         {
-          TclObject obj = TclList.newInstance();
+          TclObject obj = TclList.NewInstance();
           for ( int ix = objIx; ix < objv.Length; ix++ )
           {
-            TclList.append( interp, obj, objv[ix] );
+            TclList.Append( interp, obj, objv[ix] );
           }
-          obj.preserve();
+          obj.Preserve();
           slaveInterp.eval( obj, 0 );
-          obj.release();
+          obj.Release();
         }
         result = slaveInterp.returnCode;
       }
       catch ( TclException e )
       {
-        result = e.getCompletionCode();
+        result = e.GetCompletionCode();
       }
 
       slaveInterp.release();
@@ -375,7 +375,7 @@ namespace Tcl.Lang
       }
       catch ( TclException e )
       {
-        interp.transferResult( slaveInterp, e.getCompletionCode() );
+        interp.transferResult( slaveInterp, e.GetCompletionCode() );
         throw;
       }
     }
@@ -395,7 +395,7 @@ namespace Tcl.Lang
       }
       catch ( TclException e )
       {
-        interp.transferResult( slaveInterp, e.getCompletionCode() );
+        interp.transferResult( slaveInterp, e.GetCompletionCode() );
         throw;
       }
     }
@@ -406,14 +406,14 @@ namespace Tcl.Lang
         return;
       }
 
-      TclObject result = TclList.newInstance();
+      TclObject result = TclList.NewInstance();
       interp.setResult( result );
 
       IEnumerator hiddenCmds = slaveInterp.hiddenCmdTable.Keys.GetEnumerator();
       while ( hiddenCmds.MoveNext() )
       {
         string cmdName = (string)hiddenCmds.Current;
-        TclList.append( interp, result, TclString.newInstance( cmdName ) );
+        TclList.Append( interp, result, TclString.NewInstance( cmdName ) );
       }
     }
     internal static void invokeHidden( Interp interp, Interp slaveInterp, bool global, int objIx, TclObject[] objv )
@@ -448,7 +448,7 @@ namespace Tcl.Lang
       }
       catch ( TclException e )
       {
-        result = e.getCompletionCode();
+        result = e.GetCompletionCode();
       }
 
       slaveInterp.release();
@@ -548,17 +548,17 @@ namespace Tcl.Lang
       // these channels even if it is being made safe after being used for
       // some time..
 
-      chan = TclIO.getStdChannel( StdChannel.STDIN );
+      chan = TclIO.GetStdChannel( StdChannel.STDIN );
       if ( chan != null )
       {
         TclIO.unregisterChannel( interp, chan );
       }
-      chan = TclIO.getStdChannel( StdChannel.STDOUT );
+      chan = TclIO.GetStdChannel( StdChannel.STDOUT );
       if ( chan != null )
       {
         TclIO.unregisterChannel( interp, chan );
       }
-      chan = TclIO.getStdChannel( StdChannel.STDERR );
+      chan = TclIO.GetStdChannel( StdChannel.STDERR );
       if ( chan != null )
       {
         TclIO.unregisterChannel( interp, chan );

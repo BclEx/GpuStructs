@@ -14,24 +14,24 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the built-in "list" command in Tcl.</summary>
-    class ListCmd : Command
+    class ListCmd : ICommand
     {
 
         /// <summary> See Tcl user documentation for details.</summary>
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
-            TclObject list = TclList.newInstance();
+            TclObject list = TclList.NewInstance();
 
-            list.preserve();
+            list.Preserve();
             try
             {
                 for (int i = 1; i < argv.Length; i++)
-                    TclList.append(interp, list, argv[i]);
+                    TclList.Append(interp, list, argv[i]);
                 interp.setResult(list);
             }
             finally
             {
-                list.release();
+                list.Release();
             }
             return TCL.CompletionCode.RETURN;
         }

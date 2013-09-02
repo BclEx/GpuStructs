@@ -15,7 +15,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "regexp" command in Tcl.</summary>
 
-    class RegexpCmd : Command
+    class RegexpCmd : ICommand
     {
 
         private static readonly string[] validOpts = new string[] { "-indices", "-nocase", "--" };
@@ -25,10 +25,10 @@ namespace Tcl.Lang
         internal static void init(Interp interp)
         // Current interpreter. 
         {
-            interp.createCommand("regexp", new Tcl.Lang.RegexpCmd());
-            interp.createCommand("regsub", new Tcl.Lang.RegsubCmd());
+            interp.CreateCommand("regexp", new Tcl.Lang.RegexpCmd());
+            interp.CreateCommand("regsub", new Tcl.Lang.RegsubCmd());
         }
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] argv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             bool nocase = false;
             bool indices = false;
@@ -67,7 +67,7 @@ namespace Tcl.Lang
                 ;
 
 
-                TclObject exp = TclString.newInstance(argv[i++].ToString().Replace("\\d", "[0-9]"));
+                TclObject exp = TclString.NewInstance(argv[i++].ToString().Replace("\\d", "[0-9]"));
 
                 string inString = argv[i++].ToString();
 
@@ -91,19 +91,19 @@ namespace Tcl.Lang
                             {
                                 end--;
                             }
-                            obj = TclList.newInstance();
-                            TclList.append(interp, obj, TclInteger.newInstance(start));
-                            TclList.append(interp, obj, TclInteger.newInstance(end));
+                            obj = TclList.NewInstance();
+                            TclList.Append(interp, obj, TclInteger.NewInstance(start));
+                            TclList.Append(interp, obj, TclInteger.NewInstance(end));
                         }
                         else
                         {
                             string range = (start >= 0) ? inString.Substring(start, (end) - (start)) : "";
-                            obj = TclString.newInstance(range);
+                            obj = TclString.NewInstance(range);
                         }
                         try
                         {
 
-                            interp.setVar(argv[i].ToString(), obj, 0);
+                            interp.SetVar(argv[i].ToString(), obj, 0);
                         }
                         catch (TclException e)
                         {

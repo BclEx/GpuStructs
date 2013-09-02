@@ -14,7 +14,7 @@ using System.Text;
 namespace Tcl.Lang
 {
 
-    class PackageCmd : Command
+    class PackageCmd : ICommand
     {
 
         private static readonly string[] validCmds = new string[] { "forget", "ifneeded", "names", "present", "provide", "require", "unknown", "vcompare", "versions", "vsatisfies" };
@@ -125,7 +125,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        interp.addErrorInfo("\n    (\"package ifneeded\" script)");
+                        interp.AddErrorInfo("\n    (\"package ifneeded\" script)");
 
                         // Throw the error with new info added to errorInfo.
 
@@ -175,7 +175,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        interp.addErrorInfo("\n    (\"package unknown\" script)");
+                        interp.AddErrorInfo("\n    (\"package unknown\" script)");
 
                         // Throw the first exception.
 
@@ -250,7 +250,7 @@ namespace Tcl.Lang
                 throw new TclException(interp, "package " + pkgName + " is not present");
             }
         }
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             VersionSatisfiesResult vsres;
             Package pkg;

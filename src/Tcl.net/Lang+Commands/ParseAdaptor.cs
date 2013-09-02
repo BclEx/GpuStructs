@@ -15,7 +15,7 @@ namespace Tcl.Lang
 
     class ParseAdaptor
     {
-        internal static ParseResult parseVar(Interp interp, string inString, int index, int length)
+        internal static ParseResult ParseVar(Interp interp, string inString, int index, int length)
         {
             ParseResult result;
 
@@ -36,15 +36,15 @@ namespace Tcl.Lang
             }
 
             script = new CharPointer(inString);
-            script.index = index;
+            script._index = index;
 
             interp.evalFlags |= Parser.TCL_BRACKET_TERM;
-            Parser.eval2(interp, script.array, script.index, length - index, 0);
-            obj = interp.getResult();
-            obj.preserve();
+            Parser.eval2(interp, script._array, script._index, length - index, 0);
+            obj = interp.GetResult();
+            obj.Preserve();
             return (new ParseResult(obj, index + interp.termOffset + 1));
         }
-        internal static ParseResult parseQuotes(Interp interp, string inString, int index, int length)
+        internal static ParseResult ParseQuotes(Interp interp, string inString, int index, int length)
         {
             TclObject obj;
             TclParse parse = null;
@@ -55,12 +55,12 @@ namespace Tcl.Lang
             {
 
                 script = new CharPointer(inString);
-                script.index = index;
+                script._index = index;
 
-                parse = new TclParse(interp, script.array, length, null, 0);
+                parse = new TclParse(interp, script._array, length, null, 0);
 
                 System.Diagnostics.Debug.WriteLine("string is \"" + inString + "\"");
-                System.Diagnostics.Debug.WriteLine("script.array is \"" + new string(script.array) + "\"");
+                System.Diagnostics.Debug.WriteLine("script.array is \"" + new string(script._array) + "\"");
 
                 System.Diagnostics.Debug.WriteLine("index is " + index);
                 System.Diagnostics.Debug.WriteLine("length is " + length);
@@ -68,19 +68,19 @@ namespace Tcl.Lang
                 System.Diagnostics.Debug.WriteLine("parse.endIndex is " + parse.endIndex);
 
 
-                parse.commandStart = script.index;
+                parse.commandStart = script._index;
                 token = parse.getToken(0);
                 token.type = Parser.TCL_TOKEN_WORD;
-                token.script_array = script.array;
-                token.script_index = script.index;
+                token.script_array = script._array;
+                token.script_index = script._index;
                 parse.numTokens++;
                 parse.numWords++;
-                parse = Parser.parseTokens(script.array, script.index, Parser.TYPE_QUOTE, parse);
+                parse = Parser.parseTokens(script._array, script._index, Parser.TYPE_QUOTE, parse);
 
                 // Check for the error condition where the parse did not end on
                 // a '"' char. Is this happened raise an error.
 
-                if (script.array[parse.termIndex] != '"')
+                if (script._array[parse.termIndex] != '"')
                 {
                     throw new TclException(interp, "missing \"");
                 }
@@ -88,20 +88,20 @@ namespace Tcl.Lang
                 // if there was no error then parsing will continue after the
                 // last char that was parsed from the string
 
-                script.index = parse.termIndex + 1;
+                script._index = parse.termIndex + 1;
 
                 // Finish filling in the token for the word and check for the
                 // special case of a word consisting of a single range of
                 // literal text.
 
                 token = parse.getToken(0);
-                token.size = script.index - token.script_index;
+                token.size = script._index - token.script_index;
                 token.numComponents = parse.numTokens - 1;
                 if ((token.numComponents == 1) && (parse.getToken(1).type == Parser.TCL_TOKEN_TEXT))
                 {
                     token.type = Parser.TCL_TOKEN_SIMPLE_WORD;
                 }
-                parse.commandSize = script.index - parse.commandStart;
+                parse.commandSize = script._index - parse.commandStart;
                 if (parse.numTokens > 0)
                 {
                     obj = Parser.evalTokens(interp, parse.tokenList, 1, parse.numTokens - 1);
@@ -116,7 +116,7 @@ namespace Tcl.Lang
                 parse.release();
             }
 
-            return (new ParseResult(obj, script.index));
+            return (new ParseResult(obj, script._index));
         }
         internal static ParseResult parseBraces(Interp interp, string str, int index, int length)
         {

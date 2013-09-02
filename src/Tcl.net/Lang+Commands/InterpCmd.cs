@@ -16,7 +16,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the built-in "interp" command in Tcl.</summary>
 
-    class InterpCmd : Command
+    class InterpCmd : ICommand
     {
 
         private static readonly string[] options = new string[] { "alias", "aliases", "create", "delete", "eval", "exists", "expose", "hide", "hidden", "issafe", "invokehidden", "marktrusted", "slaves", "share", "target", "transfer" };
@@ -45,7 +45,7 @@ namespace Tcl.Lang
         private const int OPT_HIDDEN_GLOBAL = 0;
         private const int OPT_HIDDEN_LAST = 1;
 
-        public TCL.CompletionCode cmdProc(Interp interp, TclObject[] objv)
+        public TCL.CompletionCode CmdProc(Interp interp, TclObject[] objv)
         {
             if (objv.Length < 2)
             {
@@ -144,7 +144,7 @@ namespace Tcl.Lang
                             {
                                 i++;
                             }
-                            slaveNameObj = TclString.newInstance("interp" + i);
+                            slaveNameObj = TclString.NewInstance("interp" + i);
                         }
                         InterpSlaveCmd.create(interp, slaveNameObj, safe);
                         interp.setResult(slaveNameObj);
@@ -280,14 +280,14 @@ namespace Tcl.Lang
                     {
                         Interp slaveInterp = getInterp(interp, objv);
 
-                        TclObject result = TclList.newInstance();
+                        TclObject result = TclList.NewInstance();
                         interp.setResult(result);
 
                         IEnumerator keys = slaveInterp.slaveTable.Keys.GetEnumerator();
                         while (keys.MoveNext())
                         {
                             string inString = (string)keys.Current;
-                            TclList.append(interp, result, TclString.newInstance(inString));
+                            TclList.Append(interp, result, TclString.NewInstance(inString));
                         }
 
                         break;
