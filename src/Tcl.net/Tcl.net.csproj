@@ -1,0 +1,348 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{AC10E287-6947-487A-8946-F4E031F5CDE8}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Tcl.net</RootNamespace>
+    <AssemblyName>Tcl.net</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;TCLSH</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Lang\IAssocData.cs" />
+    <Compile Include="Lang\BackSlashResult.cs" />
+    <Compile Include="Lang\BgErrorMgr.cs" />
+    <Compile Include="Lang\CallFrame.cs" />
+    <Compile Include="Lang\CharPointer.cs" />
+    <Compile Include="Lang\CObject.cs" />
+    <Compile Include="Lang\Command.cs" />
+    <Compile Include="Lang\CommandWithDispose.cs" />
+    <Compile Include="Lang\DebugInfo.cs" />
+    <Compile Include="Lang\Env.cs" />
+    <Compile Include="Lang\EventDeleter.cs" />
+    <Compile Include="Lang\EventuallyFreed.cs" />
+    <Compile Include="Lang\Expression.cs" />
+    <Compile Include="Lang\ExprValue.cs" />
+    <Compile Include="Lang\Extension.cs" />
+    <Compile Include="Lang\FindElemResult.cs" />
+    <Compile Include="Lang\IdleHandler.cs" />
+    <Compile Include="Lang\ImportedCmdData.cs" />
+    <Compile Include="Lang\ImportRef.cs" />
+    <Compile Include="Lang\InternalRep.cs" />
+    <Compile Include="Lang\Interp.cs" />
+    <Compile Include="Lang\JACL.cs" />
+    <Compile Include="Lang\Notifier.cs" />
+    <Compile Include="Lang\Parser.cs" />
+    <Compile Include="Lang\ParseResult.cs" />
+    <Compile Include="Lang\Procedure.cs" />
+    <Compile Include="Lang\QSort.cs" />
+    <Compile Include="Lang\Resolver.cs" />
+    <Compile Include="Lang\SearchId.cs" />
+    <Compile Include="Lang\Tcl.cs" />
+    <Compile Include="Lang\TclBoolean.cs" />
+    <Compile Include="Lang\TclByteArray.cs" />
+    <Compile Include="Lang\TclDouble.cs" />
+    <Compile Include="Lang\TclEvent.cs" />
+    <Compile Include="Lang\TclException.cs" />
+    <Compile Include="Lang\TclIndex.cs" />
+    <Compile Include="Lang\TclInteger.cs" />
+    <Compile Include="Lang\TclList.cs" />
+    <Compile Include="Lang\TclLong.cs" />
+    <Compile Include="Lang\TclNumArgsException.cs" />
+    <Compile Include="Lang\TclObj.cs" />
+    <Compile Include="Lang\TclObject.cs" />
+    <Compile Include="Lang\TclParse.cs" />
+    <Compile Include="Lang\TclPosixException.cs" />
+    <Compile Include="Lang\TclRegexp.cs" />
+    <Compile Include="Lang\TclRuntimeError.cs" />
+    <Compile Include="Lang\TclString.cs" />
+    <Compile Include="Lang\TclToken.cs" />
+    <Compile Include="Lang\TclVarException.cs" />
+    <Compile Include="Lang\TimerHandler.cs" />
+    <Compile Include="Lang\TraceRecord.cs" />
+    <Compile Include="Lang\Util.cs" />
+    <Compile Include="Lang\Var.cs" />
+    <Compile Include="Lang\VarTrace.cs" />
+    <Compile Include="Lang\WrappedCommand.cs" />
+    <Compile Include="Lang+Commands\AfterCmd.cs" />
+    <Compile Include="Lang+Commands\AppendCmd.cs" />
+    <Compile Include="Lang+Commands\ArrayCmd.cs" />
+    <Compile Include="Lang+Commands\BinaryCmd.cs" />
+    <Compile Include="Lang+Commands\BreakCmd.cs" />
+    <Compile Include="Lang+Commands\CaseCmd.cs" />
+    <Compile Include="Lang+Commands\CatchCmd.cs" />
+    <Compile Include="Lang+Commands\CdCmd.cs" />
+    <Compile Include="Lang+Commands\ClockCmd.cs" />
+    <Compile Include="Lang+Commands\CloseCmd.cs" />
+    <Compile Include="Lang+Commands\ConcatCmd.cs" />
+    <Compile Include="Lang+Commands\ContinueCmd.cs" />
+    <Compile Include="Lang+Commands\EncodingCmd.cs" />
+    <Compile Include="Lang+Commands\EofCmd.cs" />
+    <Compile Include="Lang+Commands\ErrorCmd.cs" />
+    <Compile Include="Lang+Commands\EvalCmd.cs" />
+    <Compile Include="Lang+Commands\ExecCmd.cs" />
+    <Compile Include="Lang+Commands\ExitCmd.cs" />
+    <Compile Include="Lang+Commands\ExprCmd.cs" />
+    <Compile Include="Lang+Commands\FblockedCmd.cs" />
+    <Compile Include="Lang+Commands\FconfigureCmd.cs" />
+    <Compile Include="Lang+Commands\FileCmd.cs" />
+    <Compile Include="Lang+Commands\FlushCmd.cs" />
+    <Compile Include="Lang+Commands\ForCmd.cs" />
+    <Compile Include="Lang+Commands\ForeachCmd.cs" />
+    <Compile Include="Lang+Commands\FormatCmd.cs" />
+    <Compile Include="Lang+Commands\GetsCmd.cs" />
+    <Compile Include="Lang+Commands\GlobalCmd.cs" />
+    <Compile Include="Lang+Commands\GlobCmd.cs" />
+    <Compile Include="Lang+Commands\IfCmd.cs" />
+    <Compile Include="Lang+Commands\IncrCmd.cs" />
+    <Compile Include="Lang+Commands\InfoCmd.cs" />
+    <Compile Include="Lang+Commands\InterpAliasCmd.cs" />
+    <Compile Include="Lang+Commands\InterpCmd.cs" />
+    <Compile Include="Lang+Commands\InterpSlaveCmd.cs" />
+    <Compile Include="Lang+Commands\JoinCmd.cs" />
+    <Compile Include="Lang+Commands\LappendCmd.cs" />
+    <Compile Include="Lang+Commands\LindexCmd.cs" />
+    <Compile Include="Lang+Commands\LinsertCmd.cs" />
+    <Compile Include="Lang+Commands\ListCmd.cs" />
+    <Compile Include="Lang+Commands\LlengthCmd.cs" />
+    <Compile Include="Lang+Commands\LrangeCmd.cs" />
+    <Compile Include="Lang+Commands\LreplaceCmd.cs" />
+    <Compile Include="Lang+Commands\LsearchCmd.cs" />
+    <Compile Include="Lang+Commands\LsetCmd.cs" />
+    <Compile Include="Lang+Commands\LsortCmd.cs" />
+    <Compile Include="Lang+Commands\NamespaceCmd.cs" />
+    <Compile Include="Lang+Commands\OpenCmd.cs" />
+    <Compile Include="Lang+Commands\PackageCmd.cs" />
+    <Compile Include="Lang+Commands\ParseAdaptor.cs" />
+    <Compile Include="Lang+Commands\ProcCmd.cs" />
+    <Compile Include="Lang+Commands\PutsCmd.cs" />
+    <Compile Include="Lang+Commands\PwdCmd.cs" />
+    <Compile Include="Lang+Commands\ReadCmd.cs" />
+    <Compile Include="Lang+Commands\RegexpCmd.cs" />
+    <Compile Include="Lang+Commands\RegsubCmd.cs" />
+    <Compile Include="Lang+Commands\RenameCmd.cs" />
+    <Compile Include="Lang+Commands\ReturnCmd.cs" />
+    <Compile Include="Lang+Commands\ScanCmd.cs" />
+    <Compile Include="Lang+Commands\SeekCmd.cs" />
+    <Compile Include="Lang+Commands\SetCmd.cs" />
+    <Compile Include="Lang+Commands\SocketChannel.cs" />
+    <Compile Include="Lang+Commands\SourceCmd.cs" />
+    <Compile Include="Lang+Commands\SplitCmd.cs" />
+    <Compile Include="Lang+Commands\StdChannel.cs" />
+    <Compile Include="Lang+Commands\StringCmd.cs" />
+    <Compile Include="Lang+Commands\StrtodResult.cs" />
+    <Compile Include="Lang+Commands\StrtoulResult.cs" />
+    <Compile Include="Lang+Commands\SubstCmd.cs" />
+    <Compile Include="Lang+Commands\SwitchCmd.cs" />
+    <Compile Include="Lang+Commands\TellCmd.cs" />
+    <Compile Include="Lang+Commands\TimeCmd.cs" />
+    <Compile Include="Lang+Commands\TraceCmd.cs" />
+    <Compile Include="Lang+Commands\UnsetCmd.cs" />
+    <Compile Include="Lang+Commands\UpdateCmd.cs" />
+    <Compile Include="Lang+Commands\UplevelCmd.cs" />
+    <Compile Include="Lang+Commands\UpvarCmd.cs" />
+    <Compile Include="Lang+Commands\VariableCmd.cs" />
+    <Compile Include="Lang+Commands\VwaitCmd.cs" />
+    <Compile Include="Lang+Commands\WhileCmd.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Lang+IO\Channel.cs" />
+    <Compile Include="Lang+IO\ChannelBuffer.cs" />
+    <Compile Include="Lang+IO\FileChannel.cs" />
+    <Compile Include="Lang+IO\FileUtil.cs" />
+    <Compile Include="Lang+IO\TclInputStream.cs" />
+    <Compile Include="Lang+IO\TclIO.cs" />
+    <Compile Include="Lang+IO\TclOutputStream.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="+Core\Regexp.cs" />
+    <Compile Include="+Core\Regsub.cs" />
+    <Compile Include="SupportClass.cs" />
+    <Compile Include="Lang\Tcl_h.cs" />
+    <Compile Include="Lang\Tcl+Conversions.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="+Core\Regexp.cu" />
+    <None Include="+Core\Regsub.cu" />
+    <None Include="SupportClass.cu" />
+    <None Include="Lang+Commands\AppendCmd.cu" />
+    <None Include="Lang+Commands\ContinueCmd.cu" />
+    <None Include="Lang+Commands\BinaryCmd.cu" />
+    <None Include="Lang+Commands\ConcatCmd.cu" />
+    <None Include="Lang+Commands\ArrayCmd.cu" />
+    <None Include="Lang+Commands\CaseCmd.cu" />
+    <None Include="Lang+Commands\EofCmd.cu" />
+    <None Include="Lang+Commands\ExecCmd.cu" />
+    <None Include="Lang+Commands\CatchCmd.cu" />
+    <None Include="Lang+Commands\BreakCmd.cu" />
+    <None Include="Lang+Commands\EvalCmd.cu" />
+    <None Include="Lang+Commands\ErrorCmd.cu" />
+    <None Include="Lang+Commands\ExprCmd.cu" />
+    <None Include="Lang+Commands\ClockCmd.cu" />
+    <None Include="Lang+Commands\ExitCmd.cu" />
+    <None Include="Lang+Commands\EncodingCmd.cu" />
+    <None Include="Lang+Commands\CloseCmd.cu" />
+    <None Include="Lang+Commands\CdCmd.cu" />
+    <None Include="Lang+Commands\RegexpCmd.cu" />
+    <None Include="Lang+Commands\ForCmd.cu" />
+    <None Include="Lang+Commands\FormatCmd.cu" />
+    <None Include="Lang+Commands\FconfigureCmd.cu" />
+    <None Include="Lang+Commands\ForeachCmd.cu" />
+    <None Include="Lang+Commands\GlobCmd.cu" />
+    <None Include="Lang+Commands\FblockedCmd.cu" />
+    <None Include="Lang+Commands\IncrCmd.cu" />
+    <None Include="Lang+Commands\FlushCmd.cu" />
+    <None Include="Lang+Commands\IfCmd.cu" />
+    <None Include="Lang+Commands\GlobalCmd.cu" />
+    <None Include="Lang+Commands\FileCmd.cu" />
+    <None Include="Lang+Commands\InterpAliasCmd.cu" />
+    <None Include="Lang+Commands\InterpSlaveCmd.cu" />
+    <None Include="Lang+Commands\InterpCmd.cu" />
+    <None Include="Lang+Commands\JoinCmd.cu" />
+    <None Include="Lang+Commands\LindexCmd.cu" />
+    <None Include="Lang+Commands\LappendCmd.cu" />
+    <None Include="Lang+Commands\OpenCmd.cu" />
+    <None Include="Lang+Commands\InfoCmd.cu" />
+    <None Include="Lang+Commands\ListCmd.cu" />
+    <None Include="Lang+Commands\LsortCmd.cu" />
+    <None Include="Lang+Commands\LreplaceCmd.cu" />
+    <None Include="Lang+Commands\LrangeCmd.cu" />
+    <None Include="Lang+Commands\NamespaceCmd.cu" />
+    <None Include="Lang+Commands\LsearchCmd.cu" />
+    <None Include="Lang+Commands\LlengthCmd.cu" />
+    <None Include="Lang+Commands\PackageCmd.cu" />
+    <None Include="Lang+Commands\ParseAdaptor.cu" />
+    <None Include="Lang+Commands\LsetCmd.cu" />
+    <None Include="Lang+Commands\LinsertCmd.cu" />
+    <None Include="Lang+Commands\GetsCmd.cu" />
+    <None Include="Lang+Commands\ProcCmd.cu" />
+    <None Include="Lang+Commands\PutsCmd.cu" />
+    <None Include="Lang+Commands\PwdCmd.cu" />
+    <None Include="Lang+Commands\ReadCmd.cu" />
+    <None Include="Lang+Commands\RegsubCmd.cu" />
+    <None Include="Lang+Commands\RenameCmd.cu" />
+    <None Include="Lang+Commands\ReturnCmd.cu" />
+    <None Include="Lang+Commands\ScanCmd.cu" />
+    <None Include="Lang+Commands\SeekCmd.cu" />
+    <None Include="Lang+Commands\SetCmd.cu" />
+    <None Include="Lang+Commands\SocketChannel.cu" />
+    <None Include="Lang+Commands\SourceCmd.cu" />
+    <None Include="Lang+Commands\SplitCmd.cu" />
+    <None Include="Lang+Commands\StdChannel.cu" />
+    <None Include="Lang+Commands\StringCmd.cu" />
+    <None Include="Lang+Commands\StrtodResult.cu" />
+    <None Include="Lang+Commands\StrtoulResult.cu" />
+    <None Include="Lang+Commands\SubstCmd.cu" />
+    <None Include="Lang+Commands\SwitchCmd.cu" />
+    <None Include="Lang+Commands\TellCmd.cu" />
+    <None Include="Lang+Commands\TimeCmd.cu" />
+    <None Include="Lang+Commands\TraceCmd.cu" />
+    <None Include="Lang+Commands\UnsetCmd.cu" />
+    <None Include="Lang+Commands\UpdateCmd.cu" />
+    <None Include="Lang+Commands\UplevelCmd.cu" />
+    <None Include="Lang+Commands\UpvarCmd.cu" />
+    <None Include="Lang+Commands\VariableCmd.cu" />
+    <None Include="Lang+Commands\VwaitCmd.cu" />
+    <None Include="Lang+Commands\WhileCmd.cu" />
+    <None Include="Lang+IO\Channel.cu" />
+    <None Include="Lang+IO\ChannelBuffer.cu" />
+    <None Include="Lang+IO\FileUtil.cu" />
+    <None Include="Lang+IO\FileChannel.cu" />
+    <None Include="Lang+IO\TclInputStream.cu" />
+    <None Include="Lang+IO\TclIO.cu" />
+    <None Include="Lang+IO\TclOutputStream.cu" />
+    <None Include="Lang\BackSlashResult.cu" />
+    <None Include="Lang\BgErrorMgr.cu" />
+    <None Include="Lang\CallFrame.cu" />
+    <None Include="Lang\CharPointer.cu" />
+    <None Include="Lang\CObject.cu" />
+    <None Include="Lang\Command.cu" />
+    <None Include="Lang\CommandWithDispose.cu" />
+    <None Include="Lang\Util.cu" />
+    <None Include="Lang\Var.cu" />
+    <None Include="Lang\VarTrace.cu" />
+    <None Include="Lang\WrappedCommand.cu" />
+    <None Include="Lang+Commands\AfterCmd.cu" />
+    <None Include="Lang\TclLong.cu" />
+    <None Include="Lang\TclNumArgsException.cu" />
+    <None Include="Lang\TclObj.cu" />
+    <None Include="Lang\TclParse.cu" />
+    <None Include="Lang\TclPosixException.cu" />
+    <None Include="Lang\TclRegexp.cu" />
+    <None Include="Lang\TclRuntimeError.cu" />
+    <None Include="Lang\TclString.cu" />
+    <None Include="Lang\TclToken.cu" />
+    <None Include="Lang\TclVarException.cu" />
+    <None Include="Lang\TimerHandler.cu" />
+    <None Include="Lang\TraceRecord.cu" />
+    <None Include="Lang\DebugInfo.cu" />
+    <None Include="Lang\Env.cu" />
+    <None Include="Lang\EventDeleter.cu" />
+    <None Include="Lang\EventuallyFreed.cu" />
+    <None Include="Lang\Expression.cu" />
+    <None Include="Lang\ExprValue.cu" />
+    <None Include="Lang\Extension.cu" />
+    <None Include="Lang\FindElemResult.cu" />
+    <None Include="Lang\IdleHandler.cu" />
+    <None Include="Lang\ImportedCmdData.cu" />
+    <None Include="Lang\ImportRef.cu" />
+    <None Include="Lang\InternalRep.cu" />
+    <None Include="Lang\Interp.cu" />
+    <None Include="Lang\JACL.cu" />
+    <None Include="Lang\Notifier.cu" />
+    <None Include="Lang\Parser.cu" />
+    <None Include="Lang\ParseResult.cu" />
+    <None Include="Lang\Procedure.cu" />
+    <None Include="Lang\QSort.cu" />
+    <None Include="Lang\Resolver.cu" />
+    <None Include="Lang\SearchId.cu" />
+    <None Include="Lang\Tcl.cu" />
+    <None Include="Lang\Tcl_h.cu" />
+    <None Include="Lang\Tcl+Conversions.cu" />
+    <None Include="Lang\TclBoolean.cu" />
+    <None Include="Lang\TclByteArray.cu" />
+    <None Include="Lang\TclDouble.cu" />
+    <None Include="Lang\TclEvent.cu" />
+    <None Include="Lang\TclException.cu" />
+    <None Include="Lang\TclIndex.cu" />
+    <None Include="Lang\TclInteger.cu" />
+    <None Include="Lang\TclList.cu" />
+    <None Include="Lang\IAssocData.cu" />
+    <None Include="Program.cu" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

@@ -1,0 +1,448 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Lang">
+      <UniqueIdentifier>{ddaee187-709a-4412-a7f2-d32f9efedef4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lang+Commands">
+      <UniqueIdentifier>{027c9a5a-1625-454c-8b98-6eda8e727587}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lang+IO">
+      <UniqueIdentifier>{a3c4275b-fe4b-409d-9322-3897d5bd4286}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\Tcl.net\Lang\BackSlashResult.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\BgErrorMgr.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\CallFrame.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\CharPointer.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\CObject.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Command.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\CommandWithDispose.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\DebugInfo.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Env.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\EventDeleter.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\EventuallyFreed.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Expression.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ExprValue.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Extension.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\FindElemResult.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\IAssocData.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\IdleHandler.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ImportedCmdData.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ImportRef.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\InternalRep.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Interp.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\JACL.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Notifier.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Parser.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ParseResult.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Procedure.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\QSort.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Resolver.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\SearchId.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl_h.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl+Conversions.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclBoolean.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclByteArray.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclDouble.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclEvent.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclException.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclIndex.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclInteger.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclList.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclLong.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclNumArgsException.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclObj.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclParse.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclPosixException.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclRegexp.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclRuntimeError.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclString.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclToken.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TclVarException.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TimerHandler.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\TraceRecord.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Util.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\Var.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\VarTrace.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\WrappedCommand.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\AfterCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\AppendCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ArrayCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\BinaryCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\BreakCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CaseCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CatchCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CdCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ClockCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CloseCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ConcatCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ContinueCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EncodingCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EofCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ErrorCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EvalCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExecCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExitCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExprCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FblockedCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FconfigureCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FileCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FlushCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ForCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ForeachCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FormatCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GetsCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GlobalCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GlobCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\IfCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\IncrCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InfoCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpAliasCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpSlaveCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\JoinCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LappendCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LindexCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LinsertCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ListCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LlengthCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LrangeCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LreplaceCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsearchCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsetCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsortCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\NamespaceCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\OpenCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PackageCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ParseAdaptor.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ProcCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PutsCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PwdCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ReadCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RegexpCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RegsubCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RenameCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ReturnCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ScanCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SeekCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SetCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SocketChannel.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SourceCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SplitCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StdChannel.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StringCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StrtodResult.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StrtoulResult.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SubstCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SwitchCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TellCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TimeCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TraceCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UnsetCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UpdateCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UplevelCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UpvarCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\VariableCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\VwaitCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\WhileCmd.cu">
+      <Filter>Lang+Commands</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\Channel.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\ChannelBuffer.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\FileChannel.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\FileUtil.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclInputStream.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclIO.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclOutputStream.cu">
+      <Filter>Lang+IO</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,263 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <LD></LD>
+    <LC>20</LC>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug.cpu|x64">
+      <Configuration>Debug.cpu</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug.cu|x64">
+      <Configuration>Debug.cu</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release.cpu|x64">
+      <Configuration>Release.cpu</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release.cu|x64">
+      <Configuration>Release.cu</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\AfterCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\AppendCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ArrayCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\BinaryCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\BreakCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CaseCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CatchCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CdCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ClockCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\CloseCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ConcatCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ContinueCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EncodingCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EofCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ErrorCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\EvalCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExecCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExitCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ExprCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FblockedCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FconfigureCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FileCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FlushCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ForCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ForeachCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\FormatCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GetsCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GlobalCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\GlobCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\IfCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\IncrCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InfoCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpAliasCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\InterpSlaveCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\JoinCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LappendCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LindexCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LinsertCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ListCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LlengthCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LrangeCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LreplaceCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsearchCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsetCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\LsortCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\NamespaceCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\OpenCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PackageCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ParseAdaptor.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ProcCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PutsCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\PwdCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ReadCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RegexpCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RegsubCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\RenameCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ReturnCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\ScanCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SeekCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SetCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SocketChannel.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SourceCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SplitCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StdChannel.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StringCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StrtodResult.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\StrtoulResult.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SubstCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\SwitchCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TellCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TimeCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\TraceCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UnsetCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UpdateCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UplevelCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\UpvarCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\VariableCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\VwaitCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+Commands\WhileCmd.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\Channel.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\ChannelBuffer.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\FileChannel.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\FileUtil.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclInputStream.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclIO.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang+IO\TclOutputStream.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\BackSlashResult.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\BgErrorMgr.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\CallFrame.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\CharPointer.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\CObject.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Command.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\CommandWithDispose.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\DebugInfo.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Env.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\EventDeleter.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\EventuallyFreed.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Expression.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\ExprValue.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Extension.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\FindElemResult.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\IAssocData.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\IdleHandler.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\ImportedCmdData.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\ImportRef.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\InternalRep.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Interp.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\JACL.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Notifier.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Parser.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\ParseResult.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Procedure.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\QSort.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Resolver.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\SearchId.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl+Conversions.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclBoolean.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclByteArray.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclDouble.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclEvent.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclException.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclIndex.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclInteger.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclList.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclLong.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclNumArgsException.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclObj.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclParse.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclPosixException.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclRegexp.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclRuntimeError.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclString.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclToken.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TclVarException.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Tcl_h.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TimerHandler.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\TraceRecord.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Util.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\Var.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\VarTrace.cu" />
+    <CudaCompile Include="..\Tcl.net\Lang\WrappedCommand.cu" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{921AFA21-3738-4DFC-985B-0F5C080E15E4}</ProjectGuid>
+    <RootNamespace>Tcl</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
+    <TargetName>$(ProjectName).cpu$(LD)</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+    </Link>
+    <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_$(LC),sm_$(LC)</CodeGeneration>
+      <Include>$(SolutionDir)lib;%(Include)</Include>
+      <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
+      <GPUDebugInfo>true</GPUDebugInfo>
+    </CudaCompile>
+    <PostBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='xDebug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(OutDir)Tcl.$(LC).lib"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
+    </Link>
+    <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_$(LC),sm_$(LC)</CodeGeneration>
+      <Include>$(SolutionDir)lib;%(Include)</Include>
+      <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
+    </CudaCompile>
+    <PostBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='xRelease.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Release.cu\FallocHost.obj" "x64\Release.cu\Falloc.cu.obj" "x64\Release.cu\RuntimeHost.obj" "x64\Release.cu\Runtime.cu.obj" "x64\Release.cu\Visual.obj" -o "$(OutDir)Tcl.$(LC).lib"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.targets" />
+  </ImportGroup>
+</Project>
