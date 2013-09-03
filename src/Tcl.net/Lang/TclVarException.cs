@@ -35,7 +35,7 @@ namespace Tcl.Lang
         {
             if (interp != null)
             {
-                interp.resetResult();
+                interp.ResetResult();
                 if ((System.Object)name2 == null)
                 {
                     interp.setResult("can't " + operation + " \"" + name1 + "\": " + reason);

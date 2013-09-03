@@ -131,7 +131,7 @@ namespace Tcl.Lang
 
                         throw;
                     }
-                    interp.resetResult();
+                    interp.ResetResult();
                     pkg = findPackage(interp, pkgName);
                     break;
                 }
@@ -144,7 +144,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                script = interp.packageUnknown;
+                script = interp._packageUnknown;
                 if ((System.Object)script != null)
                 {
                     sbuf = new StringBuilder();
@@ -181,7 +181,7 @@ namespace Tcl.Lang
 
                         throw;
                     }
-                    interp.resetResult();
+                    interp.ResetResult();
                 }
             }
             if ((System.Object)pkg.version == null)
@@ -219,7 +219,7 @@ namespace Tcl.Lang
             VersionSatisfiesResult vsres = new VersionSatisfiesResult();
             int result;
 
-            pkg = (Package)interp.packageTable[pkgName];
+            pkg = (Package)interp._packageTable[pkgName];
             if (pkg != null)
             {
                 if ((System.Object)pkg.version != null)
@@ -286,7 +286,7 @@ namespace Tcl.Lang
 
 
                             pkgName = objv[i].ToString();
-                            pkg = (Package)interp.packageTable[pkgName];
+                            pkg = (Package)interp._packageTable[pkgName];
 
                             // If this package does not exist, go to next one.
 
@@ -294,7 +294,7 @@ namespace Tcl.Lang
                             {
                                 continue;
                             }
-                            SupportClass.HashtableRemove(interp.packageTable, pkgName);
+                            SupportClass.HashtableRemove(interp._packageTable, pkgName);
                             while (pkg.avail != null)
                             {
                                 avail = pkg.avail;
@@ -320,7 +320,7 @@ namespace Tcl.Lang
                         checkVersion(interp, version);
                         if (objv.Length == 4)
                         {
-                            pkg = (Package)interp.packageTable[pkgName];
+                            pkg = (Package)interp._packageTable[pkgName];
                             if (pkg == null)
                                 return TCL.CompletionCode.RETURN;
                         }
@@ -382,7 +382,7 @@ namespace Tcl.Lang
                         try
                         {
                             sbuf = new StringBuilder();
-                            enum_Renamed = interp.packageTable.GetEnumerator();
+                            enum_Renamed = interp._packageTable.GetEnumerator();
                             once = false;
                             while (enum_Renamed.MoveNext())
                             {
@@ -457,7 +457,7 @@ namespace Tcl.Lang
                         if (objv.Length == 3)
                         {
 
-                            pkg = (Package)interp.packageTable[objv[2].ToString()];
+                            pkg = (Package)interp._packageTable[objv[2].ToString()];
                             if (pkg != null)
                             {
                                 if ((System.Object)pkg.version != null)
@@ -520,19 +520,19 @@ namespace Tcl.Lang
                         }
                         if (objv.Length == 2)
                         {
-                            if ((System.Object)interp.packageUnknown != null)
+                            if ((System.Object)interp._packageUnknown != null)
                             {
-                                interp.setResult(interp.packageUnknown);
+                                interp.setResult(interp._packageUnknown);
                             }
                         }
                         else if (objv.Length == 3)
                         {
-                            interp.packageUnknown = null;
+                            interp._packageUnknown = null;
 
                             cmd = objv[2].ToString();
                             if (cmd.Length > 0)
                             {
-                                interp.packageUnknown = cmd;
+                                interp._packageUnknown = cmd;
                             }
                         }
                         return TCL.CompletionCode.RETURN;
@@ -561,7 +561,7 @@ namespace Tcl.Lang
                             throw new TclNumArgsException(interp, 1, objv, "versions package");
                         }
 
-                        pkg = (Package)interp.packageTable[objv[2].ToString()];
+                        pkg = (Package)interp._packageTable[objv[2].ToString()];
                         if (pkg != null)
                         {
                             try
@@ -624,13 +624,13 @@ namespace Tcl.Lang
                 throw new TclException(interp, "expected package name but got \"\"");
             }
 
-            pkg = (Package)interp.packageTable[pkgName];
+            pkg = (Package)interp._packageTable[pkgName];
             if (pkg == null)
             {
                 // We should add a package with this name.
 
                 pkg = new Package();
-                SupportClass.PutElement(interp.packageTable, pkgName, pkg);
+                SupportClass.PutElement(interp._packageTable, pkgName, pkg);
             }
             return pkg;
         }

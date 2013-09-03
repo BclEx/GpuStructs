@@ -137,7 +137,7 @@ namespace Tcl.Lang
 
 
                         case TCL.CompletionCode.ERROR:
-                            interp.AddErrorInfo("\n    (\"foreach\" body line " + interp.errorLine + ")");
+                            interp.AddErrorInfo("\n    (\"foreach\" body line " + interp._errorLine + ")");
                             throw;
 
 
@@ -148,7 +148,7 @@ namespace Tcl.Lang
                 }
             }
 
-            interp.resetResult();
+            interp.ResetResult();
             return TCL.CompletionCode.RETURN;
         }
     }

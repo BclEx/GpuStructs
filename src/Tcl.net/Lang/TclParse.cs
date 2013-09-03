@@ -169,14 +169,14 @@ namespace Tcl.Lang
                 TOKEN_CACHE[i] = new TclToken();
             }
 
-            interp.parserTokens = TOKEN_CACHE;
-            interp.parserTokensUsed = 0;
+            interp._parserTokens = TOKEN_CACHE;
+            interp._parserTokensUsed = 0;
         }
 
 
         private TclToken grabToken()
         {
-            if (interp == null || interp.parserTokensUsed == MAX_CACHED_TOKENS)
+            if (interp == null || interp._parserTokensUsed == MAX_CACHED_TOKENS)
             {
                 // either we do not have a cache because the interp is null or we have already
                 // used up all the open cache slots, we just allocate a new one in this case
@@ -185,17 +185,17 @@ namespace Tcl.Lang
             else
             {
                 // the cache has an avaliable slot so grab it
-                return interp.parserTokens[interp.parserTokensUsed++];
+                return interp._parserTokens[interp._parserTokensUsed++];
             }
         }
 
         private void releaseToken(TclToken token)
         {
-            if (interp != null && interp.parserTokensUsed > 0)
+            if (interp != null && interp._parserTokensUsed > 0)
             {
                 // if cache is not full put the object back in the cache
-                interp.parserTokensUsed -= 1;
-                interp.parserTokens[interp.parserTokensUsed] = token;
+                interp._parserTokensUsed -= 1;
+                interp._parserTokens[interp._parserTokensUsed] = token;
             }
         }
 

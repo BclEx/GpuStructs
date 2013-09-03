@@ -39,10 +39,10 @@ namespace Tcl.Lang
             Interp.AddErrorInfo("");
             bgError.ErrorMsg = Interp.GetResult();
             bgError.ErrorInfo = null;
-            try { bgError.ErrorInfo = Interp.getVar("errorInfo", null, TCL.VarFlag.GLOBAL_ONLY); }
+            try { bgError.ErrorInfo = Interp.GetVar("errorInfo", null, TCL.VarFlag.GLOBAL_ONLY); }
             catch (TclException) { } // Do nothing if var does not exist.
             bgError.ErrorCode = null;
-            try { bgError.ErrorCode = Interp.getVar("errorCode", null, TCL.VarFlag.GLOBAL_ONLY); }
+            try { bgError.ErrorCode = Interp.GetVar("errorCode", null, TCL.VarFlag.GLOBAL_ONLY); }
             catch (TclException) { } // Do nothing if var does not exist.
             bgError.ErrorMsg.Preserve();
             bgError.ErrorInfo.Preserve();

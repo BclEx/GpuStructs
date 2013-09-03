@@ -37,7 +37,7 @@ namespace Tcl.Lang
             TclObject command = argv[2];
 
             {
-                while (interp.expr.EvalBoolean(interp, test))
+                while (interp._expr.EvalBoolean(interp, test))
                 {
                     try
                     {
@@ -57,7 +57,7 @@ namespace Tcl.Lang
 
 
                             case TCL.CompletionCode.ERROR:
-                                interp.AddErrorInfo("\n    (\"while\" body line " + interp.errorLine + ")");
+                                interp.AddErrorInfo("\n    (\"while\" body line " + interp._errorLine + ")");
                                 throw;
 
 
@@ -73,7 +73,7 @@ namespace Tcl.Lang
             ;
 
 
-            interp.resetResult();
+            interp.ResetResult();
             return TCL.CompletionCode.RETURN;
         }
     }

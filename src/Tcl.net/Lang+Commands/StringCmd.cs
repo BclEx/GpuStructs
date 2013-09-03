@@ -883,7 +883,7 @@ namespace Tcl.Lang
 
                         if (first > last)
                         {
-                            interp.resetResult();
+                            interp.ResetResult();
                         }
                         else
                         {

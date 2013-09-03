@@ -51,11 +51,11 @@ namespace Tcl.Lang
                 * interpreter, if it doesn't already exist.
                 */
 
-                assocData = (AfterAssocData)interp.getAssocData("tclAfter");
+                assocData = (AfterAssocData)interp.GetAssocData("tclAfter");
                 if (assocData == null)
                 {
                     assocData = new AfterAssocData(this);
-                    interp.setAssocData("tclAfter", assocData);
+                    interp.SetAssocData("tclAfter", assocData);
                 }
             }
 
@@ -268,7 +268,7 @@ namespace Tcl.Lang
                             }
                             TclList.Append(interp, list, TclString.NewInstance("after#" + id));
                         }
-                        interp.resetResult();
+                        interp.ResetResult();
                         interp.setResult(list);
                         return TCL.CompletionCode.RETURN;
                     }
@@ -292,7 +292,7 @@ namespace Tcl.Lang
                     TclList.Append(interp, list2, ((info is TimerInfo) ? ((TimerInfo)info).command : ((IdleInfo)info).command));
                     TclList.Append(interp, list2, TclString.NewInstance((info is TimerInfo) ? "timer" : "idle"));
 
-                    interp.resetResult();
+                    interp.ResetResult();
                     interp.setResult(list2);
                     break;
             }

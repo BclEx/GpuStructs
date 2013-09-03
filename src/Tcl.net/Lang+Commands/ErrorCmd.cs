@@ -35,7 +35,7 @@ namespace Tcl.Lang
                 if (!errorInfo.Equals(""))
                 {
                     interp.AddErrorInfo(errorInfo);
-                    interp.errAlreadyLogged = true;
+                    interp._errAlreadyLogged = true;
                 }
             }
 

@@ -50,7 +50,7 @@ namespace Tcl.Lang
                 for (IEnumerator e1 = VarTable.Values.GetEnumerator(); e1.MoveNext(); )
                 {
                     Var v = (Var)e1.Current;
-                    if (!v.IsVarUndefined() && !v.isVarLink())
+                    if (!v.IsVarUndefined() && !v.IsVarLink())
                         vector.Add(v.HashKey);
                 }
                 return vector;
@@ -78,7 +78,7 @@ namespace Tcl.Lang
         internal CallFrame(Interp i)
         {
             Interp = i;
-            NS = i.GlobalNs;
+            NS = i.GlobalNS;
             VarTable = new Hashtable();
             Caller = null;
             CallerVar = null;

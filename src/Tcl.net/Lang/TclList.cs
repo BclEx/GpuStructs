@@ -14,7 +14,7 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the list object type in Tcl.</summary>
-    public class TclList : InternalRep
+    public class TclList : IInternalRep
     {
 
         /// <summary> Internal representation of a list value.</summary>
@@ -56,7 +56,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             int size = vector.Count;
             TclList newList = new TclList(size);
@@ -130,7 +130,7 @@ namespace Tcl.Lang
         /// </exception>
         internal static void setListFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (!(rep is TclList))
             {

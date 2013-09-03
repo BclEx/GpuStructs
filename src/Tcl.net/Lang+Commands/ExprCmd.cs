@@ -31,7 +31,7 @@ namespace Tcl.Lang
             if (argv.Length == 2)
             {
 
-                interp.setResult(interp.expr.eval(interp, argv[1].ToString()));
+                interp.setResult(interp._expr.eval(interp, argv[1].ToString()));
             }
             else
             {
@@ -44,7 +44,7 @@ namespace Tcl.Lang
 
                     sbuf.Append(argv[i].ToString());
                 }
-                interp.setResult(interp.expr.eval(interp, sbuf.ToString()));
+                interp.setResult(interp._expr.eval(interp, sbuf.ToString()));
             }
             return TCL.CompletionCode.RETURN;
         }

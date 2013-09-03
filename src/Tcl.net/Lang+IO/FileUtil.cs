@@ -874,7 +874,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    dir = interp.getVar("env", "HOME", TCL.VarFlag.GLOBAL_ONLY).ToString();
+                    dir = interp.GetVar("env", "HOME", TCL.VarFlag.GLOBAL_ONLY).ToString();
                 }
                 catch (System.Exception e)
                 {

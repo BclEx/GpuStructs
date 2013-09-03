@@ -31,7 +31,7 @@ namespace Tcl.Lang
 
         // Procedure to call to dispose.
 
-        public abstract void eventuallyDispose();
+        public abstract void EventuallyDispose();
         internal void preserve()
         {
             // Just increment its reference count.
@@ -46,11 +46,11 @@ namespace Tcl.Lang
 
                 if (mustFree)
                 {
-                    dispose();
+                    Dispose();
                 }
             }
         }
-        public void dispose()
+        public void Dispose()
         {
             // See if there is a reference for this pointer.  If so, set its
             // "mustFree" flag (the flag had better not be set already!).
@@ -67,7 +67,7 @@ namespace Tcl.Lang
 
             // No reference for this block.  Free it now.
 
-            eventuallyDispose();
+            EventuallyDispose();
         }
     } // end EventuallyFreed
 }

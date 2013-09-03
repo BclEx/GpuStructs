@@ -119,12 +119,12 @@ namespace Tcl.Lang
 
         /// <summary> Close the SocketChannel.</summary>
 
-        internal override void close()
+        internal override void Close()
         {
             // Invoke super.close() first since it might write an eof char
             try
             {
-                base.close();
+                base.Close();
             }
             finally
             {

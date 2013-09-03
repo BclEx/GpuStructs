@@ -1337,7 +1337,7 @@ namespace Tcl.Lang
         {
             try
             {
-                interp.traceVar("tcl_precision", new PrecTraceProc(), TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_READS | TCL.VarFlag.TRACE_UNSETS);
+                interp.TraceVar("tcl_precision", new PrecTraceProc(), TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_READS | TCL.VarFlag.TRACE_UNSETS);
             }
             catch (TclException e)
             {
@@ -1406,7 +1406,7 @@ namespace Tcl.Lang
             {
                 if (((flags & TCL.VarFlag.TRACE_DESTROYED) != 0) && ((flags & TCL.VarFlag.INTERP_DESTROYED) == 0))
                 {
-                    interp.traceVar(name1, name2, new PrecTraceProc(), TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_READS | TCL.VarFlag.TRACE_UNSETS);
+                    interp.TraceVar(name1, name2, new PrecTraceProc(), TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_READS | TCL.VarFlag.TRACE_UNSETS);
                     Util.precision = Util.DEFAULT_PRECISION;
                 }
                 return;
@@ -1433,7 +1433,7 @@ namespace Tcl.Lang
             TclObject tobj = null;
             try
             {
-                tobj = interp.getVar(name1, name2, (flags & TCL.VarFlag.GLOBAL_ONLY));
+                tobj = interp.GetVar(name1, name2, (flags & TCL.VarFlag.GLOBAL_ONLY));
             }
             catch (TclException e)
             {

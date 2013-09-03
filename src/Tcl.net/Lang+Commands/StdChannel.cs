@@ -179,11 +179,11 @@ namespace Tcl.Lang
         /// when the channel is closed.
         /// </summary>
 
-        internal override void close()
+        internal override void Close()
         {
             if (stdType == STDOUT)
                 System.Console.Out.Flush();
-            base.close();
+            base.Close();
         }
     }
 }

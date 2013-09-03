@@ -55,9 +55,9 @@ namespace Tcl.Lang
         public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
             targetInterp.preserve();
-            targetInterp.nestLevel++;
+            targetInterp._nestLevel++;
 
-            targetInterp.resetResult();
+            targetInterp.ResetResult();
             targetInterp.allowExceptions();
 
             // Append the arguments to the command prefix and invoke the command
@@ -73,12 +73,12 @@ namespace Tcl.Lang
             TCL.CompletionCode result = targetInterp.invoke(cmdv, Interp.INVOKE_NO_TRACEBACK);
 
             cmd.Release();
-            targetInterp.nestLevel--;
+            targetInterp._nestLevel--;
 
             // Check if we are at the bottom of the stack for the target interpreter.
             // If so, check for special return codes.
 
-            if (targetInterp.nestLevel == 0)
+            if (targetInterp._nestLevel == 0)
             {
                 if (result == TCL.CompletionCode.RETURN)
                 {
@@ -105,12 +105,12 @@ namespace Tcl.Lang
         {
             if ((System.Object)aliasEntry != null)
             {
-                SupportClass.HashtableRemove(slaveInterp.aliasTable, aliasEntry);
+                SupportClass.HashtableRemove(slaveInterp._aliasTable, aliasEntry);
             }
 
             if (slaveCmd != null)
             {
-                SupportClass.HashtableRemove(targetInterp.targetTable, slaveCmd);
+                SupportClass.HashtableRemove(targetInterp._targetTable, slaveCmd);
             }
 
             name.Release();
@@ -148,21 +148,21 @@ namespace Tcl.Lang
                 // record.  Be careful to wipe out its client data first, so the
                 // command doesn't try to delete itself.
 
-                slaveInterp.deleteCommandFromToken(alias.slaveCmd);
+                slaveInterp.DeleteCommandFromToken(alias.slaveCmd);
                 throw;
             }
 
             // Make an entry in the alias table. If it already exists delete
             // the alias command. Then retry.
 
-            if (slaveInterp.aliasTable.ContainsKey(inString))
+            if (slaveInterp._aliasTable.ContainsKey(inString))
             {
-                InterpAliasCmd oldAlias = (InterpAliasCmd)slaveInterp.aliasTable[inString];
-                slaveInterp.deleteCommandFromToken(oldAlias.slaveCmd);
+                InterpAliasCmd oldAlias = (InterpAliasCmd)slaveInterp._aliasTable[inString];
+                slaveInterp.DeleteCommandFromToken(oldAlias.slaveCmd);
             }
 
             alias.aliasEntry = inString;
-            SupportClass.PutElement(slaveInterp.aliasTable, inString, alias);
+            SupportClass.PutElement(slaveInterp._aliasTable, inString, alias);
 
             // Create the new command. We must do it after deleting any old command,
             // because the alias may be pointing at a renamed alias, as in:
@@ -171,7 +171,7 @@ namespace Tcl.Lang
             // rename foo zop				# Now rename the alias
             // interp alias {} foo {} zop		# Now recreate "foo"...
 
-            SupportClass.PutElement(masterInterp.targetTable, alias.slaveCmd, slaveInterp);
+            SupportClass.PutElement(masterInterp._targetTable, alias.slaveCmd, slaveInterp);
 
             interp.setResult(name);
         }
@@ -183,13 +183,13 @@ namespace Tcl.Lang
 
 
             string inString = name.ToString();
-            if (!slaveInterp.aliasTable.ContainsKey(inString))
+            if (!slaveInterp._aliasTable.ContainsKey(inString))
             {
                 throw new TclException(interp, "alias \"" + inString + "\" not found");
             }
 
-            InterpAliasCmd alias = (InterpAliasCmd)slaveInterp.aliasTable[inString];
-            slaveInterp.deleteCommandFromToken(alias.slaveCmd);
+            InterpAliasCmd alias = (InterpAliasCmd)slaveInterp._aliasTable[inString];
+            slaveInterp.DeleteCommandFromToken(alias.slaveCmd);
         }
         internal static void describe(Interp interp, Interp slaveInterp, TclObject name)
         {
@@ -199,9 +199,9 @@ namespace Tcl.Lang
 
 
             string inString = name.ToString();
-            if (slaveInterp.aliasTable.ContainsKey(inString))
+            if (slaveInterp._aliasTable.ContainsKey(inString))
             {
-                InterpAliasCmd alias = (InterpAliasCmd)slaveInterp.aliasTable[inString];
+                InterpAliasCmd alias = (InterpAliasCmd)slaveInterp._aliasTable[inString];
                 interp.setResult(alias.prefix);
             }
         }
@@ -210,7 +210,7 @@ namespace Tcl.Lang
             TclObject result = TclList.NewInstance();
             interp.setResult(result);
 
-            IEnumerator aliases = slaveInterp.aliasTable.Values.GetEnumerator();
+            IEnumerator aliases = slaveInterp._aliasTable.Values.GetEnumerator();
             while (aliases.MoveNext())
             {
                 InterpAliasCmd alias = (InterpAliasCmd)aliases.Current;
@@ -226,12 +226,12 @@ namespace Tcl.Lang
         }
         internal static Interp getTargetInterp(Interp slaveInterp, string aliasName)
         {
-            if (!slaveInterp.aliasTable.ContainsKey(aliasName))
+            if (!slaveInterp._aliasTable.ContainsKey(aliasName))
             {
                 return null;
             }
 
-            InterpAliasCmd alias = (InterpAliasCmd)slaveInterp.aliasTable[aliasName];
+            InterpAliasCmd alias = (InterpAliasCmd)slaveInterp._aliasTable[aliasName];
 
             return alias.targetInterp;
         }

@@ -22,7 +22,7 @@ namespace Tcl.Lang
         private const int OPT_INDICES = 0;
         private const int OPT_NOCASE = 1;
         private const int OPT_LAST = 2;
-        internal static void init(Interp interp)
+        internal static void Init(Interp interp)
         // Current interpreter. 
         {
             interp.CreateCommand("regexp", new Tcl.Lang.RegexpCmd());

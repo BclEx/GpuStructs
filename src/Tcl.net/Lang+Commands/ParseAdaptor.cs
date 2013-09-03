@@ -38,11 +38,11 @@ namespace Tcl.Lang
             script = new CharPointer(inString);
             script._index = index;
 
-            interp.evalFlags |= Parser.TCL_BRACKET_TERM;
+            interp._evalFlags |= Parser.TCL_BRACKET_TERM;
             Parser.eval2(interp, script._array, script._index, length - index, 0);
             obj = interp.GetResult();
             obj.Preserve();
-            return (new ParseResult(obj, index + interp.termOffset + 1));
+            return (new ParseResult(obj, index + interp._termOffset + 1));
         }
         internal static ParseResult ParseQuotes(Interp interp, string inString, int index, int length)
         {

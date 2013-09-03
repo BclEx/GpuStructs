@@ -14,7 +14,7 @@ namespace Tcl.Lang
 {
 
     /// <summary> This class implements the binary data object type in Tcl.</summary>
-    public class TclByteArray : InternalRep
+    public class TclByteArray : IInternalRep
     {
 
         /// <summary> The number of bytes used in the byte array.
@@ -67,7 +67,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclByteArray(bytes, 0, used);
         }
@@ -142,7 +142,7 @@ namespace Tcl.Lang
         /// </exception>
         internal static void setByteArrayFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (!(rep is TclByteArray))
             {

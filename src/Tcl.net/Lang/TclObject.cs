@@ -32,7 +32,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="rep">the new internal rep.
         /// </param>
-        public InternalRep InternalRep
+        public IInternalRep InternalRep
         {
             get
             {
@@ -158,7 +158,7 @@ namespace Tcl.Lang
 
         // Internal representation of the object.
 
-        protected internal InternalRep internalRep;
+        protected internal IInternalRep internalRep;
 
         // Reference count of this object. When 0 the object will be deallocated.
 
@@ -181,7 +181,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="rep">the initial InternalRep for this object.
         /// </param>
-        public TclObject(InternalRep rep)
+        public TclObject(IInternalRep rep)
         {
             if (rep == null)
             {

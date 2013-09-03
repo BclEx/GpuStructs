@@ -61,7 +61,7 @@ namespace Tcl.Lang
             * have executed commands.
             */
 
-            interp.resetResult();
+            interp.ResetResult();
             return TCL.CompletionCode.RETURN;
         }
     } // end UpdateCmd

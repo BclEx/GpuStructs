@@ -143,7 +143,7 @@ namespace Tcl.Lang
                     {
 
                         CmdTraceProc trace = new CmdTraceProc(objv[4].ToString(), flags);
-                        Var.traceVar(interp, objv[2], flags, trace);
+                        Var.TraceVar(interp, objv[2], flags, trace);
                     }
                     else
                     {
@@ -166,7 +166,7 @@ namespace Tcl.Lang
 
                                     if (proc.flags == flags && proc.command.ToString().Equals(objv[4].ToString()))
                                     {
-                                        Var.untraceVar(interp, objv[2], flags, proc);
+                                        Var.UntraceVar(interp, objv[2], flags, proc);
                                         break;
                                     }
                                 }

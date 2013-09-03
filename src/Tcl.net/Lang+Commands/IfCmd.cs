@@ -42,7 +42,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    value = interp.expr.EvalBoolean(interp, argv[i].ToString());
+                    value = interp._expr.EvalBoolean(interp, argv[i].ToString());
                 }
                 catch (TclException e)
                 {
@@ -79,7 +79,7 @@ namespace Tcl.Lang
                         {
 
                             case TCL.CompletionCode.ERROR:
-                                interp.AddErrorInfo("\n    (\"if\" then script line " + interp.errorLine + ")");
+                                interp.AddErrorInfo("\n    (\"if\" then script line " + interp._errorLine + ")");
                                 break;
                         }
                         throw;
@@ -95,7 +95,7 @@ namespace Tcl.Lang
                 i++;
                 if (i >= argv.Length)
                 {
-                    interp.resetResult();
+                    interp.ResetResult();
                     return TCL.CompletionCode.RETURN;
                 }
 
@@ -136,7 +136,7 @@ namespace Tcl.Lang
                 {
 
                     case TCL.CompletionCode.ERROR:
-                        interp.AddErrorInfo("\n    (\"if\" else script line " + interp.errorLine + ")");
+                        interp.AddErrorInfo("\n    (\"if\" else script line " + interp._errorLine + ")");
                         break;
                 }
                 throw;

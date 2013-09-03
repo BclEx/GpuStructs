@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the integer object type in Tcl.</summary>
 
-    public class TclInteger : InternalRep
+    public class TclInteger : IInternalRep
     {
         /// <summary> Internal representation of a integer value.</summary>
         private int value;
@@ -43,7 +43,7 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclInteger(value);
         }
@@ -97,7 +97,7 @@ namespace Tcl.Lang
 
         private static void setIntegerFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclInteger)
             {
@@ -152,7 +152,7 @@ namespace Tcl.Lang
         public static void set(TclObject tobj, int i)
         {
             tobj.invalidateStringRep();
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
             TclInteger tint;
 
             if (rep is TclInteger)

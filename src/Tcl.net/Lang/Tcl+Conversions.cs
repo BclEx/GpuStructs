@@ -402,9 +402,9 @@ namespace Tcl.Lang
                 Var array = result[1];
                 TclObject to = null;
 
-                if (var.isVarScalar() && !var.IsVarUndefined())
+                if (var.IsVarScalar() && !var.IsVarUndefined())
                 {
-                    to = (TclObject)var.value;
+                    to = (TclObject)var._value;
                     //if ( to.typePtr != "String" )
                     //{
                     //  double D = 0;
@@ -420,15 +420,15 @@ namespace Tcl.Lang
                 }
                 else if (var.isSQLITE3_Link())
                 {
-                    to = (TclObject)var.sqlite3_get();
+                    to = (TclObject)var.Ext_Get();
                 }
                 else
                 {
                     to = TclList.NewInstance();
-                    foreach (string key in ((Hashtable)array.value).Keys)
+                    foreach (string key in ((Hashtable)array._value).Keys)
                     {
-                        Var s = (Var)((Hashtable)array.value)[key];
-                        if (s.value != null) TclList.Append(null, to, TclString.NewInstance(s.value.ToString()));
+                        Var s = (Var)((Hashtable)array._value)[key];
+                        if (s._value != null) TclList.Append(null, to, TclString.NewInstance(s._value.ToString()));
                     }
                 }
                 return to;
@@ -443,7 +443,7 @@ namespace Tcl.Lang
         {
             try
             {
-                TclObject to = interp.getVar(part, flags);
+                TclObject to = interp.GetVar(part, flags);
                 return to;
             }
             catch (Exception e)
@@ -457,7 +457,7 @@ namespace Tcl.Lang
         {
             try
             {
-                TclObject to = interp.getVar(part1, part2, flags);
+                TclObject to = interp.GetVar(part1, part2, flags);
                 return to;
             }
             catch
@@ -493,11 +493,11 @@ namespace Tcl.Lang
 
         public static void Tcl_LinkVar(Interp interp, string name, Object GetSet, VarFlags flags)
         {
-            Debug.Assert(((flags & VarFlags.SQLITE3_LINK_READ_ONLY) != 0) || GetSet.GetType().Name == "SQLITE3_GETSET");
+            Debug.Assert(((flags & VarFlags.EXT_LINK_READ_ONLY) != 0) || GetSet.GetType().Name == "SQLITE3_GETSET");
             Var[] linkvar = Var.LookupVar(interp, name, null, VarFlag.GLOBAL_ONLY, "define", true, false);
-            linkvar[0].flags |= VarFlags.SQLITE3_LINK | flags;
-            linkvar[0].sqlite3_get_set = GetSet;
-            linkvar[0].refCount++;
+            linkvar[0]._flags |= VarFlags.EXT_LINK | flags;
+            linkvar[0].ext_getset = GetSet;
+            linkvar[0].RefCount++;
         }
 
         public static bool Tcl_ListObjAppendElement(Interp interp, TclObject to, TclObject elemObj)
@@ -643,7 +643,7 @@ namespace Tcl.Lang
 
         public static void Tcl_ResetResult(Interp interp)
         {
-            interp.resetResult();
+            interp.ResetResult();
         }
 
         public static void Tcl_SetBooleanObj(TclObject to, int result)
@@ -684,19 +684,19 @@ namespace Tcl.Lang
 
         public static void Tcl_SetObjResult(Interp interp, TclObject to)
         {
-            interp.resetResult();
+            interp.ResetResult();
             interp.setResult(to);
         }
 
         public static void Tcl_SetResult(Interp interp, StringBuilder result, int dummy)
         {
-            interp.resetResult();
+            interp.ResetResult();
             interp.setResult(result.ToString());
         }
 
         public static void Tcl_SetResult(Interp interp, string result, int dummy)
         {
-            interp.resetResult();
+            interp.ResetResult();
             interp.setResult(result);
         }
 
@@ -757,7 +757,7 @@ namespace Tcl.Lang
         {
             try
             {
-                return ((InterpSlaveCmd)interp.slaveTable[slaveInterp]).slaveInterp;
+                return ((InterpSlaveCmd)interp._slaveTable[slaveInterp]).slaveInterp;
             }
             catch
             {

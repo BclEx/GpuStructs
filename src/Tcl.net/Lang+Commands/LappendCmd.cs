@@ -37,7 +37,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    newValue = interp.getVar(objv[1], 0);
+                    newValue = interp.GetVar(objv[1], 0);
                 }
                 catch (TclException e)
                 {
@@ -55,7 +55,7 @@ namespace Tcl.Lang
                             varValue.Release(); // free unneeded object
                     }
 
-                    interp.resetResult();
+                    interp.ResetResult();
                     return TCL.CompletionCode.RETURN;
                 }
             }
@@ -74,7 +74,7 @@ namespace Tcl.Lang
 
                 try
                 {
-                    varValue = interp.getVar(objv[1], 0);
+                    varValue = interp.GetVar(objv[1], 0);
                 }
                 catch (TclException e)
                 {

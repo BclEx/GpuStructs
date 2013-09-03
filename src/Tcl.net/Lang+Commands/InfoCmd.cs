@@ -265,7 +265,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
-            interp.setResult(interp.cmdCount);
+            interp.setResult(interp._cmdCount);
             return;
         }
 
@@ -769,7 +769,7 @@ namespace Tcl.Lang
             }
             try
             {
-                interp.setResult(interp.getVar("tcl_library", TCL.VarFlag.GLOBAL_ONLY));
+                interp.setResult(interp.GetVar("tcl_library", TCL.VarFlag.GLOBAL_ONLY));
                 return;
             }
             catch (TclException e)
@@ -897,7 +897,7 @@ namespace Tcl.Lang
                 {
                     var = (Var)search.Value;
                     varName = (string)search.Key;
-                    if (!var.IsVarUndefined() && (includeLinks || !var.isVarLink()))
+                    if (!var.IsVarUndefined() && (includeLinks || !var.IsVarLink()))
                     {
                         if (((System.Object)pattern == null) || Util.stringMatch(varName, pattern))
                         {
@@ -980,7 +980,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp.getVar("tcl_patchLevel", TCL.VarFlag.GLOBAL_ONLY));
+            interp.setResult(interp.GetVar("tcl_patchLevel", TCL.VarFlag.GLOBAL_ONLY));
             return;
         }
 
@@ -1081,7 +1081,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp.scriptFile);
+            interp.setResult(interp._scriptFile);
             return;
         }
 
@@ -1141,7 +1141,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp.getVar("tcl_version", TCL.VarFlag.GLOBAL_ONLY));
+            interp.setResult(interp.GetVar("tcl_version", TCL.VarFlag.GLOBAL_ONLY));
             return;
         }
 
@@ -1245,7 +1245,7 @@ namespace Tcl.Lang
                 {
                     varName = ((string)search.Key);
                     var = (Var)search.Value;
-                    if (!var.IsVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
+                    if (!var.IsVarUndefined() || ((var._flags & VarFlags.NAMESPACE_VAR) != 0))
                     {
                         if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
                         {
@@ -1276,7 +1276,7 @@ namespace Tcl.Lang
                     {
                         varName = ((string)search.Key);
                         var = (Var)search.Value;
-                        if (!var.IsVarUndefined() || ((var.flags & VarFlags.NAMESPACE_VAR) != 0))
+                        if (!var.IsVarUndefined() || ((var._flags & VarFlags.NAMESPACE_VAR) != 0))
                         {
                             if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
                             {

@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     // This class implements the string object type in Tcl.
 
-    public class TclString : InternalRep
+    public class TclString : IInternalRep
     {
         /// <summary> Called to convert the other object's internal rep to string.
         /// 
@@ -23,7 +23,7 @@ namespace Tcl.Lang
         {
             set
             {
-                InternalRep rep = value.InternalRep;
+                IInternalRep rep = value.InternalRep;
 
                 if (!(rep is TclString))
                 {
@@ -67,7 +67,7 @@ namespace Tcl.Lang
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
 
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclString();
         }

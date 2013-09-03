@@ -83,7 +83,7 @@ namespace Tcl.Lang
                     * Record information telling where the error occurred.
                     */
 
-                    interp.AddErrorInfo("\n    (file line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (file line " + interp._errorLine + ")");
                     throw;
                 }
                 else

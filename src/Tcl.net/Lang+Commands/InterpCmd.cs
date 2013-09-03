@@ -107,7 +107,7 @@ namespace Tcl.Lang
 
                         // Weird historical rules: "-safe" is accepted at the end, too.
 
-                        bool safe = interp.isSafe;
+                        bool safe = interp._isSafe;
 
                         TclObject slaveNameObj = null;
                         bool last = false;
@@ -161,8 +161,8 @@ namespace Tcl.Lang
                             {
                                 throw new TclException(interp, "cannot delete the current interpreter");
                             }
-                            InterpSlaveCmd slave = slaveInterp.slave;
-                            slave.masterInterp.deleteCommandFromToken(slave.interpCmd);
+                            InterpSlaveCmd slave = slaveInterp._slave;
+                            slave.masterInterp.DeleteCommandFromToken(slave.interpCmd);
                         }
                         break;
                     }
@@ -230,7 +230,7 @@ namespace Tcl.Lang
                 case OPT_ISSAFE:
                     {
                         Interp slaveInterp = getInterp(interp, objv);
-                        interp.setResult(slaveInterp.isSafe);
+                        interp.setResult(slaveInterp._isSafe);
                         break;
                     }
 
@@ -283,7 +283,7 @@ namespace Tcl.Lang
                         TclObject result = TclList.NewInstance();
                         interp.setResult(result);
 
-                        IEnumerator keys = slaveInterp.slaveTable.Keys.GetEnumerator();
+                        IEnumerator keys = slaveInterp._slaveTable.Keys.GetEnumerator();
                         while (keys.MoveNext())
                         {
                             string inString = (string)keys.Current;
@@ -383,16 +383,16 @@ namespace Tcl.Lang
             {
                 return true;
             }
-            if (targetInterp == null || targetInterp.slave == null)
+            if (targetInterp == null || targetInterp._slave == null)
             {
                 return false;
             }
 
-            if (!getInterpPath(askingInterp, targetInterp.slave.masterInterp))
+            if (!getInterpPath(askingInterp, targetInterp._slave.masterInterp))
             {
                 return false;
             }
-            askingInterp.appendElement(targetInterp.slave.path);
+            askingInterp.appendElement(targetInterp._slave.path);
             return true;
         }
         internal static Interp getInterp(Interp interp, TclObject path)
@@ -404,12 +404,12 @@ namespace Tcl.Lang
             {
 
                 string name = objv[i].ToString();
-                if (!searchInterp.slaveTable.ContainsKey(name))
+                if (!searchInterp._slaveTable.ContainsKey(name))
                 {
                     searchInterp = null;
                     break;
                 }
-                InterpSlaveCmd slave = (InterpSlaveCmd)searchInterp.slaveTable[name];
+                InterpSlaveCmd slave = (InterpSlaveCmd)searchInterp._slaveTable[name];
                 searchInterp = slave.slaveInterp;
                 if (searchInterp == null)
                 {

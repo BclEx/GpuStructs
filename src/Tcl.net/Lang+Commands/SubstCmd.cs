@@ -93,11 +93,11 @@ namespace Tcl.Lang
                     ParseResult res;
                     try
                     {
-                        interp.evalFlags = Parser.TCL_BRACKET_TERM;
+                        interp._evalFlags = Parser.TCL_BRACKET_TERM;
                         interp.eval(s.Substring(i + 1, (len) - (i + 1)));
                         TclObject interp_result = interp.GetResult();
                         interp_result.Preserve();
-                        res = new ParseResult(interp_result, i + interp.termOffset);
+                        res = new ParseResult(interp_result, i + interp._termOffset);
                     }
                     catch (TclException e)
                     {

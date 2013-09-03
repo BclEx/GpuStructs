@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the boolean object type in Tcl.</summary>
 
-    public class TclBoolean : InternalRep
+    public class TclBoolean : IInternalRep
     {
         /// <summary> Internal representation of a boolean value.</summary>
         private bool value;
@@ -46,7 +46,7 @@ namespace Tcl.Lang
         /// </summary>
         /// <param name="tobj">the TclObject that contains this ObjType.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclBoolean(value);
         }
@@ -100,7 +100,7 @@ namespace Tcl.Lang
         /// </param>
         private static void setBooleanFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclBoolean)
             {

@@ -27,7 +27,7 @@ namespace Tcl.Lang
     /// </summary>
 
 
-    public class NamespaceCmd : InternalRep, ICommand
+    public class NamespaceCmd : IInternalRep, ICommand
     {
 
         // Flag passed to getNamespaceForQualName to indicate that it should
@@ -108,7 +108,7 @@ namespace Tcl.Lang
             }
             else
             {
-                return interp.GlobalNs;
+                return interp.GlobalNS;
             }
         }
 
@@ -130,7 +130,7 @@ namespace Tcl.Lang
 
         internal static Namespace getGlobalNamespace(Interp interp)
         {
-            return interp.GlobalNs;
+            return interp.GlobalNS;
         }
 
 
@@ -256,7 +256,7 @@ namespace Tcl.Lang
             // What's really needed is a general-purpose mechanism for saving and
             // restoring interpreter state.
 
-            saveErrFlag = (interp.flags & Parser.ERR_IN_PROGRESS);
+            saveErrFlag = (interp._flags & Parser.ERR_IN_PROGRESS);
 
             if (frame.VarTable != null)
             {
@@ -264,7 +264,7 @@ namespace Tcl.Lang
                 frame.VarTable = null;
             }
 
-            interp.flags |= saveErrFlag;
+            interp._flags |= saveErrFlag;
 
             // Decrement the namespace's count of active call frames. If the
             // namespace is "dying" and there are no more active call frames,
@@ -274,7 +274,7 @@ namespace Tcl.Lang
             ns.activationCount--;
             if (((ns.flags & NS_DYING) != 0) && (ns.activationCount == 0))
             {
-                deleteNamespace(ns);
+                DeleteNamespace(ns);
             }
             frame.NS = null;
         }
@@ -464,7 +464,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        internal static void deleteNamespace(Namespace namespace_Renamed)
+        internal static void DeleteNamespace(Namespace namespace_Renamed)
         {
             Namespace ns = namespace_Renamed;
             Interp interp = ns.interp;
@@ -499,9 +499,9 @@ namespace Tcl.Lang
                 // namespace, then clear it but don't free its storage unless the
                 // interpreter is being torn down.
 
-                teardownNamespace(ns);
+                TeardownNamespace(ns);
 
-                if ((ns != globalNs) || ((interp.flags & Parser.DELETED) != 0))
+                if ((ns != globalNs) || ((interp._flags & Parser.DELETED) != 0))
                 {
                     // If this is the global namespace, then it may have residual
                     // "errorInfo" and "errorCode" variables for errors that
@@ -555,7 +555,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        internal static void teardownNamespace(Namespace ns)
+        internal static void TeardownNamespace(Namespace ns)
         {
             Interp interp = ns.interp;
             IEnumerator search;
@@ -578,7 +578,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    errorInfoStr = interp.getVar("errorInfo", TCL.VarFlag.GLOBAL_ONLY).ToString();
+                    errorInfoStr = interp.GetVar("errorInfo", TCL.VarFlag.GLOBAL_ONLY).ToString();
                 }
                 catch (TclException e)
                 {
@@ -588,7 +588,7 @@ namespace Tcl.Lang
                 try
                 {
 
-                    errorCodeStr = interp.getVar("errorCode", TCL.VarFlag.GLOBAL_ONLY).ToString();
+                    errorCodeStr = interp.GetVar("errorCode", TCL.VarFlag.GLOBAL_ONLY).ToString();
                 }
                 catch (TclException e)
                 {
@@ -643,7 +643,7 @@ namespace Tcl.Lang
 
             foreach (Namespace childNs in new ArrayList(ns.childTable.Values))
             {
-                deleteNamespace(childNs);
+                DeleteNamespace(childNs);
             }
 
             // Delete all commands in this namespace. Be careful when traversing the
@@ -654,7 +654,7 @@ namespace Tcl.Lang
             // that changes is ok in Java! Also call deleteCommand... correctly!
             foreach (WrappedCommand cmd in new ArrayList(ns.cmdTable.Values))
             {
-                interp.deleteCommandFromToken(cmd);
+                interp.DeleteCommandFromToken(cmd);
             }
 
             ns.cmdTable.Clear();
@@ -941,7 +941,7 @@ namespace Tcl.Lang
                     objv[1].Release();
                 }
 
-                interp.resetResult();
+                interp.ResetResult();
             }
 
             // From the pattern, find the namespace from which we are importing
@@ -1023,7 +1023,7 @@ namespace Tcl.Lang
 
                         ds = new StringBuilder();
                         ds.Append(ns.fullName);
-                        if (ns != interp.GlobalNs)
+                        if (ns != interp.GlobalNS)
                         {
                             ds.Append("::");
                         }
@@ -1055,17 +1055,17 @@ namespace Tcl.Lang
                         // Lookup in the namespace for the new WrappedCommand
                         importedCmd = findCommand(interp, ds.ToString(), ns, (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG));
 
-                        data.realCmd = cmd;
-                        data.self = importedCmd;
+                        data.RealCmd = cmd;
+                        data.Self = importedCmd;
 
                         // Create an ImportRef structure describing this new import
                         // command and add it to the import ref list in the "real"
                         // command.
 
                         ref_Renamed = new ImportRef();
-                        ref_Renamed.importedCmd = importedCmd;
-                        ref_Renamed.next = cmd.importRef;
-                        cmd.importRef = ref_Renamed;
+                        ref_Renamed.ImportedCmd = importedCmd;
+                        ref_Renamed.Next = cmd.ImportRef;
+                        cmd.ImportRef = ref_Renamed;
                     }
                     else
                     {
@@ -1158,7 +1158,7 @@ namespace Tcl.Lang
                         // cmd of same name in current namespace
                         if (cmd.cmd is ImportedCmdData)
                         {
-                            interp.deleteCommandFromToken(cmd);
+                            interp.DeleteCommandFromToken(cmd);
                         }
                     }
                 }
@@ -1203,7 +1203,7 @@ namespace Tcl.Lang
             while (cmd.cmd is ImportedCmdData)
             {
                 data = (ImportedCmdData)cmd.cmd;
-                cmd = data.realCmd;
+                cmd = data.RealCmd;
             }
             return cmd;
         }
@@ -1228,9 +1228,9 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        internal static void invokeImportedCmd(Interp interp, ImportedCmdData data, TclObject[] objv)
+        internal static void InvokeImportedCmd(Interp interp, ImportedCmdData data, TclObject[] objv)
         {
-            WrappedCommand realCmd = data.realCmd;
+            WrappedCommand realCmd = data.RealCmd;
             realCmd.cmd.CmdProc(interp, objv);
         }
 
@@ -1256,17 +1256,17 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        internal static void deleteImportedCmd(ImportedCmdData data)
+        internal static void DeleteImportedCmd(ImportedCmdData data)
         // The data object for this imported command
         {
-            WrappedCommand realCmd = data.realCmd;
-            WrappedCommand self = data.self;
+            WrappedCommand realCmd = data.RealCmd;
+            WrappedCommand self = data.Self;
             ImportRef ref_Renamed, prev;
 
             prev = null;
-            for (ref_Renamed = realCmd.importRef; ref_Renamed != null; ref_Renamed = ref_Renamed.next)
+            for (ref_Renamed = realCmd.ImportRef; ref_Renamed != null; ref_Renamed = ref_Renamed.Next)
             {
-                if (ref_Renamed.importedCmd == self)
+                if (ref_Renamed.ImportedCmd == self)
                 {
                     // Remove ref from real command's list of imported commands
                     // that refer to it.
@@ -1274,11 +1274,11 @@ namespace Tcl.Lang
                     if (prev == null)
                     {
                         // ref is first in list
-                        realCmd.importRef = ref_Renamed.next;
+                        realCmd.ImportRef = ref_Renamed.Next;
                     }
                     else
                     {
-                        prev.next = ref_Renamed.next;
+                        prev.Next = ref_Renamed.Next;
                     }
                     ref_Renamed = null;
                     data = null;
@@ -1432,7 +1432,7 @@ namespace Tcl.Lang
                 }
                 else
                 {
-                    ns = interp.GlobalNs;
+                    ns = interp.GlobalNS;
                 }
             }
 
@@ -1722,7 +1722,7 @@ namespace Tcl.Lang
                 cxtNs = getCurrentNamespace(interp);
             }
 
-            if (cxtNs.resolver != null || interp.resolvers != null)
+            if (cxtNs.resolver != null || interp._resolvers != null)
             {
                 try
                 {
@@ -1735,9 +1735,9 @@ namespace Tcl.Lang
                         cmd = null;
                     }
 
-                    if (cmd == null && interp.resolvers != null)
+                    if (cmd == null && interp._resolvers != null)
                     {
-                        IEnumerator enum_Renamed = interp.resolvers.GetEnumerator();
+                        IEnumerator enum_Renamed = interp._resolvers.GetEnumerator();
                         while (cmd == null && enum_Renamed.MoveNext())
                         {
                             res = (Interp.ResolverScheme)enum_Renamed.Current;
@@ -1851,7 +1851,7 @@ namespace Tcl.Lang
                 cxtNs = getCurrentNamespace(interp);
             }
 
-            if (cxtNs.resolver != null || interp.resolvers != null)
+            if (cxtNs.resolver != null || interp._resolvers != null)
             {
                 try
                 {
@@ -1864,9 +1864,9 @@ namespace Tcl.Lang
                         var = null;
                     }
 
-                    if (var == null && interp.resolvers != null)
+                    if (var == null && interp._resolvers != null)
                     {
-                        IEnumerator enum_Renamed = interp.resolvers.GetEnumerator();
+                        IEnumerator enum_Renamed = interp._resolvers.GetEnumerator();
                         while (var == null && enum_Renamed.MoveNext())
                         {
                             res = (Interp.ResolverScheme)enum_Renamed.Current;
@@ -2546,7 +2546,7 @@ namespace Tcl.Lang
 
                 if (namespace_Renamed != null)
                 {
-                    deleteNamespace(namespace_Renamed);
+                    DeleteNamespace(namespace_Renamed);
                 }
             }
         }
@@ -2636,7 +2636,7 @@ namespace Tcl.Lang
             {
                 if (ex.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.AddErrorInfo("\n    (in namespace eval \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (in namespace eval \"" + namespace_Renamed.fullName + "\" script line " + interp._errorLine + ")");
                 }
                 throw ex;
             }
@@ -2978,7 +2978,7 @@ namespace Tcl.Lang
             {
                 if (ex.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.AddErrorInfo("\n    (in namespace inscope \"" + namespace_Renamed.fullName + "\" script line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (in namespace inscope \"" + namespace_Renamed.fullName + "\" script line " + interp._errorLine + ")");
                 }
                 throw ex;
             }
@@ -3405,7 +3405,7 @@ namespace Tcl.Lang
         *----------------------------------------------------------------------
         */
 
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             System.Diagnostics.Debug.WriteLine("duplicate() called for namespace object " + (otherValue == null ? null : otherValue.ns));
 

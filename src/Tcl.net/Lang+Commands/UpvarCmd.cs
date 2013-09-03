@@ -75,7 +75,7 @@ namespace Tcl.Lang
                     Var.makeUpvar(interp, frame, otherVarName, null, 0, myVarName, 0);
                 }
             }
-            interp.resetResult();
+            interp.ResetResult();
             return TCL.CompletionCode.RETURN;
         }
     }

@@ -27,7 +27,7 @@ namespace Tcl.Lang
             }
 
             VwaitTrace trace = new VwaitTrace();
-            Var.traceVar(interp, argv[1], TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS, trace);
+            Var.TraceVar(interp, argv[1], TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS, trace);
 
             int foundEvent = 1;
             while (!trace.done && (foundEvent != 0))
@@ -35,12 +35,12 @@ namespace Tcl.Lang
                 foundEvent = interp.getNotifier().doOneEvent(TCL.ALL_EVENTS);
             }
 
-            Var.untraceVar(interp, argv[1], TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS, trace);
+            Var.UntraceVar(interp, argv[1], TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS, trace);
 
             // Clear out the interpreter's result, since it may have been set
             // by event handlers.
 
-            interp.resetResult();
+            interp.ResetResult();
 
             if (foundEvent == 0)
             {

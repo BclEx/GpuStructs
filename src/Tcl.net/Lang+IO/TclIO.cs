@@ -81,7 +81,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    chan.close();
+                    chan.Close();
                 }
                 catch (IOException e)
                 {
@@ -95,10 +95,10 @@ namespace Tcl.Lang
         {
             Channel chan;
 
-            if (interp.interpChanTable == null)
+            if (interp._interpChanTable == null)
             {
 
-                interp.interpChanTable = new Hashtable();
+                interp._interpChanTable = new Hashtable();
 
                 chan = GetStdChannel(StdChannel.STDIN);
                 registerChannel(interp, chan);
@@ -110,7 +110,7 @@ namespace Tcl.Lang
                 registerChannel(interp, chan);
             }
 
-            return interp.interpChanTable;
+            return interp._interpChanTable;
         }
 
 

@@ -43,7 +43,7 @@ namespace Tcl.Lang
         // of being deleted. Other attempts to
         // delete the command should be ignored.
 
-        internal ImportRef importRef; // List of each imported Command created in
+        internal ImportRef ImportRef; // List of each imported Command created in
         // another namespace when this command is
         // imported. These imported commands
         // redirect invocations back to this

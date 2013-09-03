@@ -521,7 +521,7 @@ namespace Tcl.Lang
         /// the channel table.
         /// </summary>
 
-        internal virtual void close()
+        internal virtual void Close()
         {
 
             IOException ex = null;

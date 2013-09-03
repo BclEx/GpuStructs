@@ -17,7 +17,7 @@ namespace Tcl.Lang
     /// 
     /// None of the methods in this implementation will ever be called.
     /// </summary>
-    class CObject : InternalRep
+    class CObject : IInternalRep
     {
         public long CObjectPtr;
 
@@ -26,7 +26,7 @@ namespace Tcl.Lang
             throw new TclRuntimeError("This shouldn't be called");
         }
 
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             throw new TclRuntimeError("This shouldn't be called");
         }

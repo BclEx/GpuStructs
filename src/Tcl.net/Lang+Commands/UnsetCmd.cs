@@ -29,12 +29,12 @@ namespace Tcl.Lang
             switch (objv.Length)
             {
                 case 2:
-                    interp.unsetVar(objv[1], 0);
+                    interp.UnsetVar(objv[1], 0);
                     break;
                 case 3:
                     for (int i = (objv[1].ToString() != "-nocomplain") ? 1 : 2; i < objv.Length; i++)
                     {
-                        Var.unsetVar(interp, objv[i].ToString(), 0);
+                        Var.UnsetVar(interp, objv[i].ToString(), 0);
                     }
                     break;
                 default:

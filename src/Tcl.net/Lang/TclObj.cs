@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the object type in Tcl.</summary>
 
-    public class TclObj : InternalRep
+    public class TclObj : IInternalRep
     {
         /// <summary> Internal representation of a object value.</summary>
         private object value;
@@ -26,7 +26,7 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclObj(value);
         }
@@ -78,7 +78,7 @@ namespace Tcl.Lang
         public static void set(TclObject tobj, object o)
         {
             tobj.invalidateStringRep();
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
             TclObj tint;
 
             if (rep is TclObj)

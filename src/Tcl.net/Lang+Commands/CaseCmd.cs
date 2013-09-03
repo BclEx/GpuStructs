@@ -136,7 +136,7 @@ namespace Tcl.Lang
                     if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                     {
 
-                        interp.AddErrorInfo("\n    (\"" + caseArgv[body - 1] + "\" arm line " + interp.errorLine + ")");
+                        interp.AddErrorInfo("\n    (\"" + caseArgv[body - 1] + "\" arm line " + interp._errorLine + ")");
                     }
                     throw;
                 }

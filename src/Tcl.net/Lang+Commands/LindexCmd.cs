@@ -37,7 +37,7 @@ namespace Tcl.Lang
             }
             else
             {
-                interp.resetResult();
+                interp.ResetResult();
             }
             return TCL.CompletionCode.RETURN;
         }

@@ -29,8 +29,8 @@ namespace Tcl.Lang
             }
             else if (objv.Length == 2)
             {
-                interp.resetResult();
-                interp.setResult(interp.getVar(objv[1], 0));
+                interp.ResetResult();
+                interp.setResult(interp.GetVar(objv[1], 0));
             }
             else
             {
@@ -41,12 +41,12 @@ namespace Tcl.Lang
 
                 if (varValue != null)
                 {
-                    interp.resetResult();
+                    interp.ResetResult();
                     interp.setResult(varValue);
                 }
                 else
                 {
-                    interp.resetResult();
+                    interp.ResetResult();
                 }
             }
             return TCL.CompletionCode.RETURN;

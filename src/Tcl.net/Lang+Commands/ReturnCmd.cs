@@ -22,8 +22,8 @@ namespace Tcl.Lang
 
     public TCL.CompletionCode CmdProc( Interp interp, TclObject[] argv )
     {
-      interp.errorCode = null;
-      interp.errorInfo = null;
+      interp._errorCode = null;
+      interp._errorInfo = null;
       TCL.CompletionCode returnCode;
       int i;
 
@@ -95,7 +95,7 @@ namespace Tcl.Lang
           if ( argv[i].ToString().Equals( "-errorcode" ) )
           {
 
-            interp.errorCode = argv[i + 1].ToString();
+            interp._errorCode = argv[i + 1].ToString();
           }
           else
           {
@@ -103,7 +103,7 @@ namespace Tcl.Lang
             if ( argv[i].ToString().Equals( "-errorinfo" ) )
             {
 
-              interp.errorInfo = argv[i + 1].ToString();
+              interp._errorInfo = argv[i + 1].ToString();
             }
             else
             {
@@ -118,7 +118,7 @@ namespace Tcl.Lang
         interp.setResult( argv[argv.Length - 1] );
       }
 
-      interp.returnCode = returnCode;
+      interp._returnCode = returnCode;
       throw new TclException( TCL.CompletionCode.RETURN );
     }
   } // end ReturnCmd

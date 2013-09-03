@@ -57,7 +57,7 @@
     <Compile Include="Lang\IdleHandler.cs" />
     <Compile Include="Lang\ImportedCmdData.cs" />
     <Compile Include="Lang\ImportRef.cs" />
-    <Compile Include="Lang\InternalRep.cs" />
+    <Compile Include="Lang\IInternalRep.cs" />
     <Compile Include="Lang\Interp.cs" />
     <Compile Include="Lang\JACL.cs" />
     <Compile Include="Lang\Notifier.cs" />
@@ -313,7 +313,7 @@
     <None Include="Lang\IdleHandler.cu" />
     <None Include="Lang\ImportedCmdData.cu" />
     <None Include="Lang\ImportRef.cu" />
-    <None Include="Lang\InternalRep.cu" />
+    <None Include="Lang\IInternalRep.cu" />
     <None Include="Lang\Interp.cu" />
     <None Include="Lang\JACL.cu" />
     <None Include="Lang\Notifier.cu" />

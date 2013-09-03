@@ -12,488 +12,230 @@ See the file "license.terms" for information on usage and redistribution of this
 #endregion
 using System;
 using System.Collections;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
-
 namespace Tcl.Lang
 {
-
-    /// <summary> The Tcl interpreter class.</summary>
-
+    /// <summary>
+    /// The Tcl interpreter class.
+    /// </summary>
     public class Interp : EventuallyFreed
     {
         private void InitBlock()
         {
-            reflectObjTable = new Hashtable();
-            reflectConflictTable = new Hashtable();
-            importTable = new Hashtable[] { new Hashtable(), new Hashtable() };
+            _reflectObjTable = new Hashtable();
+            _reflectConflictTable = new Hashtable();
+            _importTable = new Hashtable[] { new Hashtable(), new Hashtable() };
         }
-        /// <summary> Returns the name of the script file currently under execution.
-        /// 
+
+        /// <summary>
+        /// Returns the name of the script file currently under execution.
         /// </summary>
-        /// <returns> the name of the script file currently under execution.
+        /// <returns>
+        /// the name of the script file currently under execution.
         /// </returns>
         internal string ScriptFile
         {
-            get
-            {
-                return dbg.Filename;
-            }
-
+            get { return _dbg.Filename; }
         }
 
-        // The following three variables are used to maintain a translation
-        // table between ReflectObject's and their string names. These
-        // variables are accessed by the ReflectObject class, they
-        // are defined here be cause we need them to be per interp data.
-
-        // Translates Object to ReflectObject. This makes sure we have only
-        // one ReflectObject internalRep for the same Object -- this
+        // The following three variables are used to maintain a translation table between ReflectObject's and their string names. These
+        // variables are accessed by the ReflectObject class, they are defined here be cause we need them to be per interp data.
+        // Translates Object to ReflectObject. This makes sure we have only one ReflectObject internalRep for the same Object -- this
         // way Object identity can be done by string comparison.
-
-        internal Hashtable reflectObjTable;
-
-        // Number of reflect objects created so far inside this Interp
-        // (including those that have be freed)
-
-        internal long reflectObjCount = 0;
-
-        // Table used to store reflect hash index conflicts, see
-        // ReflectObject implementation for more details
-
-        internal Hashtable reflectConflictTable;
-
-        // The number of chars to copy from an offending command into error
-        // message.
-
-        private const int MAX_ERR_LENGTH = 200;
-
-
-        // We pretend this is Tcl 8.0, patch level 0.
-
-        internal const string TCL_VERSION = "8.0";
+        internal Hashtable _reflectObjTable;
+        internal long _reflectObjCount = 0; // Number of reflect objects created so far inside this Interp (including those that have be freed)
+        internal Hashtable _reflectConflictTable; // Table used to store reflect hash index conflicts, see ReflectObject implementation for more details
+        private const int MAX_ERR_LENGTH = 200; // The number of chars to copy from an offending command into error message.
+        internal const string TCL_VERSION = "8.0"; // We pretend this is Tcl 8.0, patch level 0.
         internal const string TCL_PATCH_LEVEL = "8.0";
-
-
-        // Total number of times a command procedure
-        // has been called for this interpreter.
-
-        protected internal int cmdCount;
-
-        // FIXME : remove later
-        // Table of commands for this interpreter.
-        //Hashtable cmdTable;
-
-        // Table of channels currently registered in this interp.
-
-        internal Hashtable interpChanTable;
-
-        // The Notifier associated with this Interp.
-
-        private Notifier notifier;
-
-        // Hash table for associating data with this interpreter. Cleaned up
-        // when this interpreter is deleted.
-
-        internal Hashtable assocData;
-
-        // Current working directory.
-
-        private FileInfo workingDir;
-
-        // Points to top-most in stack of all nested procedure
-        // invocations.  null means there are no active procedures.
-
-        internal CallFrame Frame;
-
-        // Points to the call frame whose variables are currently in use
-        // (same as frame unless an "uplevel" command is being
-        // executed).  null means no procedure is active or "uplevel 0" is
-        // being exec'ed.
-
+        protected internal int _cmdCount; // Total number of times a command procedure has been called for this interpreter.
+        // Hashtable cmdTable; // FIXME : remove later Table of commands for this interpreter.
+        internal Hashtable _interpChanTable; // Table of channels currently registered in this interp.
+        private Notifier _notifier; // The Notifier associated with this Interp.
+        internal Hashtable _assocData; // Hash table for associating data with this interpreter. Cleaned up when this interpreter is deleted.
+        private FileInfo _workingDir; // Current working directory.
+        internal CallFrame Frame; // Points to top-most in stack of all nested procedure invocations.  null means there are no active procedures.
+        // Points to the call frame whose variables are currently in use (same as frame unless an "uplevel" command is being
+        // executed).  null means no procedure is active or "uplevel 0" is being exec'ed.
         internal CallFrame VarFrame;
-
-        // The interpreter's global namespace.
-
-        internal NamespaceCmd.Namespace GlobalNs;
-
-        // Hash table used to keep track of hidden commands on a per-interp basis.
-
-        internal Hashtable hiddenCmdTable;
-
-        // Information used by InterpCmd.java to keep
-        // track of master/slave interps on a per-interp basis.
-
-        // Keeps track of all interps for which this interp is the Master.
-        // First, slaveTable (a hashtable) maps from names of commands to
-        // slave interpreters. This hashtable is used to store information
-        // about slave interpreters of this interpreter, to map over all slaves, etc.
-
-        internal Hashtable slaveTable;
-
-        // Hash table for Target Records. Contains all Target records which denote
-        // aliases from slaves or sibling interpreters that direct to commands in
-        // this interpreter. This table is used to remove dangling pointers
-        // from the slave (or sibling) interpreters when this interpreter is deleted.
-
-        internal Hashtable targetTable;
-
-        // Information necessary for this interp to function as a slave.
-        internal InterpSlaveCmd slave;
-
-        // Table which maps from names of commands in slave interpreter to
-        // InterpAliasCmd objects.
-
-        internal Hashtable aliasTable;
-
-        // FIXME : does globalFrame need to be replaced by globalNs?
-        // Points to the global variable frame.
-
-        //CallFrame globalFrame;
-
-        // The script file currently under execution. Can be null if the
-        // interpreter is not evaluating any script file.
-
-        internal string scriptFile;
-
-        // Number of times the interp.eval() routine has been recursively
-        // invoked.
-
-        internal int nestLevel;
-
-        // Used to catch infinite loops in Parser.eval2.
-
-        internal int maxNestingDepth;
-
-        // Flags used when evaluating a command.
-
-        internal int evalFlags;
-
-        // Flags used when evaluating a command.
-
-        public int flags;
-
-        // Is this interpreted marked as safe?
-
-        internal bool isSafe;
-
-        // Offset of character just after last one compiled or executed
-        // by Parser.eval2().
-
-        internal int termOffset;
-
-        // List of name resolution schemes added to this interpreter.
-        // Schemes are added/removed by calling addInterpResolver and
-        // removeInterpResolver.
-
-        internal ArrayList resolvers;
-
-        // The expression parser for this interp.
-
-        internal Expression expr;
-
-        // Used by the Expression class.  If it is equal to zero, then the 
-        // parser will evaluate commands and retrieve variable values from 
-        // the interp.
-
-        internal int NoEval;
-
-        // Used in the Expression.java file for the 
-        // SrandFunction.class and RandFunction.class.
-        // Set to true if a seed has been set.
-
-        internal bool RandSeedInit;
-
-        // Used in the Expression.java file for the SrandFunction.class and
-        // RandFunction.class.  Stores the value of the seed.
-
-        internal long RandSeed;
-
-        // If returnCode is TCL.CompletionCode.ERROR, stores the errorInfo.
-
-        internal string errorInfo;
-
-        // If returnCode is TCL.CompletionCode.ERROR, stores the errorCode.
-
-        internal string errorCode;
-
-        // Completion code to return if current procedure exits with a
-        // TCL_RETURN code.
-
-        protected internal TCL.CompletionCode returnCode;
-
-        // True means the interpreter has been deleted: don't process any
-        // more commands for it, and destroy the structure as soon as all
-        // nested invocations of eval() are done.
-
-        protected internal bool deleted;
-
-        // True means an error unwind is already in progress. False
-        // means a command proc has been invoked since last error occurred.
-
-        protected internal bool errInProgress;
-
-        // True means information has already been logged in $errorInfo
-        // for the current eval() instance, so eval() needn't log it
-        // (used to implement the "error" command).
-
-        protected internal bool errAlreadyLogged;
-
-        // True means that addErrorInfo has been called to record
-        // information for the current error. False means Interp.eval
-        // must clear the errorCode variable if an error is returned.
-
-        protected internal bool errCodeSet;
-
-        // When TCL_ERROR is returned, this gives the line number within
-        // the command where the error occurred (1 means first line).
-
-
-        internal int errorLine;
-
-        // Stores the current result in the interpreter.
-
-        private TclObject m_result;
-
-        // Value m_result is set to when resetResult() is called.
-
-        private TclObject m_nullResult;
-
-        // Used ONLY by PackageCmd.
-
-        internal Hashtable packageTable;
-        internal string packageUnknown;
-
-
-        // Used ONLY by the Parser.
-
-        internal TclObject[][][] parserObjv;
-        internal int[] parserObjvUsed;
-
-        internal TclToken[] parserTokens;
-        internal int parserTokensUsed;
-
-
-        // Used ONLY by JavaImportCmd
-        internal Hashtable[] importTable;
-
-        // List of unsafe commands:
-
-        internal static readonly string[] unsafeCmds = new string[] { "encoding", "exit", "load", "cd", "fconfigure", "file", "glob", "open", "pwd", "socket", "beep", "echo", "ls", "resource", "source", "exec", "source" };
-
-        // Flags controlling the call of invoke.
-
-        internal const int INVOKE_HIDDEN = 1;
+        internal NamespaceCmd.Namespace GlobalNS; // The interpreter's global namespace.
+        internal Hashtable _hiddenCmdTable; // Hash table used to keep track of hidden commands on a per-interp basis.
+        // Information used by InterpCmd.java to keep track of master/slave interps on a per-interp basis.
+        // Keeps track of all interps for which this interp is the Master. First, slaveTable (a hashtable) maps from names of commands to
+        // slave interpreters. This hashtable is used to store information about slave interpreters of this interpreter, to map over all slaves, etc.
+        internal Hashtable _slaveTable;
+        // Hash table for Target Records. Contains all Target records which denote aliases from slaves or sibling interpreters that direct to commands in
+        // this interpreter. This table is used to remove dangling pointers from the slave (or sibling) interpreters when this interpreter is deleted.
+        internal Hashtable _targetTable;
+        internal InterpSlaveCmd _slave; // Information necessary for this interp to function as a slave.
+        internal Hashtable _aliasTable; // Table which maps from names of commands in slave interpreter to InterpAliasCmd objects.
+        // CallFrame globalFrame; // FIXME : does globalFrame need to be replaced by globalNs? Points to the global variable frame.
+        internal string _scriptFile; // The script file currently under execution. Can be null if the interpreter is not evaluating any script file.
+        internal int _nestLevel; // Number of times the interp.eval() routine has been recursively invoked.
+        internal int _maxNestingDepth; // Used to catch infinite loops in Parser.eval2.
+        internal int _evalFlags; // Flags used when evaluating a command.
+        public int _flags; // Flags used when evaluating a command.
+        internal bool _isSafe; // Is this interpreted marked as safe?
+        internal int _termOffset; // Offset of character just after last one compiled or executed by Parser.eval2().
+        internal ArrayList _resolvers; // List of name resolution schemes added to this interpreter. Schemes are added/removed by calling addInterpResolver and removeInterpResolver.
+        internal Expression _expr; // The expression parser for this interp.
+        internal int NoEval; // Used by the Expression class.  If it is equal to zero, then the parser will evaluate commands and retrieve variable values from the interp.
+        internal bool RandSeedInit; // Used in the Expression.java file for the SrandFunction.class and RandFunction.class. Set to true if a seed has been set.
+        internal long RandSeed; // Used in the Expression.java file for the SrandFunction.class and RandFunction.class.  Stores the value of the seed.
+        internal string _errorInfo; // If returnCode is TCL.CompletionCode.ERROR, stores the errorInfo.
+        internal string _errorCode; // If returnCode is TCL.CompletionCode.ERROR, stores the errorCode.
+        protected internal TCL.CompletionCode _returnCode; // Completion code to return if current procedure exits with a TCL_RETURN code.
+        protected internal bool _deleted; // True means the interpreter has been deleted: don't process any more commands for it, and destroy the structure as soon as all nested invocations of eval() are done.
+        protected internal bool _errInProgress; // True means an error unwind is already in progress. False means a command proc has been invoked since last error occurred.
+        protected internal bool _errAlreadyLogged; // True means information has already been logged in $errorInfo for the current eval() instance, so eval() needn't log it (used to implement the "error" command).
+        protected internal bool _errCodeSet; // True means that addErrorInfo has been called to record information for the current error. False means Interp.eval must clear the errorCode variable if an error is returned.
+        internal int _errorLine; // When TCL_ERROR is returned, this gives the line number within the command where the error occurred (1 means first line).
+        private TclObject _result; // Stores the current result in the interpreter.
+        private TclObject _nullResult; // Value m_result is set to when resetResult() is called.
+        internal Hashtable _packageTable; // Used ONLY by PackageCmd.
+        internal string _packageUnknown;
+        internal TclObject[][][] _parserObjv; // Used ONLY by the Parser.
+        internal int[] _parserObjvUsed;
+        internal TclToken[] _parserTokens;
+        internal int _parserTokensUsed;
+        internal Hashtable[] _importTable; // Used ONLY by JavaImportCmd
+        internal static readonly string[] _unsafeCmds = new string[] { "encoding", "exit", "load", "cd", "fconfigure", "file", "glob", "open", "pwd", "socket", "beep", "echo", "ls", "resource", "source", "exec", "source" }; // List of unsafe commands:
+
+        internal const int INVOKE_HIDDEN = 1; // Flags controlling the call of invoke.
         internal const int INVOKE_NO_UNKNOWN = 2;
         internal const int INVOKE_NO_TRACEBACK = 4;
 
         public Interp()
         {
             InitBlock();
+            //freeProc = null;
+            _errorLine = 0;
 
-            //freeProc         = null;
-            errorLine = 0;
-
-            // An empty result is used pretty often. We will use a shared
-            // TclObject instance to represent the empty result so that we
-            // don't need to create a new TclObject instance every time the
-            // interpreter result is set to empty.
-
-            m_nullResult = TclString.NewInstance("");
-            m_nullResult.Preserve(); // Increment refCount to 1
-            m_nullResult.Preserve(); // Increment refCount to 2 (shared)
-            m_result = TclString.NewInstance(""); //m_nullResult; // correcponds to iPtr->objResultPtr
-            m_result.Preserve();
-
-            expr = new Expression();
-            nestLevel = 0;
-            maxNestingDepth = 1000;
-
+            // An empty result is used pretty often. We will use a shared TclObject instance to represent the empty result so that we
+            // don't need to create a new TclObject instance every time the interpreter result is set to empty.
+            _nullResult = TclString.NewInstance(string.Empty);
+            _nullResult.Preserve(); // Increment refCount to 1
+            _nullResult.Preserve(); // Increment refCount to 2 (shared)
+            _result = TclString.NewInstance(string.Empty); // _nullResult; // correcponds to iPtr->objResultPtr
+            _result.Preserve();
+            //
+            _expr = new Expression();
+            _nestLevel = 0;
+            _maxNestingDepth = 1000;
+            //
             Frame = null;
             VarFrame = null;
-
-            returnCode = TCL.CompletionCode.OK;
-            errorInfo = null;
-            errorCode = null;
-
-            packageTable = new Hashtable();
-            packageUnknown = null;
-            cmdCount = 0;
-            termOffset = 0;
-            resolvers = null;
-            evalFlags = 0;
-            scriptFile = null;
-            flags = 0;
-            isSafe = false;
-            assocData = null;
-
-
-            GlobalNs = null; // force creation of global ns below
-            GlobalNs = NamespaceCmd.createNamespace(this, null, null);
-            if (GlobalNs == null)
-            {
+            //
+            _returnCode = TCL.CompletionCode.OK;
+            _errorInfo = null;
+            _errorCode = null;
+            //
+            _packageTable = new Hashtable();
+            _packageUnknown = null;
+            _cmdCount = 0;
+            _termOffset = 0;
+            _resolvers = null;
+            _evalFlags = 0;
+            _scriptFile = null;
+            _flags = 0;
+            _isSafe = false;
+            _assocData = null;
+            //
+            GlobalNS = NamespaceCmd.createNamespace(this, null, null);
+            if (GlobalNS == null)
                 throw new TclRuntimeError("Interp(): can't create global namespace");
-            }
-
-
             // Init things that are specific to the Jacl implementation
-
-            workingDir = new FileInfo(System.Environment.CurrentDirectory);
+            _workingDir = new FileInfo(System.Environment.CurrentDirectory);
             NoEval = 0;
-
-            notifier = Notifier.GetNotifierForThread(System.Threading.Thread.CurrentThread);
-            notifier.Preserve();
-
+            //
+            _notifier = Notifier.GetNotifierForThread(System.Threading.Thread.CurrentThread);
+            _notifier.Preserve();
+            //
             RandSeedInit = false;
-
-            deleted = false;
-            errInProgress = false;
-            errAlreadyLogged = false;
-            errCodeSet = false;
-
-            dbg = initDebugInfo();
-
-            slaveTable = new Hashtable();
-            targetTable = new Hashtable();
-            aliasTable = new Hashtable();
-
+            //
+            _deleted = false;
+            _errInProgress = false;
+            _errAlreadyLogged = false;
+            _errCodeSet = false;
+            //
+            _dbg = initDebugInfo();
+            //
+            _slaveTable = new Hashtable();
+            _targetTable = new Hashtable();
+            _aliasTable = new Hashtable();
             // init parser variables
             Parser.init(this);
             TclParse.init(this);
-
-            // Initialize the Global (static) channel table and the local
-            // interp channel table.
-
-            interpChanTable = TclIO.getInterpChanTable(this);
-
+            // Initialize the Global (static) channel table and the local interp channel table.
+            _interpChanTable = TclIO.getInterpChanTable(this);
             // Sets up the variable trace for tcl_precision.
-
             Util.setupPrecisionTrace(this);
-
             // Create the built-in commands.
-
-            createCommands();
-
+            CreateCommands();
             try
             {
-                // Set up tcl_platform, tcl_version, tcl_library and other
-                // global variables.
-
+                // Set up tcl_platform, tcl_version, tcl_library and other global variables.
                 SetVar("tcl_platform", "platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("tcl_platform", "byteOrder", "bigEndian", TCL.VarFlag.GLOBAL_ONLY);
-
                 SetVar("tcl_platform", "os", Environment.OSVersion.Platform.ToString(), TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("tcl_platform", "osVersion", Environment.OSVersion.Version.ToString(), TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("tcl_platform", "machine", Util.tryGetSystemProperty("os.arch", "?"), TCL.VarFlag.GLOBAL_ONLY);
-
                 SetVar("tcl_version", TCL_VERSION, TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("tcl_patchLevel", TCL_PATCH_LEVEL, TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("tcl_library", "resource:/tcl/lang/library", TCL.VarFlag.GLOBAL_ONLY);
                 if (Util.Windows)
-                {
                     SetVar("tcl_platform", "host_platform", "windows", TCL.VarFlag.GLOBAL_ONLY);
-                }
                 else if (Util.Mac)
-                {
                     SetVar("tcl_platform", "host_platform", "macintosh", TCL.VarFlag.GLOBAL_ONLY);
-                }
                 else
-                {
                     SetVar("tcl_platform", "host_platform", "unix", TCL.VarFlag.GLOBAL_ONLY);
-                }
-
-                // Create the env array an populated it with proper
-                // values.
-
+                // Create the env array an populated it with proper values.
                 Env.initialize(this);
-
-                // Register Tcl's version number. Note: This MUST be 
-                // done before the call to evalResource, otherwise
+                // Register Tcl's version number. Note: This MUST be  done before the call to evalResource, otherwise
                 // calls to "package require tcl" will fail.
-
                 pkgProvide("Tcl", TCL_VERSION);
-
                 // Source the init.tcl script to initialize auto-loading.
-
                 evalResource("/tcl/lang/library/init.tcl");
             }
             catch (TclException e)
             {
-                System.Diagnostics.Debug.WriteLine(GetResult().ToString());
+                Debug.WriteLine(GetResult().ToString());
                 SupportClass.WriteStackTrace(e, Console.Error);
                 throw new TclRuntimeError("unexpected TclException: " + e.Message, e);
             }
         }
-        public override void eventuallyDispose()
+
+        public override void EventuallyDispose()
         {
-            if (deleted)
-            {
+            if (_deleted)
                 return;
-            }
-
-            deleted = true;
-
-            if (nestLevel > 0)
-            {
-                //-- TODO -- Determine why this is an error             throw new TclRuntimeError("dispose() called with active evals");
-            }
-
+            _deleted = true;
+            if (_nestLevel > 0) { } //-- TODO -- Determine why this is an error throw new TclRuntimeError("dispose() called with active evals");
             // Remove our association with the notifer (if we had one).
-
-            if (notifier != null)
+            if (_notifier != null)
             {
-                notifier.Release();
-                notifier = null;
+                _notifier.Release(); _notifier = null;
             }
-
-            // Dismantle everything in the global namespace except for the
-            // "errorInfo" and "errorCode" variables. These might be needed
-            // later on if errors occur while deleting commands. We are careful
-            // to destroy and recreate the "errorInfo" and "errorCode"
+            // Dismantle everything in the global namespace except for the "errorInfo" and "errorCode" variables. These might be needed
+            // later on if errors occur while deleting commands. We are careful to destroy and recreate the "errorInfo" and "errorCode"
             // variables, in case they had any traces on them.
-            //
-            // Dismantle the namespace here, before we clear the assocData. If any
-            // background errors occur here, they will be deleted below.
-
-
+            // Dismantle the namespace here, before we clear the assocData. If any background errors occur here, they will be deleted below.
             // FIXME : check impl of TclTeardownNamespace
-            NamespaceCmd.teardownNamespace(GlobalNs);
-
+            NamespaceCmd.TeardownNamespace(GlobalNS);
             // Delete all variables.
-
             TclObject errorInfoObj = null, errorCodeObj = null;
-
-            try
-            {
-                errorInfoObj = getVar("errorInfo", null, TCL.VarFlag.GLOBAL_ONLY);
-            }
-            catch (TclException e)
-            {
-                // Do nothing when var does not exist.
-            }
-
+            try { errorInfoObj = GetVar("errorInfo", null, TCL.VarFlag.GLOBAL_ONLY); }
+            catch (TclException) { } // Do nothing when var does not exist.
             if (errorInfoObj != null)
-            {
                 errorInfoObj.Preserve();
-            }
-
-            try
-            {
-                errorCodeObj = getVar("errorCode", null, TCL.VarFlag.GLOBAL_ONLY);
-            }
-            catch (TclException e)
-            {
-                // Do nothing when var does not exist.
-            }
-
+            try { errorCodeObj = GetVar("errorCode", null, TCL.VarFlag.GLOBAL_ONLY); }
+            catch (TclException) { } // Do nothing when var does not exist.
             if (errorCodeObj != null)
-            {
                 errorCodeObj.Preserve();
-            }
-
             Frame = null;
             VarFrame = null;
-
             try
             {
                 if (errorInfoObj != null)
@@ -507,366 +249,218 @@ namespace Tcl.Lang
                     errorCodeObj.Release();
                 }
             }
-            catch (TclException e)
-            {
-                // Ignore it -- same behavior as Tcl 8.0.
-            }
-
+            catch (TclException) { } // Ignore it -- same behavior as Tcl 8.0.
             // Tear down the math function table.
-
-            expr = null;
-
-            // Remove all the assoc data tied to this interp and invoke
-            // deletion callbacks; note that a callback can create new
-            // callbacks, so we iterate.
-
-            // ATK The java code was somethink strong
-            if (assocData != null)
+            _expr = null;
+            // Remove all the assoc data tied to this interp and invoke deletion callbacks; note that a callback can create new callbacks, so we iterate.
+            if (_assocData != null)
             {
-                foreach (IAssocData data in assocData.Values)
-                {
+                foreach (IAssocData data in _assocData.Values)
                     data.Dispose(this);
-                }
-                assocData.Clear();
+                _assocData.Clear();
             }
-
             // Close any remaining channels
-
-            for (IDictionaryEnumerator e = interpChanTable.GetEnumerator(); e.MoveNext(); )
+            for (IDictionaryEnumerator e = _interpChanTable.GetEnumerator(); e.MoveNext(); )
             {
                 Object key = e.Key;
                 Channel chan = (Channel)e.Value;
-                try
-                {
-                    chan.close();
-                }
-                catch (IOException ex)
-                {
-                    // Ignore any IO errors
-                }
+                try { chan.Close(); }
+                catch (IOException) { } // Ignore any IO errors
             }
-
             // Finish deleting the global namespace.
+            NamespaceCmd.DeleteNamespace(GlobalNS); GlobalNS = null; // FIXME : check impl of Tcl_DeleteNamespace
 
-            // FIXME : check impl of Tcl_DeleteNamespace
-            NamespaceCmd.deleteNamespace(GlobalNs);
-            GlobalNs = null;
-
-            // Free up the result *after* deleting variables, since variable
-            // deletion could have transferred ownership of the result string
-            // to Tcl.
-
+            // Free up the result *after* deleting variables, since variable deletion could have transferred ownership of the result string to Tcl.
             Frame = null;
             VarFrame = null;
-            resolvers = null;
-
-            resetResult();
+            _resolvers = null;
+            ResetResult();
         }
+
         ~Interp()
         {
-            dispose();
+            Dispose();
         }
-        protected internal void createCommands()
+
+        protected internal void CreateCommands()
         {
-            Extension.LoadOnDemand(this, "after", "tcl.lang.AfterCmd");
-            Extension.LoadOnDemand(this, "append", "tcl.lang.AppendCmd");
-            Extension.LoadOnDemand(this, "array", "tcl.lang.ArrayCmd");
-            Extension.LoadOnDemand(this, "binary", "tcl.lang.BinaryCmd");
-            Extension.LoadOnDemand(this, "break", "tcl.lang.BreakCmd");
-            Extension.LoadOnDemand(this, "case", "tcl.lang.CaseCmd");
-            Extension.LoadOnDemand(this, "catch", "tcl.lang.CatchCmd");
-            Extension.LoadOnDemand(this, "cd", "tcl.lang.CdCmd");
-            Extension.LoadOnDemand(this, "clock", "tcl.lang.ClockCmd");
-            Extension.LoadOnDemand(this, "close", "tcl.lang.CloseCmd");
-            Extension.LoadOnDemand(this, "continue", "tcl.lang.ContinueCmd");
-            Extension.LoadOnDemand(this, "concat", "tcl.lang.ConcatCmd");
-            Extension.LoadOnDemand(this, "encoding", "tcl.lang.EncodingCmd");
-            Extension.LoadOnDemand(this, "eof", "tcl.lang.EofCmd");
-            Extension.LoadOnDemand(this, "eval", "tcl.lang.EvalCmd");
-            Extension.LoadOnDemand(this, "error", "tcl.lang.ErrorCmd");
+            Extension.LoadOnDemand(this, "after", "Tcl.Lang.AfterCmd");
+            Extension.LoadOnDemand(this, "append", "Tcl.Lang.AppendCmd");
+            Extension.LoadOnDemand(this, "array", "Tcl.Lang.ArrayCmd");
+            Extension.LoadOnDemand(this, "binary", "Tcl.Lang.BinaryCmd");
+            Extension.LoadOnDemand(this, "break", "Tcl.Lang.BreakCmd");
+            Extension.LoadOnDemand(this, "case", "Tcl.Lang.CaseCmd");
+            Extension.LoadOnDemand(this, "catch", "Tcl.Lang.CatchCmd");
+            Extension.LoadOnDemand(this, "cd", "Tcl.Lang.CdCmd");
+            Extension.LoadOnDemand(this, "clock", "Tcl.Lang.ClockCmd");
+            Extension.LoadOnDemand(this, "close", "Tcl.Lang.CloseCmd");
+            Extension.LoadOnDemand(this, "continue", "Tcl.Lang.ContinueCmd");
+            Extension.LoadOnDemand(this, "concat", "Tcl.Lang.ConcatCmd");
+            Extension.LoadOnDemand(this, "encoding", "Tcl.Lang.EncodingCmd");
+            Extension.LoadOnDemand(this, "eof", "Tcl.Lang.EofCmd");
+            Extension.LoadOnDemand(this, "eval", "Tcl.Lang.EvalCmd");
+            Extension.LoadOnDemand(this, "error", "Tcl.Lang.ErrorCmd");
             if (!Util.Mac)
-            {
-                Extension.LoadOnDemand(this, "exec", "tcl.lang.ExecCmd");
-            }
-            Extension.LoadOnDemand(this, "exit", "tcl.lang.ExitCmd");
-            Extension.LoadOnDemand(this, "expr", "tcl.lang.ExprCmd");
-            Extension.LoadOnDemand(this, "fblocked", "tcl.lang.FblockedCmd");
-            Extension.LoadOnDemand(this, "fconfigure", "tcl.lang.FconfigureCmd");
-            Extension.LoadOnDemand(this, "file", "tcl.lang.FileCmd");
-            Extension.LoadOnDemand(this, "flush", "tcl.lang.FlushCmd");
-            Extension.LoadOnDemand(this, "for", "tcl.lang.ForCmd");
-            Extension.LoadOnDemand(this, "foreach", "tcl.lang.ForeachCmd");
-            Extension.LoadOnDemand(this, "format", "tcl.lang.FormatCmd");
-            Extension.LoadOnDemand(this, "gets", "tcl.lang.GetsCmd");
-            Extension.LoadOnDemand(this, "global", "tcl.lang.GlobalCmd");
-            Extension.LoadOnDemand(this, "glob", "tcl.lang.GlobCmd");
-            Extension.LoadOnDemand(this, "if", "tcl.lang.IfCmd");
-            Extension.LoadOnDemand(this, "incr", "tcl.lang.IncrCmd");
-            Extension.LoadOnDemand(this, "info", "tcl.lang.InfoCmd");
-            Extension.LoadOnDemand(this, "interp", "tcl.lang.InterpCmd");
-            Extension.LoadOnDemand(this, "list", "tcl.lang.ListCmd");
-            Extension.LoadOnDemand(this, "join", "tcl.lang.JoinCmd");
-            Extension.LoadOnDemand(this, "lappend", "tcl.lang.LappendCmd");
-            Extension.LoadOnDemand(this, "lindex", "tcl.lang.LindexCmd");
-            Extension.LoadOnDemand(this, "linsert", "tcl.lang.LinsertCmd");
-            Extension.LoadOnDemand(this, "llength", "tcl.lang.LlengthCmd");
-            Extension.LoadOnDemand(this, "lrange", "tcl.lang.LrangeCmd");
-            Extension.LoadOnDemand(this, "lreplace", "tcl.lang.LreplaceCmd");
-            Extension.LoadOnDemand(this, "lsearch", "tcl.lang.LsearchCmd");
-            Extension.LoadOnDemand(this, "lset", "tcl.lang.LsetCmd");
-            Extension.LoadOnDemand(this, "lsort", "tcl.lang.LsortCmd");
-            Extension.LoadOnDemand(this, "namespace", "tcl.lang.NamespaceCmd");
-            Extension.LoadOnDemand(this, "open", "tcl.lang.OpenCmd");
-            Extension.LoadOnDemand(this, "package", "tcl.lang.PackageCmd");
-            Extension.LoadOnDemand(this, "proc", "tcl.lang.ProcCmd");
-            Extension.LoadOnDemand(this, "puts", "tcl.lang.PutsCmd");
-            Extension.LoadOnDemand(this, "pwd", "tcl.lang.PwdCmd");
-            Extension.LoadOnDemand(this, "read", "tcl.lang.ReadCmd");
-            Extension.LoadOnDemand(this, "regsub", "tcl.lang.RegsubCmd");
-            Extension.LoadOnDemand(this, "rename", "tcl.lang.RenameCmd");
-            Extension.LoadOnDemand(this, "return", "tcl.lang.ReturnCmd");
-            Extension.LoadOnDemand(this, "scan", "tcl.lang.ScanCmd");
-            Extension.LoadOnDemand(this, "seek", "tcl.lang.SeekCmd");
-            Extension.LoadOnDemand(this, "set", "tcl.lang.SetCmd");
-            Extension.LoadOnDemand(this, "socket", "tcl.lang.SocketCmd");
-            Extension.LoadOnDemand(this, "source", "tcl.lang.SourceCmd");
-            Extension.LoadOnDemand(this, "split", "tcl.lang.SplitCmd");
-            Extension.LoadOnDemand(this, "string", "tcl.lang.StringCmd");
-            Extension.LoadOnDemand(this, "subst", "tcl.lang.SubstCmd");
-            Extension.LoadOnDemand(this, "switch", "tcl.lang.SwitchCmd");
-            Extension.LoadOnDemand(this, "tell", "tcl.lang.TellCmd");
-            Extension.LoadOnDemand(this, "time", "tcl.lang.TimeCmd");
-            Extension.LoadOnDemand(this, "trace", "tcl.lang.TraceCmd");
-            Extension.LoadOnDemand(this, "unset", "tcl.lang.UnsetCmd");
-            Extension.LoadOnDemand(this, "update", "tcl.lang.UpdateCmd");
-            Extension.LoadOnDemand(this, "uplevel", "tcl.lang.UplevelCmd");
-            Extension.LoadOnDemand(this, "upvar", "tcl.lang.UpvarCmd");
-            Extension.LoadOnDemand(this, "variable", "tcl.lang.VariableCmd");
-            Extension.LoadOnDemand(this, "vwait", "tcl.lang.VwaitCmd");
-            Extension.LoadOnDemand(this, "while", "tcl.lang.WhileCmd");
-
-
+                Extension.LoadOnDemand(this, "exec", "Tcl.Lang.ExecCmd");
+            Extension.LoadOnDemand(this, "exit", "Tcl.Lang.ExitCmd");
+            Extension.LoadOnDemand(this, "expr", "Tcl.Lang.ExprCmd");
+            Extension.LoadOnDemand(this, "fblocked", "Tcl.Lang.FblockedCmd");
+            Extension.LoadOnDemand(this, "fconfigure", "Tcl.Lang.FconfigureCmd");
+            Extension.LoadOnDemand(this, "file", "Tcl.Lang.FileCmd");
+            Extension.LoadOnDemand(this, "flush", "Tcl.Lang.FlushCmd");
+            Extension.LoadOnDemand(this, "for", "Tcl.Lang.ForCmd");
+            Extension.LoadOnDemand(this, "foreach", "Tcl.Lang.ForeachCmd");
+            Extension.LoadOnDemand(this, "format", "Tcl.Lang.FormatCmd");
+            Extension.LoadOnDemand(this, "gets", "Tcl.Lang.GetsCmd");
+            Extension.LoadOnDemand(this, "global", "Tcl.Lang.GlobalCmd");
+            Extension.LoadOnDemand(this, "glob", "Tcl.Lang.GlobCmd");
+            Extension.LoadOnDemand(this, "if", "Tcl.Lang.IfCmd");
+            Extension.LoadOnDemand(this, "incr", "Tcl.Lang.IncrCmd");
+            Extension.LoadOnDemand(this, "info", "Tcl.Lang.InfoCmd");
+            Extension.LoadOnDemand(this, "interp", "Tcl.Lang.InterpCmd");
+            Extension.LoadOnDemand(this, "list", "Tcl.Lang.ListCmd");
+            Extension.LoadOnDemand(this, "join", "Tcl.Lang.JoinCmd");
+            Extension.LoadOnDemand(this, "lappend", "Tcl.Lang.LappendCmd");
+            Extension.LoadOnDemand(this, "lindex", "Tcl.Lang.LindexCmd");
+            Extension.LoadOnDemand(this, "linsert", "Tcl.Lang.LinsertCmd");
+            Extension.LoadOnDemand(this, "llength", "Tcl.Lang.LlengthCmd");
+            Extension.LoadOnDemand(this, "lrange", "Tcl.Lang.LrangeCmd");
+            Extension.LoadOnDemand(this, "lreplace", "Tcl.Lang.LreplaceCmd");
+            Extension.LoadOnDemand(this, "lsearch", "Tcl.Lang.LsearchCmd");
+            Extension.LoadOnDemand(this, "lset", "Tcl.Lang.LsetCmd");
+            Extension.LoadOnDemand(this, "lsort", "Tcl.Lang.LsortCmd");
+            Extension.LoadOnDemand(this, "namespace", "Tcl.Lang.NamespaceCmd");
+            Extension.LoadOnDemand(this, "open", "Tcl.Lang.OpenCmd");
+            Extension.LoadOnDemand(this, "package", "Tcl.Lang.PackageCmd");
+            Extension.LoadOnDemand(this, "proc", "Tcl.Lang.ProcCmd");
+            Extension.LoadOnDemand(this, "puts", "Tcl.Lang.PutsCmd");
+            Extension.LoadOnDemand(this, "pwd", "Tcl.Lang.PwdCmd");
+            Extension.LoadOnDemand(this, "read", "Tcl.Lang.ReadCmd");
+            Extension.LoadOnDemand(this, "regsub", "Tcl.Lang.RegsubCmd");
+            Extension.LoadOnDemand(this, "rename", "Tcl.Lang.RenameCmd");
+            Extension.LoadOnDemand(this, "return", "Tcl.Lang.ReturnCmd");
+            Extension.LoadOnDemand(this, "scan", "Tcl.Lang.ScanCmd");
+            Extension.LoadOnDemand(this, "seek", "Tcl.Lang.SeekCmd");
+            Extension.LoadOnDemand(this, "set", "Tcl.Lang.SetCmd");
+            Extension.LoadOnDemand(this, "socket", "Tcl.Lang.SocketCmd");
+            Extension.LoadOnDemand(this, "source", "Tcl.Lang.SourceCmd");
+            Extension.LoadOnDemand(this, "split", "Tcl.Lang.SplitCmd");
+            Extension.LoadOnDemand(this, "string", "Tcl.Lang.StringCmd");
+            Extension.LoadOnDemand(this, "subst", "Tcl.Lang.SubstCmd");
+            Extension.LoadOnDemand(this, "switch", "Tcl.Lang.SwitchCmd");
+            Extension.LoadOnDemand(this, "tell", "Tcl.Lang.TellCmd");
+            Extension.LoadOnDemand(this, "time", "Tcl.Lang.TimeCmd");
+            Extension.LoadOnDemand(this, "trace", "Tcl.Lang.TraceCmd");
+            Extension.LoadOnDemand(this, "unset", "Tcl.Lang.UnsetCmd");
+            Extension.LoadOnDemand(this, "update", "Tcl.Lang.UpdateCmd");
+            Extension.LoadOnDemand(this, "uplevel", "Tcl.Lang.UplevelCmd");
+            Extension.LoadOnDemand(this, "upvar", "Tcl.Lang.UpvarCmd");
+            Extension.LoadOnDemand(this, "variable", "Tcl.Lang.VariableCmd");
+            Extension.LoadOnDemand(this, "vwait", "Tcl.Lang.VwaitCmd");
+            Extension.LoadOnDemand(this, "while", "Tcl.Lang.WhileCmd");
             // Add "regexp" and related commands to this interp.
-            RegexpCmd.init(this);
-
-
-            // The Java package is only loaded when the user does a
-            // "package require java" in the interp. We need to create a small
-            // command that will load when "package require java" is called.
-
+            RegexpCmd.Init(this);
+            // The Java package is only loaded when the user does a "package require java" in the interp. We need to create a small command that will load when "package require java" is called.
             Extension.LoadOnDemand(this, "jaclloadjava", "tcl.lang.JaclLoadJavaCmd");
-
-            try
-            {
-                eval("package ifneeded java 1.3.1 jaclloadjava");
-            }
+            try { eval("package ifneeded java 1.3.1 jaclloadjava"); }
             catch (TclException e)
             {
-                System.Diagnostics.Debug.WriteLine(GetResult().ToString());
+                Debug.WriteLine(GetResult().ToString());
                 SupportClass.WriteStackTrace(e, Console.Error);
                 throw new TclRuntimeError("unexpected TclException: " + e.Message, e);
             }
+        }
+        public void SetAssocData(string name, IAssocData data) // Object associated with the name.
+        {
+            if (_assocData == null)
+                _assocData = new Hashtable();
+            SupportClass.PutElement(_assocData, name, data);
+        }
 
-        }
-        public void setAssocData(string name, IAssocData data)
-        // Object associated with the name.
+        public void DeleteAssocData(string name) // Name of association.
         {
-            if (assocData == null)
-            {
-                assocData = new Hashtable();
-            }
-            SupportClass.PutElement(assocData, name, data);
-        }
-        public void deleteAssocData(string name)
-        // Name of association.
-        {
-            if (assocData == null)
-            {
+            if (_assocData == null)
                 return;
-            }
-
-            SupportClass.HashtableRemove(assocData, name);
+            SupportClass.HashtableRemove(_assocData, name);
         }
-        public IAssocData getAssocData(string name)
-        // Name of association.
+
+        public IAssocData GetAssocData(string name) // Name of association.
         {
-            if (assocData == null)
-            {
-                return null;
-            }
-            else
-            {
-                return (IAssocData)assocData[name];
-            }
+            return (_assocData == null ? null : (IAssocData)_assocData[name]);
         }
 
         public void backgroundError()
         {
-            BgErrorMgr mgr = (BgErrorMgr)getAssocData("tclBgError");
+            BgErrorMgr mgr = (BgErrorMgr)GetAssocData("tclBgError");
             if (mgr == null)
             {
                 mgr = new BgErrorMgr(this);
-                setAssocData("tclBgError", mgr);
+                SetAssocData("tclBgError", mgr);
             }
             mgr.AddBgError();
         }
 
-        /*-----------------------------------------------------------------
-        *
-        *	                     VARIABLES
-        *
-        *-----------------------------------------------------------------
-        */
-        public TclObject SetVar(TclObject nameObj, TclObject value, TCL.VarFlag flags)
-        {
-            return Var.setVar(this, nameObj, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public TclObject SetVar(string name, TclObject value, TCL.VarFlag flags)
-        {
-            return Var.setVar(this, name, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public TclObject SetVar(string name1, string name2, TclObject value, TCL.VarFlag flags)
-        {
-            return Var.setVar(this, name1, name2, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void SetVar(string name, string strValue, TCL.VarFlag flags)
-        {
-            Var.setVar(this, name, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void SetVar(string name1, string name2, string strValue, TCL.VarFlag flags)
-        {
-            Var.setVar(this, name1, name2, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public TclObject getVar(TclObject nameObj, TCL.VarFlag flags)
-        {
-            return Var.getVar(this, nameObj, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public TclObject getVar(string name, TCL.VarFlag flags)
-        {
-            return Var.getVar(this, name, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public TclObject getVar(string name1, string name2, TCL.VarFlag flags)
-        {
-            return Var.getVar(this, name1, name2, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void unsetVar(TclObject nameObj, TCL.VarFlag flags)
-        {
-            Var.unsetVar(this, nameObj, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void unsetVar(string name, TCL.VarFlag flags)
-        {
-            Var.unsetVar(this, name, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void unsetVar(string name1, string name2, TCL.VarFlag flags)
-        {
-            Var.unsetVar(this, name1, name2, (flags | TCL.VarFlag.LEAVE_ERR_MSG));
-        }
-        public void traceVar(TclObject nameObj, VarTrace trace, TCL.VarFlag flags)
-        {
-            Var.traceVar(this, nameObj, flags, trace);
-        }
-        public void traceVar(string name, VarTrace trace, TCL.VarFlag flags)
-        {
-            Var.traceVar(this, name, flags, trace);
-        }
-        public void traceVar(string part1, string part2, VarTrace trace, TCL.VarFlag flags)
-        {
-            Var.traceVar(this, part1, part2, flags, trace);
-        }
-        public void untraceVar(TclObject nameObj, VarTrace trace, TCL.VarFlag flags)
-        // OR-ed collection of bits describing current
-        // trace, including any of TCL.VarFlag.TRACE_READS,
-        // TCL.VarFlag.TRACE_WRITES, TCL.VarFlag.TRACE_UNSETS,
-        // TCL.VarFlag.GLOBAL_ONLY and TCL.VarFlag.NAMESPACE_ONLY.
-        {
-            Var.untraceVar(this, nameObj, flags, trace);
-        }
-        public void untraceVar(string name, VarTrace trace, TCL.VarFlag flags)
-        // OR-ed collection of bits describing current
-        // trace, including any of TCL.VarFlag.TRACE_READS,
-        // TCL.VarFlag.TRACE_WRITES, TCL.VarFlag.TRACE_UNSETS,
-        // TCL.VarFlag.GLOBAL_ONLY and TCL.VarFlag.NAMESPACE_ONLY.
-        {
-            Var.untraceVar(this, name, flags, trace);
-        }
-        public void untraceVar(string part1, string part2, VarTrace trace, TCL.VarFlag flags)
-        // OR-ed collection of bits describing current
-        // trace, including any of TCL.VarFlag.TRACE_READS,
-        // TCL.VarFlag.TRACE_WRITES, TCL.VarFlag.TRACE_UNSETS,
-        // TCL.VarFlag.GLOBAL_ONLY and TCL.VarFlag.NAMESPACE_ONLY.
-        {
-            Var.untraceVar(this, part1, part2, flags, trace);
-        }
-        public void CreateCommand(string cmdName, ICommand cmdImpl)
-        // Command object to associate with
-        // cmdName.
+        // =============== VARIABLES =============== 
+        public TclObject SetVar(TclObject nameObj, TclObject value, TCL.VarFlag flags) { return Var.SetVar(this, nameObj, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public TclObject SetVar(string name, TclObject value, TCL.VarFlag flags) { return Var.SetVar(this, name, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public TclObject SetVar(string name1, string name2, TclObject value, TCL.VarFlag flags) { return Var.SetVar(this, name1, name2, value, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void SetVar(string name, string strValue, TCL.VarFlag flags) { Var.SetVar(this, name, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void SetVar(string name1, string name2, string strValue, TCL.VarFlag flags) { Var.SetVar(this, name1, name2, TclString.NewInstance(strValue), (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public TclObject GetVar(TclObject nameObj, TCL.VarFlag flags) { return Var.GetVar(this, nameObj, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public TclObject GetVar(string name, TCL.VarFlag flags) { return Var.GetVar(this, name, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public TclObject GetVar(string name1, string name2, TCL.VarFlag flags) { return Var.GetVar(this, name1, name2, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void UnsetVar(TclObject nameObj, TCL.VarFlag flags) { Var.UnsetVar(this, nameObj, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void UnsetVar(string name, TCL.VarFlag flags) { Var.UnsetVar(this, name, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void UnsetVar(string name1, string name2, TCL.VarFlag flags) { Var.UnsetVar(this, name1, name2, (flags | TCL.VarFlag.LEAVE_ERR_MSG)); }
+        public void TraceVar(TclObject nameObj, VarTrace trace, TCL.VarFlag flags) { Var.TraceVar(this, nameObj, flags, trace); }
+        public void TraceVar(string name, VarTrace trace, TCL.VarFlag flags) { Var.TraceVar(this, name, flags, trace); }
+        public void TraceVar(string part1, string part2, VarTrace trace, TCL.VarFlag flags) { Var.TraceVar(this, part1, part2, flags, trace); }
+        // OR-ed collection of bits describing current trace, including any of TCL.VarFlag.TRACE_READS,
+        // TCL.VarFlag.TRACE_WRITES, TCL.VarFlag.TRACE_UNSETS, TCL.VarFlag.GLOBAL_ONLY and TCL.VarFlag.NAMESPACE_ONLY.
+        public void UntraceVar(TclObject nameObj, VarTrace trace, TCL.VarFlag flags) { Var.UntraceVar(this, nameObj, flags, trace); }
+        public void UntraceVar(string name, VarTrace trace, TCL.VarFlag flags) { Var.UntraceVar(this, name, flags, trace); }
+        public void UntraceVar(string part1, string part2, VarTrace trace, TCL.VarFlag flags) { Var.UntraceVar(this, part1, part2, flags, trace); }
+        public void CreateCommand(string cmdName, ICommand cmdImpl) // Command object to associate with cmdName.
         {
             ImportRef oldRef = null;
             NamespaceCmd.Namespace ns;
             WrappedCommand cmd, refCmd;
             string tail;
             ImportedCmdData data;
-
-            if (deleted)
-            {
-                // The interpreter is being deleted.  Don't create any new
-                // commands; it's not safe to muck with the interpreter anymore.
-
+            // The interpreter is being deleted.  Don't create any new commands; it's not safe to muck with the interpreter anymore.
+            if (_deleted)
                 return;
-            }
-
-            // Determine where the command should reside. If its name contains 
-            // namespace qualifiers, we put it in the specified namespace; 
+            // Determine where the command should reside. If its name contains namespace qualifiers, we put it in the specified namespace; 
             // otherwise, we always put it in the global namespace.
-
             if (cmdName.IndexOf("::") != -1)
             {
-                // Java does not support passing an address so we pass
-                // an array of size 1 and then assign arr[0] to the value
+                // C# does not support passing an address so we pass an array of size 1 and then assign arr[0] to the value
                 NamespaceCmd.Namespace[] nsArr = new NamespaceCmd.Namespace[1];
                 NamespaceCmd.Namespace[] dummyArr = new NamespaceCmd.Namespace[1];
                 string[] tailArr = new string[1];
-
                 NamespaceCmd.getNamespaceForQualName(this, cmdName, null, TCL.VarFlag.CREATE_NS_IF_UNKNOWN, nsArr, dummyArr, dummyArr, tailArr);
-
                 ns = nsArr[0];
                 tail = tailArr[0];
-
-                if ((ns == null) || ((System.Object)tail == null))
-                {
+                if (ns == null || (object)tail == null)
                     return;
-                }
             }
             else
             {
-                ns = GlobalNs;
+                ns = GlobalNS;
                 tail = cmdName;
             }
-
             cmd = (WrappedCommand)ns.cmdTable[tail];
             if (cmd != null)
             {
-                // Command already exists. Delete the old one.
-                // Be careful to preserve any existing import links so we can
-                // restore them down below.  That way, you can redefine a
-                // command and its import status will remain intact.
-
-                oldRef = cmd.importRef;
-                cmd.importRef = null;
-
-                deleteCommandFromToken(cmd);
-
+                // Command already exists. Delete the old one. Be careful to preserve any existing import links so we can
+                // restore them down below.  That way, you can redefine a command and its import status will remain intact.
+                oldRef = cmd.ImportRef; cmd.ImportRef = null;
+                DeleteCommandFromToken(cmd);
                 // FIXME : create a test case for this condition!
-
                 cmd = (WrappedCommand)ns.cmdTable[tail];
+                // If the deletion callback recreated the command, just throw away the new command (if we try to delete it again, we could get stuck in an infinite loop).
                 if (cmd != null)
-                {
-                    // If the deletion callback recreated the command, just throw
-                    // away the new command (if we try to delete it again, we
-                    // could get stuck in an infinite loop).
-
                     SupportClass.HashtableRemove(cmd.table, cmd.hashKey);
-                }
             }
 
             cmd = new WrappedCommand();
@@ -884,13 +478,13 @@ namespace Tcl.Lang
 
             if (oldRef != null)
             {
-                cmd.importRef = oldRef;
+                cmd.ImportRef = oldRef;
                 while (oldRef != null)
                 {
-                    refCmd = oldRef.importedCmd;
+                    refCmd = oldRef.ImportedCmd;
                     data = (ImportedCmdData)refCmd.cmd;
-                    data.realCmd = cmd;
-                    oldRef = oldRef.next;
+                    data.RealCmd = cmd;
+                    oldRef = oldRef.Next;
                 }
             }
 
@@ -940,7 +534,7 @@ namespace Tcl.Lang
             ImportedCmdData data;
             int _new;
 
-            if (deleted)
+            if (_deleted)
             {
                 // The interpreter is being deleted.  Don't create any new
                 // commands; it's not safe to muck with the interpreter anymore.
@@ -972,7 +566,7 @@ namespace Tcl.Lang
             }
             else
             {
-                ns = GlobalNs;
+                ns = GlobalNS;
                 tail = cmdName;
             }
 
@@ -998,10 +592,10 @@ namespace Tcl.Lang
                  * That way, you can redefine a command and its import status
                  * will remain intact.
                  */
-                oldRef = cmd.importRef;
-                cmd.importRef = null;
+                oldRef = cmd.ImportRef;
+                cmd.ImportRef = null;
 
-                deleteCommandFromToken(cmd);
+                DeleteCommandFromToken(cmd);
 
                 // FIXME : create a test case for this condition!
 
@@ -1041,13 +635,13 @@ namespace Tcl.Lang
 
             if (oldRef != null)
             {
-                cmd.importRef = oldRef;
+                cmd.ImportRef = oldRef;
                 while (oldRef != null)
                 {
-                    refCmd = oldRef.importedCmd;
+                    refCmd = oldRef.ImportedCmd;
                     data = (ImportedCmdData)refCmd.cmd;
-                    data.realCmd = cmd;
-                    oldRef = oldRef.next;
+                    data.RealCmd = cmd;
+                    oldRef = oldRef.Next;
                 }
             }
 
@@ -1070,7 +664,7 @@ namespace Tcl.Lang
                 if (cmd.ns != null)
                 {
                     name.Append(cmd.ns.fullName);
-                    if (cmd.ns != interp.GlobalNs)
+                    if (cmd.ns != interp.GlobalNS)
                     {
                         name.Append("::");
                     }
@@ -1104,9 +698,9 @@ namespace Tcl.Lang
             }
             if (cmd.deleteProc != null)
                 cmd.deleteProc(ref cmd.deleteData);
-            return deleteCommandFromToken(cmd);
+            return DeleteCommandFromToken(cmd);
         }
-        protected internal int deleteCommandFromToken(WrappedCommand cmd)
+        protected internal int DeleteCommandFromToken(WrappedCommand cmd)
         // Wrapper Token for command to delete.
         {
             if (cmd == null)
@@ -1152,11 +746,11 @@ namespace Tcl.Lang
             // commands were created that refer back to this command. Delete these
             // imported commands now.
 
-            for (ref_Renamed = cmd.importRef; ref_Renamed != null; ref_Renamed = nextRef)
+            for (ref_Renamed = cmd.ImportRef; ref_Renamed != null; ref_Renamed = nextRef)
             {
-                nextRef = ref_Renamed.next;
-                importCmd = ref_Renamed.importedCmd;
-                deleteCommandFromToken(importCmd);
+                nextRef = ref_Renamed.Next;
+                importCmd = ref_Renamed.ImportedCmd;
+                DeleteCommandFromToken(importCmd);
             }
 
             // FIXME : what does this mean? Is this a mistake in the C comment?
@@ -1205,7 +799,7 @@ namespace Tcl.Lang
 
             if (((System.Object)newName == null) || (newName.Length == 0))
             {
-                deleteCommandFromToken(cmd);
+                DeleteCommandFromToken(cmd);
                 return;
             }
 
@@ -1377,7 +971,7 @@ namespace Tcl.Lang
 
         public TclObject GetResult()
         {
-            return m_result;
+            return _result;
         }
         public void setResult(TclObject r)
         // A Tcl Object to be set as the result.
@@ -1387,22 +981,22 @@ namespace Tcl.Lang
                 throw new System.NullReferenceException("Interp.setResult() called with null TclObject argument.");
             }
 
-            if (r == m_result)
+            if (r == _result)
             {
                 // Setting to current value (including m_nullResult) is a no-op.
                 return;
             }
 
-            if (m_result != m_nullResult)
+            if (_result != _nullResult)
             {
-                m_result.Release();
+                _result.Release();
             }
 
-            m_result = r;
+            _result = r;
 
-            if (m_result != m_nullResult)
+            if (_result != _nullResult)
             {
-                m_result.Preserve();
+                _result.Preserve();
             }
         }
         public void setResult(string r)
@@ -1410,7 +1004,7 @@ namespace Tcl.Lang
         {
             if ((System.Object)r == null)
             {
-                resetResult();
+                ResetResult();
             }
             else
             {
@@ -1432,22 +1026,22 @@ namespace Tcl.Lang
         {
             setResult(TclBoolean.newInstance(r));
         }
-        public void resetResult()
+        public void ResetResult()
         {
-            if (m_result != m_nullResult)
+            if (_result != _nullResult)
             {
-                m_result.Release();
-                m_result = TclString.NewInstance(""); //m_nullResult;
-                m_result.Preserve();
-                if (!m_nullResult.Shared)
+                _result.Release();
+                _result = TclString.NewInstance(""); //m_nullResult;
+                _result.Preserve();
+                if (!_nullResult.Shared)
                 {
                     throw new TclRuntimeError("m_nullResult is not shared");
                 }
             }
-            errAlreadyLogged = false;
-            errInProgress = false;
-            errCodeSet = false;
-            returnCode = TCL.CompletionCode.OK;
+            _errAlreadyLogged = false;
+            _errInProgress = false;
+            _errCodeSet = false;
+            _returnCode = TCL.CompletionCode.OK;
         }
         public void appendElement(object Element)
         {
@@ -1477,8 +1071,8 @@ namespace Tcl.Lang
         }
         public void eval(string inString, int flags)
         {
-            int evalFlags = this.evalFlags;
-            this.evalFlags &= ~Parser.TCL_ALLOW_EXCEPTIONS;
+            int evalFlags = this._evalFlags;
+            this._evalFlags &= ~Parser.TCL_ALLOW_EXCEPTIONS;
 
             CharPointer script = new CharPointer(inString);
             try
@@ -1488,7 +1082,7 @@ namespace Tcl.Lang
             catch (TclException e)
             {
 
-                if (nestLevel != 0)
+                if (_nestLevel != 0)
                 {
                     throw;
                 }
@@ -1566,8 +1160,8 @@ namespace Tcl.Lang
                 throw new TclException(this, "couldn't read file \"" + sFilename + "\"");
             }
 
-            string oldScript = scriptFile;
-            scriptFile = sFilename;
+            string oldScript = _scriptFile;
+            _scriptFile = sFilename;
 
             try
             {
@@ -1578,13 +1172,13 @@ namespace Tcl.Lang
             {
                 if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    AddErrorInfo("\n    (file \"" + sFilename + "\" line " + errorLine + ")");
+                    AddErrorInfo("\n    (file \"" + sFilename + "\" line " + _errorLine + ")");
                 }
                 throw;
             }
             finally
             {
-                scriptFile = oldScript;
+                _scriptFile = oldScript;
                 popDebugStack();
             }
         }
@@ -1598,8 +1192,8 @@ namespace Tcl.Lang
                 throw new TclException(this, "cannot read URL \"" + s + "\"");
             }
 
-            string oldScript = scriptFile;
-            scriptFile = s;
+            string oldScript = _scriptFile;
+            _scriptFile = s;
 
             try
             {
@@ -1607,7 +1201,7 @@ namespace Tcl.Lang
             }
             finally
             {
-                scriptFile = oldScript;
+                _scriptFile = oldScript;
             }
         }
         private string readScriptFromFile(string sFilename)
@@ -1621,7 +1215,7 @@ namespace Tcl.Lang
             }
             catch (TclException e)
             {
-                resetResult();
+                ResetResult();
                 return null;
             }
             catch (FileNotFoundException e)
@@ -1854,7 +1448,7 @@ namespace Tcl.Lang
             try
             {
                 SetVar("errorCode", null, code, TCL.VarFlag.GLOBAL_ONLY);
-                errCodeSet = true;
+                _errCodeSet = true;
             }
             catch (TclException excp)
             {
@@ -1868,9 +1462,9 @@ namespace Tcl.Lang
         public void AddErrorInfo(string message)
         // The message to record.
         {
-            if (!errInProgress)
+            if (!_errInProgress)
             {
-                errInProgress = true;
+                _errInProgress = true;
 
                 try
                 {
@@ -1885,7 +1479,7 @@ namespace Tcl.Lang
                 // If the errorCode variable wasn't set by the code
                 // that generated the error, set it to "NONE".
 
-                if (!errCodeSet)
+                if (!_errCodeSet)
                 {
                     try
                     {
@@ -1909,7 +1503,7 @@ namespace Tcl.Lang
         }
         internal void processUnexpectedResult(TCL.CompletionCode returnCode)
         {
-            resetResult();
+            ResetResult();
             if (returnCode == TCL.CompletionCode.BREAK)
             {
                 throw new TclException(this, "invoked \"break\" outside of a loop");
@@ -1927,14 +1521,14 @@ namespace Tcl.Lang
         {
             TCL.CompletionCode code;
 
-            code = returnCode;
-            returnCode = TCL.CompletionCode.OK;
+            code = _returnCode;
+            _returnCode = TCL.CompletionCode.OK;
 
             if (code == TCL.CompletionCode.ERROR)
             {
                 try
                 {
-                    SetVar("errorCode", null, ((System.Object)errorCode != null) ? errorCode : "NONE", TCL.VarFlag.GLOBAL_ONLY);
+                    SetVar("errorCode", null, ((System.Object)_errorCode != null) ? _errorCode : "NONE", TCL.VarFlag.GLOBAL_ONLY);
                 }
                 catch (TclException e)
                 {
@@ -1942,13 +1536,13 @@ namespace Tcl.Lang
                     // This may leave error messages inside Interp.result (which
                     // is compatible with Tcl 8.0 behavior.
                 }
-                errCodeSet = true;
+                _errCodeSet = true;
 
-                if ((System.Object)errorInfo != null)
+                if ((System.Object)_errorInfo != null)
                 {
                     try
                     {
-                        SetVar("errorInfo", null, errorInfo, TCL.VarFlag.GLOBAL_ONLY);
+                        SetVar("errorInfo", null, _errorInfo, TCL.VarFlag.GLOBAL_ONLY);
                     }
                     catch (TclException e)
                     {
@@ -1957,7 +1551,7 @@ namespace Tcl.Lang
                         // Interp.result (which is compatible with Tcl 8.0
                         // behavior.
                     }
-                    errInProgress = true;
+                    _errInProgress = true;
                 }
             }
 
@@ -1973,21 +1567,21 @@ namespace Tcl.Lang
         }
         internal FileInfo getWorkingDir()
         {
-            if (workingDir == null)
+            if (_workingDir == null)
             {
                 try
                 {
 
-                    string dirName = getVar("env", "HOME", 0).ToString();
-                    workingDir = FileUtil.getNewFileObj(this, dirName);
+                    string dirName = GetVar("env", "HOME", 0).ToString();
+                    _workingDir = FileUtil.getNewFileObj(this, dirName);
                 }
                 catch (TclException e)
                 {
-                    resetResult();
+                    ResetResult();
                 }
-                workingDir = new FileInfo(Util.tryGetSystemProperty("user.home", "."));
+                _workingDir = new FileInfo(Util.tryGetSystemProperty("user.home", "."));
             }
-            return workingDir;
+            return _workingDir;
         }
         internal void setWorkingDir(string dirName)
         {
@@ -2006,7 +1600,7 @@ namespace Tcl.Lang
 
             if (Directory.Exists(dirObj.FullName))
             {
-                workingDir = dirObj;
+                _workingDir = dirObj;
             }
             else
             {
@@ -2016,7 +1610,7 @@ namespace Tcl.Lang
 
         public Notifier getNotifier()
         {
-            return notifier;
+            return _notifier;
         }
         public void pkgProvide(string name, string version)
         {
@@ -2064,7 +1658,7 @@ namespace Tcl.Lang
         *
         */
 
-        protected internal DebugInfo dbg;
+        protected internal DebugInfo _dbg;
 
         /// <summary> Initialize the debugging information.</summary>
         /// <returns> a DebugInfo object used by Interp in non-debugging mode.
@@ -2127,27 +1721,27 @@ namespace Tcl.Lang
                 // the target interp that it has inherited a partial traceback
                 // chain, not just a simple error message.
 
-                if (!sourceInterp.errAlreadyLogged)
+                if (!sourceInterp._errAlreadyLogged)
                 {
                     sourceInterp.AddErrorInfo("");
                 }
-                sourceInterp.errAlreadyLogged = true;
+                sourceInterp._errAlreadyLogged = true;
 
-                resetResult();
+                ResetResult();
 
-                obj = sourceInterp.getVar("errorInfo", TCL.VarFlag.GLOBAL_ONLY);
+                obj = sourceInterp.GetVar("errorInfo", TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("errorInfo", obj, TCL.VarFlag.GLOBAL_ONLY);
 
-                obj = sourceInterp.getVar("errorCode", TCL.VarFlag.GLOBAL_ONLY);
+                obj = sourceInterp.GetVar("errorCode", TCL.VarFlag.GLOBAL_ONLY);
                 SetVar("errorCode", obj, TCL.VarFlag.GLOBAL_ONLY);
 
-                errInProgress = true;
-                errCodeSet = true;
+                _errInProgress = true;
+                _errCodeSet = true;
             }
 
-            returnCode = result;
+            _returnCode = result;
             setResult(sourceInterp.GetResult());
-            sourceInterp.resetResult();
+            sourceInterp.ResetResult();
 
             if (result != TCL.CompletionCode.OK)
             {
@@ -2159,7 +1753,7 @@ namespace Tcl.Lang
         {
             WrappedCommand cmd;
 
-            if (deleted)
+            if (_deleted)
             {
                 // The interpreter is being deleted. Do not create any new
                 // structures, because it is not safe to modify the interpreter.
@@ -2199,23 +1793,23 @@ namespace Tcl.Lang
 
             // Check that the command is really in global namespace
 
-            if (cmd.ns != GlobalNs)
+            if (cmd.ns != GlobalNS)
             {
                 throw new TclException(this, "can only hide global namespace commands" + " (use rename then hide)");
             }
 
             // Initialize the hidden command table if necessary.
 
-            if (hiddenCmdTable == null)
+            if (_hiddenCmdTable == null)
             {
-                hiddenCmdTable = new Hashtable();
+                _hiddenCmdTable = new Hashtable();
             }
 
             // It is an error to move an exposed command to a hidden command with
             // hiddenCmdToken if a hidden command with the name hiddenCmdToken already
             // exists.
 
-            if (hiddenCmdTable.ContainsKey(hiddenCmdToken))
+            if (_hiddenCmdTable.ContainsKey(hiddenCmdToken))
             {
                 throw new TclException(this, "hidden command named \"" + hiddenCmdToken + "\" already exists");
             }
@@ -2237,15 +1831,15 @@ namespace Tcl.Lang
             // Now link the hash table entry with the command structure.
             // We ensured above that the nsPtr was right.
 
-            cmd.table = hiddenCmdTable;
+            cmd.table = _hiddenCmdTable;
             cmd.hashKey = hiddenCmdToken;
-            SupportClass.PutElement(hiddenCmdTable, hiddenCmdToken, cmd);
+            SupportClass.PutElement(_hiddenCmdTable, hiddenCmdToken, cmd);
         }
         internal void exposeCommand(string hiddenCmdToken, string cmdName)
         {
             WrappedCommand cmd;
 
-            if (deleted)
+            if (_deleted)
             {
                 // The interpreter is being deleted. Do not create any new
                 // structures, because it is not safe to modify the interpreter.
@@ -2263,18 +1857,18 @@ namespace Tcl.Lang
 
             // Get the command from the hidden command table:
 
-            if (hiddenCmdTable == null || !hiddenCmdTable.ContainsKey(hiddenCmdToken))
+            if (_hiddenCmdTable == null || !_hiddenCmdTable.ContainsKey(hiddenCmdToken))
             {
                 throw new TclException(this, "unknown hidden command \"" + hiddenCmdToken + "\"");
             }
-            cmd = (WrappedCommand)hiddenCmdTable[hiddenCmdToken];
+            cmd = (WrappedCommand)_hiddenCmdTable[hiddenCmdToken];
 
             // Check that we have a true global namespace
             // command (enforced by Tcl_HideCommand() but let's double
             // check. (If it was not, we would not really know how to
             // handle it).
 
-            if (cmd.ns != GlobalNs)
+            if (cmd.ns != GlobalNS)
             {
 
                 // This case is theoritically impossible,
@@ -2317,11 +1911,11 @@ namespace Tcl.Lang
         }
         internal void hideUnsafeCommands()
         {
-            for (int ix = 0; ix < unsafeCmds.Length; ix++)
+            for (int ix = 0; ix < _unsafeCmds.Length; ix++)
             {
                 try
                 {
-                    hideCommand(unsafeCmds[ix], unsafeCmds[ix]);
+                    hideCommand(_unsafeCmds[ix], _unsafeCmds[ix]);
                 }
                 catch (TclException e)
                 {
@@ -2363,11 +1957,11 @@ namespace Tcl.Lang
 
                 // We never invoke "unknown" for hidden commands.
 
-                if (hiddenCmdTable == null || !hiddenCmdTable.ContainsKey(cmdName))
+                if (_hiddenCmdTable == null || !_hiddenCmdTable.ContainsKey(cmdName))
                 {
                     throw new TclException(this, "invalid hidden command name \"" + cmdName + "\"");
                 }
-                cmd = (WrappedCommand)hiddenCmdTable[cmdName];
+                cmd = (WrappedCommand)_hiddenCmdTable[cmdName];
             }
             else
             {
@@ -2405,8 +1999,8 @@ namespace Tcl.Lang
             // and object results to their default empty values since they could
             // have gotten changed by earlier invocations.
 
-            resetResult();
-            cmdCount++;
+            ResetResult();
+            _cmdCount++;
 
             TCL.CompletionCode result = TCL.CompletionCode.OK;
             try
@@ -2431,20 +2025,20 @@ namespace Tcl.Lang
                 {
                     // Basically just do the same as in hideCommand...
                     SupportClass.HashtableRemove(cmd.table, cmd.hashKey);
-                    cmd.table = hiddenCmdTable;
+                    cmd.table = _hiddenCmdTable;
                     cmd.hashKey = cmdName;
-                    SupportClass.PutElement(hiddenCmdTable, cmdName, cmd);
+                    SupportClass.PutElement(_hiddenCmdTable, cmdName, cmd);
                 }
             }
 
             // If an error occurred, record information about what was being
             // executed when the error occurred.
 
-            if ((result == TCL.CompletionCode.ERROR) && ((flags & INVOKE_NO_TRACEBACK) == 0) && !errAlreadyLogged)
+            if ((result == TCL.CompletionCode.ERROR) && ((flags & INVOKE_NO_TRACEBACK) == 0) && !_errAlreadyLogged)
             {
                 StringBuilder ds;
 
-                if (errInProgress)
+                if (_errInProgress)
                 {
                     ds = new StringBuilder("\n    while invoking\n\"");
                 }
@@ -2468,7 +2062,7 @@ namespace Tcl.Lang
                 }
                 ds.Append("\"");
                 AddErrorInfo(ds.ToString());
-                errInProgress = true;
+                _errInProgress = true;
             }
 
             // Free any locally allocated storage used to call "unknown".
@@ -2482,7 +2076,7 @@ namespace Tcl.Lang
         }
         internal void allowExceptions()
         {
-            evalFlags |= Parser.TCL_ALLOW_EXCEPTIONS;
+            _evalFlags |= Parser.TCL_ALLOW_EXCEPTIONS;
         }
 
         internal class ResolverScheme
@@ -2521,9 +2115,9 @@ namespace Tcl.Lang
             //  Look for an existing scheme with the given name.
             //  If found, then replace its rules.
 
-            if (resolvers != null)
+            if (_resolvers != null)
             {
-                for (enum_Renamed = resolvers.GetEnumerator(); enum_Renamed.MoveNext(); )
+                for (enum_Renamed = _resolvers.GetEnumerator(); enum_Renamed.MoveNext(); )
                 {
                     res = (ResolverScheme)enum_Renamed.Current;
                     if (name.Equals(res.name))
@@ -2534,9 +2128,9 @@ namespace Tcl.Lang
                 }
             }
 
-            if (resolvers == null)
+            if (_resolvers == null)
             {
-                resolvers = new ArrayList(10);
+                _resolvers = new ArrayList(10);
             }
 
             //  Otherwise, this is a new scheme.  Add it to the FRONT
@@ -2544,7 +2138,7 @@ namespace Tcl.Lang
 
             res = new ResolverScheme(this, name, resolver);
 
-            resolvers.Insert(0, res);
+            _resolvers.Insert(0, res);
         }
         public Resolver getInterpResolver(string name)
         // Look for a scheme with this name.
@@ -2554,9 +2148,9 @@ namespace Tcl.Lang
             //  Look for an existing scheme with the given name.  If found,
             //  then return pointers to its procedures.
 
-            if (resolvers != null)
+            if (_resolvers != null)
             {
-                foreach (ResolverScheme res in resolvers)
+                foreach (ResolverScheme res in _resolvers)
                 {
                     if (name.Equals(res.name))
                     {
@@ -2576,9 +2170,9 @@ namespace Tcl.Lang
 
             //  Look for an existing scheme with the given name.
 
-            if (resolvers != null)
+            if (_resolvers != null)
             {
-                enum_Renamed = resolvers.GetEnumerator();
+                enum_Renamed = _resolvers.GetEnumerator();
                 while (!found && enum_Renamed.MoveNext())
                 {
                     res = (ResolverScheme)enum_Renamed.Current;
@@ -2593,7 +2187,7 @@ namespace Tcl.Lang
 
             if (found)
             {
-                SupportClass.VectorRemoveElement(resolvers, name);
+                SupportClass.VectorRemoveElement(_resolvers, name);
             }
 
             return found;

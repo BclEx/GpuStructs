@@ -128,7 +128,7 @@ namespace Tcl.Lang
           break;
 
         case OPT_ISSAFE:
-          interp.setResult( slaveInterp.isSafe );
+          interp.setResult( slaveInterp._isSafe );
           break;
 
         case OPT_INVOKEHIDDEN:
@@ -191,7 +191,7 @@ namespace Tcl.Lang
     {
       // Unlink the slave from its master interpreter.
 
-      SupportClass.HashtableRemove( masterInterp.slaveTable, path );
+      SupportClass.HashtableRemove( masterInterp._slaveTable, path );
 
       // Set to null so that when the InterpInfo is cleaned up in the slave
       // it does not try to delete the command causing all sorts of grief.
@@ -201,7 +201,7 @@ namespace Tcl.Lang
 
       if ( slaveInterp != null )
       {
-        slaveInterp.dispose();
+        slaveInterp.Dispose();
       }
     }
     public void Dispose( Interp interp )
@@ -209,50 +209,50 @@ namespace Tcl.Lang
     {
       // There shouldn't be any commands left.
 
-      if ( !( interp.slaveTable.Count == 0 ) )
+      if ( !( interp._slaveTable.Count == 0 ) )
       {
         System.Console.Error.WriteLine( "InterpInfoDeleteProc: still exist commands" );
       }
-      interp.slaveTable = null;
+      interp._slaveTable = null;
 
       // Tell any interps that have aliases to this interp that they should
       // delete those aliases.  If the other interp was already dead, it
       // would have removed the target record already. 
 
       // TODO ATK
-      foreach ( WrappedCommand slaveCmd in new ArrayList( interp.targetTable.Keys ) )
+      foreach ( WrappedCommand slaveCmd in new ArrayList( interp._targetTable.Keys ) )
       {
-        Interp slaveInterp = (Interp)interp.targetTable[slaveCmd];
-        slaveInterp.deleteCommandFromToken( slaveCmd );
+        Interp slaveInterp = (Interp)interp._targetTable[slaveCmd];
+        slaveInterp.DeleteCommandFromToken( slaveCmd );
       }
-      interp.targetTable = null;
+      interp._targetTable = null;
 
-      if ( interp.interpChanTable != null )
+      if ( interp._interpChanTable != null )
       {
-        foreach ( Channel channel in new ArrayList( interp.interpChanTable.Values ) )
+        foreach ( Channel channel in new ArrayList( interp._interpChanTable.Values ) )
         {
           TclIO.unregisterChannel( interp, channel );
         }
       }
 
-      if ( interp.slave.interpCmd != null )
+      if ( interp._slave.interpCmd != null )
       {
         // Tcl_DeleteInterp() was called on this interpreter, rather
         // "interp delete" or the equivalent deletion of the command in the
         // master.  First ensure that the cleanup callback doesn't try to
         // delete the interp again.
 
-        interp.slave.slaveInterp = null;
-        interp.slave.masterInterp.deleteCommandFromToken( interp.slave.interpCmd );
+        interp._slave.slaveInterp = null;
+        interp._slave.masterInterp.DeleteCommandFromToken( interp._slave.interpCmd );
       }
 
       // There shouldn't be any aliases left.
 
-      if ( !( interp.aliasTable.Count == 0 ) )
+      if ( !( interp._aliasTable.Count == 0 ) )
       {
         System.Console.Error.WriteLine( "InterpInfoDeleteProc: still exist aliases" );
       }
-      interp.aliasTable = null;
+      interp._aliasTable = null;
     }
     internal static Interp create( Interp interp, TclObject path, bool safe )
     {
@@ -278,10 +278,10 @@ namespace Tcl.Lang
       }
       if ( !safe )
       {
-        safe = masterInterp.isSafe;
+        safe = masterInterp._isSafe;
       }
 
-      if ( masterInterp.slaveTable.ContainsKey( pathString ) )
+      if ( masterInterp._slaveTable.ContainsKey( pathString ) )
       {
         throw new TclException( interp, "interpreter named \"" + pathString + "\" already exists, cannot create" );
       }
@@ -289,23 +289,23 @@ namespace Tcl.Lang
       Interp slaveInterp = new Interp();
       InterpSlaveCmd slave = new InterpSlaveCmd();
 
-      slaveInterp.slave = slave;
-      slaveInterp.setAssocData( "InterpSlaveCmd", slave );
+      slaveInterp._slave = slave;
+      slaveInterp.SetAssocData( "InterpSlaveCmd", slave );
 
       slave.masterInterp = masterInterp;
       slave.path = pathString;
       slave.slaveInterp = slaveInterp;
 
-      masterInterp.CreateCommand( pathString, slaveInterp.slave );
-      slaveInterp.slave.interpCmd = NamespaceCmd.findCommand( masterInterp, pathString, null, 0 );
+      masterInterp.CreateCommand( pathString, slaveInterp._slave );
+      slaveInterp._slave.interpCmd = NamespaceCmd.findCommand( masterInterp, pathString, null, 0 );
 
-      SupportClass.PutElement( masterInterp.slaveTable, pathString, slaveInterp.slave );
+      SupportClass.PutElement( masterInterp._slaveTable, pathString, slaveInterp._slave );
 
       slaveInterp.SetVar( "tcl_interactive", "0", TCL.VarFlag.GLOBAL_ONLY );
 
       // Inherit the recursion limit.
 
-      slaveInterp.maxNestingDepth = masterInterp.maxNestingDepth;
+      slaveInterp._maxNestingDepth = masterInterp._maxNestingDepth;
 
       if ( safe )
       {
@@ -349,7 +349,7 @@ namespace Tcl.Lang
           slaveInterp.eval( obj, 0 );
           obj.Release();
         }
-        result = slaveInterp.returnCode;
+        result = slaveInterp._returnCode;
       }
       catch ( TclException e )
       {
@@ -361,7 +361,7 @@ namespace Tcl.Lang
     }
     internal static void expose( Interp interp, Interp slaveInterp, int objIx, TclObject[] objv )
     {
-      if ( interp.isSafe )
+      if ( interp._isSafe )
       {
         throw new TclException( interp, "permission denied: " + "safe interpreter cannot expose commands" );
       }
@@ -381,7 +381,7 @@ namespace Tcl.Lang
     }
     internal static void hide( Interp interp, Interp slaveInterp, int objIx, TclObject[] objv )
     {
-      if ( interp.isSafe )
+      if ( interp._isSafe )
       {
         throw new TclException( interp, "permission denied: " + "safe interpreter cannot hide commands" );
       }
@@ -401,7 +401,7 @@ namespace Tcl.Lang
     }
     internal static void hidden( Interp interp, Interp slaveInterp )
     {
-      if ( slaveInterp.hiddenCmdTable == null )
+      if ( slaveInterp._hiddenCmdTable == null )
       {
         return;
       }
@@ -409,7 +409,7 @@ namespace Tcl.Lang
       TclObject result = TclList.NewInstance();
       interp.setResult( result );
 
-      IEnumerator hiddenCmds = slaveInterp.hiddenCmdTable.Keys.GetEnumerator();
+      IEnumerator hiddenCmds = slaveInterp._hiddenCmdTable.Keys.GetEnumerator();
       while ( hiddenCmds.MoveNext() )
       {
         string cmdName = (string)hiddenCmds.Current;
@@ -420,7 +420,7 @@ namespace Tcl.Lang
     {
       TCL.CompletionCode result;
 
-      if ( interp.isSafe )
+      if ( interp._isSafe )
       {
         throw new TclException( interp, "not allowed to " + "invoke hidden commands from safe interpreter" );
       }
@@ -444,7 +444,7 @@ namespace Tcl.Lang
         {
           slaveInterp.invoke( localObjv, Interp.INVOKE_HIDDEN );
         }
-        result = slaveInterp.returnCode;
+        result = slaveInterp._returnCode;
       }
       catch ( TclException e )
       {
@@ -456,11 +456,11 @@ namespace Tcl.Lang
     }
     internal static void markTrusted( Interp interp, Interp slaveInterp )
     {
-      if ( interp.isSafe )
+      if ( interp._isSafe )
       {
         throw new TclException( interp, "permission denied: " + "safe interpreter cannot mark trusted" );
       }
-      slaveInterp.isSafe = false;
+      slaveInterp._isSafe = false;
     }
     private static void makeSafe( Interp interp )
     {
@@ -468,7 +468,7 @@ namespace Tcl.Lang
 
       interp.hideUnsafeCommands();
 
-      interp.isSafe = true;
+      interp._isSafe = true;
 
       //  Unsetting variables : (which should not have been set 
       //  in the first place, but...)
@@ -477,7 +477,7 @@ namespace Tcl.Lang
 
       try
       {
-        interp.unsetVar( "env", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "env", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
@@ -487,28 +487,28 @@ namespace Tcl.Lang
 
       try
       {
-        interp.unsetVar( "tcl_platform", "os", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_platform", "os", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
       }
       try
       {
-        interp.unsetVar( "tcl_platform", "osVersion", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_platform", "osVersion", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
       }
       try
       {
-        interp.unsetVar( "tcl_platform", "machine", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_platform", "machine", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
       }
       try
       {
-        interp.unsetVar( "tcl_platform", "user", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_platform", "user", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
@@ -519,21 +519,21 @@ namespace Tcl.Lang
 
       try
       {
-        interp.unsetVar( "tclDefaultLibrary", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tclDefaultLibrary", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
       }
       try
       {
-        interp.unsetVar( "tcl_library", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_library", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {
       }
       try
       {
-        interp.unsetVar( "tcl_pkgPath", TCL.VarFlag.GLOBAL_ONLY );
+        interp.UnsetVar( "tcl_pkgPath", TCL.VarFlag.GLOBAL_ONLY );
       }
       catch ( TclException e )
       {

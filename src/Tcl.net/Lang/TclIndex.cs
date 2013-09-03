@@ -13,7 +13,7 @@ using System.Text;
 namespace Tcl.Lang
 {
 
-    public class TclIndex : InternalRep
+    public class TclIndex : IInternalRep
     {
 
         /// <summary> The variable slots for this object.</summary>
@@ -33,7 +33,7 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this internalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclIndex(index, table);
         }
@@ -73,7 +73,7 @@ namespace Tcl.Lang
 
         public static int get(Interp interp, TclObject tobj, string[] table, string msg, int flags)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclIndex)
             {

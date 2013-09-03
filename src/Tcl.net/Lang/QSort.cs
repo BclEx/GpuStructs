@@ -350,7 +350,7 @@ namespace Tcl.Lang
                     }
                     catch (TclException e)
                     {
-                        sortInterp.resetResult();
+                        sortInterp.ResetResult();
                         TclException e4 = new TclException(sortInterp, "comparison command returned non-numeric result");
                         throw e4;
                     }

@@ -40,7 +40,7 @@ namespace Tcl.Lang
 
             if (size == 0)
             {
-                interp.resetResult();
+                interp.ResetResult();
                 return TCL.CompletionCode.RETURN;
             }
 

@@ -75,7 +75,7 @@ namespace Tcl.Lang
             {
                 if (e.GetCompletionCode() == TCL.CompletionCode.ERROR)
                 {
-                    interp.AddErrorInfo("\n    (\"uplevel\" body line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (\"uplevel\" body line " + interp._errorLine + ")");
                 }
                 throw;
             }

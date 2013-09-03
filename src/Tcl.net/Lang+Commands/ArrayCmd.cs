@@ -62,7 +62,7 @@ namespace Tcl.Lang
                 array = retArray[1];
             }
 
-            if ((var == null) || !var.isVarArray() || var.IsVarUndefined())
+            if ((var == null) || !var.IsVarArray() || var.IsVarUndefined())
             {
                 notArray = true;
             }
@@ -70,7 +70,7 @@ namespace Tcl.Lang
             // Special array trace used to keep the env array in sync for
             // array names, array get, etc.
 
-            if (var != null && var.traces != null)
+            if (var != null && var._traces != null)
             {
                 msg = Var.callTraces(interp, array, var, varName, null, (TCL.VarFlag.LEAVE_ERR_MSG | TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_ARRAY));
                 if ((System.Object)msg != null)
@@ -94,7 +94,7 @@ namespace Tcl.Lang
                             errorNotArray(interp, objv[2].ToString());
                         }
 
-                        if (var.sidVec == null)
+                        if (var._sidVec == null)
                         {
 
                             errorIllegalSearchId(interp, objv[2].ToString(), objv[3].ToString());
@@ -133,12 +133,12 @@ namespace Tcl.Lang
                         }
 
                         bool rmOK = true;
-                        if (var.sidVec != null)
+                        if (var._sidVec != null)
                         {
 
                             rmOK = (var.removeSearch(objv[3].ToString()));
                         }
-                        if ((var.sidVec == null) || !rmOK)
+                        if ((var._sidVec == null) || !rmOK)
                         {
 
                             errorIllegalSearchId(interp, objv[2].ToString(), objv[3].ToString());
@@ -180,7 +180,7 @@ namespace Tcl.Lang
                             pattern = objv[3].ToString();
                         }
 
-                        Hashtable table = (Hashtable)var.value;
+                        Hashtable table = (Hashtable)var._value;
                         TclObject tobj = TclList.NewInstance();
 
                         string arrayName = objv[2].ToString();
@@ -208,7 +208,7 @@ namespace Tcl.Lang
                             }
 
 
-                            strValue = interp.getVar(arrayName, key, 0).ToString();
+                            strValue = interp.GetVar(arrayName, key, 0).ToString();
 
                             TclList.Append(interp, tobj, TclString.NewInstance(key));
                             TclList.Append(interp, tobj, TclString.NewInstance(strValue));
@@ -236,7 +236,7 @@ namespace Tcl.Lang
                             pattern = objv[3].ToString();
                         }
 
-                        Hashtable table = (Hashtable)var.value;
+                        Hashtable table = (Hashtable)var._value;
                         TclObject tobj = TclList.NewInstance();
                         string key;
 
@@ -277,7 +277,7 @@ namespace Tcl.Lang
                             errorNotArray(interp, objv[2].ToString());
                         }
 
-                        if (var.sidVec == null)
+                        if (var._sidVec == null)
                         {
 
                             errorIllegalSearchId(interp, objv[2].ToString(), objv[3].ToString());
@@ -292,11 +292,11 @@ namespace Tcl.Lang
                         }
                         if (e.HasMore)
                         {
-                            Hashtable table = (Hashtable)var.value;
+                            Hashtable table = (Hashtable)var._value;
                             DictionaryEntry entry = e.nextEntry();
                             string key = (string)entry.Key;
                             Var elem = (Var)entry.Value;
-                            if ((elem.flags & VarFlags.UNDEFINED) == 0)
+                            if ((elem._flags & VarFlags.UNDEFINED) == 0)
                             {
                                 interp.setResult(key);
                             }
@@ -352,12 +352,12 @@ namespace Tcl.Lang
                         }
                         else
                         {
-                            Hashtable table = (Hashtable)var.value;
+                            Hashtable table = (Hashtable)var._value;
                             int size = 0;
                             for (IDictionaryEnumerator e = table.GetEnumerator(); e.MoveNext(); )
                             {
                                 Var elem = (Var)e.Value;
-                                if ((elem.flags & VarFlags.UNDEFINED) == 0)
+                                if ((elem._flags & VarFlags.UNDEFINED) == 0)
                                 {
                                     size++;
                                 }
@@ -380,9 +380,9 @@ namespace Tcl.Lang
                             errorNotArray(interp, objv[2].ToString());
                         }
 
-                        if (var.sidVec == null)
+                        if (var._sidVec == null)
                         {
-                            var.sidVec = new ArrayList(10);
+                            var._sidVec = new ArrayList(10);
                         }
 
                         // Create a SearchId Object:
@@ -405,8 +405,8 @@ namespace Tcl.Lang
                         int i = var.NextIndex;
 
                         string s = "s-" + i + "-" + objv[2].ToString();
-                        IDictionaryEnumerator e = ((Hashtable)var.value).GetEnumerator();
-                        var.sidVec.Add(new SearchId(e, s, i));
+                        IDictionaryEnumerator e = ((Hashtable)var._value).GetEnumerator();
+                        var._sidVec.Add(new SearchId(e, s, i));
                         interp.setResult(s);
                         break;
                     }
@@ -430,13 +430,13 @@ namespace Tcl.Lang
                         {
                             // When no pattern is given, just unset the whole array
 
-                            interp.unsetVar(objv[2], 0);
+                            interp.UnsetVar(objv[2], 0);
                         }
                         else
                         {
 
                             pattern = objv[3].ToString();
-                            Hashtable table = (Hashtable)(((Hashtable)var.value).Clone());
+                            Hashtable table = (Hashtable)(((Hashtable)var._value).Clone());
                             for (IDictionaryEnumerator e = table.GetEnumerator(); e.MoveNext(); )
                             {
                                 name = (string)e.Key;
@@ -447,7 +447,7 @@ namespace Tcl.Lang
                                 }
                                 if (Util.stringMatch(name, pattern))
                                 {
-                                    interp.unsetVar(varName, name, 0);
+                                    interp.UnsetVar(varName, name, 0);
                                 }
                             }
                         }

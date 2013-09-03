@@ -48,10 +48,10 @@ namespace Tcl.Lang
                 // reference count so that it will persist until its namespace is
                 // destroyed or until the variable is unset.
 
-                if ((var.flags & VarFlags.NAMESPACE_VAR) == 0)
+                if ((var._flags & VarFlags.NAMESPACE_VAR) == 0)
                 {
-                    var.flags |= VarFlags.NAMESPACE_VAR;
-                    var.refCount++;
+                    var._flags |= VarFlags.NAMESPACE_VAR;
+                    var.RefCount++;
                 }
 
                 // If a value was specified, set the variable to that value.
@@ -63,7 +63,7 @@ namespace Tcl.Lang
                 if (i + 1 < objv.Length)
                 {
                     // a value was specified
-                    varValue = Var.setVar(interp, objv[i], null, objv[i + 1], (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG));
+                    varValue = Var.SetVar(interp, objv[i], null, objv[i + 1], (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.LEAVE_ERR_MSG));
 
                     if (varValue == null)
                     {

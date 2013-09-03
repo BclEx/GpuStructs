@@ -59,7 +59,7 @@ namespace Tcl.Lang
                 }
             }
 
-            interp.resetResult();
+            interp.ResetResult();
             interp.setResult(TclInteger.NewInstance((int)code));
             return TCL.CompletionCode.RETURN;
         }

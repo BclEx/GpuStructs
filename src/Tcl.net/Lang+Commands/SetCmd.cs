@@ -28,7 +28,7 @@ namespace Tcl.Lang
             {
                 System.Diagnostics.Debug.WriteLine("getting value of \"" + argv[1].ToString() + "\"");
 
-                interp.setResult(interp.getVar(argv[1], 0));
+                interp.setResult(interp.GetVar(argv[1], 0));
             }
             else if (argv.Length == 3)
             {

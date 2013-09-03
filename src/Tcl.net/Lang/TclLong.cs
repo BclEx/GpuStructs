@@ -12,7 +12,7 @@ namespace Tcl.Lang
 
     /// <summary> This class implements the long object type in Tcl.</summary>
 
-    public class TclLong : InternalRep
+    public class TclLong : IInternalRep
     {
         /// <summary> longernal representation of a long value.</summary>
         private long value;
@@ -42,7 +42,7 @@ namespace Tcl.Lang
         /// <summary> Returns a dupilcate of the current object.</summary>
         /// <param name="obj">the TclObject that contains this InternalRep.
         /// </param>
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclLong(value);
         }
@@ -96,7 +96,7 @@ namespace Tcl.Lang
 
         private static void setlongFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclLong)
             {
@@ -151,7 +151,7 @@ namespace Tcl.Lang
         public static void set(TclObject tobj, long i)
         {
             tobj.invalidateStringRep();
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
             TclLong tlong;
 
             if (rep is TclLong)

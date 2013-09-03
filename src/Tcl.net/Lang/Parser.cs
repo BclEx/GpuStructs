@@ -911,7 +911,7 @@ namespace Tcl.Lang
             CallFrame savedVarFrame; //Saves old copy of interp.varFrame
             // in case TCL.EVAL_GLOBAL was set.
 
-            interp.resetResult();
+            interp.ResetResult();
             if (objv.Length == 0)
             {
                 return;
@@ -919,7 +919,7 @@ namespace Tcl.Lang
 
             // If the interpreter was deleted, return an error.
 
-            if (interp.deleted)
+            if (interp._deleted)
             {
                 interp.setResult("attempt to call eval in deleted interpreter");
                 interp.SetErrorCode(TclString.NewInstance("CORE IDELETE {attempt to call eval in deleted interpreter}"));
@@ -929,11 +929,11 @@ namespace Tcl.Lang
             // Check depth of nested calls to eval:  if this gets too large,
             // it's probably because of an infinite loop somewhere.
 
-            if (interp.nestLevel >= interp.maxNestingDepth)
+            if (interp._nestLevel >= interp._maxNestingDepth)
             {
                 throw new TclException(interp, "too many nested calls to eval (infinite loop?)");
             }
-            interp.nestLevel++;
+            interp._nestLevel++;
 
             try
             {
@@ -948,9 +948,9 @@ namespace Tcl.Lang
                 if (cmd == null)
                     wCmd = interp.getObjCommand(objv[0].ToString());
                 // See if we are running as a slave interpretor, and this is a windows command        
-                if (cmd == null && wCmd == null && interp.slave != null)
+                if (cmd == null && wCmd == null && interp._slave != null)
                 {
-                    wCmd = interp.slave.masterInterp.getObjCommand(objv[0].ToString());
+                    wCmd = interp._slave.masterInterp.getObjCommand(objv[0].ToString());
                 }
                 if (cmd == null && wCmd == null)
                 {
@@ -978,7 +978,7 @@ namespace Tcl.Lang
 
                 // Finally, invoke the Command's cmdProc.
 
-                interp.cmdCount++;
+                interp._cmdCount++;
                 savedVarFrame = interp.VarFrame;
                 if ((flags & TCL.EVAL_GLOBAL) != 0)
                 {
@@ -1005,7 +1005,7 @@ namespace Tcl.Lang
             }
             finally
             {
-                interp.nestLevel--;
+                interp._nestLevel--;
             }
         }
         internal static void logCommandInfo(Interp interp, char[] script_array, int script_index, int cmdIndex, int length, TclException e)
@@ -1017,7 +1017,7 @@ namespace Tcl.Lang
             int offset;
             int pIndex;
 
-            if (interp.errAlreadyLogged)
+            if (interp._errAlreadyLogged)
             {
                 // Someone else has already logged error information for this
                 // command; we shouldn't add anything more.
@@ -1030,13 +1030,13 @@ namespace Tcl.Lang
             // because we want to count from the beginning of
             // the script, not the current index.
 
-            interp.errorLine = 1;
+            interp._errorLine = 1;
 
             for (pIndex = 0; pIndex < cmdIndex; pIndex++)
             {
                 if (script_array[pIndex] == '\n')
                 {
-                    interp.errorLine++;
+                    interp._errorLine++;
                 }
             }
 
@@ -1063,7 +1063,7 @@ namespace Tcl.Lang
             }
 
             msg = new string(script_array, cmdIndex, offset);
-            if (!(interp.errInProgress))
+            if (!(interp._errInProgress))
             {
                 interp.AddErrorInfo("\n    while executing\n\"" + msg + ellipsis + "\"");
             }
@@ -1071,7 +1071,7 @@ namespace Tcl.Lang
             {
                 interp.AddErrorInfo("\n    invoked from within\n\"" + msg + ellipsis + "\"");
             }
-            interp.errAlreadyLogged = false;
+            interp._errAlreadyLogged = false;
             e.errIndex = cmdIndex + offset;
         }
         internal static TclObject evalTokens(Interp interp, TclToken[] tokenList, int tIndex, int count)
@@ -1120,7 +1120,7 @@ namespace Tcl.Lang
 
 
                     case TCL_TOKEN_COMMAND:
-                        interp.evalFlags |= Parser.TCL_BRACKET_TERM;
+                        interp._evalFlags |= Parser.TCL_BRACKET_TERM;
                         token.script_index++;
 
                         //should the nest level be changed???
@@ -1162,7 +1162,7 @@ namespace Tcl.Lang
                                 try
                                 {
 
-                                    value = interp.getVar(varName, index.ToString(), 0);
+                                    value = interp.GetVar(varName, index.ToString(), 0);
                                 }
                                 finally
                                 {
@@ -1171,7 +1171,7 @@ namespace Tcl.Lang
                             }
                             else
                             {
-                                value = interp.getVar(varName, null, 0);
+                                value = interp.GetVar(varName, null, 0);
                             }
                         }
                         else
@@ -1263,7 +1263,7 @@ namespace Tcl.Lang
             {
                 numBytes = script_length - script_index;
             }
-            interp.resetResult();
+            interp.ResetResult();
             savedVarFrame = interp.VarFrame;
             if ((flags & TCL.EVAL_GLOBAL) != 0)
             {
@@ -1278,7 +1278,7 @@ namespace Tcl.Lang
             // Init objv with the most commonly used array size
             objv = grabObjv(interp, 3);
 
-            if ((interp.evalFlags & TCL_BRACKET_TERM) != 0)
+            if ((interp._evalFlags & TCL_BRACKET_TERM) != 0)
             {
                 nested = true;
             }
@@ -1286,7 +1286,7 @@ namespace Tcl.Lang
             {
                 nested = false;
             }
-            interp.evalFlags &= ~TCL_BRACKET_TERM;
+            interp._evalFlags &= ~TCL_BRACKET_TERM;
 
             try
             {
@@ -1388,7 +1388,7 @@ namespace Tcl.Lang
                             // free resources that had been allocated
                             // to the command.
 
-                            if (e.GetCompletionCode() == TCL.CompletionCode.ERROR && !(interp.errAlreadyLogged))
+                            if (e.GetCompletionCode() == TCL.CompletionCode.ERROR && !(interp._errAlreadyLogged))
                             {
                                 commandLength = parse.commandSize;
 
@@ -1445,7 +1445,7 @@ namespace Tcl.Lang
                         // flag was set in the interpreter and we reached a close
                         // bracket in the script.  Return immediately.
 
-                        interp.termOffset = (src_index - 1) - script_index;
+                        interp._termOffset = (src_index - 1) - script_index;
                         interp.VarFrame = savedVarFrame;
                         return;
                     }
@@ -1461,7 +1461,7 @@ namespace Tcl.Lang
                 releaseObjv(interp, objv); // Let go of objv buffer
             }
 
-            interp.termOffset = src_index - script_index;
+            interp._termOffset = src_index - script_index;
             interp.VarFrame = savedVarFrame;
             return;
         }
@@ -2123,8 +2123,8 @@ namespace Tcl.Lang
                 }
             }
 
-            interp.parserObjv = OBJV;
-            interp.parserObjvUsed = USED;
+            interp._parserObjv = OBJV;
+            interp._parserObjvUsed = USED;
         }
 
 
@@ -2138,14 +2138,14 @@ namespace Tcl.Lang
             }
 
             //get array of used markers for this size
-            int OPEN = interp.parserObjvUsed[size];
+            int OPEN = interp._parserObjvUsed[size];
 
             if (OPEN < OBJV_CACHE_SIZES[size])
             {
                 // Found an open cache slot
                 //System.out.println("cache hit for objv of size " + size);
-                interp.parserObjvUsed[size] += 1;
-                return interp.parserObjv[size][OPEN];
+                interp._parserObjvUsed[size] += 1;
+                return interp._parserObjv[size][OPEN];
             }
             else
             {
@@ -2166,13 +2166,13 @@ namespace Tcl.Lang
                 return;
             }
 
-            int OPEN = interp.parserObjvUsed[size];
+            int OPEN = interp._parserObjvUsed[size];
 
             if (OPEN > 0)
             {
                 OPEN--;
-                interp.parserObjvUsed[size] = OPEN;
-                interp.parserObjv[size][OPEN] = objv;
+                interp._parserObjvUsed[size] = OPEN;
+                interp._parserObjv[size][OPEN] = objv;
                 //System.out.println("released objv of size " + size);
             }
             /*

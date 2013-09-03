@@ -137,7 +137,7 @@ namespace Tcl.Lang
                 else if (code == TCL.CompletionCode.ERROR)
                 {
 
-                    interp.AddErrorInfo("\n    (procedure \"" + argv[0] + "\" line " + interp.errorLine + ")");
+                    interp.AddErrorInfo("\n    (procedure \"" + argv[0] + "\" line " + interp._errorLine + ")");
                     throw;
                 }
                 else if (code == TCL.CompletionCode.BREAK)
@@ -169,10 +169,10 @@ namespace Tcl.Lang
                 // a general-purpose mechanism for saving and restoring
                 // interpreter state.
 
-                if (interp.errInProgress)
+                if (interp._errInProgress)
                 {
                     frame.Dispose();
-                    interp.errInProgress = true;
+                    interp._errInProgress = true;
                 }
                 else
                 {

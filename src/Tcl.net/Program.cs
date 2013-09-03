@@ -120,7 +120,7 @@ class csTCL
         // the interpreter thread (the same as the main thread) would
         // have exited and no Tcl scripts can be executed.
 
-        interp.dispose();
+        interp.Dispose();
 
         System.Environment.Exit(0);
       }
@@ -259,7 +259,7 @@ namespace Tcl.Lang
 
           try
           {
-            prompt = Enclosing_Instance.interp.getVar("tcl_prompt1", TCL.VarFlag.GLOBAL_ONLY);
+            prompt = Enclosing_Instance.interp.GetVar("tcl_prompt1", TCL.VarFlag.GLOBAL_ONLY);
           }
           catch (TclException e)
           {
@@ -300,7 +300,7 @@ namespace Tcl.Lang
 
           try
           {
-            prompt = Enclosing_Instance.interp.getVar("tcl_prompt2", TCL.VarFlag.GLOBAL_ONLY);
+            prompt = Enclosing_Instance.interp.GetVar("tcl_prompt2", TCL.VarFlag.GLOBAL_ONLY);
           }
           catch (TclException)
           {

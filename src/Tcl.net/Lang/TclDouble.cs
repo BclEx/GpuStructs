@@ -16,7 +16,7 @@ namespace Tcl.Lang
     * This class implements the double object type in Tcl.
     */
 
-    public class TclDouble : InternalRep
+    public class TclDouble : IInternalRep
     {
 
         /*
@@ -33,7 +33,7 @@ namespace Tcl.Lang
         {
             value = Util.getDouble(interp, str);
         }
-        public InternalRep Duplicate()
+        public IInternalRep Duplicate()
         {
             return new TclDouble(value);
         }
@@ -47,7 +47,7 @@ namespace Tcl.Lang
         }
         private static void setDoubleFromAny(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclDouble)
             {
@@ -87,7 +87,7 @@ namespace Tcl.Lang
         }
         public static double Get(Interp interp, TclObject tobj)
         {
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
             TclDouble tdouble;
 
             if (!(rep is TclDouble))
@@ -106,7 +106,7 @@ namespace Tcl.Lang
         // The new value for the object. 
         {
             tobj.invalidateStringRep();
-            InternalRep rep = tobj.InternalRep;
+            IInternalRep rep = tobj.InternalRep;
 
             if (rep is TclDouble)
             {

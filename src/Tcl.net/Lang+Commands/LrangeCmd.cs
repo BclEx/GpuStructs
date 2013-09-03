@@ -35,12 +35,12 @@ namespace Tcl.Lang
 
             if (last < 0)
             {
-                interp.resetResult();
+                interp.ResetResult();
                 return TCL.CompletionCode.RETURN;
             }
             if (first >= size)
             {
-                interp.resetResult();
+                interp.ResetResult();
                 return TCL.CompletionCode.RETURN;
             }
             if (first <= 0 && last >= size)
@@ -67,7 +67,7 @@ namespace Tcl.Lang
             }
             if (first > last)
             {
-                interp.resetResult();
+                interp.ResetResult();
                 return TCL.CompletionCode.RETURN;
             }
 
