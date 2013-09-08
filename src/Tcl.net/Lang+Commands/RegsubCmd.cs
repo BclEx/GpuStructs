@@ -33,7 +33,7 @@ namespace Tcl.Lang
 
                 while (argv[i].ToString().StartsWith("-"))
                 {
-                    int index = TclIndex.get(interp, argv[i], validOpts, "switch", 0);
+                    int index = TclIndex.Get(interp, argv[i], validOpts, "switch", 0);
                     i++;
                     switch (index)
                     {
@@ -107,7 +107,7 @@ namespace Tcl.Lang
 
                 TclObject obj = TclString.NewInstance(result);
                 if (varName == null)
-                    interp.setResult(result);
+                    interp.SetResult(result);
                 else
                 {
                     try
@@ -118,7 +118,7 @@ namespace Tcl.Lang
                     {
                         throw new TclException(interp, "couldn't set variable \"" + varName + "\"");
                     }
-                    interp.setResult(count);
+                    interp.SetResult(count);
                 }
             }
             catch (System.IndexOutOfRangeException e)

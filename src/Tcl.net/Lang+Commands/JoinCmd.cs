@@ -60,7 +60,7 @@ namespace Tcl.Lang
 
                 sbuf.Append(TclList.index(interp, list, i).ToString());
             }
-            interp.setResult(sbuf.ToString());
+            interp.SetResult(sbuf.ToString());
             return TCL.CompletionCode.RETURN;
         }
     }

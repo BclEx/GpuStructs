@@ -78,7 +78,7 @@ namespace Core
         /// </returns>
         public string skipped()
         {
-            return _str.Substring(_ustart, (_mstart) - (_ustart));
+            return _str.Substring(_ustart, _mstart - _ustart);
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace Core
         /// <seealso cref="#submatch" />
         public string matched()
         {
-            return _str.Substring(_mstart, (_end) - (_mstart));
+            return _str.Substring(_mstart, _end - _mstart);
         }
 
         /// <summary>
@@ -112,7 +112,7 @@ namespace Core
             int end = _m._indices[i * 2 + 1];
             if (start < 0 || end < 0)
                 return null;
-            return _str.Substring(start, (end) - (start));
+            return _str.Substring(start, end - start);
         }
 
         /// <summary>

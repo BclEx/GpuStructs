@@ -43,7 +43,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    incrAmount = TclInteger.get(interp, objv[2]);
+                    incrAmount = TclInteger.Get(interp, objv[2]);
                 }
                 catch (TclException e)
                 {
@@ -66,7 +66,7 @@ namespace Tcl.Lang
             // Set the interpreter's object result to refer to the variable's new
             // value object.
 
-            interp.setResult(newValue);
+            interp.SetResult(newValue);
             return TCL.CompletionCode.RETURN;
         }
     }

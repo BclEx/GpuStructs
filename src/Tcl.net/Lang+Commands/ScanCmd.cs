@@ -529,7 +529,7 @@ namespace Tcl.Lang
             {
                 errorDiffVars(interp);
             }
-            interp.setResult(TclInteger.NewInstance(numMatched));
+            interp.SetResult(TclInteger.NewInstance(numMatched));
             return TCL.CompletionCode.RETURN;
         }
 

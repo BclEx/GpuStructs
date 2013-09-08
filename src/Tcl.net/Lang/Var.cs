@@ -67,27 +67,27 @@ namespace Tcl.Lang
             {
                 lock (this)
                 {
-                    if (_sidVec.Count == 0)
+                    if (SidVec.Count == 0)
                         return 1;
-                    SearchId sid = (SearchId)SupportClass.VectorLastElement(_sidVec);
+                    SearchId sid = (SearchId)SupportClass.VectorLastElement(SidVec);
                     return (sid.Index + 1);
                 }
             }
         }
 
         // Methods to read various flag bits of variables.
-        internal bool IsVarScalar() { return ((_flags & VarFlags.SCALAR) != 0); }
-        internal bool IsVarLink() { return ((_flags & VarFlags.LINK) != 0); }
-        internal bool IsVarArray() { return ((_flags & VarFlags.ARRAY) != 0); }
-        internal bool IsVarUndefined() { return ((_flags & VarFlags.UNDEFINED) != 0); }
-        internal bool IsVarArrayElement() { return ((_flags & VarFlags.ARRAY_ELEMENT) != 0); }
+        internal bool IsVarScalar() { return ((Flags & VarFlags.SCALAR) != 0); }
+        internal bool IsVarLink() { return ((Flags & VarFlags.LINK) != 0); }
+        internal bool IsVarArray() { return ((Flags & VarFlags.ARRAY) != 0); }
+        internal bool IsVarUndefined() { return ((Flags & VarFlags.UNDEFINED) != 0); }
+        internal bool IsVarArrayElement() { return ((Flags & VarFlags.ARRAY_ELEMENT) != 0); }
         // Methods to ensure that various flag bits are set properly for variables.
-        internal void SetVarScalar() { _flags = (_flags & ~(VarFlags.ARRAY | VarFlags.LINK)) | VarFlags.SCALAR; }
-        internal void SetVarArray() { _flags = (_flags & ~(VarFlags.SCALAR | VarFlags.LINK)) | VarFlags.ARRAY; }
-        internal void SetVarLink() { _flags = (_flags & ~(VarFlags.SCALAR | VarFlags.ARRAY)) | VarFlags.LINK; }
-        internal void SetVarArrayElement() { _flags = (_flags & ~VarFlags.ARRAY) | VarFlags.ARRAY_ELEMENT; }
-        internal void SetVarUndefined() { _flags |= VarFlags.UNDEFINED; }
-        internal void ClearVarUndefined() { _flags &= ~VarFlags.UNDEFINED; }
+        internal void SetVarScalar() { Flags = (Flags & ~(VarFlags.ARRAY | VarFlags.LINK)) | VarFlags.SCALAR; }
+        internal void SetVarArray() { Flags = (Flags & ~(VarFlags.SCALAR | VarFlags.LINK)) | VarFlags.ARRAY; }
+        internal void SetVarLink() { Flags = (Flags & ~(VarFlags.SCALAR | VarFlags.ARRAY)) | VarFlags.LINK; }
+        internal void SetVarArrayElement() { Flags = (Flags & ~VarFlags.ARRAY) | VarFlags.ARRAY_ELEMENT; }
+        internal void SetVarUndefined() { Flags |= VarFlags.UNDEFINED; }
+        internal void ClearVarUndefined() { Flags &= ~VarFlags.UNDEFINED; }
 
         /// <summary>
         /// Stores the "value" of the variable. It stored different information depending on the type of the variable: <ul>
@@ -97,8 +97,8 @@ namespace Tcl.Lang
         /// </ul>
         /// </summary>
         internal Object _value;
-        internal ArrayList _traces; // Vector that holds the traces that were placed in this Var
-        internal ArrayList _sidVec;
+        internal ArrayList Traces; // Vector that holds the traces that were placed in this Var
+        internal ArrayList SidVec;
 
         /// <summary>
         /// Miscellaneous bits of information about variable.
@@ -111,7 +111,7 @@ namespace Tcl.Lang
         /// <seealso cref="Var#TRACE_ACTIVE" />
         /// <seealso cref="Var#ARRAY_ELEMENT" />
         /// <seealso cref="Var#NAMESPACE_VAR" />
-        internal VarFlags _flags;
+        internal VarFlags Flags;
 
         /// <summary>
         /// If variable is in a hashtable, either the hash table entry that refers to this
@@ -198,12 +198,12 @@ namespace Tcl.Lang
         internal TclObject Ext_Get()
         {
             TclObject to;
-            if ((_flags & VarFlags.EXT_LINK_READ_ONLY) != 0 && (_flags & VarFlags.EXT_LINK_INT) != 0)
+            if ((Flags & VarFlags.EXT_LINK_READ_ONLY) != 0 && (Flags & VarFlags.EXT_LINK_INT) != 0)
                 if (ext_getset.GetType().Name == "Int32")
                     to = TclInteger.NewInstance((Int32)ext_getset);
                 else
                     to = TclInteger.NewInstance(((Ext_GETSET)ext_getset).iValue);
-            else if ((_flags & VarFlags.EXT_LINK_INT) != 0)
+            else if ((Flags & VarFlags.EXT_LINK_INT) != 0)
             {
                 if (ext_getset.GetType().Name == "Int32")
                     to = TclInteger.NewInstance((Int32)ext_getset);
@@ -218,12 +218,12 @@ namespace Tcl.Lang
 
         internal void Ext_Set(TclObject to)
         {
-            if ((_flags & VarFlags.EXT_LINK_READ_ONLY) == 0)
+            if ((Flags & VarFlags.EXT_LINK_READ_ONLY) == 0)
             {
-                if ((_flags & VarFlags.EXT_LINK_INT) != 0)
+                if ((Flags & VarFlags.EXT_LINK_INT) != 0)
                     ((Ext_GETSET)ext_getset).iValue = Convert.ToInt32(to.ToString());
                 else
-                    if ((_flags & VarFlags.EXT_LINK_STRING) != 0)
+                    if ((Flags & VarFlags.EXT_LINK_STRING) != 0)
                         ((Ext_GETSET)ext_getset).sValue = to.ToString();
                     else
                         ((Ext_GETSET)ext_getset).sValue = to.ToString();
@@ -232,7 +232,7 @@ namespace Tcl.Lang
 
         internal bool isSQLITE3_Link()
         {
-            return ((_flags & VarFlags.EXT_LINK) != 0);
+            return ((Flags & VarFlags.EXT_LINK) != 0);
         }
 
 
@@ -249,10 +249,10 @@ namespace Tcl.Lang
             HashKey = null; // Like hPtr in the C implementation
             _table = null; // Like hPtr in the C implementation
             RefCount = 0;
-            _traces = null;
+            Traces = null;
             //search   = null;
-            _sidVec = null; // Like search in the C implementation
-            _flags = (VarFlags.SCALAR | VarFlags.UNDEFINED | VarFlags.IN_HASHTABLE);
+            SidVec = null; // Like search in the C implementation
+            Flags = (VarFlags.SCALAR | VarFlags.UNDEFINED | VarFlags.IN_HASHTABLE);
         }
 
         /// <summary> Used to create a String that describes this variable
@@ -290,9 +290,9 @@ namespace Tcl.Lang
         protected internal SearchId getSearch(string s)
         {
             SearchId sid;
-            for (int i = 0; i < _sidVec.Count; i++)
+            for (int i = 0; i < SidVec.Count; i++)
             {
-                sid = (SearchId)_sidVec[i];
+                sid = (SearchId)SidVec[i];
                 if (sid.equals(s))
                 {
                     return sid;
@@ -308,16 +308,16 @@ namespace Tcl.Lang
         /// <param name="sid">String that ia a unique identifier for a SearchId object.
         /// </param>
 
-        protected internal bool removeSearch(string sid)
+        protected internal bool RemoveSearch(string sid)
         {
             SearchId curSid;
 
-            for (int i = 0; i < _sidVec.Count; i++)
+            for (int i = 0; i < SidVec.Count; i++)
             {
-                curSid = (SearchId)_sidVec[i];
+                curSid = (SearchId)SidVec[i];
                 if (curSid.equals(sid))
                 {
-                    _sidVec.RemoveAt(i);
+                    SidVec.RemoveAt(i);
                     return true;
                 }
             }
@@ -658,7 +658,7 @@ namespace Tcl.Lang
                 // Make sure we are not resurrecting a namespace variable from a
                 // deleted namespace!
 
-                if (((var._flags & VarFlags.IN_HASHTABLE) != 0) && (var._table == null))
+                if (((var.Flags & VarFlags.IN_HASHTABLE) != 0) && (var._table == null))
                 {
                     if ((flags & TCL.VarFlag.LEAVE_ERR_MSG) != 0)
                     {
@@ -689,7 +689,7 @@ namespace Tcl.Lang
                 if (searchvar == null)
                 {
                     // new entry
-                    if (var._sidVec != null)
+                    if (var.SidVec != null)
                     {
                         deleteSearches(var);
                     }
@@ -837,9 +837,9 @@ namespace Tcl.Lang
             {
                 // Invoke any traces that have been set for the variable.
 
-                if ((var._traces != null) || ((array != null) && (array._traces != null)))
+                if ((var.Traces != null) || ((array != null) && (array.Traces != null)))
                 {
-                    string msg = callTraces(interp, array, var, part1, part2, (flags & (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.GLOBAL_ONLY)) | TCL.VarFlag.TRACE_READS);
+                    string msg = CallTraces(interp, array, var, part1, part2, (flags & (TCL.VarFlag.NAMESPACE_ONLY | TCL.VarFlag.GLOBAL_ONLY)) | TCL.VarFlag.TRACE_READS);
                     if ((System.Object)msg != null)
                     {
                         if ((flags & TCL.VarFlag.LEAVE_ERR_MSG) != 0)
@@ -1024,7 +1024,7 @@ namespace Tcl.Lang
             // Generate an error (allowing the variable to be reset would screw up
             // our storage allocation and is meaningless anyway).
 
-            if (((var._flags & VarFlags.IN_HASHTABLE) != 0) && (var._table == null))
+            if (((var.Flags & VarFlags.IN_HASHTABLE) != 0) && (var._table == null))
             {
                 if ((flags & TCL.VarFlag.LEAVE_ERR_MSG) != 0)
                 {
@@ -1168,10 +1168,10 @@ namespace Tcl.Lang
 
                     // Invoke any write traces for the variable.
 
-                    if ((var._traces != null) || ((array != null) && (array._traces != null)))
+                    if ((var.Traces != null) || ((array != null) && (array.Traces != null)))
                     {
 
-                        string msg = callTraces(interp, array, var, part1, part2, (flags & (TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.NAMESPACE_ONLY)) | TCL.VarFlag.TRACE_WRITES);
+                        string msg = CallTraces(interp, array, var, part1, part2, (flags & (TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.NAMESPACE_ONLY)) | TCL.VarFlag.TRACE_WRITES);
                         if ((System.Object)msg != null)
                         {
                             if ((flags & TCL.VarFlag.LEAVE_ERR_MSG) != 0)
@@ -1284,7 +1284,7 @@ namespace Tcl.Lang
 
             try
             {
-                i = TclInteger.get(interp, varValue);
+                i = TclInteger.Get(interp, varValue);
             }
             catch (TclException e)
             {
@@ -1371,7 +1371,7 @@ namespace Tcl.Lang
 
             result = (var.IsVarUndefined() ? TCL.CompletionCode.ERROR : TCL.CompletionCode.OK);
 
-            if ((array != null) && (array._sidVec != null))
+            if ((array != null) && (array.SidVec != null))
             {
                 deleteSearches(array);
             }
@@ -1391,8 +1391,8 @@ namespace Tcl.Lang
             dummyVar = new Var();
             //FIXME: Var class really should implement clone to make a bit copy. 
             dummyVar._value = var._value;
-            dummyVar._traces = var._traces;
-            dummyVar._flags = var._flags;
+            dummyVar.Traces = var.Traces;
+            dummyVar.Flags = var.Flags;
             dummyVar.HashKey = var.HashKey;
             dummyVar._table = var._table;
             dummyVar.RefCount = var.RefCount;
@@ -1401,8 +1401,8 @@ namespace Tcl.Lang
             var.SetVarUndefined();
             var.SetVarScalar();
             var._value = null; // dummyVar points to any value object
-            var._traces = null;
-            var._sidVec = null;
+            var.Traces = null;
+            var.SidVec = null;
 
             // Call trace procedures for the variable being deleted. Then delete
             // its traces. Be sure to abort any other traces for the variable
@@ -1412,13 +1412,13 @@ namespace Tcl.Lang
             // 2. Turn off the TRACE_ACTIVE flag in dummyVar: we want to
             //    call unset traces even if other traces are pending.
 
-            if ((dummyVar._traces != null) || ((array != null) && (array._traces != null)))
+            if ((dummyVar.Traces != null) || ((array != null) && (array.Traces != null)))
             {
                 var.RefCount++;
-                dummyVar._flags &= ~VarFlags.TRACE_ACTIVE;
-                callTraces(interp, array, dummyVar, part1, part2, (flags & (TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.NAMESPACE_ONLY)) | TCL.VarFlag.TRACE_UNSETS);
+                dummyVar.Flags &= ~VarFlags.TRACE_ACTIVE;
+                CallTraces(interp, array, dummyVar, part1, part2, (flags & (TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.NAMESPACE_ONLY)) | TCL.VarFlag.TRACE_UNSETS);
 
-                dummyVar._traces = null;
+                dummyVar.Traces = null;
 
                 // Active trace stuff is not part of Jacl's interp
 
@@ -1443,9 +1443,9 @@ namespace Tcl.Lang
 
             // If the variable was a namespace variable, decrement its reference count.
 
-            if ((var._flags & VarFlags.NAMESPACE_VAR) != 0)
+            if ((var.Flags & VarFlags.NAMESPACE_VAR) != 0)
             {
-                var._flags &= ~VarFlags.NAMESPACE_VAR;
+                var.Flags &= ~VarFlags.NAMESPACE_VAR;
                 var.RefCount--;
             }
 
@@ -1530,16 +1530,16 @@ namespace Tcl.Lang
 
             // Set up trace information.
 
-            if (var._traces == null)
+            if (var.Traces == null)
             {
-                var._traces = new ArrayList(10);
+                var.Traces = new ArrayList(10);
             }
 
             var rec = new TraceRecord();
             rec.trace = proc;
             rec.flags = flags & (TCL.VarFlag.TRACE_READS | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS | TCL.VarFlag.TRACE_ARRAY);
 
-            var._traces.Insert(0, rec);
+            var.Traces.Insert(0, rec);
 
 
             // FIXME: is this needed ?? It was in Jacl but not 8.1
@@ -1630,15 +1630,15 @@ namespace Tcl.Lang
 
             var = result[0];
 
-            if (var._traces != null)
+            if (var.Traces != null)
             {
-                int len = var._traces.Count;
+                int len = var.Traces.Count;
                 for (int i = 0; i < len; i++)
                 {
-                    TraceRecord rec = (TraceRecord)var._traces[i];
+                    TraceRecord rec = (TraceRecord)var.Traces[i];
                     if (rec.trace == proc)
                     {
-                        var._traces.RemoveAt(i);
+                        var.Traces.RemoveAt(i);
                         break;
                     }
                 }
@@ -1696,7 +1696,7 @@ namespace Tcl.Lang
                 return null;
             }
 
-            return result[0]._traces;
+            return result[0].Traces;
         }
 
 
@@ -1889,7 +1889,7 @@ namespace Tcl.Lang
                 {
                     throw new TclException(interp, "variable \"" + myName + "\" already exists");
                 }
-                else if (var._traces != null)
+                else if (var.Traces != null)
                 {
                     throw new TclException(interp, "variable \"" + myName + "\" has traces: can't use for upvar");
                 }
@@ -1983,7 +1983,7 @@ namespace Tcl.Lang
         /// is a pointer to a string describing the error.
         /// </returns>
 
-        static protected internal string callTraces(Interp interp, Var array, Var var, string part1, string part2, TCL.VarFlag flags)
+        static protected internal string CallTraces(Interp interp, Var array, Var var, string part1, string part2, TCL.VarFlag flags)
         {
             TclObject oldResult;
             int i;
@@ -1991,11 +1991,11 @@ namespace Tcl.Lang
             // If there are already similar trace procedures active for the
             // variable, don't call them again.
 
-            if ((var._flags & VarFlags.TRACE_ACTIVE) != 0)
+            if ((var.Flags & VarFlags.TRACE_ACTIVE) != 0)
             {
                 return null;
             }
-            var._flags |= VarFlags.TRACE_ACTIVE;
+            var.Flags |= VarFlags.TRACE_ACTIVE;
             var.RefCount++;
 
             // If the variable name hasn't been parsed into array name and
@@ -2045,11 +2045,11 @@ namespace Tcl.Lang
                 {
                     array.RefCount++;
                 }
-                if ((array != null) && (array._traces != null))
+                if ((array != null) && (array.Traces != null))
                 {
-                    for (i = 0; (array._traces != null) && (i < array._traces.Count); i++)
+                    for (i = 0; (array.Traces != null) && (i < array.Traces.Count); i++)
                     {
-                        TraceRecord rec = (TraceRecord)array._traces[i];
+                        TraceRecord rec = (TraceRecord)array.Traces[i];
                         if ((rec.flags & flags) != 0)
                         {
                             try
@@ -2075,9 +2075,9 @@ namespace Tcl.Lang
                     flags |= TCL.VarFlag.TRACE_DESTROYED;
                 }
 
-                for (i = 0; (var._traces != null) && (i < var._traces.Count); i++)
+                for (i = 0; (var.Traces != null) && (i < var.Traces.Count); i++)
                 {
-                    TraceRecord rec = (TraceRecord)var._traces[i];
+                    TraceRecord rec = (TraceRecord)var.Traces[i];
                     if ((rec.flags & flags) != 0)
                     {
                         try
@@ -2103,10 +2103,10 @@ namespace Tcl.Lang
                 {
                     array.RefCount--;
                 }
-                var._flags &= ~VarFlags.TRACE_ACTIVE;
+                var.Flags &= ~VarFlags.TRACE_ACTIVE;
                 var.RefCount--;
 
-                interp.setResult(oldResult);
+                interp.SetResult(oldResult);
                 oldResult.Release();
             }
         }
@@ -2125,7 +2125,7 @@ namespace Tcl.Lang
         static protected internal void deleteSearches(Var arrayVar)
         // Variable whose searches are to be deleted.
         {
-            arrayVar._sidVec = null;
+            arrayVar.SidVec = null;
         }
 
         /// <summary> TclDeleteVars -> deleteVars
@@ -2180,7 +2180,7 @@ namespace Tcl.Lang
                 {
                     link = (Var)var._value;
                     link.RefCount--;
-                    if ((link.RefCount == 0) && link.IsVarUndefined() && (link._traces == null) && ((link._flags & VarFlags.IN_HASHTABLE) != 0))
+                    if ((link.RefCount == 0) && link.IsVarUndefined() && (link.Traces == null) && ((link.Flags & VarFlags.IN_HASHTABLE) != 0))
                     {
 
                         if ((System.Object)link.HashKey == null)
@@ -2203,11 +2203,11 @@ namespace Tcl.Lang
                 // fully-qualified name so that any called trace procedures can
                 // refer to these variables being deleted.
 
-                if (var._traces != null)
+                if (var.Traces != null)
                 {
                     string fullname = getVariableFullName(interp, var);
 
-                    callTraces(interp, null, var, fullname, null, flags);
+                    CallTraces(interp, null, var, fullname, null, flags);
 
                     // The var.traces = null statement later will drop all the
                     // references to the traces which will free them up
@@ -2229,7 +2229,7 @@ namespace Tcl.Lang
                 // and the key used in a table lookup.
                 var.HashKey = null;
                 var._table = null;
-                var._traces = null;
+                var.Traces = null;
                 var.SetVarUndefined();
                 var.SetVarScalar();
 
@@ -2238,9 +2238,9 @@ namespace Tcl.Lang
                 // namespace so that namespace will no longer "refer" to the
                 // variable.
 
-                if ((var._flags & VarFlags.NAMESPACE_VAR) != 0)
+                if ((var.Flags & VarFlags.NAMESPACE_VAR) != 0)
                 {
-                    var._flags &= ~VarFlags.NAMESPACE_VAR;
+                    var.Flags &= ~VarFlags.NAMESPACE_VAR;
                     var.RefCount--;
                 }
 
@@ -2300,12 +2300,12 @@ namespace Tcl.Lang
                 // and the key used in a table lookup.
                 el.HashKey = null;
                 el._table = null;
-                if (el._traces != null)
+                if (el.Traces != null)
                 {
-                    el._flags &= ~VarFlags.TRACE_ACTIVE;
+                    el.Flags &= ~VarFlags.TRACE_ACTIVE;
                     // FIXME : Old Jacl impl passed a dummy var to callTraces, should we?
-                    callTraces(interp, null, el, arrayName, tmpkey, flags);
-                    el._traces = null;
+                    CallTraces(interp, null, el, arrayName, tmpkey, flags);
+                    el.Traces = null;
                     // Active trace stuff is not part of Jacl
                 }
                 el.SetVarUndefined();
@@ -2337,7 +2337,7 @@ namespace Tcl.Lang
 
         static protected internal void cleanupVar(Var var, Var array)
         {
-            if (var.IsVarUndefined() && (var.RefCount == 0) && (var._traces == null) && ((var._flags & VarFlags.IN_HASHTABLE) != 0))
+            if (var.IsVarUndefined() && (var.RefCount == 0) && (var.Traces == null) && ((var.Flags & VarFlags.IN_HASHTABLE) != 0))
             {
                 if (var._table != null)
                 {
@@ -2348,7 +2348,7 @@ namespace Tcl.Lang
             }
             if (array != null)
             {
-                if (array.IsVarUndefined() && (array.RefCount == 0) && (array._traces == null) && ((array._flags & VarFlags.IN_HASHTABLE) != 0))
+                if (array.IsVarUndefined() && (array.RefCount == 0) && (array.Traces == null) && ((array.Flags & VarFlags.IN_HASHTABLE) != 0))
                 {
                     if (array._table != null)
                     {

@@ -362,7 +362,7 @@ namespace Tcl.Lang
             RegexpCmd.Init(this);
             // The Java package is only loaded when the user does a "package require java" in the interp. We need to create a small command that will load when "package require java" is called.
             Extension.LoadOnDemand(this, "jaclloadjava", "tcl.lang.JaclLoadJavaCmd");
-            try { eval("package ifneeded java 1.3.1 jaclloadjava"); }
+            try { Eval("package ifneeded java 1.3.1 jaclloadjava"); }
             catch (TclException e)
             {
                 Debug.WriteLine(GetResult().ToString());
@@ -389,7 +389,7 @@ namespace Tcl.Lang
             return (_assocData == null ? null : (IAssocData)_assocData[name]);
         }
 
-        public void backgroundError()
+        public void BackgroundError()
         {
             BgErrorMgr mgr = (BgErrorMgr)GetAssocData("tclBgError");
             if (mgr == null)
@@ -973,7 +973,7 @@ namespace Tcl.Lang
         {
             return _result;
         }
-        public void setResult(TclObject r)
+        public void SetResult(TclObject r)
         // A Tcl Object to be set as the result.
         {
             if (r == null)
@@ -999,7 +999,7 @@ namespace Tcl.Lang
                 _result.Preserve();
             }
         }
-        public void setResult(string r)
+        public void SetResult(string r)
         // A string result.
         {
             if ((System.Object)r == null)
@@ -1008,23 +1008,23 @@ namespace Tcl.Lang
             }
             else
             {
-                setResult(TclString.NewInstance(r));
+                SetResult(TclString.NewInstance(r));
             }
         }
-        public void setResult(int r)
+        public void SetResult(int r)
         // An int result.
         {
-            setResult(TclInteger.NewInstance(r));
+            SetResult(TclInteger.NewInstance(r));
         }
-        public void setResult(double r)
+        public void SetResult(double r)
         // A double result.
         {
-            setResult(TclDouble.NewInstance(r));
+            SetResult(TclDouble.NewInstance(r));
         }
-        public void setResult(bool r)
+        public void SetResult(bool r)
         // A boolean result.
         {
-            setResult(TclBoolean.newInstance(r));
+            SetResult(TclBoolean.newInstance(r));
         }
         public void ResetResult()
         {
@@ -1053,7 +1053,7 @@ namespace Tcl.Lang
                 result = result.duplicate();
             }
             TclList.Append(this, result, TclObj.newInstance(Element));
-            setResult(result);
+            SetResult(result);
         }
 
         public void appendElement(
@@ -1067,9 +1067,9 @@ namespace Tcl.Lang
                 result = result.duplicate();
             }
             TclList.Append(this, result, TclString.NewInstance(Element));
-            setResult(result);
+            SetResult(result);
         }
-        public void eval(string inString, int flags)
+        public void Eval(string inString, int flags)
         {
             int evalFlags = this._evalFlags;
             this._evalFlags &= ~Parser.TCL_ALLOW_EXCEPTIONS;
@@ -1109,14 +1109,14 @@ namespace Tcl.Lang
                 }
             }
         }
-        public void eval(string script)
+        public void Eval(string script)
         {
-            eval(script, 0);
+            Eval(script, 0);
         }
-        public void eval(TclObject tobj, int flags)
+        public void Eval(TclObject tobj, int flags)
         {
 
-            eval(tobj.ToString(), flags);
+            Eval(tobj.ToString(), flags);
         }
         public void recordAndEval(TclObject script, int flags)
         {
@@ -1132,7 +1132,7 @@ namespace Tcl.Lang
                 TclList.Append(this, cmd, TclString.NewInstance("add"));
                 TclList.Append(this, cmd, script);
                 cmd.Preserve();
-                eval(cmd, TCL.EVAL_GLOBAL);
+                Eval(cmd, TCL.EVAL_GLOBAL);
             }
             catch (System.Exception e)
             {
@@ -1146,7 +1146,7 @@ namespace Tcl.Lang
 
             if ((flags & TCL.NO_EVAL) == 0)
             {
-                eval(script, flags & TCL.EVAL_GLOBAL);
+                Eval(script, flags & TCL.EVAL_GLOBAL);
             }
         }
         public void evalFile(string sFilename)
@@ -1166,7 +1166,7 @@ namespace Tcl.Lang
             try
             {
                 pushDebugStack(sFilename, 1);
-                eval(fileContent, 0);
+                Eval(fileContent, 0);
             }
             catch (TclException e)
             {
@@ -1197,7 +1197,7 @@ namespace Tcl.Lang
 
             try
             {
-                eval(fileContent, 0);
+                Eval(fileContent, 0);
             }
             finally
             {
@@ -1608,7 +1608,7 @@ namespace Tcl.Lang
             }
         }
 
-        public Notifier getNotifier()
+        public Notifier GetNotifier()
         {
             return _notifier;
         }
@@ -1740,7 +1740,7 @@ namespace Tcl.Lang
             }
 
             _returnCode = result;
-            setResult(sourceInterp.GetResult());
+            SetResult(sourceInterp.GetResult());
             sourceInterp.ResetResult();
 
             if (result != TCL.CompletionCode.OK)

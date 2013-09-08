@@ -64,7 +64,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "option ?arg ...?");
             }
-            int cmd = TclIndex.get(interp, objv[1], validCmds, "option", 0);
+            int cmd = TclIndex.Get(interp, objv[1], validCmds, "option", 0);
 
             switch (cmd)
             {
@@ -79,11 +79,11 @@ namespace Tcl.Lang
                         {
                             // We can safely ignore the -milliseconds options, since
                             // we measure the clicks in milliseconds anyway...
-                            int clicksOpt = TclIndex.get(interp, objv[2], clicksOpts, "switch", 0);
+                            int clicksOpt = TclIndex.Get(interp, objv[2], clicksOpts, "switch", 0);
                         }
                         long millis = (System.DateTime.Now.Ticks - 621355968000000000) / 10000;
                         int clicks = (int)(millis % System.Int32.MaxValue);
-                        interp.setResult(clicks);
+                        interp.SetResult(clicks);
                         break;
                     }
 
@@ -94,11 +94,11 @@ namespace Tcl.Lang
                         {
                             throw new TclNumArgsException(interp, 2, objv, "clockval ?-format string? ?-gmt boolean?");
                         }
-                        clockVal = TclInteger.get(interp, objv[2]);
+                        clockVal = TclInteger.Get(interp, objv[2]);
 
                         for (argIx = 3; argIx + 1 < objv.Length; argIx += 2)
                         {
-                            int formatOpt = TclIndex.get(interp, objv[argIx], formatOpts, "switch", 0);
+                            int formatOpt = TclIndex.Get(interp, objv[argIx], formatOpts, "switch", 0);
                             switch (formatOpt)
                             {
 
@@ -136,7 +136,7 @@ namespace Tcl.Lang
 
                         for (argIx = 3; argIx + 1 < objv.Length; argIx += 2)
                         {
-                            int scanOpt = TclIndex.get(interp, objv[argIx], scanOpts, "switch", 0);
+                            int scanOpt = TclIndex.Get(interp, objv[argIx], scanOpts, "switch", 0);
                             switch (scanOpt)
                             {
 
@@ -159,7 +159,7 @@ namespace Tcl.Lang
                         }
                         if (baseObj != null)
                         {
-                            long seconds = TclInteger.get(interp, baseObj);
+                            long seconds = TclInteger.Get(interp, baseObj);
                             baseClock = new System.DateTime((long)seconds * 10000 * 1000 + 621355968000000000);
                         }
                         else
@@ -176,7 +176,7 @@ namespace Tcl.Lang
                         }
                         long millis = (date.Ticks - 621355968000000000) / 10000;
                         int seconds2 = (int)(millis / 1000);
-                        interp.setResult(seconds2);
+                        interp.SetResult(seconds2);
                         break;
                     }
 
@@ -189,7 +189,7 @@ namespace Tcl.Lang
                         }
                         long millis = (System.DateTime.Now.Ticks - 621355968000000000) / 10000;
                         int seconds = (int)(millis / 1000);
-                        interp.setResult(seconds);
+                        interp.SetResult(seconds);
                         break;
                     }
             }
@@ -229,7 +229,7 @@ namespace Tcl.Lang
                 int trekDay = (date.DayOfYear * 1000) / (calendar.IsLeapYear(date.Year) ? 366 : 365);
                 int trekHour = (24 * 60 + date.Minute) / 144;
 
-                interp.setResult("Stardate " + (trekYear < 10 ? "0" : "") + (trekYear * 1000 + trekDay) + '.' + trekHour);
+                interp.SetResult("Stardate " + (trekYear < 10 ? "0" : "") + (trekYear * 1000 + trekDay) + '.' + trekHour);
                 return;
             }
 
@@ -413,7 +413,7 @@ namespace Tcl.Lang
                     result.Append(format[ix]);
                 }
             }
-            interp.setResult(result.ToString());
+            interp.SetResult(result.ToString());
         }
         private int GetWeek(DateTime date, System.DayOfWeek firstDayOfWeek, bool iso)
         {

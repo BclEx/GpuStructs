@@ -79,7 +79,7 @@ namespace Tcl.Lang
 
                 if (System.Char.IsDigit(arg[0]))
                 {
-                    toRead = TclInteger.get(interp, argv[i]);
+                    toRead = TclInteger.Get(interp, argv[i]);
                     readAll = false;
                 }
                 else if (arg.Equals("nonewline"))
@@ -96,7 +96,7 @@ namespace Tcl.Lang
             {
                 if ((System.Object)chan.Encoding == null)
                 {
-                    result = TclByteArray.newInstance();
+                    result = TclByteArray.NewInstance();
                 }
                 else
                 {
@@ -115,7 +115,7 @@ namespace Tcl.Lang
                         string inStr = result.ToString();
                         if ((charactersRead > 0) && (inStr[charactersRead - 1] == '\n'))
                         {
-                            interp.setResult(inStr.Substring(0, ((charactersRead - 1)) - (0)));
+                            interp.SetResult(inStr.Substring(0, ((charactersRead - 1)) - (0)));
                             return TCL.CompletionCode.RETURN;
                         }
                     }
@@ -151,7 +151,7 @@ namespace Tcl.Lang
 				
                 */
 
-                interp.setResult(result);
+                interp.SetResult(result);
             }
             catch (IOException e)
             {

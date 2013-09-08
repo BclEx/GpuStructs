@@ -68,7 +68,7 @@ namespace Tcl.Lang
 
             if (interp != null && (System.Object)msg != null)
             {
-                interp.setResult(msg);
+                interp.SetResult(msg);
             }
         }
         public TclException(TCL.CompletionCode ccode)

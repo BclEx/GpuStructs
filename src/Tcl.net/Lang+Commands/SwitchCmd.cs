@@ -35,7 +35,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                int opt = TclIndex.get(interp, argv[i], validCmds, "option", 1);
+                int opt = TclIndex.Get(interp, argv[i], validCmds, "option", 1);
                 if (opt == LAST)
                 {
                     i++;
@@ -99,7 +99,7 @@ namespace Tcl.Lang
                             break;
 
                         case GLOB:
-                            matched = Util.stringMatch(inString, pattern);
+                            matched = Util.StringMatch(inString, pattern);
                             break;
 
                         case REGEXP:
@@ -131,7 +131,7 @@ namespace Tcl.Lang
 
                 try
                 {
-                    interp.eval(switchArgv[body], 0);
+                    interp.Eval(switchArgv[body], 0);
                     return TCL.CompletionCode.RETURN;
                 }
                 catch (TclException e)

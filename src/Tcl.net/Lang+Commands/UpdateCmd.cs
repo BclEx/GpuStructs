@@ -37,7 +37,7 @@ namespace Tcl.Lang
             }
             else if (argv.Length == 2)
             {
-                TclIndex.get(interp, argv[1], validOpts, "option", 0);
+                TclIndex.Get(interp, argv[1], validOpts, "option", 0);
 
                 /*
                 * Since we just have one valid option, if the above call returns
@@ -51,7 +51,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 1, argv, "?idletasks?");
             }
 
-            while (interp.getNotifier().doOneEvent(flags) != 0)
+            while (interp.GetNotifier().doOneEvent(flags) != 0)
             {
                 /* Empty loop body */
             }

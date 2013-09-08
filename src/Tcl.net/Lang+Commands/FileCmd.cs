@@ -76,7 +76,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 1, argv, "option ?arg ...?");
             }
 
-            int opt = TclIndex.get(interp, argv[1], validCmds, "option", 0);
+            int opt = TclIndex.Get(interp, argv[1], validCmds, "option", 0);
             string path;
             FileInfo fileObj = null;
 
@@ -96,7 +96,7 @@ namespace Tcl.Lang
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
 
-                    interp.setResult(getMtime(interp, argv[2].ToString(), fileObj));
+                    interp.SetResult(getMtime(interp, argv[2].ToString(), fileObj));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -140,23 +140,23 @@ namespace Tcl.Lang
 
                     if (splitArrayObj.Length > 1)
                     {
-                        interp.setResult(FileUtil.joinPath(interp, splitArrayObj, 0, splitArrayObj.Length - 1));
+                        interp.SetResult(FileUtil.joinPath(interp, splitArrayObj, 0, splitArrayObj.Length - 1));
                     }
                     else if ((splitArrayObj.Length == 0) || (FileUtil.getPathType(path) == FileUtil.PATH_RELATIVE))
                     {
                         if (JACL.PLATFORM == JACL.PLATFORM_MAC)
                         {
-                            interp.setResult(":");
+                            interp.SetResult(":");
                         }
                         else
                         {
-                            interp.setResult(".");
+                            interp.SetResult(".");
                         }
                     }
                     else
                     {
 
-                        interp.setResult(splitArrayObj[0].ToString());
+                        interp.SetResult(splitArrayObj[0].ToString());
                     }
                     return TCL.CompletionCode.RETURN;
 
@@ -183,7 +183,7 @@ namespace Tcl.Lang
                         isExe = Directory.Exists(fileObj.FullName);
                         if (isExe)
                         {
-                            interp.setResult(isExe);
+                            interp.SetResult(isExe);
                             return TCL.CompletionCode.RETURN;
                         }
 
@@ -210,7 +210,7 @@ namespace Tcl.Lang
                             isExe = true;
                         }
                     }
-                    interp.setResult(isExe);
+                    interp.SetResult(isExe);
                     return TCL.CompletionCode.RETURN;
 
 
@@ -226,7 +226,7 @@ namespace Tcl.Lang
                         tmpBool2 = true;
                     else
                         tmpBool2 = Directory.Exists(fileObj.FullName);
-                    interp.setResult(tmpBool2);
+                    interp.SetResult(tmpBool2);
                     return TCL.CompletionCode.RETURN;
 
 
@@ -236,7 +236,7 @@ namespace Tcl.Lang
                         throw new TclNumArgsException(interp, 2, argv, "name");
                     }
 
-                    interp.setResult(getExtension(argv[2].ToString()));
+                    interp.SetResult(getExtension(argv[2].ToString()));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -247,7 +247,7 @@ namespace Tcl.Lang
                     }
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
-                    interp.setResult(Directory.Exists(fileObj.FullName));
+                    interp.SetResult(Directory.Exists(fileObj.FullName));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -258,7 +258,7 @@ namespace Tcl.Lang
                     }
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
-                    interp.setResult(File.Exists(fileObj.FullName));
+                    interp.SetResult(File.Exists(fileObj.FullName));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -267,7 +267,7 @@ namespace Tcl.Lang
                     {
                         throw new TclNumArgsException(interp, 2, argv, "name ?name ...?");
                     }
-                    interp.setResult(FileUtil.joinPath(interp, argv, 2, argv.Length));
+                    interp.SetResult(FileUtil.joinPath(interp, argv, 2, argv.Length));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -298,7 +298,7 @@ namespace Tcl.Lang
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
 
-                    interp.setResult(getMtime(interp, argv[2].ToString(), fileObj));
+                    interp.SetResult(getMtime(interp, argv[2].ToString(), fileObj));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -314,7 +314,7 @@ namespace Tcl.Lang
                     }
 
 
-                    interp.setResult(FileUtil.translateFileName(interp, argv[2].ToString()));
+                    interp.SetResult(FileUtil.translateFileName(interp, argv[2].ToString()));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -330,7 +330,7 @@ namespace Tcl.Lang
                     }
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
-                    interp.setResult(isOwner(interp, fileObj));
+                    interp.SetResult(isOwner(interp, fileObj));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -344,15 +344,15 @@ namespace Tcl.Lang
                     {
 
                         case FileUtil.PATH_RELATIVE:
-                            interp.setResult("relative");
+                            interp.SetResult("relative");
                             return TCL.CompletionCode.RETURN;
 
                         case FileUtil.PATH_VOLUME_RELATIVE:
-                            interp.setResult("volumerelative");
+                            interp.SetResult("volumerelative");
                             return TCL.CompletionCode.RETURN;
 
                         case FileUtil.PATH_ABSOLUTE:
-                            interp.setResult("absolute");
+                            interp.SetResult("absolute");
                             break;
                     }
                     return TCL.CompletionCode.RETURN;
@@ -368,7 +368,7 @@ namespace Tcl.Lang
 
                     // interp.setResult(fileObj.canRead());
                     // HACK
-                    interp.setResult(true);
+                    interp.SetResult(true);
                     return TCL.CompletionCode.RETURN;
 
 
@@ -399,7 +399,7 @@ namespace Tcl.Lang
                     string fileName2 = argv[2].ToString();
                     string extension = getExtension(fileName2);
                     int diffLength = fileName2.Length - extension.Length;
-                    interp.setResult(fileName2.Substring(0, (diffLength) - (0)));
+                    interp.SetResult(fileName2.Substring(0, (diffLength) - (0)));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -425,7 +425,7 @@ namespace Tcl.Lang
 
                         throw new TclPosixException(interp, TclPosixException.ENOENT, true, "could not read \"" + argv[2].ToString() + "\"");
                     }
-                    interp.setResult((int)SupportClass.FileLength(fileObj));
+                    interp.SetResult((int)SupportClass.FileLength(fileObj));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -435,7 +435,7 @@ namespace Tcl.Lang
                         throw new TclNumArgsException(interp, 2, argv, "name");
                     }
 
-                    interp.setResult(FileUtil.splitPath(interp, argv[2].ToString()));
+                    interp.SetResult(FileUtil.splitPath(interp, argv[2].ToString()));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -460,7 +460,7 @@ namespace Tcl.Lang
                         throw new TclNumArgsException(interp, 2, argv, "name");
                     }
 
-                    interp.setResult(getTail(interp, argv[2].ToString()));
+                    interp.SetResult(getTail(interp, argv[2].ToString()));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -472,7 +472,7 @@ namespace Tcl.Lang
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
 
-                    interp.setResult(getType(interp, argv[2].ToString(), fileObj));
+                    interp.SetResult(getType(interp, argv[2].ToString(), fileObj));
                     return TCL.CompletionCode.RETURN;
 
 
@@ -498,7 +498,7 @@ namespace Tcl.Lang
                                 string root = roots[i].FullName;
                                 TclList.Append(interp, list, TclString.NewInstance(root));
                             }
-                            interp.setResult(list);
+                            interp.SetResult(list);
                         }
                     }
                     catch (System.UnauthorizedAccessException ex)
@@ -532,7 +532,7 @@ namespace Tcl.Lang
                     }
 
                     fileObj = FileUtil.getNewFileObj(interp, argv[2].ToString());
-                    interp.setResult(SupportClass.FileCanWrite(fileObj));
+                    interp.SetResult(SupportClass.FileCanWrite(fileObj));
                     return TCL.CompletionCode.RETURN;
 
                 default:
@@ -800,7 +800,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                int opt = TclIndex.get(interp, argv[firstSource], validOptions, "option", 1);
+                int opt = TclIndex.Get(interp, argv[firstSource], validOptions, "option", 1);
                 switch (opt)
                 {
 
@@ -917,7 +917,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                int opt = TclIndex.get(interp, argv[firstSource], validOptions, "option", 1);
+                int opt = TclIndex.Get(interp, argv[firstSource], validOptions, "option", 1);
                 switch (opt)
                 {
 

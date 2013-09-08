@@ -80,7 +80,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "option [arg arg ...]");
             }
-            int opt = TclIndex.get(interp, objv[1], validCmds, "option", 0);
+            int opt = TclIndex.Get(interp, objv[1], validCmds, "option", 0);
 
             switch (opt)
             {
@@ -210,7 +210,7 @@ namespace Tcl.Lang
                                     TclList.Append(interp, list, cmd);
                                 }
                             }
-                            interp.setResult(list);
+                            interp.SetResult(list);
                         }
                         finally
                         {
@@ -278,7 +278,7 @@ namespace Tcl.Lang
 
                 // Execute the command.
 
-                interp.eval(sbuf.ToString(), 0);
+                interp.Eval(sbuf.ToString(), 0);
             }
         }
     } // CmdTraceProc

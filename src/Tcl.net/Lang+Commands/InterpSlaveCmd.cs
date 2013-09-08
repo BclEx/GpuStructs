@@ -64,7 +64,7 @@ namespace Tcl.Lang
       {
         throw new TclNumArgsException( interp, 1, objv, "cmd ?arg ...?" );
       }
-      int cmd = TclIndex.get( interp, objv[1], options, "option", 0 );
+      int cmd = TclIndex.Get( interp, objv[1], options, "option", 0 );
 
       switch ( cmd )
       {
@@ -128,7 +128,7 @@ namespace Tcl.Lang
           break;
 
         case OPT_ISSAFE:
-          interp.setResult( slaveInterp._isSafe );
+          interp.SetResult( slaveInterp._isSafe );
           break;
 
         case OPT_INVOKEHIDDEN:
@@ -141,7 +141,7 @@ namespace Tcl.Lang
             {
               break;
             }
-            int index = TclIndex.get( interp, objv[i], hiddenOptions, "option", 0 );
+            int index = TclIndex.Get( interp, objv[i], hiddenOptions, "option", 0 );
             if ( index == OPT_HIDDEN_GLOBAL )
             {
               global = true;
@@ -336,7 +336,7 @@ namespace Tcl.Lang
       {
         if ( objIx + 1 == objv.Length )
         {
-          slaveInterp.eval( objv[objIx], 0 );
+          slaveInterp.Eval( objv[objIx], 0 );
         }
         else
         {
@@ -346,7 +346,7 @@ namespace Tcl.Lang
             TclList.Append( interp, obj, objv[ix] );
           }
           obj.Preserve();
-          slaveInterp.eval( obj, 0 );
+          slaveInterp.Eval( obj, 0 );
           obj.Release();
         }
         result = slaveInterp._returnCode;
@@ -407,7 +407,7 @@ namespace Tcl.Lang
       }
 
       TclObject result = TclList.NewInstance();
-      interp.setResult( result );
+      interp.SetResult( result );
 
       IEnumerator hiddenCmds = slaveInterp._hiddenCmdTable.Keys.GetEnumerator();
       while ( hiddenCmds.MoveNext() )

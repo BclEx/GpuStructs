@@ -146,7 +146,7 @@ namespace Tcl.Lang
             // Set the interpreter's object result to refer to the variable's value
             // object.
 
-            interp.setResult(newValue);
+            interp.SetResult(newValue);
             return TCL.CompletionCode.RETURN;
         }
     }

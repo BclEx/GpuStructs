@@ -33,7 +33,7 @@ namespace Tcl.Lang
 
             if (element != null)
             {
-                interp.setResult(element);
+                interp.SetResult(element);
             }
             else
             {

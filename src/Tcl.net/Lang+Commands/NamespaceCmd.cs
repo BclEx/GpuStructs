@@ -330,7 +330,7 @@ namespace Tcl.Lang
                 */
 
                 // FIXME : is there a test case to check this error result?
-                interp.setResult("can't create namespace \"\": only global namespace can have empty name");
+                interp.SetResult("can't create namespace \"\": only global namespace can have empty name");
                 return null;
             }
             else
@@ -373,7 +373,7 @@ namespace Tcl.Lang
                     */
 
                     // FIXME : is there a test case to check this error result?
-                    interp.setResult("can't create namespace \"" + name + "\": already exists");
+                    interp.SetResult("can't create namespace \"" + name + "\": already exists");
                     return null;
                 }
             }
@@ -990,7 +990,7 @@ namespace Tcl.Lang
             {
 
                 cmdName = ((string)search.Current);
-                if (Util.stringMatch(cmdName, simplePattern))
+                if (Util.StringMatch(cmdName, simplePattern))
                 {
                     // The command cmdName in the source namespace matches the
                     // pattern. Check whether it was exported. If it wasn't,
@@ -999,7 +999,7 @@ namespace Tcl.Lang
                     wasExported = false;
                     for (i = 0; i < importNs.numExportPatterns; i++)
                     {
-                        if (Util.stringMatch(cmdName, importNs.exportArray[i]))
+                        if (Util.StringMatch(cmdName, importNs.exportArray[i]))
                         {
                             wasExported = true;
                             break;
@@ -1150,7 +1150,7 @@ namespace Tcl.Lang
             {
 
                 cmdName = ((string)search.Current);
-                if (Util.stringMatch(cmdName, simplePattern))
+                if (Util.StringMatch(cmdName, simplePattern))
                 {
                     cmd = (WrappedCommand)ns.cmdTable[cmdName];
                     if (cmd != null)
@@ -1667,7 +1667,7 @@ namespace Tcl.Lang
                 */
 
                 // FIXME : is there a test case for this error?
-                interp.setResult("unknown namespace \"" + name + "\"");
+                interp.SetResult("unknown namespace \"" + name + "\"");
             }
             return null;
         }
@@ -1928,7 +1928,7 @@ namespace Tcl.Lang
                 */
 
                 // FIXME : is there a test case for this error?
-                interp.setResult("unknown variable \"" + name + "\"");
+                interp.SetResult("unknown variable \"" + name + "\"");
             }
             return null;
         }
@@ -2148,7 +2148,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 1, objv, "subcommand ?arg ...?");
             }
 
-            opt = TclIndex.get(interp, objv[1], validCmds, "option", 0);
+            opt = TclIndex.Get(interp, objv[1], validCmds, "option", 0);
 
             switch (opt)
             {
@@ -2322,13 +2322,13 @@ namespace Tcl.Lang
             list = TclList.NewInstance();
             foreach (Namespace childNs in ns.childTable.Values)
             {
-                if (((System.Object)pattern == null) || Util.stringMatch(childNs.fullName, pattern))
+                if (((System.Object)pattern == null) || Util.StringMatch(childNs.fullName, pattern))
                 {
                     elem = TclString.NewInstance(childNs.fullName);
                     TclList.Append(interp, list, elem);
                 }
             }
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -2390,7 +2390,7 @@ namespace Tcl.Lang
                 }
                 if (((length - p_ind) >= 7) && (arg[p_ind] == 'i') && arg.Substring(p_ind).StartsWith("inscope"))
                 {
-                    interp.setResult(objv[2]);
+                    interp.SetResult(objv[2]);
                     return;
                 }
             }
@@ -2418,7 +2418,7 @@ namespace Tcl.Lang
             TclList.Append(interp, list, obj);
             TclList.Append(interp, list, objv[2]);
 
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -2467,12 +2467,12 @@ namespace Tcl.Lang
                 // FIXME : appending to te result really screws everything up!
                 // need to figure out how to disallow this!
                 //TclString.append(interp.getResult(), "::");
-                interp.setResult("::");
+                interp.SetResult("::");
             }
             else
             {
                 //TclString.append(interp.getResult(), currNs.fullName);
-                interp.setResult(currNs.fullName);
+                interp.SetResult(currNs.fullName);
             }
         }
 
@@ -2620,7 +2620,7 @@ namespace Tcl.Lang
             {
                 if (objv.Length == 4)
                 {
-                    interp.eval(objv[3], 0);
+                    interp.Eval(objv[3], 0);
                 }
                 else
                 {
@@ -2629,7 +2629,7 @@ namespace Tcl.Lang
                     // eval() will delete the object when it decrements its
                     // refcount after eval'ing it.
 
-                    interp.eval(cmd); // do not pass TCL_EVAL_DIRECT, for compiler only
+                    interp.Eval(cmd); // do not pass TCL_EVAL_DIRECT, for compiler only
                 }
             }
             catch (TclException ex)
@@ -2727,7 +2727,7 @@ namespace Tcl.Lang
                     // create list with export patterns
                     TclObject list = TclList.NewInstance();
                     appendExportList(interp, currNs, list);
-                    interp.setResult(list);
+                    interp.SetResult(list);
                     return;
                 }
             }
@@ -2945,7 +2945,7 @@ namespace Tcl.Lang
             {
                 if (objv.Length == 4)
                 {
-                    interp.eval(objv[3], 0);
+                    interp.Eval(objv[3], 0);
                 }
                 else
                 {
@@ -2970,7 +2970,7 @@ namespace Tcl.Lang
                     concatObjv[0] = objv[3];
                     concatObjv[1] = list;
                     cmd = Util.concat(0, 1, concatObjv);
-                    interp.eval(cmd); // do not pass TCL_EVAL_DIRECT, for compiler only
+                    interp.Eval(cmd); // do not pass TCL_EVAL_DIRECT, for compiler only
                     list.Release(); // we're done with the list object
                 }
             }
@@ -3048,11 +3048,11 @@ namespace Tcl.Lang
                 // command's name qualified by the full name of the namespace it
                 // was defined in.
 
-                interp.setResult(interp.getCommandFullName(command));
+                interp.SetResult(interp.getCommandFullName(command));
             }
             else
             {
-                interp.setResult(interp.getCommandFullName(origCommand));
+                interp.SetResult(interp.getCommandFullName(origCommand));
             }
             return;
         }
@@ -3105,7 +3105,7 @@ namespace Tcl.Lang
 
             if (ns.parent != null)
             {
-                interp.setResult(ns.parent.fullName);
+                interp.SetResult(ns.parent.fullName);
             }
         }
 
@@ -3168,7 +3168,7 @@ namespace Tcl.Lang
 
             if (p >= 0)
             {
-                interp.setResult(name.Substring(0, (p + 1) - (0)));
+                interp.SetResult(name.Substring(0, (p + 1) - (0)));
             }
             // When no result is set the empty string is the result
             return;
@@ -3230,7 +3230,7 @@ namespace Tcl.Lang
 
             if (p >= 0)
             {
-                interp.setResult(name.Substring(p));
+                interp.SetResult(name.Substring(p));
             }
             return;
         }
@@ -3315,7 +3315,7 @@ namespace Tcl.Lang
                     {
                         return; // cmd not found, just return (no error)
                     }
-                    interp.setResult(interp.getCommandFullName(cmd));
+                    interp.SetResult(interp.getCommandFullName(cmd));
                     return;
 
 
@@ -3325,7 +3325,7 @@ namespace Tcl.Lang
                     variable = NamespaceCmd.findNamespaceVar(interp, arg, null, 0);
                     if (variable != null)
                     {
-                        interp.setResult(Var.getVariableFullName(interp, variable));
+                        interp.SetResult(Var.getVariableFullName(interp, variable));
                     }
                     return;
             }

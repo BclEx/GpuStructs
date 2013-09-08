@@ -102,7 +102,7 @@ namespace Tcl.Lang
         /// <returns> the TclObject with the given byte array value.
         /// </returns>
 
-        public static TclObject newInstance(byte[] b, int position, int length)
+        public static TclObject NewInstance(byte[] b, int position, int length)
         {
             return new TclObject(new TclByteArray(b, position, length));
         }
@@ -114,7 +114,7 @@ namespace Tcl.Lang
         /// <returns> the TclObject with the given byte array value.
         /// </returns>
 
-        public static TclObject newInstance(byte[] b)
+        public static TclObject NewInstance(byte[] b)
         {
             return new TclObject(new TclByteArray(b));
         }
@@ -126,7 +126,7 @@ namespace Tcl.Lang
         /// <returns> the TclObject with the empty byte array value.
         /// </returns>
 
-        public static TclObject newInstance()
+        public static TclObject NewInstance()
         {
             return new TclObject(new TclByteArray());
         }
@@ -168,7 +168,7 @@ namespace Tcl.Lang
         /// old array is truncated to the specified length.
         /// </summary>
 
-        public static byte[] setLength(Interp interp, TclObject tobj, int length)
+        public static byte[] SetLength(Interp interp, TclObject tobj, int length)
         {
             if (tobj.Shared)
             {

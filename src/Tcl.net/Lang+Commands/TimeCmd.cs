@@ -31,23 +31,23 @@ namespace Tcl.Lang
             }
             else
             {
-                count = TclInteger.get(interp, argv[2]);
+                count = TclInteger.Get(interp, argv[2]);
             }
 
             long startTime = System.DateTime.Now.Ticks;
             for (int i = 0; i < count; i++)
             {
-                interp.eval(argv[1], 0);
+                interp.Eval(argv[1], 0);
             }
             long endTime = System.DateTime.Now.Ticks;
             long uSecs = (((endTime - startTime) / 10) / count);
             if (uSecs == 1)
             {
-                interp.setResult(TclString.NewInstance("1 microsecond per iteration"));
+                interp.SetResult(TclString.NewInstance("1 microsecond per iteration"));
             }
             else
             {
-                interp.setResult(TclString.NewInstance(uSecs + " microseconds per iteration"));
+                interp.SetResult(TclString.NewInstance(uSecs + " microseconds per iteration"));
             }
             return TCL.CompletionCode.RETURN;
         }

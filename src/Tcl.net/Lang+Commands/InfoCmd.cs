@@ -60,7 +60,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "option ?arg arg ...?");
             }
-            index = TclIndex.get(interp, objv[1], validCmds, "option", 0);
+            index = TclIndex.Get(interp, objv[1], validCmds, "option", 0);
 
             switch (index)
             {
@@ -193,7 +193,7 @@ namespace Tcl.Lang
                 TclObject s = TclString.NewInstance(proc.ArgList[i][0]);
                 TclList.Append(interp, listObj, s);
             }
-            interp.setResult(listObj);
+            interp.SetResult(listObj);
             return;
         }
 
@@ -235,7 +235,7 @@ namespace Tcl.Lang
             }
 
 
-            interp.setResult(proc.body.ToString());
+            interp.SetResult(proc.body.ToString());
             return;
         }
 
@@ -265,7 +265,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
-            interp.setResult(interp._cmdCount);
+            interp.SetResult(interp._cmdCount);
             return;
         }
 
@@ -360,7 +360,7 @@ namespace Tcl.Lang
                 while (search.MoveNext())
                 {
                     cmdName = ((string)search.Key);
-                    if (((System.Object)simplePattern == null) || Util.stringMatch(cmdName, simplePattern))
+                    if (((System.Object)simplePattern == null) || Util.StringMatch(cmdName, simplePattern))
                     {
                         if (specificNsInPattern)
                         {
@@ -387,7 +387,7 @@ namespace Tcl.Lang
                     while (search.MoveNext())
                     {
                         cmdName = ((string)search.Key);
-                        if (((System.Object)simplePattern == null) || Util.stringMatch(cmdName, simplePattern))
+                        if (((System.Object)simplePattern == null) || Util.StringMatch(cmdName, simplePattern))
                         {
                             if (ns.cmdTable[cmdName] == null)
                             {
@@ -398,7 +398,7 @@ namespace Tcl.Lang
                 }
             }
 
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -430,7 +430,7 @@ namespace Tcl.Lang
             }
 
 
-            interp.setResult(Tcl.Lang.Interp.commandComplete(objv[2].ToString()));
+            interp.SetResult(Tcl.Lang.Interp.commandComplete(objv[2].ToString()));
             return;
         }
 
@@ -487,12 +487,12 @@ namespace Tcl.Lang
                         if (proc.ArgList[i][1] != null)
                         {
                             interp.SetVar(varName, proc.ArgList[i][1], 0);
-                            interp.setResult(1);
+                            interp.SetResult(1);
                         }
                         else
                         {
                             interp.SetVar(varName, "", 0);
-                            interp.setResult(0);
+                            interp.SetResult(0);
                         }
                     }
                     catch (TclException excp)
@@ -544,11 +544,11 @@ namespace Tcl.Lang
 
             if ((var != null) && !var.IsVarUndefined())
             {
-                interp.setResult(true);
+                interp.SetResult(true);
             }
             else
             {
-                interp.setResult(false);
+                interp.SetResult(false);
             }
 
             return;
@@ -609,13 +609,13 @@ namespace Tcl.Lang
                 {
                     continue;
                 }
-                if (((System.Object)pattern == null) || Util.stringMatch(varName, pattern))
+                if (((System.Object)pattern == null) || Util.StringMatch(varName, pattern))
                 {
                     TclList.Append(interp, list, TclString.NewInstance(varName));
                 }
             }
 
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -653,12 +653,12 @@ namespace Tcl.Lang
 
             if ((System.Object)name != null)
             {
-                interp.setResult(name);
+                interp.SetResult(name);
                 return;
             }
             else
             {
-                interp.setResult("unable to determine name of host");
+                interp.SetResult("unable to determine name of host");
                 return;
             }
         }
@@ -693,17 +693,17 @@ namespace Tcl.Lang
                 // just "info level"
                 if (interp.VarFrame == null)
                 {
-                    interp.setResult(0);
+                    interp.SetResult(0);
                 }
                 else
                 {
-                    interp.setResult(interp.VarFrame.Level);
+                    interp.SetResult(interp.VarFrame.Level);
                 }
                 return;
             }
             else if (objv.Length == 3)
             {
-                level = TclInteger.get(interp, objv[2]);
+                level = TclInteger.Get(interp, objv[2]);
 
                 if (level <= 0)
                 {
@@ -734,7 +734,7 @@ namespace Tcl.Lang
                 {
                     TclList.Append(interp, list, TclString.NewInstance(frame.Objv[i]));
                 }
-                interp.setResult(list);
+                interp.SetResult(list);
                 return;
             }
 
@@ -769,7 +769,7 @@ namespace Tcl.Lang
             }
             try
             {
-                interp.setResult(interp.GetVar("tcl_library", TCL.VarFlag.GLOBAL_ONLY));
+                interp.SetResult(interp.GetVar("tcl_library", TCL.VarFlag.GLOBAL_ONLY));
                 return;
             }
             catch (TclException e)
@@ -859,7 +859,7 @@ namespace Tcl.Lang
 
             list = TclList.NewInstance();
             AppendLocals(interp, list, pattern, false);
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -899,7 +899,7 @@ namespace Tcl.Lang
                     varName = (string)search.Key;
                     if (!var.IsVarUndefined() && (includeLinks || !var.IsVarLink()))
                     {
-                        if (((System.Object)pattern == null) || Util.stringMatch(varName, pattern))
+                        if (((System.Object)pattern == null) || Util.StringMatch(varName, pattern))
                         {
                             TclList.Append(interp, list, TclString.NewInstance(varName));
                         }
@@ -947,7 +947,7 @@ namespace Tcl.Lang
                 TclObject result = TclList.NewInstance();
                 TclList.Append(interp, result, TclString.NewInstance(nameOfExecutable));
                 TclList.Append(interp, result, TclString.NewInstance("tcl.lang.Shell"));
-                interp.setResult(result);
+                interp.SetResult(result);
             }
 
             return;
@@ -980,7 +980,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp.GetVar("tcl_patchLevel", TCL.VarFlag.GLOBAL_ONLY));
+            interp.SetResult(interp.GetVar("tcl_patchLevel", TCL.VarFlag.GLOBAL_ONLY));
             return;
         }
 
@@ -1043,14 +1043,14 @@ namespace Tcl.Lang
 
                 if (Procedure.isProc(cmd) || ((realCmd != null) && Procedure.isProc(realCmd)))
                 {
-                    if (((System.Object)pattern == null) || Util.stringMatch(cmdName, pattern))
+                    if (((System.Object)pattern == null) || Util.StringMatch(cmdName, pattern))
                     {
                         TclList.Append(interp, list, TclString.NewInstance(cmdName));
                     }
                 }
             }
 
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
 
@@ -1081,7 +1081,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp._scriptFile);
+            interp.SetResult(interp._scriptFile);
             return;
         }
 
@@ -1111,7 +1111,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
-            interp.setResult(".jar");
+            interp.SetResult(".jar");
             return;
         }
 
@@ -1141,7 +1141,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 2, objv, null);
             }
 
-            interp.setResult(interp.GetVar("tcl_version", TCL.VarFlag.GLOBAL_ONLY));
+            interp.SetResult(interp.GetVar("tcl_version", TCL.VarFlag.GLOBAL_ONLY));
             return;
         }
 
@@ -1245,9 +1245,9 @@ namespace Tcl.Lang
                 {
                     varName = ((string)search.Key);
                     var = (Var)search.Value;
-                    if (!var.IsVarUndefined() || ((var._flags & VarFlags.NAMESPACE_VAR) != 0))
+                    if (!var.IsVarUndefined() || ((var.Flags & VarFlags.NAMESPACE_VAR) != 0))
                     {
-                        if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
+                        if (((System.Object)simplePattern == null) || Util.StringMatch(varName, simplePattern))
                         {
                             if (specificNsInPattern)
                             {
@@ -1276,9 +1276,9 @@ namespace Tcl.Lang
                     {
                         varName = ((string)search.Key);
                         var = (Var)search.Value;
-                        if (!var.IsVarUndefined() || ((var._flags & VarFlags.NAMESPACE_VAR) != 0))
+                        if (!var.IsVarUndefined() || ((var.Flags & VarFlags.NAMESPACE_VAR) != 0))
                         {
-                            if (((System.Object)simplePattern == null) || Util.stringMatch(varName, simplePattern))
+                            if (((System.Object)simplePattern == null) || Util.StringMatch(varName, simplePattern))
                             {
 
                                 // Skip vars defined in current namespace
@@ -1296,7 +1296,7 @@ namespace Tcl.Lang
                 AppendLocals(interp, list, simplePattern, true);
             }
 
-            interp.setResult(list);
+            interp.SetResult(list);
             return;
         }
     }

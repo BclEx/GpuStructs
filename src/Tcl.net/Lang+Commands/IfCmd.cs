@@ -71,7 +71,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        interp.eval(argv[i], 0);
+                        interp.Eval(argv[i], 0);
                     }
                     catch (TclException e)
                     {
@@ -128,7 +128,7 @@ namespace Tcl.Lang
             }
             try
             {
-                interp.eval(argv[i], 0);
+                interp.Eval(argv[i], 0);
             }
             catch (TclException e)
             {

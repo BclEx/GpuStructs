@@ -788,7 +788,7 @@ namespace Tcl.Lang
                         {
                             if (parse.interp != null)
                             {
-                                parse.interp.setResult("missing close-bracket");
+                                parse.interp.SetResult("missing close-bracket");
                             }
                             parse.termIndex = token.script_index;
                             parse.incomplete = true;
@@ -921,7 +921,7 @@ namespace Tcl.Lang
 
             if (interp._deleted)
             {
-                interp.setResult("attempt to call eval in deleted interpreter");
+                interp.SetResult("attempt to call eval in deleted interpreter");
                 interp.SetErrorCode(TclString.NewInstance("CORE IDELETE {attempt to call eval in deleted interpreter}"));
                 throw new TclException(TCL.CompletionCode.ERROR);
             }
@@ -1376,7 +1376,7 @@ namespace Tcl.Lang
                             }
                             catch (System.StackOverflowException e)
                             {
-                                interp.setResult("too many nested calls" + " to eval (infinite loop?)");
+                                interp.SetResult("too many nested calls" + " to eval (infinite loop?)");
                                 throw new TclException(TCL.CompletionCode.ERROR);
                             }
                         }
@@ -1557,7 +1557,7 @@ namespace Tcl.Lang
                     {
                         if (interp != null)
                         {
-                            interp.setResult("missing close-brace for variable name");
+                            interp.SetResult("missing close-brace for variable name");
                         }
                         parse.termIndex = token.script_index - 1;
                         parse.incomplete = true;
@@ -1636,7 +1636,7 @@ namespace Tcl.Lang
                     {
                         if (interp != null)
                         {
-                            interp.setResult("missing )");
+                            interp.SetResult("missing )");
                         }
                         parse.termIndex = script_index - 1;
                         parse.incomplete = true;

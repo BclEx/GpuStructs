@@ -39,7 +39,7 @@ namespace Tcl.Lang
 
                 while (argv[i].ToString().StartsWith("-"))
                 {
-                    int index = TclIndex.get(interp, argv[i], validOpts, "switch", 0);
+                    int index = TclIndex.Get(interp, argv[i], validOpts, "switch", 0);
                     i++;
                     switch (index)
                     {
@@ -112,7 +112,7 @@ namespace Tcl.Lang
                         }
                     }
                 }
-                interp.setResult(matched);
+                interp.SetResult(matched);
             }
             catch (System.IndexOutOfRangeException e)
             {

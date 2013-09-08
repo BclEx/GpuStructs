@@ -95,7 +95,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "option arg ?arg ...?");
             }
-            int index = TclIndex.get(interp, objv[1], options, "option", 0);
+            int index = TclIndex.Get(interp, objv[1], options, "option", 0);
 
             switch (index)
             {
@@ -126,7 +126,7 @@ namespace Tcl.Lang
                                 {
                                     throw new TclNumArgsException(interp, 2, objv, "?-nocase? ?-length int? string1 string2");
                                 }
-                                reqlength = TclInteger.get(interp, objv[++i]);
+                                reqlength = TclInteger.Get(interp, objv[++i]);
                             }
                             else
                             {
@@ -197,11 +197,11 @@ namespace Tcl.Lang
 
                         if (index == STR_EQUAL)
                         {
-                            interp.setResult((match != 0) ? false : true);
+                            interp.SetResult((match != 0) ? false : true);
                         }
                         else
                         {
-                            interp.setResult(((match > 0) ? 1 : (match < 0) ? -1 : 0));
+                            interp.SetResult(((match > 0) ? 1 : (match < 0) ? -1 : 0));
                         }
                         break;
                     }
@@ -230,19 +230,19 @@ namespace Tcl.Lang
                             start = Util.getIntForIndex(interp, objv[4], length2 - 1);
                             if (start >= length2)
                             {
-                                interp.setResult(-1);
+                                interp.SetResult(-1);
                                 return TCL.CompletionCode.RETURN;
                             }
                         }
 
                         if (string1.Length == 0)
                         {
-                            interp.setResult(-1);
+                            interp.SetResult(-1);
                         }
                         else
                         {
 
-                            interp.setResult(string2.IndexOf(string1, start));
+                            interp.SetResult(string2.IndexOf(string1, start));
                         }
                         break;
                     }
@@ -263,7 +263,7 @@ namespace Tcl.Lang
 
                         if ((i >= 0) && (i < length1))
                         {
-                            interp.setResult(string1.Substring(i, (i + 1) - (i)));
+                            interp.SetResult(string1.Substring(i, (i + 1) - (i)));
                         }
                         break;
                     }
@@ -275,7 +275,7 @@ namespace Tcl.Lang
                         {
                             throw new TclNumArgsException(interp, 2, objv, "class ?-strict? ?-failindex var? str");
                         }
-                        index = TclIndex.get(interp, objv[2], isOptions, "class", 0);
+                        index = TclIndex.Get(interp, objv[2], isOptions, "class", 0);
 
                         bool strict = false;
                         TclObject failVarObj = null;
@@ -438,7 +438,7 @@ namespace Tcl.Lang
                                     bool isInteger = true;
                                     try
                                     {
-                                        TclInteger.get(null, obj);
+                                        TclInteger.Get(null, obj);
                                     }
                                     catch (TclException e)
                                     {
@@ -627,7 +627,7 @@ namespace Tcl.Lang
                         {
                             interp.SetVar(failVarObj, TclInteger.NewInstance(failat), 0);
                         }
-                        interp.setResult(result);
+                        interp.SetResult(result);
                         break;
                     }
 
@@ -654,7 +654,7 @@ namespace Tcl.Lang
                             start = Util.getIntForIndex(interp, objv[4], length2 - 1);
                             if (start < 0)
                             {
-                                interp.setResult(-1);
+                                interp.SetResult(-1);
                                 break;
                             }
                             else if (start < length2)
@@ -665,11 +665,11 @@ namespace Tcl.Lang
 
                         if (string1.Length == 0)
                         {
-                            interp.setResult(-1);
+                            interp.SetResult(-1);
                         }
                         else
                         {
-                            interp.setResult(string2.LastIndexOf(string1));
+                            interp.SetResult(string2.LastIndexOf(string1));
                         }
                         break;
                     }
@@ -681,7 +681,7 @@ namespace Tcl.Lang
                         throw new TclNumArgsException(interp, 2, objv, "string");
                     }
 
-                    interp.setResult(Utf8Count(objv[2].ToString()));
+                    interp.SetResult(Utf8Count(objv[2].ToString()));
                     break;
 
 
@@ -692,7 +692,7 @@ namespace Tcl.Lang
                             throw new TclNumArgsException(interp, 2, objv, "string");
                         }
 
-                        interp.setResult(objv[2].ToString().Length);
+                        interp.SetResult(objv[2].ToString().Length);
                         break;
                     }
 
@@ -725,7 +725,7 @@ namespace Tcl.Lang
                         {
                             // empty charMap, just return whatever string was given
 
-                            interp.setResult(objv[objv.Length - 1]);
+                            interp.SetResult(objv[objv.Length - 1]);
                         }
                         else if ((mapElemv.Length % 2) != 0)
                         {
@@ -820,7 +820,7 @@ namespace Tcl.Lang
 
                             TclString.append(result, string1.Substring(p, (str1) - (p)));
                         }
-                        interp.setResult(result);
+                        interp.SetResult(result);
                         break;
                     }
 
@@ -854,7 +854,7 @@ namespace Tcl.Lang
                             string2 = objv[2].ToString();
                         }
 
-                        interp.setResult(Util.stringMatch(string1, string2));
+                        interp.SetResult(Util.StringMatch(string1, string2));
                         break;
                     }
 
@@ -887,7 +887,7 @@ namespace Tcl.Lang
                         }
                         else
                         {
-                            interp.setResult(string1.Substring(first, (last + 1) - (first)));
+                            interp.SetResult(string1.Substring(first, (last + 1) - (first)));
                         }
                         break;
                     }
@@ -900,7 +900,7 @@ namespace Tcl.Lang
                             throw new TclNumArgsException(interp, 2, objv, "string count");
                         }
 
-                        int count = TclInteger.get(interp, objv[3]);
+                        int count = TclInteger.Get(interp, objv[3]);
 
 
                         string string1 = objv[2].ToString();
@@ -911,7 +911,7 @@ namespace Tcl.Lang
                             {
                                 TclString.append(tstr, string1);
                             }
-                            interp.setResult(tstr);
+                            interp.SetResult(tstr);
                         }
                         break;
                     }
@@ -933,7 +933,7 @@ namespace Tcl.Lang
 
                         if ((last < first) || (first > length1) || (last < 0))
                         {
-                            interp.setResult(objv[2]);
+                            interp.SetResult(objv[2]);
                         }
                         else
                         {
@@ -968,7 +968,7 @@ namespace Tcl.Lang
                                 TclString.append(tstr, end);
                             }
 
-                            interp.setResult(tstr);
+                            interp.SetResult(tstr);
                         }
                         break;
                     }
@@ -989,15 +989,15 @@ namespace Tcl.Lang
                         {
                             if (index == STR_TOLOWER)
                             {
-                                interp.setResult(string1.ToLower());
+                                interp.SetResult(string1.ToLower());
                             }
                             else if (index == STR_TOUPPER)
                             {
-                                interp.setResult(string1.ToUpper());
+                                interp.SetResult(string1.ToUpper());
                             }
                             else
                             {
-                                interp.setResult(Util.toTitle(string1));
+                                interp.SetResult(Util.toTitle(string1));
                             }
                         }
                         else
@@ -1019,7 +1019,7 @@ namespace Tcl.Lang
                             }
                             if (last < first)
                             {
-                                interp.setResult(objv[2]);
+                                interp.SetResult(objv[2]);
                                 break;
                             }
 
@@ -1051,7 +1051,7 @@ namespace Tcl.Lang
                                 buf.Append(string1.Substring(last + 1));
                             }
 
-                            interp.setResult(buf.ToString());
+                            interp.SetResult(buf.ToString());
                         }
                         break;
                     }
@@ -1065,7 +1065,7 @@ namespace Tcl.Lang
                             // Remove leading and trailing white space
 
 
-                            interp.setResult(objv[2].ToString().Trim());
+                            interp.SetResult(objv[2].ToString().Trim());
                         }
                         else if (objv.Length == 4)
                         {
@@ -1076,7 +1076,7 @@ namespace Tcl.Lang
 
                             string tmp = Util.TrimLeft(objv[2].ToString(), objv[3].ToString());
 
-                            interp.setResult(Util.TrimRight(tmp, objv[3].ToString()));
+                            interp.SetResult(Util.TrimRight(tmp, objv[3].ToString()));
                         }
                         else
                         {
@@ -1096,7 +1096,7 @@ namespace Tcl.Lang
                             // Remove leading and trailing white space
 
 
-                            interp.setResult(Util.TrimLeft(objv[2].ToString()));
+                            interp.SetResult(Util.TrimLeft(objv[2].ToString()));
                         }
                         else if (objv.Length == 4)
                         {
@@ -1104,7 +1104,7 @@ namespace Tcl.Lang
                             // Remove leading and trailing chars in the chars set
 
 
-                            interp.setResult(Util.TrimLeft(objv[2].ToString(), objv[3].ToString()));
+                            interp.SetResult(Util.TrimLeft(objv[2].ToString(), objv[3].ToString()));
                         }
                         else
                         {
@@ -1124,7 +1124,7 @@ namespace Tcl.Lang
                             // Remove leading and trailing white space
 
 
-                            interp.setResult(Util.TrimRight(objv[2].ToString()));
+                            interp.SetResult(Util.TrimRight(objv[2].ToString()));
                         }
                         else if (objv.Length == 4)
                         {
@@ -1132,7 +1132,7 @@ namespace Tcl.Lang
                             // Remove leading and trailing chars in the chars set
 
 
-                            interp.setResult(Util.TrimRight(objv[2].ToString(), objv[3].ToString()));
+                            interp.SetResult(Util.TrimRight(objv[2].ToString(), objv[3].ToString()));
                         }
                         else
                         {
@@ -1164,7 +1164,7 @@ namespace Tcl.Lang
                         }
                         if (index >= length1)
                         {
-                            interp.setResult(length1);
+                            interp.SetResult(length1);
                             return TCL.CompletionCode.RETURN;
                         }
                         for (cur = index; cur < length1; cur++)
@@ -1179,7 +1179,7 @@ namespace Tcl.Lang
                         {
                             cur = index + 1;
                         }
-                        interp.setResult(cur);
+                        interp.SetResult(cur);
                         break;
                     }
 
@@ -1204,7 +1204,7 @@ namespace Tcl.Lang
                         }
                         if (index < 0)
                         {
-                            interp.setResult(0);
+                            interp.SetResult(0);
                             return TCL.CompletionCode.RETURN;
                         }
                         for (cur = index; cur >= 0; cur--)
@@ -1219,7 +1219,7 @@ namespace Tcl.Lang
                         {
                             cur += 1;
                         }
-                        interp.setResult(cur);
+                        interp.SetResult(cur);
                         break;
                     }
             }

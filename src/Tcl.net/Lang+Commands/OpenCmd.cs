@@ -223,7 +223,7 @@ namespace Tcl.Lang
 
             if (argv.Length == 4)
             {
-                prot = TclInteger.get(interp, argv[3]);
+                prot = TclInteger.Get(interp, argv[3]);
                 throw new TclException(interp, "setting permissions not implemented yet");
             }
 
@@ -245,7 +245,7 @@ namespace Tcl.Lang
 
                     file.open(interp, argv[1].ToString(), modeFlags);
                     TclIO.registerChannel(interp, file);
-                    interp.setResult(file.ChanName);
+                    interp.SetResult(file.ChanName);
                 }
                 catch (IOException e)
                 {

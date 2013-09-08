@@ -45,7 +45,7 @@ namespace Tcl.Lang
 
             try
             {
-                interp.setResult(TclInteger.NewInstance((int)chan.tell()));
+                interp.SetResult(TclInteger.NewInstance((int)chan.tell()));
             }
             catch (IOException e)
             {

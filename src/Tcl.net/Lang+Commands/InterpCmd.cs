@@ -51,7 +51,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "cmd ?arg ...?");
             }
-            int cmd = TclIndex.get(interp, objv[1], options, "option", 0);
+            int cmd = TclIndex.Get(interp, objv[1], options, "option", 0);
 
             switch (cmd)
             {
@@ -116,7 +116,7 @@ namespace Tcl.Lang
 
                             if ((!last) && (objv[i].ToString()[0] == '-'))
                             {
-                                int index = TclIndex.get(interp, objv[i], createOptions, "option", 0);
+                                int index = TclIndex.Get(interp, objv[i], createOptions, "option", 0);
                                 if (index == OPT_CREATE_SAFE)
                                 {
                                     safe = true;
@@ -147,7 +147,7 @@ namespace Tcl.Lang
                             slaveNameObj = TclString.NewInstance("interp" + i);
                         }
                         InterpSlaveCmd.create(interp, slaveNameObj, safe);
-                        interp.setResult(slaveNameObj);
+                        interp.SetResult(slaveNameObj);
                         break;
                     }
 
@@ -194,7 +194,7 @@ namespace Tcl.Lang
                             }
                             exists = false;
                         }
-                        interp.setResult(exists);
+                        interp.SetResult(exists);
                         break;
                     }
 
@@ -230,7 +230,7 @@ namespace Tcl.Lang
                 case OPT_ISSAFE:
                     {
                         Interp slaveInterp = getInterp(interp, objv);
-                        interp.setResult(slaveInterp._isSafe);
+                        interp.SetResult(slaveInterp._isSafe);
                         break;
                     }
 
@@ -245,7 +245,7 @@ namespace Tcl.Lang
                             {
                                 break;
                             }
-                            int index = TclIndex.get(interp, objv[i], hiddenOptions, "option", 0);
+                            int index = TclIndex.Get(interp, objv[i], hiddenOptions, "option", 0);
                             if (index == OPT_HIDDEN_GLOBAL)
                             {
                                 global = true;
@@ -281,7 +281,7 @@ namespace Tcl.Lang
                         Interp slaveInterp = getInterp(interp, objv);
 
                         TclObject result = TclList.NewInstance();
-                        interp.setResult(result);
+                        interp.SetResult(result);
 
                         IEnumerator keys = slaveInterp._slaveTable.Keys.GetEnumerator();
                         while (keys.MoveNext())

@@ -38,7 +38,7 @@ namespace Tcl.Lang
 
             try
             {
-                interp.eval(argv[1], 0);
+                interp.Eval(argv[1], 0);
             }
             catch (TclException e)
             {
@@ -60,7 +60,7 @@ namespace Tcl.Lang
             }
 
             interp.ResetResult();
-            interp.setResult(TclInteger.NewInstance((int)code));
+            interp.SetResult(TclInteger.NewInstance((int)code));
             return TCL.CompletionCode.RETURN;
         }
     }

@@ -43,7 +43,7 @@ namespace Tcl.Lang
                 throw new TclException(interp, "can not find channel named \"" + argv[1].ToString() + "\"");
             }
 
-            interp.setResult(chan.isBlocked(interp));
+            interp.SetResult(chan.isBlocked(interp));
             return TCL.CompletionCode.RETURN;
         }
     }

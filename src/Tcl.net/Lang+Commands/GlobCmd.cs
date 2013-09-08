@@ -57,7 +57,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                int opt = TclIndex.get(interp, argv[firstArg], validOptions, "switch", 1);
+                int opt = TclIndex.Get(interp, argv[firstArg], validOptions, "switch", 1);
                 switch (opt)
                 {
 
@@ -170,7 +170,7 @@ namespace Tcl.Lang
                     {
                         if (noComplain)
                         {
-                            interp.setResult("");
+                            interp.SetResult("");
                             return TCL.CompletionCode.RETURN;
                         }
                         else
@@ -231,7 +231,7 @@ namespace Tcl.Lang
                 }
                 else if (TclList.getLength(interp, resultList) > 0)
                 {
-                    interp.setResult(resultList);
+                    interp.SetResult(resultList);
                 }
             }
             finally
@@ -676,7 +676,7 @@ namespace Tcl.Lang
                 {
                     tmp = tmp.ToLower();
                 }
-                if (Util.stringMatch(tmp, pattern.Substring(0, (patternEnd) - (0))))
+                if (Util.StringMatch(tmp, pattern.Substring(0, (patternEnd) - (0))))
                 {
 
                     dirBuf.Length = dirLen;

@@ -25,7 +25,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, argv, "list");
             }
-            interp.setResult(TclInteger.NewInstance(TclList.getLength(interp, argv[1])));
+            interp.SetResult(TclInteger.NewInstance(TclList.getLength(interp, argv[1])));
             return TCL.CompletionCode.RETURN;
         }
     }

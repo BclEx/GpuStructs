@@ -366,7 +366,7 @@ namespace Tcl.Lang
 
             if (tobj.InternalRep is TclInteger)
             {
-                return TclInteger.get(interp, tobj);
+                return TclInteger.Get(interp, tobj);
             }
 
 
@@ -380,7 +380,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    offset = TclInteger.get(null, tobj);
+                    offset = TclInteger.Get(null, tobj);
                 }
                 catch (TclException e)
                 {
@@ -664,7 +664,7 @@ namespace Tcl.Lang
 
             return sbuf.ToString().TrimEnd();
         }
-        public static bool stringMatch(string str, string pat)
+        public static bool StringMatch(string str, string pat)
         //Pattern which may contain special characters.
         {
             char[] strArr = str.ToCharArray();
@@ -715,7 +715,7 @@ namespace Tcl.Lang
                     }
                     while (true)
                     {
-                        if (stringMatch(str.Substring(sIndex), pat.Substring(pIndex)))
+                        if (StringMatch(str.Substring(sIndex), pat.Substring(pIndex)))
                         {
                             return true;
                         }

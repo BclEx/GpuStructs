@@ -27,7 +27,7 @@ namespace Tcl.Lang
             {
                 for (int i = 1; i < argv.Length; i++)
                     TclList.Append(interp, list, argv[i]);
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             finally
             {

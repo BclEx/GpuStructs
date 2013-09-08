@@ -32,7 +32,7 @@ namespace Tcl.Lang
             int foundEvent = 1;
             while (!trace.done && (foundEvent != 0))
             {
-                foundEvent = interp.getNotifier().doOneEvent(TCL.ALL_EVENTS);
+                foundEvent = interp.GetNotifier().doOneEvent(TCL.ALL_EVENTS);
             }
 
             Var.UntraceVar(interp, argv[1], TCL.VarFlag.GLOBAL_ONLY | TCL.VarFlag.TRACE_WRITES | TCL.VarFlag.TRACE_UNSETS, trace);

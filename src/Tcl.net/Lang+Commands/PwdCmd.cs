@@ -39,7 +39,7 @@ namespace Tcl.Lang
                 dirName = dirName.Replace('\\', '/');
             }
 
-            interp.setResult(dirName);
+            interp.SetResult(dirName);
             return TCL.CompletionCode.RETURN;
         }
     } // end PwdCmd class

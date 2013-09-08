@@ -41,7 +41,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        interp.eval(command, 0);
+                        interp.Eval(command, 0);
                     }
                     catch (TclException e)
                     {

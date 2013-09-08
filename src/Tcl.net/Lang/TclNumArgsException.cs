@@ -68,7 +68,7 @@ namespace Tcl.Lang
                     buff.Append(" " + message);
                 }
                 buff.Append("\"");
-                interp.setResult(buff.ToString());
+                interp.SetResult(buff.ToString());
             }
         }
     }

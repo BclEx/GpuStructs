@@ -1254,7 +1254,7 @@ namespace Tcl.Lang
             }
             else
             {
-                int i = TclInteger.get(interp, argv[0]);
+                int i = TclInteger.Get(interp, argv[0]);
                 return (i > 0 ? new ExprValue(i) : new ExprValue(-i));
             }
         }
@@ -1331,7 +1331,7 @@ namespace Tcl.Lang
                 }
             }
             else
-                return new ExprValue(TclInteger.get(interp, argv[0]));
+                return new ExprValue(TclInteger.Get(interp, argv[0]));
         }
     }
 

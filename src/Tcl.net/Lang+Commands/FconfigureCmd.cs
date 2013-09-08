@@ -142,14 +142,14 @@ namespace Tcl.Lang
                     // Not readable or writeable, do nothing
                 }
 
-                interp.setResult(list);
+                interp.SetResult(list);
             }
 
             if (argv.Length == 3)
             {
                 // return value for supplied name
 
-                int index = TclIndex.get(interp, argv[2], validCmds, "option", 0);
+                int index = TclIndex.Get(interp, argv[2], validCmds, "option", 0);
 
                 switch (index)
                 {
@@ -157,21 +157,21 @@ namespace Tcl.Lang
                     case OPT_BLOCKING:
                         {
                             // -blocking
-                            interp.setResult(chan.Blocking);
+                            interp.SetResult(chan.Blocking);
                             break;
                         }
 
                     case OPT_BUFFERING:
                         {
                             // -buffering
-                            interp.setResult(TclIO.getBufferingString(chan.Buffering));
+                            interp.SetResult(TclIO.getBufferingString(chan.Buffering));
                             break;
                         }
 
                     case OPT_BUFFERSIZE:
                         {
                             // -buffersize
-                            interp.setResult(chan.BufferSize);
+                            interp.SetResult(chan.BufferSize);
                             break;
                         }
 
@@ -181,11 +181,11 @@ namespace Tcl.Lang
                             System.Text.Encoding javaEncoding = chan.Encoding;
                             if ((System.Object)javaEncoding == null)
                             {
-                                interp.setResult("binary");
+                                interp.SetResult("binary");
                             }
                             else
                             {
-                                interp.setResult(EncodingCmd.getTclName(javaEncoding));
+                                interp.SetResult(EncodingCmd.getTclName(javaEncoding));
                             }
                             break;
                         }
@@ -196,12 +196,12 @@ namespace Tcl.Lang
                             if (chan.ReadOnly)
                             {
                                 char eofChar = chan.InputEofChar;
-                                interp.setResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
+                                interp.SetResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                             }
                             else if (chan.WriteOnly)
                             {
                                 char eofChar = chan.OutputEofChar;
-                                interp.setResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
+                                interp.SetResult((eofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(eofChar));
                             }
                             else if (chan.ReadWrite)
                             {
@@ -214,7 +214,7 @@ namespace Tcl.Lang
 
                                 TclList.Append(interp, eofchar_pair, (outEofChar == 0) ? TclString.NewInstance("") : TclString.NewInstance(outEofChar));
 
-                                interp.setResult(eofchar_pair);
+                                interp.SetResult(eofchar_pair);
                             }
                             else
                             {
@@ -229,11 +229,11 @@ namespace Tcl.Lang
                             // -translation
                             if (chan.ReadOnly)
                             {
-                                interp.setResult(TclIO.getTranslationString(chan.InputTranslation));
+                                interp.SetResult(TclIO.getTranslationString(chan.InputTranslation));
                             }
                             else if (chan.WriteOnly)
                             {
-                                interp.setResult(TclIO.getTranslationString(chan.OutputTranslation));
+                                interp.SetResult(TclIO.getTranslationString(chan.OutputTranslation));
                             }
                             else if (chan.ReadWrite)
                             {
@@ -242,7 +242,7 @@ namespace Tcl.Lang
                                 TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.InputTranslation)));
                                 TclList.Append(interp, translation_pair, TclString.NewInstance(TclIO.getTranslationString(chan.OutputTranslation)));
 
-                                interp.setResult(translation_pair);
+                                interp.SetResult(translation_pair);
                             }
                             else
                             {
@@ -264,7 +264,7 @@ namespace Tcl.Lang
                 // Iterate through the list setting the name with the 
                 // corresponding value.
 
-                int index = TclIndex.get(interp, argv[i - 1], validCmds, "option", 0);
+                int index = TclIndex.Get(interp, argv[i - 1], validCmds, "option", 0);
 
                 switch (index)
                 {
@@ -294,7 +294,7 @@ namespace Tcl.Lang
                     case OPT_BUFFERSIZE:
                         {
                             // -buffersize
-                            chan.BufferSize = TclInteger.get(interp, argv[i]);
+                            chan.BufferSize = TclInteger.Get(interp, argv[i]);
                             break;
                         }
 

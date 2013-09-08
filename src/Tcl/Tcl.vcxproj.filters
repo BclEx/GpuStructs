@@ -30,19 +30,10 @@
     <CudaCompile Include="..\Tcl.net\Lang\CObject.cu">
       <Filter>Lang</Filter>
     </CudaCompile>
-    <CudaCompile Include="..\Tcl.net\Lang\Command.cu">
-      <Filter>Lang</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\Tcl.net\Lang\CommandWithDispose.cu">
-      <Filter>Lang</Filter>
-    </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang\DebugInfo.cu">
       <Filter>Lang</Filter>
     </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang\Env.cu">
-      <Filter>Lang</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\Tcl.net\Lang\EventDeleter.cu">
       <Filter>Lang</Filter>
     </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang\EventuallyFreed.cu">
@@ -70,9 +61,6 @@
       <Filter>Lang</Filter>
     </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang\ImportRef.cu">
-      <Filter>Lang</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\Tcl.net\Lang\InternalRep.cu">
       <Filter>Lang</Filter>
     </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang\Interp.cu">
@@ -443,6 +431,18 @@
     </CudaCompile>
     <CudaCompile Include="..\Tcl.net\Lang+IO\TclOutputStream.cu">
       <Filter>Lang+IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ICommand.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\ICommandWithDispose.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\IEventDeleter.cu">
+      <Filter>Lang</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\Tcl.net\Lang\IInternalRep.cu">
+      <Filter>Lang</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

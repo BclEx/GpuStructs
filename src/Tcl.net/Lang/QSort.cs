@@ -287,8 +287,8 @@ namespace Tcl.Lang
                 case INTEGER:
                     try
                     {
-                        int int1 = TclInteger.get(sortInterp, obj1);
-                        int int2 = TclInteger.get(sortInterp, obj2);
+                        int int1 = TclInteger.Get(sortInterp, obj1);
+                        int int2 = TclInteger.Get(sortInterp, obj2);
 
                         if (int1 > int2)
                         {
@@ -336,7 +336,7 @@ namespace Tcl.Lang
                     Util.appendElement(sortInterp, sbuf, obj2.ToString());
                     try
                     {
-                        sortInterp.eval(sbuf.ToString(), 0);
+                        sortInterp.Eval(sbuf.ToString(), 0);
                     }
                     catch (TclException e3)
                     {
@@ -346,7 +346,7 @@ namespace Tcl.Lang
 
                     try
                     {
-                        code = TclInteger.get(sortInterp, sortInterp.GetResult());
+                        code = TclInteger.Get(sortInterp, sortInterp.GetResult());
                     }
                     catch (TclException e)
                     {

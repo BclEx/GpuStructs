@@ -48,9 +48,9 @@ namespace Tcl.Lang
                 // reference count so that it will persist until its namespace is
                 // destroyed or until the variable is unset.
 
-                if ((var._flags & VarFlags.NAMESPACE_VAR) == 0)
+                if ((var.Flags & VarFlags.NAMESPACE_VAR) == 0)
                 {
-                    var._flags |= VarFlags.NAMESPACE_VAR;
+                    var.Flags |= VarFlags.NAMESPACE_VAR;
                     var.RefCount++;
                 }
 

@@ -49,7 +49,7 @@ namespace Tcl.Lang
                 {
                     break;
                 }
-                int opt = TclIndex.get(interp, argv[currentObjIndex], validCmds, "switch", 0);
+                int opt = TclIndex.Get(interp, argv[currentObjIndex], validCmds, "switch", 0);
                 switch (opt)
                 {
 
@@ -94,7 +94,7 @@ namespace Tcl.Lang
                     try
                     {
                         interp._evalFlags = Parser.TCL_BRACKET_TERM;
-                        interp.eval(s.Substring(i + 1, (len) - (i + 1)));
+                        interp.Eval(s.Substring(i + 1, (len) - (i + 1)));
                         TclObject interp_result = interp.GetResult();
                         interp_result.Preserve();
                         res = new ParseResult(interp_result, i + interp._termOffset);
@@ -145,7 +145,7 @@ namespace Tcl.Lang
                 }
             }
 
-            interp.setResult(result.ToString());
+            interp.SetResult(result.ToString());
             return TCL.CompletionCode.RETURN;
         }
     }

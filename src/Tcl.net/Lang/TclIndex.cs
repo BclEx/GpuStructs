@@ -71,7 +71,7 @@ namespace Tcl.Lang
         /// @paran flags may be TCL.EXACT.
         /// </param>
 
-        public static int get(Interp interp, TclObject tobj, string[] table, string msg, int flags)
+        public static int Get(Interp interp, TclObject tobj, string[] table, string msg, int flags)
         {
             IInternalRep rep = tobj.InternalRep;
 

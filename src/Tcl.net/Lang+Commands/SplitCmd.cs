@@ -68,7 +68,7 @@ namespace Tcl.Lang
                     {
                         TclList.Append(interp, list, TclString.NewInstance(inString[i]));
                     }
-                    interp.setResult(list);
+                    interp.SetResult(list);
                 }
                 finally
                 {
@@ -105,7 +105,7 @@ namespace Tcl.Lang
                 {
                     TclList.Append(interp, list2, TclString.NewInstance(inString.Substring(elemStart)));
                 }
-                interp.setResult(list2);
+                interp.SetResult(list2);
             }
             finally
             {

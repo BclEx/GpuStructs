@@ -136,7 +136,7 @@ class csTCL
 
         // Loop forever to handle user input events in the command line.
 
-        Notifier notifier = interp.getNotifier();
+        Notifier notifier = interp.GetNotifier();
         while (true)
         {
           // process events until "exit" is called.
@@ -270,7 +270,7 @@ namespace Tcl.Lang
             try
             {
 
-              Enclosing_Instance.interp.eval(prompt.ToString(), TCL.EVAL_GLOBAL);
+              Enclosing_Instance.interp.Eval(prompt.ToString(), TCL.EVAL_GLOBAL);
             }
             catch (TclException e)
             {
@@ -311,7 +311,7 @@ namespace Tcl.Lang
             try
             {
 
-              Enclosing_Instance.interp.eval(prompt.ToString(), TCL.EVAL_GLOBAL);
+              Enclosing_Instance.interp.Eval(prompt.ToString(), TCL.EVAL_GLOBAL);
             }
             catch (TclException e)
             {
@@ -400,7 +400,7 @@ namespace Tcl.Lang
         TclEvent Tevent = new AnonymousClassTclEvent(command, this); // end TclEvent innerclass
 
         // Add the event to the thread safe event queue
-        interp.getNotifier().QueueEvent(Tevent, TCL.QUEUE.TAIL);
+        interp.GetNotifier().QueueEvent(Tevent, TCL.QUEUE.TAIL);
 
         // Tell this thread to wait until the event has been processed.
         Tevent.sync();

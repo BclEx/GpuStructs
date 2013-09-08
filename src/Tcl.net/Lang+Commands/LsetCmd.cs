@@ -45,7 +45,7 @@ namespace Tcl.Lang
                 TclObject[] replace = new TclObject[1];
                 replace[0] = argv[3];
                 TclList.replace(interp, list, index, 1, replace, 0, 0);
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             catch (TclException e)
             {

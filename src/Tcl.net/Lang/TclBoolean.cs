@@ -110,7 +110,7 @@ namespace Tcl.Lang
             }
             else if (rep is TclInteger)
             {
-                int i = TclInteger.get(interp, tobj);
+                int i = TclInteger.Get(interp, tobj);
                 tobj.InternalRep = new TclBoolean(i != 0);
             }
             else

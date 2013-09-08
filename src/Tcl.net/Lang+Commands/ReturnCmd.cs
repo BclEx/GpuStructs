@@ -76,7 +76,7 @@ namespace Tcl.Lang
                   {
                     try
                     {
-                      returnCode = (TCL.CompletionCode)TclInteger.get( interp, argv[i + 1] );
+                      returnCode = (TCL.CompletionCode)TclInteger.Get( interp, argv[i + 1] );
                     }
                     catch ( TclException e )
                     {
@@ -115,7 +115,7 @@ namespace Tcl.Lang
       }
       if ( i != argv.Length )
       {
-        interp.setResult( argv[argv.Length - 1] );
+        interp.SetResult( argv[argv.Length - 1] );
       }
 
       interp._returnCode = returnCode;

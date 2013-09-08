@@ -40,7 +40,7 @@ namespace Tcl.Lang
             bool done = false;
             try
             {
-                interp.eval(start, 0);
+                interp.Eval(start, 0);
             }
             catch (TclException e)
             {
@@ -57,7 +57,7 @@ namespace Tcl.Lang
 
                 try
                 {
-                    interp.eval(command, 0);
+                    interp.Eval(command, 0);
                 }
                 catch (TclException e)
                 {
@@ -88,7 +88,7 @@ namespace Tcl.Lang
                 {
                     try
                     {
-                        interp.eval(next, 0);
+                        interp.Eval(next, 0);
                     }
                     catch (TclException e)
                     {

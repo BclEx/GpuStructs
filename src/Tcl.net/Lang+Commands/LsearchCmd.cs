@@ -74,7 +74,7 @@ namespace Tcl.Lang
 
             for (int i = 1; i < objv.Length - 2; i++)
             {
-                switch (TclIndex.get(interp, objv[i], options, "option", 0))
+                switch (TclIndex.Get(interp, objv[i], options, "option", 0))
                 {
 
                     case LSEARCH_ASCII:
@@ -142,7 +142,7 @@ namespace Tcl.Lang
                         break;
 
                     case INTEGER:
-                        patInt = TclInteger.get(interp, patObj);
+                        patInt = TclInteger.Get(interp, patObj);
                         break;
 
                     case REAL:
@@ -192,7 +192,7 @@ namespace Tcl.Lang
 
                         case INTEGER:
                             {
-                                int objInt = TclInteger.get(interp, listv[i]);
+                                int objInt = TclInteger.Get(interp, listv[i]);
                                 if (patInt == objInt)
                                 {
                                     match = 0;
@@ -303,7 +303,7 @@ namespace Tcl.Lang
 
                                     case INTEGER:
                                         {
-                                            int objInt = TclInteger.get(interp, listv[i]);
+                                            int objInt = TclInteger.Get(interp, listv[i]);
                                             match = (objInt == patInt);
                                             break;
                                         }
@@ -321,7 +321,7 @@ namespace Tcl.Lang
                         case GLOB:
                             {
 
-                                match = Util.stringMatch(listv[i].ToString(), patternBytes);
+                                match = Util.StringMatch(listv[i].ToString(), patternBytes);
                                 break;
                             }
 
@@ -339,7 +339,7 @@ namespace Tcl.Lang
                     }
                 }
             }
-            interp.setResult(index);
+            interp.SetResult(index);
             return TCL.CompletionCode.RETURN;
         }
 

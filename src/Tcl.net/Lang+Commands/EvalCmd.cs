@@ -37,12 +37,12 @@ namespace Tcl.Lang
             {
                 if (argv.Length == 2)
                 {
-                    interp.eval(argv[1], 0);
+                    interp.Eval(argv[1], 0);
                 }
                 else
                 {
                     string s = Util.concat(1, argv.Length - 1, argv);
-                    interp.eval(s, 0);
+                    interp.Eval(s, 0);
                 }
             }
             catch (TclException e)

@@ -52,7 +52,7 @@ namespace Tcl.Lang
                 throw new TclNumArgsException(interp, 1, argv, "option ?arg ...?");
             }
 
-            int index = TclIndex.get(interp, argv[1], validCmds, "option", 0);
+            int index = TclIndex.Get(interp, argv[1], validCmds, "option", 0);
 
             switch (index)
             {
@@ -95,7 +95,7 @@ namespace Tcl.Lang
                                 byte[] bytes = TclByteArray.getBytes(interp, data);
 
                                 // ATK
-                                interp.setResult(System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length));
+                                interp.SetResult(System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length));
                             }
                             else
                             {
@@ -104,7 +104,7 @@ namespace Tcl.Lang
 
                                 // ATK byte[] bytes = data.ToString().getBytes(javaEncoding);
                                 byte[] bytes = System.Text.Encoding.UTF8.GetBytes(data.ToString());
-                                interp.setResult(TclByteArray.newInstance(bytes));
+                                interp.SetResult(TclByteArray.NewInstance(bytes));
                             }
                         }
                         catch (IOException ex)
@@ -127,7 +127,7 @@ namespace Tcl.Lang
                         {
                             TclList.Append(interp, list, TclString.NewInstance(tclNames[i]));
                         }
-                        interp.setResult(list);
+                        interp.SetResult(list);
                         break;
                     }
 
@@ -138,7 +138,7 @@ namespace Tcl.Lang
 
                         if (argv.Length == 2)
                         {
-                            interp.setResult(systemTclEncoding);
+                            interp.SetResult(systemTclEncoding);
                         }
                         else
                         {

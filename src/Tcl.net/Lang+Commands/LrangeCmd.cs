@@ -45,7 +45,7 @@ namespace Tcl.Lang
             }
             if (first <= 0 && last >= size)
             {
-                interp.setResult(argv[1]);
+                interp.SetResult(argv[1]);
                 return TCL.CompletionCode.RETURN;
             }
 
@@ -80,7 +80,7 @@ namespace Tcl.Lang
                 {
                     TclList.Append(interp, list, TclList.index(interp, argv[1], i));
                 }
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             finally
             {

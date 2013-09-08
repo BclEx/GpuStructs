@@ -1164,7 +1164,7 @@ namespace Tcl.Lang
 
             if ((System.Object)encoding == null)
             {
-                TclByteArray.setLength(null, obj, 0);
+                TclByteArray.SetLength(null, obj, 0);
             }
             else
             {
@@ -1262,7 +1262,7 @@ namespace Tcl.Lang
 
                 if ((System.Object)encoding == null)
                 {
-                    TclByteArray.setLength(null, obj, offset.i);
+                    TclByteArray.SetLength(null, obj, offset.i);
                     System.Diagnostics.Debug.WriteLine("set byte array length to " + offset.i);
                 }
             }
@@ -1358,7 +1358,7 @@ namespace Tcl.Lang
                 {
                     length = offset + toRead + 1;
                 }
-                dst = TclByteArray.setLength(null, obj, length);
+                dst = TclByteArray.SetLength(null, obj, length);
             }
 
             if (needNL)

@@ -43,11 +43,11 @@ namespace Tcl.Lang
 
             if (chan.eof())
             {
-                interp.setResult(TclInteger.NewInstance(1));
+                interp.SetResult(TclInteger.NewInstance(1));
             }
             else
             {
-                interp.setResult(TclInteger.NewInstance(0));
+                interp.SetResult(TclInteger.NewInstance(0));
             }
             return TCL.CompletionCode.RETURN;
         }

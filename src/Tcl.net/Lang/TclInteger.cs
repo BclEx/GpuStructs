@@ -134,7 +134,7 @@ namespace Tcl.Lang
         /// <returns> the integer value of the object.
         /// </returns>
 
-        public static int get(Interp interp, TclObject tobj)
+        public static int Get(Interp interp, TclObject tobj)
         {
             setIntegerFromAny(interp, tobj);
             TclInteger tint = (TclInteger)tobj.InternalRep;

@@ -18,7 +18,7 @@ namespace Tcl.Lang
         /// <summary> See Tcl user documentation for details.</summary>
         public TCL.CompletionCode CmdProc(Interp interp, TclObject[] argv)
         {
-            interp.setResult(Util.concat(1, argv.Length, argv));
+            interp.SetResult(Util.concat(1, argv.Length, argv));
             return TCL.CompletionCode.RETURN;
         }
     }

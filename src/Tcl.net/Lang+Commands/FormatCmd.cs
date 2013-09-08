@@ -296,7 +296,7 @@ namespace Tcl.Lang
                 {
                     if (argv.Length > argIndex)
                     {
-                        width = TclInteger.get(interp, argv[argIndex]);
+                        width = TclInteger.Get(interp, argv[argIndex]);
                         if (width < 0)
                         {
                             width = -width;
@@ -328,7 +328,7 @@ namespace Tcl.Lang
                         if (argv.Length > argIndex)
                         {
                             precisionSet = true;
-                            precision = TclInteger.get(interp, argv[argIndex]);
+                            precision = TclInteger.Get(interp, argv[argIndex]);
                             argIndex++;
                             fmtIndex++;
                             checkOverFlow(interp, format, fmtIndex);
@@ -407,7 +407,7 @@ namespace Tcl.Lang
                                 // and on.  The result is a long value equal to that
                                 // of an unsigned int.
 
-                                lngValue = (long)TclInteger.get(interp, argv[argIndex]);
+                                lngValue = (long)TclInteger.Get(interp, argv[argIndex]);
                                 if (lngValue < 0)
                                 {
                                     lngValue = (lngValue << 32);
@@ -417,7 +417,7 @@ namespace Tcl.Lang
                             else
                             {
                                 fmtFlags |= SIGNED_VALUE;
-                                lngValue = (long)TclInteger.get(interp, argv[argIndex]);
+                                lngValue = (long)TclInteger.Get(interp, argv[argIndex]);
                             }
 
                             // If the useShort option has been selected, we need
@@ -451,7 +451,7 @@ namespace Tcl.Lang
                     case 'c':
                         {
                             intValue = 0;
-                            char[] arr = new char[] { (char)TclInteger.get(interp, argv[argIndex]) };
+                            char[] arr = new char[] { (char)TclInteger.Get(interp, argv[argIndex]) };
                             strValue = new string(arr);
                             sbuf.Append(cvtStrToStr(strValue, width, precision, fmtFlags));
                             break;
@@ -510,7 +510,7 @@ namespace Tcl.Lang
                 fmtIndex++;
                 argIndex++;
             }
-            interp.setResult(sbuf.ToString());
+            interp.SetResult(sbuf.ToString());
             return TCL.CompletionCode.RETURN;
         }
 

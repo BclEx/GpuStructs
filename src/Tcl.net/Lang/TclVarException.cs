@@ -38,11 +38,11 @@ namespace Tcl.Lang
                 interp.ResetResult();
                 if ((System.Object)name2 == null)
                 {
-                    interp.setResult("can't " + operation + " \"" + name1 + "\": " + reason);
+                    interp.SetResult("can't " + operation + " \"" + name1 + "\": " + reason);
                 }
                 else
                 {
-                    interp.setResult("can't " + operation + " \"" + name1 + "(" + name2 + ")\": " + reason);
+                    interp.SetResult("can't " + operation + " \"" + name1 + "(" + name2 + ")\": " + reason);
                 }
             }
         }

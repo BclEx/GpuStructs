@@ -121,7 +121,7 @@ namespace Tcl.Lang
                     script = best.script;
                     try
                     {
-                        interp.eval(script, TCL.EVAL_GLOBAL);
+                        interp.Eval(script, TCL.EVAL_GLOBAL);
                     }
                     catch (TclException e)
                     {
@@ -171,7 +171,7 @@ namespace Tcl.Lang
                     }
                     try
                     {
-                        interp.eval(sbuf.ToString(), TCL.EVAL_GLOBAL);
+                        interp.Eval(sbuf.ToString(), TCL.EVAL_GLOBAL);
                     }
                     catch (TclException e)
                     {
@@ -270,7 +270,7 @@ namespace Tcl.Lang
             {
                 throw new TclNumArgsException(interp, 1, objv, "option ?arg arg ...?");
             }
-            opt = TclIndex.get(interp, objv[1], validCmds, "option", 0);
+            opt = TclIndex.Get(interp, objv[1], validCmds, "option", 0);
             switch (opt)
             {
 
@@ -336,7 +336,7 @@ namespace Tcl.Lang
                                 {
                                     // If doing a query return current script.
 
-                                    interp.setResult(avail.script);
+                                    interp.SetResult(avail.script);
                                     return TCL.CompletionCode.RETURN;
                                 }
 
@@ -396,7 +396,7 @@ namespace Tcl.Lang
                             }
                             if (once)
                             {
-                                interp.setResult(sbuf.ToString());
+                                interp.SetResult(sbuf.ToString());
                             }
                         }
                         catch (TclException e)
@@ -444,7 +444,7 @@ namespace Tcl.Lang
 
                             version = pkgPresent(interp, objv[2].ToString(), version, false);
                         }
-                        interp.setResult(version);
+                        interp.SetResult(version);
                         break;
                     }
 
@@ -462,7 +462,7 @@ namespace Tcl.Lang
                             {
                                 if ((System.Object)pkg.version != null)
                                 {
-                                    interp.setResult(pkg.version);
+                                    interp.SetResult(pkg.version);
                                 }
                             }
                             return TCL.CompletionCode.RETURN;
@@ -508,7 +508,7 @@ namespace Tcl.Lang
 
                             version = pkgRequire(interp, objv[2].ToString(), version, false);
                         }
-                        interp.setResult(version);
+                        interp.SetResult(version);
                         return TCL.CompletionCode.RETURN;
                     }
 
@@ -522,7 +522,7 @@ namespace Tcl.Lang
                         {
                             if ((System.Object)interp._packageUnknown != null)
                             {
-                                interp.setResult(interp._packageUnknown);
+                                interp.SetResult(interp._packageUnknown);
                             }
                         }
                         else if (objv.Length == 3)
@@ -550,7 +550,7 @@ namespace Tcl.Lang
                         ver2 = objv[3].ToString();
                         checkVersion(interp, ver1);
                         checkVersion(interp, ver2);
-                        interp.setResult(compareVersions(ver1, ver2, null));
+                        interp.SetResult(compareVersions(ver1, ver2, null));
                         return TCL.CompletionCode.RETURN;
                     }
 
@@ -575,7 +575,7 @@ namespace Tcl.Lang
                                 }
                                 if (once)
                                 {
-                                    interp.setResult(sbuf.ToString());
+                                    interp.SetResult(sbuf.ToString());
                                 }
                             }
                             catch (TclException e)
@@ -601,7 +601,7 @@ namespace Tcl.Lang
                         checkVersion(interp, ver2);
                         vsres = new VersionSatisfiesResult();
                         compareVersions(ver1, ver2, vsres);
-                        interp.setResult(vsres.satisfies);
+                        interp.SetResult(vsres.satisfies);
                         return TCL.CompletionCode.RETURN;
                     }
 

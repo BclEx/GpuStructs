@@ -43,7 +43,7 @@ namespace Tcl.Lang
             try
             {
                 TclList.insert(interp, list, index, argv, 3, argv.Length - 1);
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             catch (TclException e)
             {

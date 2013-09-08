@@ -71,11 +71,11 @@ namespace Tcl.Lang
                 if (writeToVar)
                 {
                     interp.SetVar(varName, line, 0);
-                    interp.setResult(lineLen);
+                    interp.SetResult(lineLen);
                 }
                 else
                 {
-                    interp.setResult(line);
+                    interp.SetResult(line);
                 }
             }
             catch (IOException e)

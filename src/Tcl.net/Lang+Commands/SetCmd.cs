@@ -28,12 +28,12 @@ namespace Tcl.Lang
             {
                 System.Diagnostics.Debug.WriteLine("getting value of \"" + argv[1].ToString() + "\"");
 
-                interp.setResult(interp.GetVar(argv[1], 0));
+                interp.SetResult(interp.GetVar(argv[1], 0));
             }
             else if (argv.Length == 3)
             {
                 System.Diagnostics.Debug.WriteLine("setting value of \"" + argv[1].ToString() + "\" to \"" + argv[2].ToString() + "\"");
-                interp.setResult(interp.SetVar(argv[1], argv[2], 0));
+                interp.SetResult(interp.SetVar(argv[1], argv[2], 0));
             }
             else
             {

@@ -43,7 +43,7 @@ namespace Tcl.Lang
             mode = TclIO.SEEK_SET;
             if (argv.Length == 4)
             {
-                int index = TclIndex.get(interp, argv[3], validOrigins, "origin", 0);
+                int index = TclIndex.Get(interp, argv[3], validOrigins, "origin", 0);
 
                 switch (index)
                 {
@@ -75,7 +75,7 @@ namespace Tcl.Lang
 
                 throw new TclException(interp, "can not find channel named \"" + argv[1].ToString() + "\"");
             }
-            long offset = TclInteger.get(interp, argv[2]);
+            long offset = TclInteger.Get(interp, argv[2]);
 
             try
             {

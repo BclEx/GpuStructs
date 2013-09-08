@@ -26,7 +26,7 @@ namespace Tcl.Lang
             }
             if (argv.Length == 2)
             {
-                code = TclInteger.get(interp, argv[1]);
+                code = TclInteger.Get(interp, argv[1]);
             }
             else
             {

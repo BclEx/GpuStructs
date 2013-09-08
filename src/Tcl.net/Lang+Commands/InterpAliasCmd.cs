@@ -173,7 +173,7 @@ namespace Tcl.Lang
 
             SupportClass.PutElement(masterInterp._targetTable, alias.slaveCmd, slaveInterp);
 
-            interp.setResult(name);
+            interp.SetResult(name);
         }
         internal static void delete(Interp interp, Interp slaveInterp, TclObject name)
         {
@@ -202,13 +202,13 @@ namespace Tcl.Lang
             if (slaveInterp._aliasTable.ContainsKey(inString))
             {
                 InterpAliasCmd alias = (InterpAliasCmd)slaveInterp._aliasTable[inString];
-                interp.setResult(alias.prefix);
+                interp.SetResult(alias.prefix);
             }
         }
         internal static void list(Interp interp, Interp slaveInterp)
         {
             TclObject result = TclList.NewInstance();
-            interp.setResult(result);
+            interp.SetResult(result);
 
             IEnumerator aliases = slaveInterp._aliasTable.Values.GetEnumerator();
             while (aliases.MoveNext())

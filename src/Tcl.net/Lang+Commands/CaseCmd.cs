@@ -95,7 +95,7 @@ namespace Tcl.Lang
                         {
                             body = i + 1;
                         }
-                        if (Util.stringMatch(inString, caseString))
+                        if (Util.StringMatch(inString, caseString))
                         {
                             body = i + 1;
                             goto match_loop_brk;
@@ -112,7 +112,7 @@ namespace Tcl.Lang
                     for (j = 0; j < numPats; j++)
                     {
 
-                        if (Util.stringMatch(inString, TclList.index(interp, caseArgv[i], j).ToString()))
+                        if (Util.StringMatch(inString, TclList.index(interp, caseArgv[i], j).ToString()))
                         {
                             body = i + 1;
                             goto match_loop_brk;
@@ -129,7 +129,7 @@ namespace Tcl.Lang
             {
                 try
                 {
-                    interp.eval(caseArgv[body], 0);
+                    interp.Eval(caseArgv[body], 0);
                 }
                 catch (TclException e)
                 {

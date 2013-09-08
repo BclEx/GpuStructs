@@ -44,7 +44,7 @@ namespace Tcl.Lang
                 interp.SetErrorCode(argv[3]);
             }
 
-            interp.setResult(argv[1]);
+            interp.SetResult(argv[1]);
             throw new TclException(TCL.CompletionCode.ERROR);
         }
     } // end ErrorCmd

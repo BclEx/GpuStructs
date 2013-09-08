@@ -77,7 +77,7 @@ namespace Tcl.Lang
                 * Short-cut.
                 */
 
-                int i = TclInteger.get(interp, tobj);
+                int i = TclInteger.Get(interp, tobj);
                 tobj.InternalRep = new TclDouble(i);
             }
             else

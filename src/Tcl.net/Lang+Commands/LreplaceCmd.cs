@@ -73,7 +73,7 @@ namespace Tcl.Lang
             try
             {
                 TclList.replace(interp, list, first, numToDelete, argv, 4, argv.Length - 1);
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             catch (TclException e)
             {

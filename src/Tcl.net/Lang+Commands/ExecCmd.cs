@@ -177,7 +177,7 @@ namespace Tcl.Lang
                 }
 
                 //otherwise things went well so set the result
-                interp.setResult(sbuf.ToString());
+                interp.SetResult(sbuf.ToString());
             }
             catch (IOException e)
             {

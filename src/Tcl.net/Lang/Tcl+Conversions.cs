@@ -146,7 +146,7 @@ namespace Tcl.Lang
         {
             try
             {
-                interp.eval(s);
+                interp.Eval(s);
                 return 0;
             }
             catch
@@ -158,7 +158,7 @@ namespace Tcl.Lang
         {
             try
             {
-                interp.eval(tobj, flags);
+                interp.Eval(tobj, flags);
                 return 0;
             }
             catch (TclException e)
@@ -289,7 +289,7 @@ namespace Tcl.Lang
         {
             try
             {
-                index = TclIndex.get(interp, to, table, msg, flags);
+                index = TclIndex.Get(interp, to, table, msg, flags);
                 return false;
             }
             catch
@@ -303,7 +303,7 @@ namespace Tcl.Lang
         {
             try
             {
-                value = TclInteger.get(interp, to);
+                value = TclInteger.Get(interp, to);
                 return false;
             }
             catch
@@ -317,7 +317,7 @@ namespace Tcl.Lang
         {
             try
             {
-                value = (u32)TclInteger.get(interp, to);
+                value = (u32)TclInteger.Get(interp, to);
                 return false;
             }
             catch
@@ -331,7 +331,7 @@ namespace Tcl.Lang
         {
             try
             {
-                value = TclInteger.get(interp, to);
+                value = TclInteger.Get(interp, to);
                 return TCL.TCL_OK;
             }
             catch
@@ -495,7 +495,7 @@ namespace Tcl.Lang
         {
             Debug.Assert(((flags & VarFlags.EXT_LINK_READ_ONLY) != 0) || GetSet.GetType().Name == "SQLITE3_GETSET");
             Var[] linkvar = Var.LookupVar(interp, name, null, VarFlag.GLOBAL_ONLY, "define", true, false);
-            linkvar[0]._flags |= VarFlags.EXT_LINK | flags;
+            linkvar[0].Flags |= VarFlags.EXT_LINK | flags;
             linkvar[0].ext_getset = GetSet;
             linkvar[0].RefCount++;
         }
@@ -561,17 +561,17 @@ namespace Tcl.Lang
         public static TclObject Tcl_NewByteArrayObj(byte[] value, int bytes)
         {
             if (value == null || value.Length == 0 || bytes == 0)
-                return TclByteArray.newInstance();
+                return TclByteArray.NewInstance();
             else
-                return TclByteArray.newInstance(value, 0, bytes);
+                return TclByteArray.NewInstance(value, 0, bytes);
         }
 
         public static TclObject Tcl_NewByteArrayObj(string value, int bytes)
         {
             if (value == null || bytes == 0)
-                return TclByteArray.newInstance();
+                return TclByteArray.NewInstance();
             else
-                return TclByteArray.newInstance(System.Text.Encoding.UTF8.GetBytes(value.Substring(0, bytes)));
+                return TclByteArray.NewInstance(System.Text.Encoding.UTF8.GetBytes(value.Substring(0, bytes)));
         }
 
         public static TclObject Tcl_NewDoubleObj(double value)
@@ -685,19 +685,19 @@ namespace Tcl.Lang
         public static void Tcl_SetObjResult(Interp interp, TclObject to)
         {
             interp.ResetResult();
-            interp.setResult(to);
+            interp.SetResult(to);
         }
 
         public static void Tcl_SetResult(Interp interp, StringBuilder result, int dummy)
         {
             interp.ResetResult();
-            interp.setResult(result.ToString());
+            interp.SetResult(result.ToString());
         }
 
         public static void Tcl_SetResult(Interp interp, string result, int dummy)
         {
             interp.ResetResult();
-            interp.setResult(result);
+            interp.SetResult(result);
         }
 
         public static void Tcl_SetVar(Interp interp, string part, string value, int flags)

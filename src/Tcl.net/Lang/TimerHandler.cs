@@ -82,7 +82,7 @@ namespace Tcl.Lang
                 }
             }
         }
-        public void cancel()
+        public void Cancel()
         {
             lock (this)
             {
@@ -124,7 +124,7 @@ namespace Tcl.Lang
 
                 if (!isCancelled)
                 {
-                    processTimerEvent();
+                    ProcessTimerEvent();
                     return 1;
                 }
                 else
@@ -133,6 +133,6 @@ namespace Tcl.Lang
                 }
             }
         }
-        abstract public void processTimerEvent();
+        abstract public void ProcessTimerEvent();
     } // end TimerHandler
 }

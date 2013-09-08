@@ -60,7 +60,7 @@ namespace Tcl.Lang
 
             for (int i = 1; i < argv.Length - 1; i++)
             {
-                int index = TclIndex.get(interp, argv[i], validOpts, "option", 0);
+                int index = TclIndex.Get(interp, argv[i], validOpts, "option", 0);
 
                 switch (index)
                 {
@@ -139,7 +139,7 @@ namespace Tcl.Lang
             try
             {
                 TclList.sort(interp, list, sortMode, sortIndex, sortIncreasing, command, unique);
-                interp.setResult(list);
+                interp.SetResult(list);
             }
             catch (TclException e)
             {

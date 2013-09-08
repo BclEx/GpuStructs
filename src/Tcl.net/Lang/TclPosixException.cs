@@ -120,7 +120,7 @@ namespace Tcl.Lang
 
             if (interp != null)
             {
-                interp.setResult(errorMsg);
+                interp.SetResult(errorMsg);
             }
         }
 
@@ -141,11 +141,11 @@ namespace Tcl.Lang
             {
                 if (appendPosixMsg)
                 {
-                    interp.setResult(errorMsg + ": " + msg);
+                    interp.SetResult(errorMsg + ": " + msg);
                 }
                 else
                 {
-                    interp.setResult(errorMsg);
+                    interp.SetResult(errorMsg);
                 }
             }
         }

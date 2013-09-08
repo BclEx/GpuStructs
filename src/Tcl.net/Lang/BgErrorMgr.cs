@@ -32,7 +32,7 @@ namespace Tcl.Lang
 
         internal void AddBgError()
         {
-            BgError bgError = new BgError(this, Interp.getNotifier());
+            BgError bgError = new BgError(this, Interp.GetNotifier());
             // The addErrorInfo() call below (with an empty string) ensures that errorInfo gets properly set.  It's needed in
             // cases where the error came from a utility procedure like Interp.getVar() instead of Interp.eval(); in these cases
             // errorInfo still won't have been set when this procedure is called.
