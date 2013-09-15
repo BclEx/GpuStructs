@@ -1,4 +1,4 @@
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
+#if vodefined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
 #ifndef __static__
@@ -43,7 +43,7 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
 #else
 __device__ runtimeHeap *__runtimeHeap;
 extern "C" __device__ void _runtimeSetHeap(void *heap) { }
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(&__runtimeHeap, heap, sizeof(heap)); }
+extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(__runtimeHeap)); }
 #endif
 
 #pragma endregion
