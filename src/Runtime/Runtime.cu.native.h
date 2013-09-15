@@ -38,12 +38,12 @@ typedef struct __align__(8)
 
 #if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
 __shared__ static runtimeHeap *__runtimeHeap;
-__device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
+extern "C" __device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
 #else
 __device__ runtimeHeap *__runtimeHeap;
-extern __device__ void _runtimeSetHeap(void *heap) { }
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(__runtimeHeap, heap, sizeof(heap)); }
+extern "C" __device__ void _runtimeSetHeap(void *heap) { }
+extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(&__runtimeHeap, heap, sizeof(heap)); }
 #endif
 
 #pragma endregion
@@ -74,7 +74,7 @@ __device__ static char *moveNextPtr()
 	return blocks + offset;
 }
 
-__device__ __static__ void runtimeRestrict(int threadid, int blockid)
+extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 {
 	int threadMax = blockDim.x * blockDim.y * blockDim.z;
 	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)

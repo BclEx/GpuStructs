@@ -15,8 +15,8 @@
 #include "Runtime.cu.native.h"
 #else
 
-extern __device__ void _runtimeSetHeap(void *heap);
-extern __device__ void runtimeRestrict(int threadid, int blockid);
+extern "C" __device__ void _runtimeSetHeap(void *heap);
+extern "C" __device__ void runtimeRestrict(int threadid, int blockid);
 
 // Abuse of templates to simulate varargs
 extern __device__ int _printf(const char *fmt);
