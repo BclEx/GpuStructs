@@ -8,7 +8,7 @@ properties {
   $version = "1.0.0"
   $config_cpu = "Release.cpu"
   $config_cu = "Release.cu"
-  $run_tests = $false
+  $run_tests = $true
 }
 Framework "4.0"
 	
@@ -40,7 +40,7 @@ task Compile -depends Init {
 task Test -depends Compile -precondition { return $run_tests } {
 	$old = pwd
 	cd $build_dir
-	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\11\System.WebEx.Tests.dll" /noshadow
+	& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.cu.Tests.dll" /noshadow
 	cd $old
 }
 

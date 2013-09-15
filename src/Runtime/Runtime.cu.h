@@ -12,7 +12,11 @@
 // Assert
 #undef  _assert
 #ifndef NDEBUG
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+extern "C" __device__ static void __assert(const char *message, const char *file, unsigned int line);
+#else
 extern "C" __device__ void __assert(const char *message, const char *file, unsigned int line);
+#endif
 #define _assert(X) (void)((!!(X))||(__assert(#X, __FILE__, __LINE__), 0))
 #define ASSERTONLY(X) X
 __device__ __forceinline__ void Coverage(int line) { }
@@ -73,9 +77,8 @@ template <typename T1, typename T2, typename T3, typename T4> extern __device__ 
 // DEVICE SIDE
 // External function definitions for device-side code
 
-extern __constant__ unsigned char _runtimeUpperToLower[];
+extern __constant__ unsigned char _runtimeUpperToLower[256];
 extern __constant__ unsigned char _runtimeCtypeMap[256];
-
 #define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
 #define _isalnumA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x06)
