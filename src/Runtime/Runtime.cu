@@ -1,9 +1,9 @@
-#define RUNTIME_UNRESTRICTED -1
-#include "Runtime.cu.native.h"
+#define __EMBED__ 1
+#include "Runtime.cu.h"
 
 #pragma region Runtime
 
-extern __constant__ const unsigned char _runtimeUpperToLower[] = {
+__constant__ unsigned char _runtimeUpperToLower[] = {
 	0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
 	18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
 	36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
@@ -21,7 +21,7 @@ extern __constant__ const unsigned char _runtimeUpperToLower[] = {
 	252,253,254,255
 };
 
-extern __constant__ const unsigned char _runtimeCtypeMap[256] = {
+__constant__ unsigned char _runtimeCtypeMap[256] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 00..07    ........ */
 	0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00,  /* 08..0f    ........ */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 10..17    ........ */

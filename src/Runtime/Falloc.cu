@@ -1,1 +1,2 @@
-#include "Falloc.cu.native.h"
+#define __EMBED__ 1
+#include "Falloc.cu.h"

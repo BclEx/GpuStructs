@@ -9,8 +9,10 @@
 // DEVICE SIDE
 // External function definitions for device-side code
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+#if defined(__EMBED__) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#ifndef __EMBED__
 #define __static__ static
+#endif
 #include "Falloc.cu.native.h"
 #else
 

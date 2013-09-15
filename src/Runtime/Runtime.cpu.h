@@ -4,7 +4,6 @@
 #define __device__
 #define __constant__ const
 #define __shared__
-#include <assert.h>
 //#include <string.h>
 #pragma warning(disable:4996)
 
@@ -12,6 +11,21 @@
 // DEVICE SIDE
 // External function definitions for device-side code
 
+// Assert
+#undef _assert
+#ifndef NDEBUG
+extern "C" _CRTIMP void __cdecl _wassert(_In_z_ const wchar_t * _Message, _In_z_ const wchar_t *_File, _In_ unsigned _Line);
+#define _assert(X) (void)((!!(X))||(_wassert(#X, __FILE__, __LINE__), 0))
+#define ASSERTONLY(X) X
+__device__ inline void Coverage(int line) { }
+#define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
+#else
+#define _assert(X) ((void)0)
+#define ASSERTONLY(X)
+#define ASSERTCOVERAGE(X)
+#endif
+
+// Heap
 #define RUNTIME_UNRESTRICTED -1
 extern __device__ inline void runtimeSetHeap(void *heap) { }
 extern __device__ inline void runtimeRestrict(int threadid, int blockid) { }
@@ -40,19 +54,6 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); }
-
-// Assert
-#ifndef NASSERT
-template <typename T1> __device__ inline void _assert(const T1 condition) { if (!condition) assert(false); }
-template <typename T1> __device__ inline void _assert(const T1 condition, const char *fmt) { if (!condition) printf(fmt); }
-#define ASSERTONLY(X) X
-__device__ inline void Coverage(int line) { }
-#define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
-#else
-#define _assert(X, ...)
-#define ASSERTONLY(X)
-#define ASSERTCOVERAGE(X)
-#endif
 
 // Abuse of templates to simulate varargs
 __device__ inline void _throw(const char *fmt) { printf(fmt); }

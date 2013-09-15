@@ -437,22 +437,10 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
 	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
-__device__ __static__ void _assert(const bool condition)
+extern "C" __device__ __static__ void __assert(const char *fmt, const char *file, unsigned int line)
 {
-	const char *fmt = nullptr;
-	if (condition)
-	{
-		ASSERT_PREAMBLE;
-		ASSERT_POSTAMBLE;
-	}
-}
-__device__ __static__ void _assert(const bool condition, const char *fmt)
-{
-	if (condition)
-	{
-		ASSERT_PREAMBLE;
-		ASSERT_POSTAMBLE;
-	}
+	ASSERT_PREAMBLE;
+	ASSERT_POSTAMBLE;
 }
 
 #undef ASSERT_PREAMBLE

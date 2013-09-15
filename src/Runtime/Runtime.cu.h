@@ -9,12 +9,29 @@
 // DEVICE SIDE
 // External function definitions for device-side code
 
+// Assert
+#undef  _assert
+#ifndef NDEBUG
+extern "C" __device__ void __assert(const char *message, const char *file, unsigned int line);
+#define _assert(X) (void)((!!(X))||(__assert(#X, __FILE__, __LINE__), 0))
+#define ASSERTONLY(X) X
+__device__ __forceinline__ void Coverage(int line) { }
+#define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
+#else
+#define _assert(X) ((void)0)
+#define ASSERTONLY(X)
+#define ASSERTCOVERAGE(X)
+#endif
+
 #define RUNTIME_UNRESTRICTED -1
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+#if defined(__EMBED__) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#ifndef __EMBED__
 #define __static__ static
+#endif
 #include "Runtime.cu.native.h"
 #else
 
+// Heap
 extern "C" __device__ void _runtimeSetHeap(void *heap);
 extern "C" __device__ void runtimeRestrict(int threadid, int blockid);
 
@@ -43,19 +60,6 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9);
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> extern __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA);
 
-// Assert
-#ifndef NASSERT
-template <typename T1> extern __device__ void _assert(const T1 condition);
-template <typename T1> extern __device__ void _assert(const T1 condition, const char *fmt);
-#define ASSERTONLY(X) X
-__device__ __forceinline__ void Coverage(int line) { }
-#define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
-#else
-#define _assert(X, ...)
-#define ASSERTONLY(X)
-#define ASSERTCOVERAGE(X)
-#endif
-
 // Abuse of templates to simulate varargs
 extern __device__ void _throw(const char *fmt);
 template <typename T1> extern __device__ void _throw(const char *fmt, T1 arg1);
@@ -69,8 +73,8 @@ template <typename T1, typename T2, typename T3, typename T4> extern __device__ 
 // DEVICE SIDE
 // External function definitions for device-side code
 
-extern __constant__ unsigned char *_runtimeUpperToLower;
-extern __constant__ unsigned char *_runtimeCtypeMap;
+extern __constant__ unsigned char _runtimeUpperToLower[];
+extern __constant__ unsigned char _runtimeCtypeMap[256];
 
 #define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
