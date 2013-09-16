@@ -4,6 +4,7 @@
 #define __device__
 #define __constant__ const
 #define __shared__
+#include <assert.h>
 //#include <string.h>
 #pragma warning(disable:4996)
 
@@ -14,8 +15,9 @@
 // Assert
 #undef _assert
 #ifndef NDEBUG
-extern "C" _CRTIMP void __cdecl _wassert(_In_z_ const wchar_t * _Message, _In_z_ const wchar_t *_File, _In_ unsigned _Line);
-#define _assert(X) (void)((!!(X))||(_wassert(#X, __FILE__, __LINE__), 0))
+#define _assert(X) assert(X)
+//extern "C" _CRTIMP void __cdecl _wassert(_In_z_ const wchar_t * _Message, _In_z_ const wchar_t *_File, _In_ unsigned _Line);
+//#define _assert(X) (void)((!!(X))||(_wassert(#X, __FILE__, __LINE__), 0))
 #define ASSERTONLY(X) X
 __device__ inline void Coverage(int line) { }
 #define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }

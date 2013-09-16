@@ -4,6 +4,7 @@ __global__ static void runtimeExample(void *r)
 {
 	_runtimeSetHeap(r);
 	_printf("test");
+	_printf("test %s", "one");
 }
 
 void __runtimeExample(cudaRuntimeHost &r)

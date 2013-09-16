@@ -3,6 +3,9 @@
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"
 
+void __fallocExample(cudaFallocHost &f);
+void __runtimeExample(cudaRuntimeHost &r);
+
 int main(int argc, char **argv)
 {
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
@@ -14,6 +17,12 @@ int main(int argc, char **argv)
 	if (!Visual::InitGL(render, &argc, argv))
 		return 0;
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
+
+	// test
+	//__fallocExample(fallocHost);
+	__runtimeExample(runtimeHost);
+
+	// run
 	Visual::Main();
 	atexit(Visual::Dispose);
 	

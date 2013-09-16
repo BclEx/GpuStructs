@@ -745,7 +745,6 @@ void RuntimeVisualRender::Initialize()
 #endif
 #pragma endregion
 
-
 //////////////////////
 // EMBED
 #pragma region EMBED
