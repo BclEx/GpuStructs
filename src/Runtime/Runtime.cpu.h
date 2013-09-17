@@ -27,12 +27,26 @@ __device__ inline void Coverage(int line) { }
 #define ASSERTCOVERAGE(X)
 #endif
 
-// Heap
-#define RUNTIME_UNRESTRICTED -1
-extern __device__ inline void runtimeSetHeap(void *heap) { }
-extern __device__ inline void runtimeRestrict(int threadid, int blockid) { }
+///////////////////////////////////////////////////////////////////////////////
+// HEAP
+#pragma region HEAP
 
-// Abuse of templates to simulate varargs
+#define RUNTIME_UNRESTRICTED -1
+
+#pragma endregion
+
+// Heap
+extern "C" __device__ inline void runtimeSetHeap(void *heap) { }
+extern "C" __device__ inline void runtimeRestrict(int threadid, int blockid) { }
+
+///////////////////////////////////////////////////////////////////////////////
+// DEVICE SIDE
+// External function definitions for device-side code
+
+//////////////////////
+// PRINTF
+#pragma region PRINTF
+
 inline __device__ int _printf(const char *fmt) { return printf(fmt); }
 template <typename T1> inline __device__ int _printf(const char *fmt, T1 arg1) { return printf(fmt, arg1); }
 template <typename T1, typename T2> inline __device__ int _printf(const char *fmt, T1 arg1, T2 arg2) { return printf(fmt, arg1, arg2); }
@@ -44,7 +58,13 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { return printf(fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { return printf(fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { return printf(fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); }
-// Abuse of templates to simulate varargs
+
+#pragma endregion
+
+//////////////////////
+// SNPRINTF
+#pragma region SNPRINTF
+
 inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt) { return _snprintf(buf, bufLen, fmt); }
 template <typename T1> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1) { return _snprintf(buf, bufLen, fmt, arg1); }
 template <typename T1, typename T2> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2) { return _snprintf(buf, bufLen, fmt, arg1, arg2); }
@@ -57,16 +77,19 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); }
 
-// Abuse of templates to simulate varargs
+#pragma endregion
+
+//////////////////////
+// THROW
+#pragma region THROW
+
 __device__ inline void _throw(const char *fmt) { printf(fmt); }
 template <typename T1> __device__ inline void _throw(const char *fmt, T1 arg1) { printf(fmt, arg1); }
 template <typename T1, typename T2> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2) { printf(fmt, arg1, arg2); }
 template <typename T1, typename T2, typename T3> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { printf(fmt, arg1, arg2, arg3); }
 template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { printf(fmt, arg1, arg2, arg3, arg4); }
 
-///////////////////////////////////////////////////////////////////////////////
-// DEVICE SIDE
-// External function definitions for device-side code
+#pragma endregion
 
 extern const unsigned char *_runtimeUpperToLower;
 extern const unsigned char *_runtimeCtypeMap;

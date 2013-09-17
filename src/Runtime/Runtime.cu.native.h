@@ -53,12 +53,8 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbo
 #pragma region HEAP
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
-#define RUNTIME_ALIGNSIZE sizeof(long long)
-#define RUNTIMETYPE_PRINTF 1
-#define RUNTIMETYPE_ASSERT 2
-#define RUNTIMETYPE_THROW 2
 
-__device__ static char *moveNextPtr()
+extern "C" __device__ __static__ char *__runtimeMoveNextPtr(char *&end, char *&bufptr)
 {
 	if (!__runtimeHeap) __THROW;
 	// thread/block restriction check
@@ -68,10 +64,13 @@ __device__ static char *moveNextPtr()
 	if (restriction.threadid != RUNTIME_UNRESTRICTED && restriction.threadid != (threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z))
 		return nullptr;
 	// advance pointer
-	char *blocks = __runtimeHeap->blocks;
-	size_t offset = atomicAdd((unsigned int *)&__runtimeHeap->blockPtr, __runtimeHeap->blockSize) - (size_t)blocks;
+	char *start = __runtimeHeap->blocks;
+	size_t offset = atomicAdd((unsigned int *)&__runtimeHeap->blockPtr, __runtimeHeap->blockSize) - (size_t)start;
 	offset %= __runtimeHeap->blocksLength;
-	return blocks + offset;
+	start += offset;
+	end = start + __runtimeHeap->blockSize;
+	bufptr = start + sizeof(runtimeBlockHeader);
+	return start;
 }
 
 extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
@@ -84,7 +83,7 @@ extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 		__runtimeHeap->restriction.blockid = blockid;
 }
 
-__inline__ __device__ static void writeBlockHeader(unsigned short type, char *ptr, char *fmtptr)
+extern "C" __inline__ __device__ __static__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr)
 {
 	runtimeBlockHeader header;
 	header.magic = RUNTIME_MAGIC;
@@ -95,7 +94,7 @@ __inline__ __device__ static void writeBlockHeader(unsigned short type, char *pt
 	*(runtimeBlockHeader *)(void *)ptr = header;
 }
 
-__device__ static char *writeString(char *dest, const char *src, int maxLength, char *end)
+extern "C" __device__ __static__ char *__runtimeWriteString(char *dest, const char *src, int maxLength, char *end)
 {
 	// initialization and overflow check
 	if (!dest || dest >= end) //|| !src)
@@ -106,6 +105,8 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 	int len = 0;
 	dest += RUNTIME_ALIGNSIZE;
 	// now copy the string
+	if (maxLength == 0)
+		maxLength = __runtimeHeap->blockSize;
 	while (maxLength--)
 	{
 		if (dest >= end) // overflow check
@@ -125,300 +126,6 @@ __device__ static char *writeString(char *dest, const char *src, int maxLength, 
 	return (dest < end ? dest : nullptr); // overflow means return nullptr
 }
 
-__device__ __static__ char *__copyArg(char *ptr, const char *arg, char *end)
-{
-	// initialization check
-	if (!ptr) // || !arg)
-		return nullptr;
-	// strncpy does all our work. We just terminate.
-	if ((ptr = writeString(ptr, arg, ((runtimeHeap *)__runtimeHeap)->blockSize, end)) != nullptr)
-		*ptr = 0;
-	return ptr;
-}
-
-template <typename T>
-__device__ __static__ char *__copyArg(char *ptr, T &arg, char *end)
-{
-	// initialization and overflow check. Alignment rules mean that we're at least CUPRINTF_ALIGN_SIZE away from "end", so we only need to check that one offset.
-	if (!ptr || (ptr + RUNTIME_ALIGNSIZE) >= end)
-		return nullptr;
-	// write the length and argument
-	*(int *)(void *)ptr = sizeof(arg);
-	ptr += RUNTIME_ALIGNSIZE;
-	*(T *)(void *)ptr = arg;
-	ptr += RUNTIME_ALIGNSIZE;
-	*ptr = 0;
-	return ptr;
-}
-
-#pragma endregion
-
-//////////////////////
-// PRINTF
-#pragma region PRINTF
-
-#define PRINTF_PREAMBLE \
-	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = moveNextPtr()) == nullptr) return 0; \
-	end = start + __runtimeHeap->blockSize; \
-	bufptr = start + sizeof(runtimeBlockHeader);
-#define PRINTF_ARG(argname) \
-	bufptr = __copyArg(bufptr, argname, end);
-#define PRINTF_POSTAMBLE \
-	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
-	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
-	return (end ? (int)(end - start) : 0);
-
-__device__ __static__ int _printf(const char *fmt)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_POSTAMBLE;
-}
-template <typename T1> __device__ __static__ int _printf(const char *fmt, T1 arg1)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ __static__ int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
-	PRINTF_ARG(arg9);
-	PRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ __static__ int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
-{
-	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
-	PRINTF_ARG(arg9);
-	PRINTF_ARG(argA);
-	PRINTF_POSTAMBLE;
-}
-
-#undef PRINTF_PREAMBLE
-#undef PRINTF_ARG
-#undef PRINTF_POSTAMBLE
-
-#pragma endregion
-
-//////////////////////
-// SNPRINTF
-#pragma region SNPRINTF
-
-#define SNPRINTF_PREAMBLE \
-	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = moveNextPtr()) == nullptr) return 0; \
-	end = start + __runtimeHeap->blockSize; \
-	bufptr = start + sizeof(runtimeBlockHeader);
-#define SNPRINTF_ARG(argname) \
-	bufptr = __copyArg(bufptr, argname, end);
-#define SNPRINTF_POSTAMBLE \
-	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
-	writeBlockHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
-	return (end ? (int)(end - start) : 0);
-
-__device__ __static__ int _snprintf(const char *buf, size_t bufLen, const char *fmt)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_ARG(arg6);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_ARG(arg6);
-	SNPRINTF_ARG(arg7);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ __static__ int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_ARG(arg6);
-	SNPRINTF_ARG(arg7);
-	SNPRINTF_ARG(arg8);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ __static__ int ___snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_ARG(arg6);
-	SNPRINTF_ARG(arg7);
-	SNPRINTF_ARG(arg8);
-	SNPRINTF_ARG(arg9);
-	SNPRINTF_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ __static__ int _vprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
-{
-	SNPRINTF_PREAMBLE;
-	SNPRINTF_ARG(arg1);
-	SNPRINTF_ARG(arg2);
-	SNPRINTF_ARG(arg3);
-	SNPRINTF_ARG(arg4);
-	SNPRINTF_ARG(arg5);
-	SNPRINTF_ARG(arg6);
-	SNPRINTF_ARG(arg7);
-	SNPRINTF_ARG(arg8);
-	SNPRINTF_ARG(arg9);
-	SNPRINTF_ARG(argA);
-	SNPRINTF_POSTAMBLE;
-}
-
-#undef SNPRINTF_PREAMBLE
-#undef SNPRINTF_ARG
-#undef SNPRINTF_POSTAMBLE
-
 #pragma endregion
 
 //////////////////////
@@ -427,15 +134,12 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 
 #define ASSERT_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = moveNextPtr()) == nullptr) return; \
-	end = start + __runtimeHeap->blockSize; \
-	bufptr = start + sizeof(runtimeBlockHeader);
+	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return;
 #define ASSERT_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define ASSERT_POSTAMBLE \
-	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
-	writeBlockHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
+	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	__runtimeWriteHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
 extern "C" __device__ __static__ void __assert(const char *fmt, const char *file, unsigned int line)
 {
@@ -446,65 +150,6 @@ extern "C" __device__ __static__ void __assert(const char *fmt, const char *file
 #undef ASSERT_PREAMBLE
 #undef ASSERT_ARG
 #undef ASSERT_POSTAMBLE
-
-#pragma endregion
-
-//////////////////////
-// THROW
-#pragma region THROW
-
-#define THROW_PREAMBLE \
-	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = moveNextPtr()) == nullptr) return; \
-	end = start + __runtimeHeap->blockSize; \
-	bufptr = start + sizeof(runtimeBlockHeader);
-#define THROW_ARG(argname) \
-	bufptr = __copyArg(bufptr, argname, end);
-#define THROW_POSTAMBLE \
-	fmtstart = bufptr; \
-	end = writeString(bufptr, fmt, __runtimeHeap->blockSize, end); \
-	writeBlockHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
-	__THROW;
-
-__device__ __static__ void _throw(const char *fmt)
-{
-	THROW_PREAMBLE;
-	THROW_POSTAMBLE;
-}
-template <typename T1> __device__ __static__ void _throw(const char *fmt, T1 arg1)
-{
-	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_POSTAMBLE;
-}
-template <typename T1, typename T2> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2)
-{
-	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
-	THROW_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
-{
-	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
-	THROW_ARG(arg3);
-	THROW_POSTAMBLE;
-}
-template <typename T1, typename T2, typename T3, typename T4> __device__ __static__ void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
-{
-	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
-	THROW_ARG(arg3);
-	THROW_ARG(arg4);
-	THROW_POSTAMBLE;
-}
-
-#undef THROW_PREAMBLE
-#undef THROW_ARG
-#undef THROW_POSTAMBLE
 
 #pragma endregion
 
@@ -585,6 +230,7 @@ __global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY
 	}
 }
 
+__device__ static int _printf(const char *fmt);
 __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 {
 	_runtimeSetHeap(heap);
@@ -593,9 +239,9 @@ __global__ static void Keypress(runtimeHeap *heap, unsigned char key)
 	case 'a':
 		_printf("Test\n");
 		break;
-	case 'b':
-		_printf("Test %d\n", threadIdx.x);
-		break;
+	//case 'b':
+	//	_printf("Test %d\n", threadIdx.x);
+	//	break;
 	case 'c':
 		_assert(true);
 		break;
