@@ -36,10 +36,12 @@ extern "C" __device__ void *falloc(fallocCtx *ctx, unsigned short bytes, bool al
 extern "C" __device__ void *fallocRetract(fallocCtx *ctx, unsigned short bytes);
 extern "C" __inline__ __device__ void fallocMark(fallocCtx *ctx, void *&mark, unsigned short &mark2);
 extern "C" __inline__ __device__ bool fallocAtMark(fallocCtx *ctx, void *mark, unsigned short mark2);
+
+#endif // __CUDA_ARCH__
+
+// CONTEXT
 template <typename T> __inline__ __device__ T* falloc(fallocCtx *ctx) { return (T *)falloc(ctx, sizeof(T), true); }
 template <typename T> __inline__ __device__ void fallocPush(fallocCtx *ctx, T t) { *((T *)falloc(ctx, sizeof(T), false)) = t; }
 template <typename T> __inline__ __device__ T fallocPop(fallocCtx *ctx) { return *((T *)fallocRetract(ctx, sizeof(T))); }
-
-#endif // __CUDA_ARCH__
 
 #endif // __FALLOC_CU_H__

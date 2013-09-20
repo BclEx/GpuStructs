@@ -83,7 +83,7 @@ extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 		__runtimeHeap->restriction.blockid = blockid;
 }
 
-extern "C" __inline__ __device__ __static__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr)
+extern "C" __device__ __static__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr)
 {
 	runtimeBlockHeader header;
 	header.magic = RUNTIME_MAGIC;

@@ -1,4 +1,3 @@
-#define VISUAL
 #include "../Runtime/Cuda.h"
 #include "../Runtime/Runtime.h"
 #include "../Runtime/Falloc.h"

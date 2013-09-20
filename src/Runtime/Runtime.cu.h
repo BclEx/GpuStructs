@@ -49,17 +49,20 @@ __device__ __forceinline__ void Coverage(int line) { }
 
 // Heap
 extern "C" __device__ char *__runtimeMoveNextPtr(char *&end, char *&bufptr);
-extern "C" __inline__ __device__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr);
+extern "C" __device__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr);
 extern "C" __device__ char *__runtimeWriteString(char *dest, const char *src, int maxLength, char *end);
 extern "C" __device__ void _runtimeSetHeap(void *heap);
 extern "C" __device__ void runtimeRestrict(int threadid, int blockid);
+
+// Embed
+extern __constant__ unsigned char _runtimeUpperToLower[256];
+extern __constant__ unsigned char _runtimeCtypeMap[256];
 
 #endif // __CUDA_ARCH__
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
 // External function definitions for device-side code
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
@@ -410,8 +413,6 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 
 #pragma endregion
 
-extern __constant__ unsigned char _runtimeUpperToLower[256];
-extern __constant__ unsigned char _runtimeCtypeMap[256];
 #define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
 #define _isalnumA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x06)

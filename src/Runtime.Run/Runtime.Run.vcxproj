@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <LD>V</LD>
-    <LC>20</LC>
+    <LC>11</LC>
   </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
@@ -78,7 +78,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(LD)'!='V'">WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;VISUALx;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;VISUAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -95,6 +95,9 @@
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
       <GPUDebugInfo>true</GPUDebugInfo>
     </CudaCompile>
+    <CudaLink>
+      <PerformDeviceLink Condition="'$(LC)'=='11'">false</PerformDeviceLink>
+    </CudaLink>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <ClCompile>
@@ -104,7 +107,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions Condition="'$(LD)'!='V'">WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;VISUALx;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LD)'=='V'">WIN32;VISUAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -122,6 +125,9 @@
       <Include>$(SolutionDir)lib;%(Include)</Include>
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
     </CudaCompile>
+    <CudaLink>
+      <PerformDeviceLink Condition="'$(LC)'=='11'">false</PerformDeviceLink>
+    </CudaLink>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
