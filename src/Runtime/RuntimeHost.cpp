@@ -48,8 +48,9 @@ cudaError _lastError;
 #define RUNTIME_MAGIC (unsigned short)0xC811
 #define RUNTIME_ALIGNSIZE sizeof(long long)
 #define RUNTIMETYPE_PRINTF 1
-#define RUNTIMETYPE_ASSERT 2
-#define RUNTIMETYPE_THROW 3
+#define RUNTIMETYPE_SNPRINTF 2
+#define RUNTIMETYPE_ASSERT 3
+#define RUNTIMETYPE_THROW 4
 
 extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
@@ -129,6 +130,14 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 		switch (hdr->type)
 		{
 		case RUNTIMETYPE_PRINTF:
+			if (headings)
+				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
+			if (hdr->fmtoffset == 0)
+				fprintf(_stream, "printf buffer overflow\n");
+			else
+				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+			break;
+		case RUNTIMETYPE_SNPRINTF:
 			if (headings)
 				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			if (hdr->fmtoffset == 0)

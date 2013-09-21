@@ -190,7 +190,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	PRINTF_ARG(arg8);
 	PRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int __printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	PRINTF_PREAMBLE;
 	PRINTF_ARG(arg1);
@@ -240,7 +240,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	__runtimeWriteHeader(RUNTIMETYPE_SNPRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
-__device__ static int _snprintf(const char *buf, size_t bufLen, const char *fmt)
+__device__ static int __snprintf(const char *buf, size_t bufLen, const char *fmt)
 {
 	SNPRINTF_PREAMBLE;
 	SNPRINTF_POSTAMBLE;
@@ -321,7 +321,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	SNPRINTF_ARG(arg8);
 	SNPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int ___snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	SNPRINTF_PREAMBLE;
 	SNPRINTF_ARG(arg1);
@@ -335,7 +335,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	SNPRINTF_ARG(arg9);
 	SNPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static int _snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static int __snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
 {
 	SNPRINTF_PREAMBLE;
 	SNPRINTF_ARG(arg1);
@@ -422,9 +422,9 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #define _tolowerA(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
-template <typename T> struct array_t { size_t length; T *data; __device__ inline void operator=(T *rhs) { data = rhs; } __device__ inline operator T *() { return data; } };
-#define __arrayAlloc(t,Ti,length) (Ti*)((int*)malloc(sizeof(Ti)*length+4)+1);*((int*)t&-1)=length
-#define __arrayLength(t) t.length
+template <typename T> struct array_t { size_t length; T *data; __device__ inline array_t(T *a) { data = a; length = _strlen30(a); } __device__ inline array_t(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; length = _strlen30(a); } __device__ inline operator T *() { return data; } };
+//#define __arrayAlloc(t,Ti,length) (Ti*)((int*)malloc(sizeof(Ti)*length+4)+1);*((int*)t&-1)=length
+//#define __arrayLength(t) t.length
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp

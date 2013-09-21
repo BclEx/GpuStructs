@@ -40,7 +40,14 @@ task Compile -depends Init {
 task Test -depends Compile -precondition { return $run_tests } {
 	$old = pwd
 	cd $build_dir
-	& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.cu.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.11.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.11V.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.20.Tests.dll" /noshadow
+	& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.20V.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.30.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.30V.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.35.Tests.dll" /noshadow
+	#& $tools_dir\xUnit\xunit.console.clr4.exe "$build_dir\cu\Runtime.35V.Tests.dll" /noshadow
 	cd $old
 }
 
