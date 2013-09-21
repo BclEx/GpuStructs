@@ -36,7 +36,7 @@ typedef struct __align__(8)
 	unsigned short threadid;	// thread ID of author
 } runtimeBlockHeader;
 
-#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
 __shared__ static runtimeHeap *__runtimeHeap;
 extern "C" __device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
 extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }

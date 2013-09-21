@@ -121,11 +121,11 @@ __device__ inline int _strcmp(const T *left, const T *right)
 
 // strncmp
 template <typename T>
-__device__ inline int _strncmp(const T *dest, const T *src, int n)
+__device__ inline int _strncmp(const T *left, const T *right, int n)
 {
 	register unsigned char *a, *b;
-	a = (unsigned char *)dest;
-	b = (unsigned char *)src;
+	a = (unsigned char *)left;
+	b = (unsigned char *)right;
 	while (n-- > 0 && *a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return (n < 0 ? 0 : _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b]);
 }
@@ -154,10 +154,13 @@ __device__ inline void _memset(T *dest, const char value, size_t length)
 
 // memcmp
 template <typename T, typename Y>
-__device__ inline int _memcmp(T *a, Y *b, size_t length)
+__device__ inline int _memcmp(T *left, Y *right, size_t length)
 {
-	assert(false);
-	return 0;
+	register unsigned char *a, *b;
+	a = (unsigned char *)left;
+	b = (unsigned char *)right;
+	while (*a != 0 && *a == *b) { a++; b++; }
+	return *a - *b;
 }
 
 // strlen30

@@ -38,6 +38,10 @@ typedef struct __align__(8)
 	char *blocks;
 } fallocHeap;
 
+#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#else
+#endif
+
 #pragma endregion
 
 ///////////////////////////////////////////////////////////////////////////////
