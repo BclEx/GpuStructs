@@ -103,14 +103,11 @@ extern const unsigned char *_runtimeCtypeMap;
 #define _tolowerA(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
-template <typename T> struct array_t { size_t length; T *data; inline void operator=(T *rhs) { data = rhs; } inline operator T *() { return data; } };
-#define __arrayAlloc(t,Ti,length) (Ti*)((int*)malloc(sizeof(Ti)*length+4)+1);*((int*)t&-1)=length
-#define __arrayLength(t) t.length
+template <typename T> struct array_t { size_t length; T *data; inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp
-template <typename T>
-__device__ inline int _strcmp(const T *left, const T *right)
+template <typename T> __device__ inline int _strcmp(const T *left, const T *right)
 {
 	register unsigned char *a, *b;
 	a = (unsigned char *)left;
@@ -120,8 +117,7 @@ __device__ inline int _strcmp(const T *left, const T *right)
 }
 
 // strncmp
-template <typename T>
-__device__ inline int _strncmp(const T *left, const T *right, int n)
+template <typename T> __device__ inline int _strncmp(const T *left, const T *right, int n)
 {
 	register unsigned char *a, *b;
 	a = (unsigned char *)left;
@@ -131,8 +127,7 @@ __device__ inline int _strncmp(const T *left, const T *right, int n)
 }
 
 // memcpy
-template <typename T>
-__device__ inline void _memcpy(T *dest, const T *src, size_t length)
+template <typename T> __device__ inline void _memcpy(T *dest, const T *src, size_t length)
 {
 	//memcpy(dest, src, length);
 	register unsigned char *a, *b;
@@ -143,8 +138,7 @@ __device__ inline void _memcpy(T *dest, const T *src, size_t length)
 }
 
 // memset
-template <typename T>
-__device__ inline void _memset(T *dest, const char value, size_t length)
+template <typename T> __device__ inline void _memset(T *dest, const char value, size_t length)
 {
 	register unsigned char *a;
 	a = (unsigned char *)dest;
@@ -153,8 +147,7 @@ __device__ inline void _memset(T *dest, const char value, size_t length)
 }
 
 // memcmp
-template <typename T, typename Y>
-__device__ inline int _memcmp(T *left, Y *right, size_t length)
+template <typename T, typename Y> __device__ inline int _memcmp(T *left, Y *right, size_t length)
 {
 	register unsigned char *a, *b;
 	a = (unsigned char *)left;

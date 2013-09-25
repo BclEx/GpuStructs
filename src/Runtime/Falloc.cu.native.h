@@ -26,7 +26,7 @@ typedef struct __align__(8)
 	unsigned short threadid;	// thread ID of author
 } fallocBlockRef;
 
-typedef struct __align__(8)
+typedef struct __align__(8) fallocHeap_s
 {
 	void *reserved;
 	size_t blockSize;
@@ -38,8 +38,14 @@ typedef struct __align__(8)
 	char *blocks;
 } fallocHeap;
 
-#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200)
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
+__shared__ static fallocHeap *__fallocHeap;
+extern "C" __device__ static void _fallocSetHeap(void *heap) { __fallocHeap = (fallocHeap *)heap; }
+extern "C" cudaError_t cudaFallocSetHeap(void *heap) { return cudaSuccess; }
 #else
+__device__ fallocHeap *__fallocHeap;
+extern "C" __device__ void _fallocSetHeap(void *heap) { }
+extern "C" cudaError_t cudaFallocSetHeap(void *heap) { return cudaMemcpyToSymbol(__fallocHeap, &heap, sizeof(__fallocHeap)); }
 #endif
 
 #pragma endregion

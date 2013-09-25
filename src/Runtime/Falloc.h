@@ -51,6 +51,11 @@ typedef struct
 } cudaFallocHost;
 
 //
+//	cudaFallocSetHeap
+//
+extern "C" cudaError_t cudaFallocSetHeap(void *heap);
+
+//
 //	cudaFallocInit
 //
 //	Call this to initialize a falloc heap. If the buffer size needs to be changed, call cudaFallocEnd()

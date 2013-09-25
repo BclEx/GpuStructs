@@ -155,6 +155,7 @@ __device__ void *_fallocTestObj;
 __device__ fallocCtx *_fallocTestCtx;
 __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 {
+	_fallocSetHeap(heap);
 	//char *testString;
 	//int *testInteger;
 	switch (key)
@@ -185,6 +186,7 @@ inline size_t GetFallocRenderQuads(size_t blocks)
 
 static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)
 {
+	checkCudaErrors(cudaFallocSetHeap(heap), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
@@ -196,6 +198,7 @@ static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)
 
 static void LaunchFallocKeypress(fallocHeap *heap, unsigned char key)
 {
+	checkCudaErrors(cudaFallocSetHeap(heap), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Keypress<<<heapGrid, heapBlock>>>(heap, key);

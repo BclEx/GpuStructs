@@ -4,9 +4,6 @@
     <LD>V</LD>
     <LC>20</LC>
   </PropertyGroup>
-  <PropertyGroup>
-    <TargetName>Runtime.$(LD)$(LC).Tests</TargetName>
-  </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
       <Configuration>Debug.cpu</Configuration>
@@ -84,6 +81,9 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
+    <TargetName>Runtime.$(LD)$(LC).Tests</TargetName>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>

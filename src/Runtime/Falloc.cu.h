@@ -19,6 +19,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
 
+// Heap
+extern "C" __device__ void _fallocSetHeap(void *heap);
+
 // External function definitions for device-side code
 typedef struct _cuFallocHeap fallocHeap;
 extern "C" __device__ void *fallocGetBlock(fallocHeap *heap);
