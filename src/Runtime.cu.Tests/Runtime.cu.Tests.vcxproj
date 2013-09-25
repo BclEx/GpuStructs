@@ -1,29 +1,25 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <LD>V</LD>
+    <LC>20</LC>
+  </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
       <Configuration>Debug.cpu</Configuration>
       <Platform>x64</Platform>
-      <LD>V</LD>
-      <LC>cpu</LC>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Debug.cu|x64">
       <Configuration>Debug.cu</Configuration>
       <Platform>x64</Platform>
-      <LD>V</LD>
-      <LC>20</LC>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release.cpu|x64">
       <Configuration>Release.cpu</Configuration>
       <Platform>x64</Platform>
-      <LD>V</LD>
-      <LC>cpu</LC>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release.cu|x64">
       <Configuration>Release.cu</Configuration>
       <Platform>x64</Platform>
-      <LD>V</LD>
-      <LC>20</LC>
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>

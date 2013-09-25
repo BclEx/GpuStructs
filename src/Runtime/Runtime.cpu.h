@@ -91,8 +91,8 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ inline 
 
 #pragma endregion
 
-extern const unsigned char _runtimeUpperToLower[256];
-extern const unsigned char _runtimeCtypeMap[256];
+extern "C" const unsigned char _runtimeUpperToLower[256];
+extern "C" const unsigned char _runtimeCtypeMap[256];
 
 #define __toupper(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
 #define _isspace(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
@@ -103,7 +103,7 @@ extern const unsigned char _runtimeCtypeMap[256];
 #define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
-template <typename T> struct array_t { size_t length; T *data; inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
+template <typename T> struct array_t { size_t length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp
