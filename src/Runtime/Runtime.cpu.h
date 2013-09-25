@@ -91,16 +91,16 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ inline 
 
 #pragma endregion
 
-extern const unsigned char *_runtimeUpperToLower;
-extern const unsigned char *_runtimeCtypeMap;
+extern const unsigned char _runtimeUpperToLower[256];
+extern const unsigned char _runtimeCtypeMap[256];
 
-#define _toupperA(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
-#define _isspaceA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
-#define _isalnumA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x06)
-#define _isalphaA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x02)
-#define _isdigitA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x04)
-#define _isxdigitA(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x08)
-#define _tolowerA(x) (_runtimeUpperToLower[(unsigned char)(x)])
+#define __toupper(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
+#define _isspace(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
+#define _isalnum(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x06)
+#define _isalpha(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x02)
+#define _isdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x04)
+#define _isxdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x08)
+#define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
 template <typename T> struct array_t { size_t length; T *data; inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };

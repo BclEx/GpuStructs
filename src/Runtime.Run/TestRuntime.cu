@@ -52,13 +52,13 @@ __global__ static void runtimeExample3(void *r)
 __global__ static void runtimeExample4(void *r)
 {
 	_runtimeSetHeap(r);
-	char a0 = _toupperA('a'); char a0n = _toupperA('A');
-	bool a1 = _isspaceA('a'); bool a1n = _isspaceA(' ');
-	bool a2 = _isalnumA('a'); bool a2n = _isalnumA('1');
-	bool a3 = _isalphaA('a'); bool a3n = _isalphaA('A');
-	bool a4 = _isdigitA('a'); bool a4n = _isdigitA('1');
-	bool a5 = _isxdigitA('a'); bool a5n = _isxdigitA('A');
-	char a6 = _tolowerA('a'); char a6n = _tolowerA('A');
+	char a0 = __toupper('a'); char a0n = __toupper('A');
+	bool a1 = _isspace('a'); bool a1n = _isspace(' ');
+	bool a2 = _isalnum('a'); bool a2n = _isalnum('1');
+	bool a3 = _isalpha('a'); bool a3n = _isalpha('A');
+	bool a4 = _isdigit('a'); bool a4n = _isdigit('1');
+	bool a5 = _isxdigit('a'); bool a5n = _isxdigit('A');
+	char a6 = __tolower('a'); char a6n = __tolower('A');
 }
 
 __global__ static void runtimeExample5(void *r)
