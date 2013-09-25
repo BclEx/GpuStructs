@@ -16,7 +16,11 @@
   </metadata>
   <files>
     <file src="build\cpu\Runtime.*.lib" target="lib\native" />
-    <file src="build\cu\Runtime.*.lib" target="lib\native" />
+    <file src="build\cpuV\Runtime.*.lib" target="lib\native" />
+    <file src="build\cu11\Runtime.*.lib" target="lib\native" />
+    <file src="build\cu11V\Runtime.*.lib" target="lib\native" />
+    <file src="build\cu20\Runtime.*.lib" target="lib\native" />
+    <file src="build\cu20V\Runtime.*.lib" target="lib\native" />
     <file src="src\Runtime\**\*.h" target="include" />
     <file src="src\Runtime\**\*.cpp" target="src\Runtime" />
     <file src="src\Runtime\**\*.cu" target="src\Runtime" />
