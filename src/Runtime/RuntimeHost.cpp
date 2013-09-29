@@ -65,8 +65,12 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cuda
 	length = (length + sizeof(runtimeHeap) + 15) & ~15;
 	// allocate a heap on the device and zero it
 	char *heap;
+#ifndef _LCcpu
 	if ((*error = cudaMalloc((void **)&heap, length)) != cudaSuccess || (*error = cudaMemset(heap, 0, length)) != cudaSuccess)
 		return host;
+#else
+	heap = nullptr;
+#endif
 	char *blocks = heap + length - blocksLength;
 	// no restrictions to begin with
 	runtimeRestriction restriction;
@@ -79,8 +83,10 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cuda
 	hostHeap.restriction = restriction;
 	hostHeap.blockSize = blockSize;
 	hostHeap.blocksLength = blocksLength;
+#ifndef _LCcpu
 	if ((*error = cudaMemcpy(heap, &hostHeap, sizeof(runtimeHeap), cudaMemcpyHostToDevice)) != cudaSuccess)
 		return host;
+#endif
 	// return the heap
 	host.reserved = reserved;
 	host.heap = heap;
@@ -95,7 +101,9 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
 {
 	if (!host.heap)
 		return;
+	#ifndef _LCcpu
 	cudaFree(host.heap); host.heap = nullptr;
+#endif
 }
 
 extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler)
@@ -116,8 +124,10 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 		if (bufptr == bufend)
 			bufptr = bufstart;
 		// adjust our start pointer to within the circular buffer and copy a block.
+#ifndef _LCcpu
 		if (cudaMemcpy(b, bufptr, blockSize, cudaMemcpyDeviceToHost) != cudaSuccess)
 			break;
+#endif
 		// if the magic number isn't valid, then this write hasn't gone through yet and we'll wait until it does (or we're past the end for non-async printfs).
 		runtimeBlockHeader *hdr = (runtimeBlockHeader *)b;
 		//if (hdr->magic != RUNTIME_MAGIC || hdr->fmtoffset >= blockSize)
@@ -171,8 +181,10 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 			break;
 		count++;
 		// clear if asked
+#ifndef _LCcpu
 		if (clear)
 			cudaMemset(bufptr, 0, blockSize);
+#endif
 		// now advance our start location, because we're done, and keep copying
 		bufptr += blockSize;
 	}
@@ -193,7 +205,9 @@ extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, b
 	char *blocks = host.blocks;
 	// grab the current "end of circular buffer" pointer.
 	char *blockEnd = nullptr;
+#ifndef _LCcpu
 	cudaMemcpy(&blockEnd, host.heap, sizeof(char *), cudaMemcpyDeviceToHost);
+#endif
 	// adjust our starting and ending pointers to within the block
 	char *bufptr = ((host.blockStart - blocks) % blocksLength) + blocks;
 	char *endptr = ((blockEnd - blocks) % blocksLength) + blocks;
@@ -203,8 +217,10 @@ extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, b
 	executeRuntime(host.assertHandler, host.blockSize, blocks, showThreadID, false, blocks, blocks + blocksLength, bufptr, endptr);
 	host.blockStart = blockEnd;
 	// if we were synchronous, then we must ensure that the memory is cleared on exit otherwise another kernel launch with a different grid size could conflict.
+#ifndef _LCcpu
 	if (sync)
 		cudaMemset(blocks, 0, blocksLength);
+#endif
 	return cudaSuccess;
 }
 
@@ -319,7 +335,7 @@ static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *da
 //////////////////////
 // EMBED
 #pragma region EMBED
-//#ifdef _LCcpu
+#ifdef _LCcpu
 
 extern "C" const unsigned char _runtimeUpperToLower[256] = {
 	0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
@@ -377,5 +393,5 @@ extern "C" const unsigned char _runtimeCtypeMap[256] = {
 	0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40   /* f8..ff    ........ */
 };
 
-//#endif
+#endif
 #pragma endregion

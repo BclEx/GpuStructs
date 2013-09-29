@@ -1,3 +1,4 @@
+#ifdef VISUAL
 #include <cstdlib>
 #include "Visual.h"
 
@@ -139,3 +140,5 @@ void Visual::Main()
 	// start rendering mainloop
 	glutMainLoop();
 }
+
+#endif
