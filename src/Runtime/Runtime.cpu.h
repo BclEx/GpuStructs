@@ -36,7 +36,7 @@ __device__ inline void Coverage(int line) { }
 #pragma endregion
 
 // Heap
-extern "C" __device__ inline void runtimeSetHeap(void *heap) { }
+extern "C" __device__ inline void _runtimeSetHeap(void *heap) { }
 extern "C" __device__ inline void runtimeRestrict(int threadid, int blockid) { }
 
 ///////////////////////////////////////////////////////////////////////////////
