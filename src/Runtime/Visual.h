@@ -1,7 +1,7 @@
 #ifndef _VISUAL_H__
 #define _VISUAL_H__
 #pragma warning(disable: 4996)
-#include "CudaGL.h"
+#include "RuntimeGL.h"
 
 // constants
 #define REFRESH_DELAY 10 //ms

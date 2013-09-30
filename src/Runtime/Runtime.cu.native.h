@@ -4,8 +4,7 @@
 #ifndef __static__
 #define __static__
 #endif
-//#include <string.h>
-#include "Cuda.h"
+#include "RuntimeEx.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRUCT

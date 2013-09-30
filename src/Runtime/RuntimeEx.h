@@ -1,6 +1,6 @@
-#ifndef __RUNTIME_CUDA_H__
-#define __RUNTIME_CUDA_H__
-#include <cuda_runtime.h>
+#ifndef __RUNTIMEEX_H__
+#define __RUNTIMEEX_H__
+#include "Runtime.h"
 
 extern cudaError _lastError;
 #define checkCudaErrors(action, failure) if ((_lastError = action) != cudaSuccess) failure;
@@ -69,4 +69,4 @@ inline int gpuGetMaxGflopsDeviceId()
 	return bestDevice;
 }
 
-#endif // __RUNTIME_CUDA_H__
+#endif // __RUNTIMEEX_H__

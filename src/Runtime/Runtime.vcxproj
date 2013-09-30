@@ -23,8 +23,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Cuda.h" />
-    <ClInclude Include="CudaGL.h" />
+    <ClInclude Include="RuntimeEx.h" />
+    <ClInclude Include="RuntimeGL.h" />
     <ClInclude Include="Falloc.cpu.h" />
     <ClInclude Include="Falloc.cu.h" />
     <ClInclude Include="Falloc.cu.native.h" />
@@ -38,10 +38,6 @@
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="Falloc.cu" />
     <CudaCompile Include="Runtime.cu" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Falloc.cu" />
-    <None Include="Runtime.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FallocHost.cpp" />
@@ -103,7 +99,7 @@
       <GPUDebugInfo>true</GPUDebugInfo>
     </CudaCompile>
     <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD).lib"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD)D.lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">

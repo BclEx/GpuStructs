@@ -1,5 +1,5 @@
-#ifndef __RUNTIME_CUDAGL_H__
-#define __RUNTIME_CUDAGL_H__
+#ifndef __RUNTIMEGL_H__
+#define __RUNTIMEGL_H__
 #include <cstdio>
 
 #ifdef _WIN32
@@ -8,11 +8,11 @@
 #include <windows.h>
 #endif
 // OpenGL Graphics includes
-#include <GL/glew.h>
+#include "GL/glew.h"
 #if defined (__APPLE__) || defined(MACOSX)
 #include <GLUT/glut.h>
 #else
-#include <GL/freeglut.h>
+#include "GL/freeglut.h"
 #endif
 #include <cuda_gl_interop.h>
 
@@ -37,4 +37,4 @@ inline bool sdkCheckErrorGL(const char *file, const int line)
 	return ret_val;
 }
 
-#endif // __RUNTIME_CUDAGL_H__
+#endif // __RUNTIMEGL_H__
