@@ -1,0 +1,120 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\System\Class.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Array.h" />
+    <ClInclude Include="..\System\Collections\BinSearch.h" />
+    <ClInclude Include="..\System\Collections\BTree.h" />
+    <ClInclude Include="..\System\Collections\Dictionary.h" />
+    <ClInclude Include="..\System\Collections\Dictionary2.h" />
+    <ClInclude Include="..\System\Collections\HashIndex.h" />
+    <ClInclude Include="..\System\Collections\HashTable.h" />
+    <ClInclude Include="..\System\Collections\Hierarchy.h" />
+    <ClInclude Include="..\System\Collections\LinkedList.h" />
+    <ClInclude Include="..\System\Collections\List.h" />
+    <ClInclude Include="..\System\Collections\PlaneSet.h" />
+    <ClInclude Include="..\System\Collections\Queue.h" />
+    <ClInclude Include="..\System\Collections\Sort.h" />
+    <ClInclude Include="..\System\Collections\Stack.h" />
+    <ClInclude Include="..\System\Collections\StaticList.h" />
+    <ClInclude Include="..\System\Collections\StringPool.h" />
+    <ClInclude Include="..\System\Collections\VectorSet.h" />
+    <ClInclude Include="..\System\Event.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\System\Heap.h" />
+    <ClInclude Include="..\System\System+Assert.h" />
+    <ClInclude Include="..\System\System+Defines.h" />
+    <ClInclude Include="..\System\System+Includes.h" />
+    <ClInclude Include="..\System\System+Intrinsics.h" />
+    <ClInclude Include="..\System\System+Types.h" />
+    <ClInclude Include="..\System\System.h" />
+    <ClInclude Include="..\System\Text\String.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\System\Class.cpp" />
+    <ClCompile Include="..\System\Collections\Dictionary.cpp" />
+    <ClCompile Include="..\System\Collections\Dictionary2.cpp" />
+    <ClCompile Include="..\System\Collections\HashIndex.cpp" />
+    <ClCompile Include="..\System\Event.cpp" />
+    <ClCompile Include="..\System\Heap.cpp" />
+    <ClCompile Include="..\System\System.cpp" />
+    <ClCompile Include="..\System\Text\String.cpp" />
+    <ClCompile Include="Program.cpp" />
+    <ClCompile Include="Tests\TestHeap.cpp" />
+    <ClCompile Include="Tests\TestList.cpp" />
+    <ClCompile Include="Tests\TestSort.cpp" />
+    <ClCompile Include="Tests\TestString.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\System\Heap+Tags.h_" />
+    <None Include="..\System\System+Cuda.h_" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{38D19A31-A959-44D7-B57D-D497A61B9A6A}</ProjectGuid>
+    <RootNamespace>Systemcpu</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v110</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

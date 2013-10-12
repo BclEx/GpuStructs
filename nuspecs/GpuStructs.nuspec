@@ -16,9 +16,14 @@
   </metadata>
   <files>
     <file src="build\Runtime.*.lib" target="lib\native" />
-    <file src="src\Runtime\**\*.h" target="include" />
+    <file src="src\Runtime\**\*.h" target="include\Runtime" />
+    <file src="src\Runtime\**\*.h" target="include\System" />
     <file src="src\Runtime\**\*.cpp" target="src\Runtime" />
     <file src="src\Runtime\**\*.cu" target="src\Runtime" />
     <file src="src\Runtime\**\*.h" target="src\Runtime" />
+    <file src="src\System.net\**\*.cs" target="src\System" />
+    <file src="src\System.net\**\*.cpp" target="src\System" />
+    <file src="src\System.net\**\*.cu" target="src\System" />
+    <file src="src\System.net\**\*.h" target="src\System" />
   </files>
 </package>

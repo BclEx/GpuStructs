@@ -1,37 +1,40 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="Program.cpp" />
-    <ClCompile Include="..\System.net\Core\IO\25.JournalVFile.cu">
+    <CudaCompile Include="Program.cu" />
+    <CudaCompile Include="..\System.net\Core\IO\30.VFile.cu">
       <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\IO\20.MemoryVFile.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\IO\25.JournalVFile.cu">
       <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\IO\30.VFile.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\IO\20.MemoryVFile.cu">
       <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\Text\00.StringBuilder.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\Text\00.StringBuilder.cu">
       <Filter>Core\Text</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\00.Bitvec.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\00.Bitvec.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\10.ConvertEx.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\10.ConvertEx.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\40.StatusEx.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\40.StatusEx.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\50.SysEx.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\50.SysEx.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\50.VSystem.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\50.VSystem.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\System.net\Core\55.WinVSystem.cu">
+    </CudaCompile>
+    <CudaCompile Include="..\System.net\Core\55.GpuVSystem.cu">
       <Filter>Core</Filter>
-    </ClCompile>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\System.net\Core\IO\30.VFile.cu.h">
@@ -77,13 +80,13 @@
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">
-      <UniqueIdentifier>{410a113c-944f-4028-9f63-868bf8f28459}</UniqueIdentifier>
+      <UniqueIdentifier>{b76137cc-4125-4e9e-8583-71cadbc31311}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\IO">
-      <UniqueIdentifier>{1ee250da-47a5-4fb0-ae2b-f264b71953e9}</UniqueIdentifier>
+      <UniqueIdentifier>{8a2cbfd8-630f-49d3-9d92-2c34387965fc}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Text">
-      <UniqueIdentifier>{1ed0b226-75ce-454b-8c44-f1d6df5a5ffa}</UniqueIdentifier>
+      <UniqueIdentifier>{bccb5bf7-19fc-4e61-9a5a-5f7cf0676671}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

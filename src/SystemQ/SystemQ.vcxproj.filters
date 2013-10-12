@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="System">
+      <UniqueIdentifier>{a01b2f1d-070c-4251-ab84-52099898b5ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Text">
+      <UniqueIdentifier>{bdf83f9e-75ea-4cee-a262-da4d7b4589af}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Collections">
+      <UniqueIdentifier>{0dc67e7b-9b9d-4ed2-90cb-644ff1e46207}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tests">
+      <UniqueIdentifier>{0c34c41a-894d-4112-bf65-b275f9c972c6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\System\Class.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Event.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Heap.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System+Assert.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System+Defines.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System+Includes.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System+Intrinsics.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\System+Types.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Text\String.h">
+      <Filter>System\Text</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Array.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\BinSearch.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\BTree.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Dictionary.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Dictionary2.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\HashIndex.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\HashTable.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Hierarchy.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\LinkedList.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\List.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\PlaneSet.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Queue.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Sort.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\Stack.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\StaticList.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\StringPool.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\System\Collections\VectorSet.h">
+      <Filter>System\Collections</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Program.cpp" />
+    <ClCompile Include="..\System\Class.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Event.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Heap.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\System.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Text\String.cpp">
+      <Filter>System\Text</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Collections\Dictionary.cpp">
+      <Filter>System\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Collections\Dictionary2.cpp">
+      <Filter>System\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\System\Collections\HashIndex.cpp">
+      <Filter>System\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestHeap.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestList.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestSort.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+    <ClCompile Include="Tests\TestString.cpp">
+      <Filter>Tests</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\System\Heap+Tags.h_">
+      <Filter>System</Filter>
+    </None>
+    <None Include="..\System\System+Cuda.h_">
+      <Filter>System</Filter>
+    </None>
+  </ItemGroup>
+</Project>
