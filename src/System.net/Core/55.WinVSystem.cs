@@ -32,7 +32,7 @@ namespace Core
         static bool io_error_persist = false;   // True if I/O errors persist
         static bool io_error_benign = false;    // True if errors are benign
         static int diskfull_pending = 0;
-        static bool diskfull = false;
+        public static bool diskfull = false;
         protected static void SimulateIOErrorBenign(bool X) { io_error_benign = X; }
         protected static bool SimulateIOError() { if ((io_error_persist && io_error_hit > 0) || io_error_pending-- == 1) { local_ioerr(); return true; } return false; }
         protected static void local_ioerr() { OSTRACE("IOERR\n"); io_error_hit++; if (!io_error_benign) io_error_hardhit++; }
