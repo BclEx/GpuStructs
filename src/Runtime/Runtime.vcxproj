@@ -99,7 +99,7 @@
       <GPUDebugInfo>true</GPUDebugInfo>
     </CudaCompile>
     <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Debug.cu\FallocHost.obj" "x64\Debug.cu\Falloc.cu.obj" "x64\Debug.cu\RuntimeHost.obj" "x64\Debug.cu\Runtime.cu.obj" "x64\Debug.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD)D.lib"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)FallocHost.obj" "$(IntDir)Falloc.cu.obj" "$(IntDir)RuntimeHost.obj" "$(IntDir)Runtime.cu.obj" "$(IntDir)Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD)D.lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
@@ -128,7 +128,7 @@
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
     </CudaCompile>
     <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "x64\Release.cu\FallocHost.obj" "x64\Release.cu\Falloc.cu.obj" "x64\Release.cu\RuntimeHost.obj" "x64\Release.cu\Runtime.cu.obj" "x64\Release.cu\Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD).lib"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)FallocHost.obj" "$(IntDir)Falloc.cu.obj" "$(IntDir)RuntimeHost.obj" "$(IntDir)Runtime.cu.obj" "$(IntDir)Visual.obj" -o "$(OutDir)Runtime.$(LC)$(LD).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -1,5 +1,6 @@
+#ifndef _LIB
 #define VISUAL
-#include "../../packages/GpuStructs.1.0.0/include/RuntimeEx.h"
+#include <RuntimeEx.h>
 
 void __main(cudaRuntimeHost &r);
 
@@ -25,3 +26,4 @@ int main(int argc, char **argv)
 	//char c; scanf("%c", &c);
 	return 1;
 }
+#endif

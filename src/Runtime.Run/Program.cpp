@@ -1,5 +1,5 @@
-#include "../Runtime/RuntimeEx.h"
-#include "../Runtime/Falloc.h"
+#include <RuntimeEx.h>
+#include <Falloc.h>
 
 void __fallocExample(cudaFallocHost &f);
 void __runtimeExample(cudaRuntimeHost &r);

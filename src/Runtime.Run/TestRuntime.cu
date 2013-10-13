@@ -1,4 +1,4 @@
-#include "..\Runtime\Runtime.cu.h"
+#include <Runtime.cu.h>
 
 __global__ static void runtimeExample0(void *r)
 {
@@ -52,13 +52,13 @@ __global__ static void runtimeExample3(void *r)
 __global__ static void runtimeExample4(void *r)
 {
 	_runtimeSetHeap(r);
-	char a0 = __toupper('a'); char a0n = __toupper('A');
-	bool a1 = _isspace('a'); bool a1n = _isspace(' ');
-	bool a2 = _isalnum('a'); bool a2n = _isalnum('1');
-	bool a3 = _isalpha('a'); bool a3n = _isalpha('A');
-	bool a4 = _isdigit('a'); bool a4n = _isdigit('1');
-	bool a5 = _isxdigit('a'); bool a5n = _isxdigit('A');
-	char a6 = __tolower('a'); char a6n = __tolower('A');
+	char a0 = __toupper('a'); char a0n = __toupper('A'); _assert(a0 == 'A' || a0n == 'A');
+	bool a1 = _isspace('a'); bool a1n = _isspace(' '); _assert(!a1 && a1n);
+	bool a2 = _isalnum('a'); bool a2n = _isalnum('1'); _assert(a2 && a2n);
+	bool a3 = _isalpha('a'); bool a3n = _isalpha('A'); _assert(a3 && a3n);
+	bool a4 = _isdigit('a'); bool a4n = _isdigit('1'); _assert(!a4 && a4n);
+	bool a5 = _isxdigit('a'); bool a5n = _isxdigit('A'); _assert(!a5 && !a5n);
+	char a6 = __tolower('a'); char a6n = __tolower('A'); _assert(a6 == 'a' && a6n == 'a');
 }
 
 __global__ static void runtimeExample5(void *r)
@@ -74,12 +74,12 @@ __global__ static void runtimeExample6(void *r)
 {
 	_runtimeSetHeap(r);
 	char buf[100];
-	int a0 = _strcmp("Test", "Test");
-	int a1 = _strncmp("Test", "Test", 1);
+	int a0 = _strcmp("Test", "Test"); _assert(!a0);
+	int a1 = _strncmp("Tesa", "Tesb", 3); _assert(!a1);
 	_memcpy(buf, "Test", 4);
 	_memset(buf, 0, sizeof(buf));
-	int a2 = _memcmp("Test", "Test", 4);
-	int a3 = _strlen30("Test");
+	int a2 = _memcmp("Test", "Test", 4); _assert(!a2);
+	int a3 = _strlen30("Test"); _assert(a3 == 4);
 }
 
 void __runtimeExample(cudaRuntimeHost &r)

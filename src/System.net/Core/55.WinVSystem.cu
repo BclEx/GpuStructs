@@ -2569,11 +2569,11 @@ shmpage_out:
 
 		RC rc = RC::OK;
 		OPEN type = (OPEN)(flags & 0xFFFFFF00);  // Type of file to open
-		bool isExclusive = (flags & OPEN_EXCLUSIVE);
-		bool isDelete = (flags & OPEN_DELETEONCLOSE);
-		bool isCreate = (flags & OPEN_CREATE);
-		bool isReadonly = (flags & OPEN_READONLY);
-		bool isReadWrite = (flags & OPEN_READWRITE);
+		bool isExclusive = ((flags & OPEN_EXCLUSIVE) != 0);
+		bool isDelete = ((flags & OPEN_DELETEONCLOSE) != 0);
+		bool isCreate = ((flags & OPEN_CREATE) != 0);
+		bool isReadonly = ((flags & OPEN_READONLY) != 0);
+		bool isReadWrite = ((flags & OPEN_READWRITE) != 0);
 		bool isOpenJournal = (isCreate && (type == OPEN_MASTER_JOURNAL || type == OPEN_MAIN_JOURNAL || type == OPEN_WAL));
 
 		// Check the following statements are true: 

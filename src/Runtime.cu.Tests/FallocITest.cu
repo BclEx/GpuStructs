@@ -1,5 +1,5 @@
-#include "..\Runtime\Runtime.cu.h"
-#include "..\Runtime\Falloc.cu.h"
+#include <Runtime.cu.h>
+#include <Falloc.cu.h>
 
 __device__ static fallocHeap *_heap;
 #define TEST(id) \

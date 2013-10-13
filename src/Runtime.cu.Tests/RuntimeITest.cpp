@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "..\Runtime\Runtime.h"
+#include <Runtime.h>
 using namespace System;
 using namespace Xunit;
 

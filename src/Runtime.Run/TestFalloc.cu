@@ -1,8 +1,9 @@
-#include "..\Runtime\Falloc.cu.h"
+#include <Falloc.cu.h>
 
 __global__ static void fallocExample(void *f)
 {
-	fallocGetBlock((fallocHeap *)f);
+	void *b = fallocGetBlock((fallocHeap *)f);
+	fallocFreeBlock((fallocHeap *)f, b);
 }
 
 void __fallocExample(cudaFallocHost &f)

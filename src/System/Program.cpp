@@ -1,3 +1,4 @@
+#ifndef _LIB
 #include "..\System.net\Core\Core.cu.h"
 #include <stdio.h>
 #include <string.h>
@@ -9,7 +10,7 @@ static void TestVFS();
 void main()
 {
 	SysEx::Initialize();
-	//TestVFS();
+	TestVFS();
 }
 
 static void TestVFS()
@@ -27,3 +28,4 @@ static void TestVFS()
 //	int ops[] = { 5, 1, 1, 1, 0 };
 //	Core::Bitvec_BuiltinTest(400, ops);
 //}
+#endif

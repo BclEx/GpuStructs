@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package>
   <metadata>
-    <id>GpuStructs</id>
+    <id>GpuStructs-System</id>
     <version>1.0.0</version>
     <title>GpuStructs</title>
     <authors>Contoso</authors>
@@ -15,15 +15,12 @@
     <language>en-US</language>
   </metadata>
   <files>
-    <file src="build\Runtime.*.lib" target="lib\native" />
-    <file src="src\Runtime\**\*.h" target="include\Runtime" />
-    <file src="src\Runtime\**\*.h" target="include\System" />
-    <file src="src\Runtime\**\*.cpp" target="src\Runtime" />
-    <file src="src\Runtime\**\*.cu" target="src\Runtime" />
-    <file src="src\Runtime\**\*.h" target="src\Runtime" />
-    <file src="src\System.net\**\*.cs" target="src\System" />
-    <file src="src\System.net\**\*.cpp" target="src\System" />
-    <file src="src\System.net\**\*.cu" target="src\System" />
-    <file src="src\System.net\**\*.h" target="src\System" />
+    <file src="build\System.*.dll" target="lib\net40" />
+    <file src="build\System.*.lib" target="lib\native" />
+    <file src="src\System.net\**\*.h" target="include" />
+    <file src="src\System.net\**\*.cs" target="src" />
+    <file src="src\System.net\**\*.cpp" target="src" />
+    <file src="src\System.net\**\*.cu" target="src" />
+    <file src="src\System.net\**\*.h" target="src" />
   </files>
 </package>

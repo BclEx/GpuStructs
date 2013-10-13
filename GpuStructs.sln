@@ -24,8 +24,14 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tcl", "src\Tcl\Tcl.vcxproj", "{921AFA21-3738-4DFC-985B-0F5C080E15E4}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "System", "src\System\System.vcxproj", "{ACDAB731-E71B-406B-B023-6A3FD7957591}"
+	ProjectSection(ProjectDependencies) = postProject
+		{821AFA21-3738-4DFC-985B-0F5C080E15E4} = {821AFA21-3738-4DFC-985B-0F5C080E15E4}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "System.cu", "src\System.cu\System.cu.vcxproj", "{780961B3-26FB-4322-90F1-909E861E9628}"
+	ProjectSection(ProjectDependencies) = postProject
+		{821AFA21-3738-4DFC-985B-0F5C080E15E4} = {821AFA21-3738-4DFC-985B-0F5C080E15E4}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "System.net", "src\System.net\System.net.csproj", "{30180E7B-AABE-4F33-9C2C-F8A447024674}"
 EndProject
@@ -46,10 +52,8 @@ Global
 		{821AFA21-3738-4DFC-985B-0F5C080E15E4}.Release.cu|x64.ActiveCfg = Release.cu|x64
 		{821AFA21-3738-4DFC-985B-0F5C080E15E4}.Release.cu|x64.Build.0 = Release.cu|x64
 		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Debug.cpu|x64.ActiveCfg = Debug.cpu|x64
-		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Debug.cpu|x64.Build.0 = Debug.cpu|x64
 		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Debug.cu|x64.ActiveCfg = Debug.cu|x64
 		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Release.cpu|x64.ActiveCfg = Release.cpu|x64
-		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Release.cpu|x64.Build.0 = Release.cpu|x64
 		{A38430CF-CB26-43F0-94B7-6E78A0950FF5}.Release.cu|x64.ActiveCfg = Release.cu|x64
 		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Debug.cpu|x64.ActiveCfg = Debug.cpu|x64
 		{2A992207-4EA5-4750-9401-AAD09DFDE7E5}.Debug.cu|x64.ActiveCfg = Debug.cu|x64

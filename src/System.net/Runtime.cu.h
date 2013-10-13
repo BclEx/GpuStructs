@@ -1,7 +1,7 @@
 ﻿#if __CUDACC__
-#include "Runtime\Runtime.cu.h"
+#include <Runtime.cu.h>
 #else
-#include "Runtime\Runtime.cpu.h"
+#include <Runtime.cpu.h>
 #endif
 
 #if defined(__GNUC__) && 0

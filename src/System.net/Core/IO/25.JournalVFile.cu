@@ -92,7 +92,7 @@ namespace Core { namespace IO
 		if (Real)
 			return Real->Truncate(size);
 		if (size < Size)
-			Size = size;
+			Size = (int)size;
 		return RC::OK;
 	}
 

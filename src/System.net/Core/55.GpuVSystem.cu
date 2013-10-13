@@ -83,9 +83,10 @@ namespace Core
 
 #pragma region GpuVFile
 
-	RC GpuVFile::Close()
+	__device__ RC GpuVFile::Close()
 	{
 		OSTRACE("CLOSE %d\n", H);
+		return RC::OK;
 		//_assert(H != NULL && H != INVALID_HANDLE_VALUE);
 		//int rc;
 		//rc = osCloseHandle(H);
@@ -95,7 +96,7 @@ namespace Core
 		//return (rc ? RC::OK : gpuLogError(RC::IOERR_CLOSE, gpuGetLastError(), "gpuClose", Path));
 	}
 
-	RC GpuVFile::Read(void *buffer, int amount, int64 offset)
+	__device__ RC GpuVFile::Read(void *buffer, int amount, int64 offset)
 	{
 		OSTRACE("READ %d lock=%d\n", H, Lock_);
 		return RC::OK;
@@ -120,7 +121,7 @@ namespace Core
 		//return RC::OK;
 	}
 
-	RC GpuVFile::Write(const void *buffer, int amount, int64 offset)
+	__device__ RC GpuVFile::Write(const void *buffer, int amount, int64 offset)
 	{
 		_assert(amount > 0);
 		OSTRACE("WRITE %d lock=%d\n", H, Lock_);
@@ -164,7 +165,7 @@ namespace Core
 		//return RC::OK;
 	}
 
-	RC GpuVFile::Truncate(int64 size)
+	__device__ RC GpuVFile::Truncate(int64 size)
 	{
 		OSTRACE("TRUNCATE %d %lld\n", H, size);
 		return RC::OK;
@@ -185,7 +186,7 @@ namespace Core
 		//return rc;
 	}
 
-	RC GpuVFile::Sync(int flags)
+	__device__ RC GpuVFile::Sync(int flags)
 	{
 		// Check that one of SQLITE_SYNC_NORMAL or FULL was passed
 		_assert((flags&0x0F) == SYNC_NORMAL || (flags&0x0F) == SYNC_FULL);
@@ -193,7 +194,7 @@ namespace Core
 		return RC::OK;
 	}
 
-	RC GpuVFile::get_FileSize(int64 &size)
+	__device__ RC GpuVFile::get_FileSize(int64 &size)
 	{
 		return RC::OK;
 		//RC rc = RC::OK;
@@ -208,32 +209,32 @@ namespace Core
 		//return rc;
 	}
 
-	RC GpuVFile::Lock(LOCK lock)
+	__device__ RC GpuVFile::Lock(LOCK lock)
 	{
 		return RC::OK;
 	}
 
-	RC GpuVFile::CheckReservedLock(int &lock)
+	__device__ RC GpuVFile::CheckReservedLock(int &lock)
 	{
 		return RC::OK;
 	}
 
-	RC GpuVFile::Unlock(LOCK lock)
+	__device__ RC GpuVFile::Unlock(LOCK lock)
 	{
 		return RC::OK;
 	}
 
-	RC GpuVFile::FileControl(FCNTL op, void *arg)
+	__device__ RC GpuVFile::FileControl(FCNTL op, void *arg)
 	{
 		return RC::NOTFOUND;
 	}
 
-	uint GpuVFile::get_SectorSize()
+	__device__ uint GpuVFile::get_SectorSize()
 	{
 		return 512;
 	}
 
-	VFile::IOCAP GpuVFile::get_DeviceCharacteristics()
+	__device__ VFile::IOCAP GpuVFile::get_DeviceCharacteristics()
 	{
 		return (VFile::IOCAP)0;
 	}

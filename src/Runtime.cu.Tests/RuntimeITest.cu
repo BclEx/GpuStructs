@@ -1,4 +1,4 @@
-#include "..\Runtime\Runtime.cu.h"
+#include <Runtime.cu.h>
 
 #define TEST(id) \
 	__global__ void runtimeTest##id(void *r); \
