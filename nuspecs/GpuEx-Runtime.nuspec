@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package>
   <metadata>
-    <id>GpuStructs-System</id>
+    <id>GpuEx-Runtime</id>
     <version>1.0.0</version>
     <title>GpuStructs</title>
     <authors>Contoso</authors>
@@ -13,19 +13,12 @@
     <copyright>Copyright 2010</copyright>
     <tags>c++ cuda gpu gpgpu datastructures runtime</tags>
     <language>en-US</language>
-    <dependencies>
-      <group>
-        <dependency id="GpuStructs-Runtime" version="1.0.0" />
-      </group>
-    </dependencies>
   </metadata>
   <files>
-    <file src="build\System.*.dll" target="lib\net40" />
-    <file src="build\System.*.lib" target="lib\native" />
-    <file src="src\System.net\**\*.h" target="include" />
-    <file src="src\System.net\**\*.cs" target="src" />
-    <file src="src\System.net\**\*.cpp" target="src" />
-    <file src="src\System.net\**\*.cu" target="src" />
-    <file src="src\System.net\**\*.h" target="src" />
+    <file src="build\Runtime.*.lib" target="lib\native" />
+    <file src="src\Runtime\**\*.h" target="include" />
+    <file src="src\Runtime\**\*.cpp" target="src" />
+    <file src="src\Runtime\**\*.cu" target="src" />
+    <file src="src\Runtime\**\*.h" target="src" />
   </files>
 </package>

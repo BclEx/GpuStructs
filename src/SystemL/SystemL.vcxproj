@@ -18,6 +18,7 @@
     <ProjectGuid>{ACDAB731-E71B-406B-B023-6A3FD7957591}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>CpuTest</RootNamespace>
+    <ProjectName>SystemL</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'" Label="Configuration">
@@ -53,7 +54,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -70,7 +71,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -87,60 +88,60 @@
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\System.net\Core\00.Bitvec.cu.h" />
-    <ClInclude Include="..\System.net\Core\10.ConvertEx.cu.h" />
-    <ClInclude Include="..\System.net\Core\20.MutexEx.cu.h" />
-    <ClInclude Include="..\System.net\Core\30.RC.cu.h" />
-    <ClInclude Include="..\System.net\Core\40.StatusEx.cu.h" />
-    <ClInclude Include="..\System.net\Core\45.VAlloc.cu.h" />
-    <ClInclude Include="..\System.net\Core\50.SysEx.cu.h" />
-    <ClInclude Include="..\System.net\Core\50.VSystem.cu.h" />
-    <ClInclude Include="..\System.net\Core\60.MathEx.cu.h" />
-    <ClInclude Include="..\System.net\Core\Core+Types.cu.h" />
-    <ClInclude Include="..\System.net\Core\Core.cu.h" />
-    <ClInclude Include="..\System.net\Core\IO\30.VFile.cu.h" />
-    <ClInclude Include="..\System.net\Core\Text\00.StringBuilder.cu.h" />
-    <ClInclude Include="..\System.net\Runtime.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\00.Bitvec.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\10.ConvertEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\20.MutexEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\30.RC.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\40.StatusEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\45.VAlloc.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\50.SysEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\50.VSystem.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\60.MathEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Core.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\IO\30.VFile.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Text\00.StringBuilder.cu.h" />
+    <ClInclude Include="..\SystemL.net\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\System.net\Core\50.SysEx.cu">
+    <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClCompile Include="..\System.net\Core\00.Bitvec.cu">
+    <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClCompile Include="..\System.net\Core\10.ConvertEx.cu">
+    <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClCompile Include="..\System.net\Core\IO\20.MemoryVFile.cu">
+    <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClCompile Include="..\System.net\Core\40.StatusEx.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\System.net\Core\IO\25.JournalVFile.cu">
+    <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu">
       <FileType>Document</FileType>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\System.net\Core\Text\00.StringBuilder.cu">
+    <ClCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu">
       <FileType>Document</FileType>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\System.net\Core\IO\30.VFile.cu">
+    <ClCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu">
       <FileType>Document</FileType>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\System.net\Core\50.VSystem.cu">
+    <ClCompile Include="..\SystemL.net\Core\IO\30.VFile.cu">
       <FileType>Document</FileType>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\System.net\Core\55.WinVSystem.cu">
+    <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu">
+      <FileType>Document</FileType>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu">
       <FileType>Document</FileType>
     </ClCompile>
   </ItemGroup>
