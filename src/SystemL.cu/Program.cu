@@ -1,4 +1,5 @@
-#include "..\System.net\Core\Core.cu.h"
+#ifndef _LIB
+#include "..\SystemL.net\Core\Core.cu.h"
 using namespace Core;
 using namespace Core::IO;
 
@@ -26,3 +27,4 @@ __device__ static void TestVFS()
 	file->Close();
 	SysEx::Free(file);
 }
+#endif

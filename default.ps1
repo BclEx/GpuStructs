@@ -27,18 +27,18 @@ task Init -depends Clean {
 }
 
 task Compile -depends Init {
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpu\;Configuration=$config_cpu;LC=cpu;LD=" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuD\;Configuration=$config_cpuD;LC=cpu;LD=" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuV\;Configuration=$config_cpu;LC=cpu;LD=V" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuVD\;Configuration=$config_cpuD;LC=cpu;LD=V" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11\;Configuration=$config_cu;LC=11;LD=" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11D\;Configuration=$config_cuD;LC=11;LD=" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11V\;Configuration=$config_cu;LC=11;LD=V" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11VD\;Configuration=$config_cuD;LC=11;LD=V" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20\;Configuration=$config_cu;LC=20;LD=" /m
-	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20D\;Configuration=$config_cuD;LC=20;LD="
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20V\;Configuration=$config_cu;LC=20;LD=V" /m
-	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20VD\;Configuration=$config_cuD;LC=20;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpu\;Configuration=$config_cpu;LC=cpu;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuD\;Configuration=$config_cpuD;LC=cpu;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuV\;Configuration=$config_cpu;LC=cpu;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.cpuVD\;Configuration=$config_cpuD;LC=cpu;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11\;Configuration=$config_cu;LC=11;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11D\;Configuration=$config_cuD;LC=11;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11V\;Configuration=$config_cu;LC=11;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.11VD\;Configuration=$config_cuD;LC=11;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20\;Configuration=$config_cu;LC=20;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20D\;Configuration=$config_cuD;LC=20;LD=" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20V\;Configuration=$config_cu;LC=20;LD=V" /m
+	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20VD\;Configuration=$config_cuD;LC=20;LD=V" /m
 	
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.30\;Configuration=$config_cu;LC=30;LD=" /m
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.30V\;Configuration=$config_cu;LC=30;LD=V" /m

@@ -1,5 +1,5 @@
 #ifndef _LIB
-#include "..\System.net\Core\Core.cu.h"
+#include "..\SystemL.net\Core\Core.cu.h"
 #include <stdio.h>
 #include <string.h>
 using namespace Core;
