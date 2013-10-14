@@ -21,7 +21,7 @@
   </metadata>
   <files>
     <file src="build\SystemL.*.dll" target="lib\net40" />
-    <file src="build\SystemL.*.lib" target="lib\native" />
+    <file src="build\SystemL.*.lib" target="lib\native" exclude="build\SystemL.cu.lib" />
     <file src="src\SystemL.net\**\*.h" target="include" />
     <file src="src\SystemL.net\**\*.cs" target="src" />
     <file src="src\SystemL.net\**\*.cpp" target="src" />
