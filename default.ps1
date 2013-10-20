@@ -38,7 +38,7 @@ task Compile -depends Init {
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20\;Configuration=$config_cu;LC=20;LD=" /m
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20D\;Configuration=$config_cuD;LC=20;LD=" /m
 	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20V\;Configuration=$config_cu;LC=20;LD=V" /m
-	msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20VD\;Configuration=$config_cuD;LC=20;LD=V" /m
+	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.20VD\;Configuration=$config_cuD;LC=20;LD=V" /m
 	
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.30\;Configuration=$config_cu;LC=30;LD=" /m
 	#msbuild $sln_file /p:"OutDir=$build_dir\;IntDir=$build_dir\obj.30V\;Configuration=$config_cu;LC=30;LD=V" /m
