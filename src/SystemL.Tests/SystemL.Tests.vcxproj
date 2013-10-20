@@ -23,12 +23,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FallocITest.cpp" />
-    <ClCompile Include="RuntimeITest.cpp" />
+    <ClCompile Include="IOTest.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="FallocITest.cu" />
-    <CudaCompile Include="RuntimeITest.cu" />
+    <CudaCompile Include="IOTest.cu" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="xunit">
