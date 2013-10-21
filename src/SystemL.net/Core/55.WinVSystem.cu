@@ -434,7 +434,7 @@ namespace Core
 #endif
 #define osGetSystemInfo ((VOID(WINAPI *)(LPSYSTEM_INFO))Syscalls[28].Current)
 		{"GetSystemTime", (SYSCALL)GetSystemTime, nullptr},
-#define osGetSystemTime ((VOID(WINAPIs*)(LPSYSTEMTIME))Syscalls[29].Current)
+#define osGetSystemTime ((VOID(WINAPI *)(LPSYSTEMTIME))Syscalls[29].Current)
 #if !OS_WINCE
 		{"GetSystemTimeAsFileTime", (SYSCALL)GetSystemTimeAsFileTime, nullptr},
 #else
@@ -934,7 +934,9 @@ namespace Core
 	{
 		WinMemData *winMemData = (WinMemData *)appData;
 		if (!winMemData) return RC::ERROR;
+#if _DEBUG
 		_assert(winMemData->Magic == WINMEM_MAGIC);
+#endif
 #if !OS_WINRT && WIN32_HEAP_CREATE
 		if (!winMemData->Heap)
 		{
@@ -3090,7 +3092,7 @@ shmpage_out:
 			n += sizeof(cnt);
 		}
 #endif
-		if (sizeof(LARGE_INTEGER) <= bufLegnth - n)
+		if (sizeof(LARGE_INTEGER) <= bufLength - n)
 		{
 			LARGE_INTEGER i;
 			osQueryPerformanceCounter(&i);

@@ -86,4 +86,10 @@
       <UniqueIdentifier>{1ed0b226-75ce-454b-8c44-f1d6df5a5ffa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\SystemL.net\Core\55.GpuVSystem.cu">
+      <Filter>Core</Filter>
+    </None>
+    <None Include="Program.cu" />
+  </ItemGroup>
 </Project>

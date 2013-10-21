@@ -28,7 +28,7 @@ namespace Core
 	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
 #endif
 #else
-#define SysEx_LOG(X)
+#define SysEx_LOG(X, ...) ((void)0)
 #define SysEx_OSTRACE(X)
 #define SysEx_IOTRACE(X)
 #endif
