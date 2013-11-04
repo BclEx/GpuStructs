@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <LD>V</LD>
-    <LC>cpu</LC>
+    <LC>20</LC>
   </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
@@ -44,6 +44,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -129,52 +130,33 @@
     <ClInclude Include="..\SystemL.net\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
+    <ClCompile Include="Program.cu" />
+    <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
+    <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\30.VFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu" />
+    <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu" />
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\IO\30.VFile.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu">
-      <FileType>Document</FileType>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\SystemL.net\Core\55.GpuVSystem.cu" />
-    <None Include="Program.cu" />
+  <ItemGroup  Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+    <CudaCompile Include="Program.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\30.VFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\50.VSystem.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\55.GpuVSystem.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.targets" />
   </ImportGroup>
 </Project>

@@ -31,6 +31,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemL.net", "src\SystemL.net\SystemL.net.csproj", "{30180E7B-AABE-4F33-9C2C-F8A447024674}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SystemL.Tests", "src\SystemL.Tests\SystemL.Tests.vcxproj", "{3A992207-4EA5-4750-9401-AAD09DFDE7E5}"
+	ProjectSection(ProjectDependencies) = postProject
+		{ACDAB731-E71B-406B-B023-6A3FD7957591} = {ACDAB731-E71B-406B-B023-6A3FD7957591}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemL.Data.net", "src\SystemL.Data.net\SystemL.Data.net.csproj", "{31180E7B-AABE-4F33-9C2C-F8A447024674}"
 EndProject
@@ -70,12 +73,12 @@ Global
 		{921AFA21-3738-4DFC-985B-0F5C080E15E4}.Release.cu|x64.ActiveCfg = Release.cu|x64
 		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cpu|x64.ActiveCfg = Debug.cpu|x64
 		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cpu|x64.Build.0 = Debug.cpu|x64
-		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cu|x64.ActiveCfg = Debug.cpu|x64
-		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cu|x64.Build.0 = Debug.cpu|x64
+		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cu|x64.ActiveCfg = Debug.cu|x64
+		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Debug.cu|x64.Build.0 = Debug.cu|x64
 		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cpu|x64.ActiveCfg = Release.cpu|x64
 		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cpu|x64.Build.0 = Release.cpu|x64
-		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cu|x64.ActiveCfg = Release.cpu|x64
-		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cu|x64.Build.0 = Release.cpu|x64
+		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cu|x64.ActiveCfg = Release.cu|x64
+		{ACDAB731-E71B-406B-B023-6A3FD7957591}.Release.cu|x64.Build.0 = Release.cu|x64
 		{30180E7B-AABE-4F33-9C2C-F8A447024674}.Debug.cpu|x64.ActiveCfg = Debug|Any CPU
 		{30180E7B-AABE-4F33-9C2C-F8A447024674}.Debug.cpu|x64.Build.0 = Debug|Any CPU
 		{30180E7B-AABE-4F33-9C2C-F8A447024674}.Debug.cu|x64.ActiveCfg = Debug|Any CPU

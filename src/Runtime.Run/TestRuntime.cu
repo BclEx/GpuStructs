@@ -67,7 +67,7 @@ __global__ static void runtimeExample5(void *r)
 	array_t<char> name = "SkyM";
 	name = "ScottP";
 	char *a0 = name;
-	size_t a0l = name.length;
+	size_t a0l = name.length; _assert(a0l == 6);
 }
 
 __global__ static void runtimeExample6(void *r)
