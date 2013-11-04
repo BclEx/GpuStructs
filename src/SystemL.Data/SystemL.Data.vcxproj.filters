@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Core+Btree">
+      <UniqueIdentifier>{55cc508a-070a-48a8-85e3-92f47958ac7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core+Pager">
+      <UniqueIdentifier>{84185c23-e52d-4c93-b862-700b5488231a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
+      <Filter>Core+Btree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\BtreeInt.cu.h">
+      <Filter>Core+Btree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\Context.cu.h">
+      <Filter>Core+Btree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\Core+Btree.cu.h">
+      <Filter>Core+Btree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Pager\Core+Pager.cu.h">
+      <Filter>Core+Pager</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h">
+      <Filter>Core+Pager</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h">
+      <Filter>Core+Pager</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h">
+      <Filter>Core+Pager</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu">
+      <Filter>Core+Btree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
+      <Filter>Core+Pager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu">
+      <Filter>Core+Pager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu">
+      <Filter>Core+Pager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu">
+      <Filter>Core+Pager</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

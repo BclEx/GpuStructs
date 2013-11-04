@@ -37,8 +37,43 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Core+Btree\Btree.cs" />
+    <Compile Include="Core+Btree\BtreeInt_h.cs" />
+    <Compile Include="Core+Btree\Btree_h.cs" />
+    <Compile Include="Core+Btree\Context_h.cs" />
+    <Compile Include="Core+Btree\Core+Btree_h.cs" />
+    <Compile Include="Core+Pager\Core+Pager_h.cs" />
+    <Compile Include="Core+Pager\Pager.cs" />
+    <Compile Include="Core+Pager\Pager_h.cs" />
+    <Compile Include="Core+Pager\PCache.cs" />
+    <Compile Include="Core+Pager\PCache1.cs" />
+    <Compile Include="Core+Pager\PCache_h.cs" />
+    <Compile Include="Core+Pager\Wal.cs" />
+    <Compile Include="Core+Pager\Wal_h.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Content Include="Core+Btree\Btree.cu.h" />
+    <Content Include="Core+Btree\BtreeInt.cu.h" />
+    <Content Include="Core+Btree\Context.cu.h" />
+    <Content Include="Core+Btree\Core+Btree.cu.h" />
+    <Content Include="Core+Pager\Core+Pager.cu.h" />
+    <Content Include="Core+Pager\Pager.cu.h" />
+    <Content Include="Core+Pager\PCache.cu.h" />
+    <Content Include="Core+Pager\Wal.cu.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Core+Btree\Btree.cu" />
+    <None Include="Core+Pager\Pager.cu" />
+    <None Include="Core+Pager\PCache.cu" />
+    <None Include="Core+Pager\PCache1.cu" />
+    <None Include="Core+Pager\Wal.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SystemL.net\SystemL.net.csproj">
+      <Project>{30180e7b-aabe-4f33-9c2c-f8a447024674}</Project>
+      <Name>SystemL.net</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
