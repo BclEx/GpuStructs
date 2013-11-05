@@ -8,7 +8,7 @@
     <ProjectGuid>{31180E7B-AABE-4F33-9C2C-F8A447024674}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>System</RootNamespace>
-    <AssemblyName>SystemL.Data.net</AssemblyName>
+    <AssemblyName>SystemL.Data</AssemblyName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

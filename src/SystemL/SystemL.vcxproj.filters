@@ -2,36 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
-    <ClCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\30.VFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu">
-      <Filter>Core\Text</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.net\Core\IO\30.VFile.cu.h">
@@ -87,9 +57,36 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\SystemL.net\Core\55.GpuVSystem.cu">
+    <CudaCompile Include="Program.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu">
+      <Filter>Core\Text</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu">
       <Filter>Core</Filter>
-    </None>
-    <None Include="Program.cu" />
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\10.ConvertEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\30.VFile.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\40.StatusEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\50.VSystem.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\55.GpuVSystem.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu">
+      <Filter>Core\IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu">
+      <Filter>Core\IO</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

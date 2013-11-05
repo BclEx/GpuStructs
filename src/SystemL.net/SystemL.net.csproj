@@ -8,7 +8,7 @@
     <ProjectGuid>{30180E7B-AABE-4F33-9C2C-F8A447024674}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>System</RootNamespace>
-    <AssemblyName>SystemL.net</AssemblyName>
+    <AssemblyName>SystemL</AssemblyName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -55,6 +55,7 @@
     <Content Include="Core\10.ConvertEx.cu.h" />
     <Content Include="Core\45.VAlloc.cu.h" />
     <Content Include="Core\50.VSystem.cu.h" />
+    <Content Include="Runtime.cu.h" />
     <None Include="Core\00.Bitvec.cu" />
     <None Include="Core\10.ConvertEx.cu" />
     <Content Include="Core\00.Bitvec.cu.h" />

@@ -129,7 +129,7 @@
     <ClInclude Include="..\SystemL.net\Core\Text\00.StringBuilder.cu.h" />
     <ClInclude Include="..\SystemL.net\Runtime.cu.h" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
     <ClCompile Include="Program.cu" />
     <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
@@ -142,7 +142,7 @@
     <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu" />
     <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu" />
   </ItemGroup>
-  <ItemGroup  Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="Program.cu" />
     <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
