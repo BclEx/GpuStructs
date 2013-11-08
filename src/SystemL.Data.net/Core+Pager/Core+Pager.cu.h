@@ -1,4 +1,4 @@
-﻿#include "../Core/Core.cu.h"
+﻿#include <Core/Core.cu.h>
 
 #define Pid uint32
 

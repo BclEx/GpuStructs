@@ -30,7 +30,7 @@
     <DefineConstants>DEBUG;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK</DefineConstants>
   </PropertyGroup>
   <PropertyGroup>
-    <TargetName>System.$(LC)$(LD)</TargetName>
+    <TargetName>SystemL$(LD)</TargetName>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />

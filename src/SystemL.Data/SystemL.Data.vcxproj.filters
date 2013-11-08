@@ -34,21 +34,4 @@
       <Filter>Core+Pager</Filter>
     </ClInclude>
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu">
-      <Filter>Core+Btree</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
-      <Filter>Core+Pager</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu">
-      <Filter>Core+Pager</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu">
-      <Filter>Core+Pager</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu">
-      <Filter>Core+Pager</Filter>
-    </ClCompile>
-  </ItemGroup>
 </Project>
