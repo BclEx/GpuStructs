@@ -21,11 +21,16 @@
   </metadata>
   <files>
     <file src="build\SystemL.*.dll" target="lib\net40" />
-    <file src="build\SystemL.*.lib" target="lib\native" exclude="build\SystemL.cu.lib" />
+    <file src="build\SystemL.*.lib" target="lib\native" exclude="build\SystemL.lib;build\SystemL.Data.lib" />
     <file src="src\SystemL.net\**\*.h" target="include" />
-    <file src="src\SystemL.net\**\*.cs" target="src" />
+    <file src="src\SystemL.net\**\*.cs" target="src" exclude="src\SystemL.net\AssemblyInfo.cs;src\SystemL.net\Program.cs" />
     <file src="src\SystemL.net\**\*.cpp" target="src" />
     <file src="src\SystemL.net\**\*.cu" target="src" />
     <file src="src\SystemL.net\**\*.h" target="src" />
+    <file src="src\SystemL.Data.net\**\*.h" target="include" />
+    <file src="src\SystemL.Data.net\**\*.cs" target="src" exclude="src\SystemL.Data.net\AssemblyInfo.cs;src\SystemL.Data.net\Program.cs" />
+    <file src="src\SystemL.Data.net\**\*.cpp" target="src" />
+    <file src="src\SystemL.Data.net\**\*.cu" target="src" />
+    <file src="src\SystemL.Data.net\**\*.h" target="src" />
   </files>
 </package>
