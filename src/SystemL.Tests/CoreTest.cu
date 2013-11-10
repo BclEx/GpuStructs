@@ -9,3 +9,8 @@
 	SysEx::Initialize();
 
 //////////////////////////////////////////////////
+
+// printf outputs
+TEST(0) {
+	_printf("test");
+}}

@@ -79,34 +79,34 @@ namespace Core
 			if (!newWiData)
 			{
 				*idOut = nullptr;
-				return RC::NOMEM;
+				return RC_NOMEM;
 			}
 			_memset((void *)&newWiData[wal->WiData.length], 0, sizeof(uint32 *) * (id + 1 - wal->WiData.length));
 			__arraySet(wal->WiData, newWiData, id + 1);
 		}
 
 		// Request a pointer to the required page from the VFS
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (wal->WiData[id] == 0)
 		{
 			if (wal->ExclusiveMode_ == Wal::MODE_HEAPMEMORY)
 			{
 				wal->WiData[id] = (uint32 volatile *)SysEx::Alloc(WALINDEX_PGSZ, true);
-				if (!wal->WiData[id]) rc = RC::NOMEM;
+				if (!wal->WiData[id]) rc = RC_NOMEM;
 			}
 			else
 			{
 				rc = wal->DBFile->ShmMap(id, WALINDEX_PGSZ, wal->WriteLock, (void volatile **)&wal->WiData[id]);
-				if (rc == RC::READONLY)
+				if (rc == RC_READONLY)
 				{
 					wal->ReadOnly |= Wal::RDONLY_RDONLY;
-					rc = RC::OK;
+					rc = RC_OK;
 				}
 			}
 		}
 
 		*idOut = wal->WiData[id];
-		_assert(id == 0 || *idOut || rc != RC::OK);
+		_assert(id == 0 || *idOut || rc != RC_OK);
 		return rc;
 	}
 
@@ -250,7 +250,7 @@ namespace Core
 
 	__device__ static RC walLockShared(Wal *wal, int lockIdx)
 	{
-		if (wal->ExclusiveMode_) return RC::OK;
+		if (wal->ExclusiveMode_) return RC_OK;
 		RC rc = wal->DBFile->ShmLock(lockIdx, 1, (VFile::SHM)(VFile::SHM_LOCK | VFile::SHM_SHARED));
 		WALTRACE("WAL%p: acquire SHARED-%s %s\n", wal, walLockName(lockIdx), rc ? "failed" : "ok");
 		return rc;
@@ -265,7 +265,7 @@ namespace Core
 
 	__device__ static RC walLockExclusive(Wal *wal, int lockIdx, int n)
 	{
-		if (wal->ExclusiveMode_) return RC::OK;
+		if (wal->ExclusiveMode_) return RC_OK;
 		RC rc = wal->DBFile->ShmLock(lockIdx, n, (VFile::SHM)(VFile::SHM_LOCK | VFile::SHM_EXCLUSIVE));
 		WALTRACE("WAL%p: acquire EXCLUSIVE-%s cnt=%d %s\n", wal, walLockName(lockIdx), n, rc ? "failed" : "ok");
 		return rc;
@@ -298,9 +298,9 @@ namespace Core
 	{
 		volatile Pid *ids;
 		RC rc = walIndexPage(wal, id, &ids);
-		_assert(rc == RC::OK || id > 0);
+		_assert(rc == RC_OK || id > 0);
 
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			Pid zero;
 			volatile ht_slot *hash = (volatile ht_slot *)&ids[HASHTABLE_NPAGE];
@@ -392,7 +392,7 @@ namespace Core
 		RC rc = walHashGet(wal, walFramePage(frame), &hash, &ids, &zero);
 
 		// Assuming the wal-index file was successfully mapped, populate the page number array and hash table entry.
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			int idx = frame - zero; // Value to write to hash-table slot
 			_assert(idx <= HASHTABLE_NSLOT / 2 + 1 );
@@ -466,7 +466,7 @@ namespace Core
 
 		int64 size; // Size of log file
 		rc = wal->WalFile->get_FileSize(size);
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 			goto recovery_error;
 
 		if (size > WAL_HDRSIZE)
@@ -474,7 +474,7 @@ namespace Core
 			// Read in the WAL header.
 			uint8 buf[WAL_HDRSIZE]; // Buffer to load WAL header into
 			rc = wal->WalFile->Read(buf, WAL_HDRSIZE, 0);
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				goto recovery_error;
 
 			// If the database page size is not a power of two, or is greater than SQLITE_MAX_PAGE_SIZE, conclude that the WAL file contains no valid 
@@ -509,7 +509,7 @@ namespace Core
 			uint8 *frames = (uint8 *)SysEx::Alloc(sizeFrame); // Malloc'd buffer to load entire frame
 			if (!frames)
 			{
-				rc = RC::NOMEM;
+				rc = RC_NOMEM;
 				goto recovery_error;
 			}
 			uint8 *data = &frames[WAL_FRAME_HDRSIZE]; // Pointer to data part of aFrame buffer
@@ -521,13 +521,13 @@ namespace Core
 				// Read and decode the next log frame.
 				frameIdx++;
 				rc = wal->WalFile->Read(frames, sizeFrame, offset);
-				if (rc != RC::OK) break;
+				if (rc != RC_OK) break;
 				Pid id; // Database page number for frame
 				uint32 truncate; // dbsize field from frame header
 				bool isValid = walDecodeFrame(wal, &id, &truncate, data, frames); // True if this frame is valid
 				if (!isValid) break;
 				rc = walIndexAppend(wal, frameIdx, id);
-				if (rc != RC::OK) break;
+				if (rc != RC_OK) break;
 
 				// If nTruncate is non-zero, this is a commit record.
 				if (truncate)
@@ -546,7 +546,7 @@ namespace Core
 		}
 
 finished:
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			volatile WalCheckpointInfo *info;
 			wal->Header.FrameChecksum[0] = frameChecksum[0];
@@ -563,7 +563,7 @@ finished:
 			// If more than one frame was recovered from the log file, report an event via sqlite3_log(). This is to help with identifying performance
 			// problems caused by applications routinely shutting down without checkpointing the log file.
 			if (wal->Header.Pages)
-				SysEx_LOG(RC::OK, "Recovered %d frames from WAL file %s", wal->Header.Pages, wal->WalName);
+				SysEx_LOG(RC_OK, "Recovered %d frames from WAL file %s", wal->Header.Pages, wal->WalName);
 		}
 
 recovery_error:
@@ -606,7 +606,7 @@ recovery_error:
 		*walOut = nullptr;
 		Wal *r = (Wal *)SysEx::Alloc(sizeof(Wal) + vfs->SizeOsFile, true); // Object to allocate and return
 		if (!r)
-			return RC::NOMEM;
+			return RC_NOMEM;
 
 		r->Vfs = vfs;
 		r->WalFile = (VFile *)&r[1];
@@ -621,10 +621,10 @@ recovery_error:
 		// Open file handle on the write-ahead log file.
 		VSystem::OPEN flags = (VSystem::OPEN)(VSystem::OPEN_READWRITE | VSystem::OPEN_CREATE | VSystem::OPEN_WAL);
 		RC rc = vfs->Open(walName, r->WalFile, flags, &flags);
-		if (rc == RC::OK && flags & VSystem::OPEN_READONLY)
+		if (rc == RC_OK && flags & VSystem::OPEN_READONLY)
 			r->ReadOnly = RDONLY_RDONLY;
 
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 		{
 			walIndexClose(r, 0);
 			r->WalFile->Close();
@@ -777,23 +777,23 @@ recovery_error:
 		int bytes = sizeof(WalIterator) + (segments - 1) * sizeof(WalSegment) + lastFrame * sizeof(ht_slot); // Number of bytes to allocate
 		WalIterator *p = (WalIterator *)SysEx::ScratchAlloc(bytes); // Return value
 		if (!p)
-			return RC::NOMEM;
+			return RC_NOMEM;
 		_memset(p, 0, bytes);
 		p->SegmentsLength = segments;
 
 		// Allocate temporary space used by the merge-sort routine. This block of memory will be freed before this function returns.
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		ht_slot *tmp = (ht_slot *)SysEx::ScratchAlloc(sizeof(ht_slot) * (lastFrame > HASHTABLE_NPAGE ? HASHTABLE_NPAGE : lastFrame)); // Temp space used by merge-sort
 		if (!tmp)
-			rc = RC::NOMEM;
+			rc = RC_NOMEM;
 
-		for (int i = 0; rc == RC::OK && i < segments; i++)
+		for (int i = 0; rc == RC_OK && i < segments; i++)
 		{
 			volatile ht_slot *hash;
 			volatile uint32 *ids;
 			uint32 zero;
 			rc = walHashGet(wal, i, &hash, &ids, &zero);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				ids++;
 				int entrys; // Number of entries in this segment
@@ -815,7 +815,7 @@ recovery_error:
 		}
 		SysEx::ScratchFree(tmp);
 
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 			walIteratorFree(p);
 		*iteratorOut = p;
 		return rc;
@@ -827,7 +827,7 @@ recovery_error:
 		do
 		{
 			rc = walLockExclusive(wal, lockIdx, n);
-		} while (busy && rc == RC::BUSY && busy(busyArg));
+		} while (busy && rc == RC_BUSY && busy(busyArg));
 		return rc;
 	}
 
@@ -842,12 +842,12 @@ recovery_error:
 		ASSERTCOVERAGE(sizePage <= 32768);
 		ASSERTCOVERAGE(sizePage >= 65536);
 		volatile WalCheckpointInfo *info = walCheckpointInfo(wal); // The checkpoint status information
-		if (info->Backfills >= wal->Header.MaxFrame) return RC::OK;
+		if (info->Backfills >= wal->Header.MaxFrame) return RC_OK;
 
 		// Allocate the iterator
 		WalIterator *iter = nullptr; // Wal iterator context
 		RC rc = walIteratorInit(wal, &iter);
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 			return rc;
 		_assert(iter != nullptr);
 
@@ -865,12 +865,12 @@ recovery_error:
 			{
 				_assert(y <= wal->Header.MaxFrame);
 				rc = walBusyLock(wal, busy, busyArg, WAL_READ_LOCK(i), 1);
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 				{
 					info->ReadMarks[i] = (i == 1 ? maxSafeFrame : READMARK_NOT_USED);
 					walUnlockExclusive(wal, WAL_READ_LOCK(i), 1);
 				}
-				else if (rc == RC::BUSY)
+				else if (rc == RC_BUSY)
 				{
 					maxSafeFrame = y;
 					busy = nullptr;
@@ -883,50 +883,50 @@ recovery_error:
 		uint32 dbpage = 0; // Next database page to write
 		uint32 frame = 0; // Wal frame containing data for iDbpage
 
-		if (info->Backfills < maxSafeFrame && (rc = walBusyLock(wal, busy, busyArg, WAL_READ_LOCK(0), 1)) = RC::OK)
+		if (info->Backfills < maxSafeFrame && (rc = walBusyLock(wal, busy, busyArg, WAL_READ_LOCK(0), 1)) = RC_OK)
 		{
 			// Sync the WAL to disk
 			if (sync_flags)
 				rc = wal->WalFile->Sync(sync_flags);
 
 			// If the database file may grow as a result of this checkpoint, hint about the eventual size of the db file to the VFS layer. 
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				int64 size; // Current size of database file
 				rc = wal->DBFile->get_FileSize(size);
 				int64 requiredSize = ((int64)maxPage * sizePage);
-				if (rc == RC::OK && size < requiredSize)
+				if (rc == RC_OK && size < requiredSize)
 					wal->DBFile->FileControl(VFile::FCNTL_SIZE_HINT, &requiredSize);
 			}
 
 			uint32 backfills = info->Backfills;
 			// Iterate through the contents of the WAL, copying data to the db file.
-			while (rc == RC::OK && !walIteratorNext(iter, &dbpage, &frame))
+			while (rc == RC_OK && !walIteratorNext(iter, &dbpage, &frame))
 			{
 				_assert(walFramePgno(wal, frame) == dbpage);
 				if (frame <= backfills || frame> maxSafeFrame || dbpage > maxPage) continue;
 				int offset = walFrameOffset(frame, sizePage) + WAL_FRAME_HDRSIZE;
 				// ASSERTCOVERAGE(IS_BIG_INT(offset)); // requires a 4GiB WAL file
 				rc = wal->WalFile->Read(buf, sizePage, offset);
-				if (rc != RC::OK) break;
+				if (rc != RC_OK) break;
 				offset = (dbpage - 1) * (int64)sizePage;
 				ASSERTCOVERAGE(IS_BIG_INT(offset));
 				rc = wal->DBFile->Write(buf, sizePage, offset);
-				if (rc != RC::OK) break;
+				if (rc != RC_OK) break;
 			}
 
 			// If work was actually accomplished...
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				if (maxSafeFrame == walIndexHdr(wal)->MaxFrame)
 				{
 					int64 sizeDB = wal->Header.Pages * (int64)sizePage;
 					ASSERTCOVERAGE(IS_BIG_INT(sizeDB));
 					rc = wal->DBFile->Truncate(sizeDB);
-					if (rc == RC::OK && sync_flags)
+					if (rc == RC_OK && sync_flags)
 						rc = wal->DBFile->Sync(sync_flags);
 				}
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 					info->Backfills = maxSafeFrame;
 			}
 
@@ -934,21 +934,21 @@ recovery_error:
 			walUnlockExclusive(wal, WAL_READ_LOCK(0), 1);
 		}
 
-		if (rc == RC::BUSY) // Reset the return code so as not to report a checkpoint failure just because there are active readers.
-			rc = RC::OK;
+		if (rc == RC_BUSY) // Reset the return code so as not to report a checkpoint failure just because there are active readers.
+			rc = RC_OK;
 
 		// If this is an SQLITE_CHECKPOINT_RESTART operation, and the entire wal file has been copied into the database file, then block until all
 		// readers have finished using the wal file. This ensures that the next process to write to the database restarts the wal file.
-		if (rc == RC::OK && mode != IPager::CHECKPOINT_PASSIVE)
+		if (rc == RC_OK && mode != IPager::CHECKPOINT_PASSIVE)
 		{
 			_assert(wal->WriteLock);
 			if (info->Backfills < wal->Header.MaxFrame)
-				rc = RC::BUSY;
+				rc = RC_BUSY;
 			else if (mode == IPager::CHECKPOINT_RESTART)
 			{
 				_assert(maxSafeFrame == wal->Header.MaxFrame);
 				rc = walBusyLock(wal, busy, busyArg, WAL_READ_LOCK(1), WAL_NREADER - 1);
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 					walUnlockExclusive(wal, WAL_READ_LOCK(1), WAL_NREADER-1);
 			}
 		}
@@ -963,10 +963,10 @@ walcheckpoint_out:
 		SysEx::BeginBenignAlloc();
 		int64 size;
 		RC rc = wal->WalFile->get_FileSize(size);
-		if (rc == RC::OK && size > max)
+		if (rc == RC_OK && size > max)
 			rc = wal->WalFile->Truncate(max);
 		SysEx::EndBenignAlloc();
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 			SysEx_LOG(rc, "cannot limit WAL size: %s", wal->WalName);
 	}
 
@@ -979,12 +979,12 @@ walcheckpoint_out:
 		// The EXCLUSIVE lock is not released before returning.
 		bool isDelete = 0; // True to unlink wal and wal-index files
 		RC rc = DBFile->Lock(VFile::LOCK_EXCLUSIVE);
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			if (ExclusiveMode_ == MODE_NORMAL)
 				ExclusiveMode_ = MODE_EXCLUSIVE;
 			rc = Checkpoint(IPager::CHECKPOINT_PASSIVE, 0, 0, sync_flags, bufLength, buf, 0, 0);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				int persist = -1;
 				DBFile->FileControl(VFile::FCNTL_PERSIST_WAL, &persist);
@@ -1058,7 +1058,7 @@ walcheckpoint_out:
 		_assert(*changed);
 		volatile uint32 *page0; // Chunk of wal-index containing header
 		RC rc = walIndexPage(wal, 0, &page0);
-		if (rc != RC::OK)
+		if (rc != RC_OK)
 			return rc;
 		_assert(page0 || !wal->WriteLock);
 
@@ -1072,16 +1072,16 @@ walcheckpoint_out:
 		{
 			if (wal->ReadOnly & Wal::RDONLY_SHM_RDONLY)
 			{
-				if ((rc = walLockShared(wal, WAL_WRITE_LOCK)) == RC::OK)
+				if ((rc = walLockShared(wal, WAL_WRITE_LOCK)) == RC_OK)
 				{
 					walUnlockShared(wal, WAL_WRITE_LOCK);
-					rc = RC::READONLY_RECOVERY;
+					rc = RC_READONLY_RECOVERY;
 				}
 			}
-			else if ((rc = walLockExclusive(wal, WAL_WRITE_LOCK, 1)) == RC::OK)
+			else if ((rc = walLockExclusive(wal, WAL_WRITE_LOCK, 1)) == RC_OK)
 			{
 				wal->WriteLock = true;
-				if ((rc = walIndexPage(wal, 0, &page0)) == RC::OK)
+				if ((rc = walIndexPage(wal, 0, &page0)) == RC_OK)
 				{
 					badHdr = walIndexTryHdr(wal, changed);
 					if (badHdr)
@@ -1125,17 +1125,17 @@ walcheckpoint_out:
 			if (count > 100)
 			{
 				//VVA_ONLY(wal->LockError = 1;)
-				return RC::PROTOCOL;
+				return RC_PROTOCOL;
 			}
 			if (count >= 10) delay = (count - 9) * 238; // Max delay 21ms. Total delay 996ms
 			wal->Vfs->Sleep(delay);
 		}
 
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (!useWal)
 		{
 			rc = walIndexReadHdr(wal, changed);
-			if (rc == RC::BUSY)
+			if (rc == RC_BUSY)
 			{
 				// If there is not a recovery running in another thread or process then convert BUSY errors to WAL_RETRY.  If recovery is known to
 				// be running, convert BUSY to BUSY_RECOVERY.  There is a race here which might cause WAL_RETRY to be returned even if BUSY_RECOVERY
@@ -1146,17 +1146,17 @@ walcheckpoint_out:
 					// This branch is taken when the xShmMap() method returns SQLITE_BUSY. We assume this is a transient condition, so return WAL_RETRY. The
 					// xShmMap() implementation used by the default unix and win32 VFS modules may return SQLITE_BUSY due to a race condition in the 
 					// code that determines whether or not the shared-memory region must be zeroed before the requested page is returned.
-					rc = RC::INVALID;
+					rc = RC_INVALID;
 				}
-				else if ((rc = walLockShared(wal, WAL_RECOVER_LOCK)) == RC::OK)
+				else if ((rc = walLockShared(wal, WAL_RECOVER_LOCK)) == RC_OK)
 				{
 					walUnlockShared(wal, WAL_RECOVER_LOCK);
-					rc = RC::INVALID;
+					rc = RC_INVALID;
 				}
-				else if (rc == RC::BUSY)
-					rc = RC::BUSY_RECOVERY;
+				else if (rc == RC_BUSY)
+					rc = RC_BUSY_RECOVERY;
 			}
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				return rc;
 		}
 
@@ -1166,7 +1166,7 @@ walcheckpoint_out:
 			// The WAL has been completely backfilled (or it is empty). and can be safely ignored.
 			rc = walLockShared(wal, WAL_READ_LOCK(0));
 			walShmBarrier(wal);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				if (_memcmp((void *)walIndexHdr(wal), (void *)&wal->Header, sizeof(Wal::IndexHeader)))
 				{
@@ -1178,12 +1178,12 @@ walcheckpoint_out:
 					// is obtained, that is not necessarily true. A checkpointer may have started to backfill the appended frames but crashed before
 					// it finished. Leaving a corrupt image in the database file.
 					walUnlockShared(wal, WAL_READ_LOCK(0));
-					return RC::INVALID;
+					return RC_INVALID;
 				}
 				wal->ReadLock = 0;
-				return RC::OK;
+				return RC_OK;
 			}
-			else if (rc != RC::BUSY)
+			else if (rc != RC_BUSY)
 				return rc;
 		}
 
@@ -1206,26 +1206,26 @@ walcheckpoint_out:
 			for (int i = 1; i < WAL_NREADER; i++)
 			{
 				rc = walLockExclusive(wal, WAL_READ_LOCK(i), 1);
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 				{
 					maxReadMark = info->ReadMarks[i] = wal->Header.MaxFrame;
 					mxI = i;
 					walUnlockExclusive(wal, WAL_READ_LOCK(i), 1);
 					break;
 				}
-				else if(rc != RC::BUSY)
+				else if(rc != RC_BUSY)
 					return rc;
 			}
 		}
 		if (mxI == 0)
 		{
-			_assert(rc == RC::BUSY || (wal->ReadOnly & Wal::RDONLY_SHM_RDONLY) != 0);
-			return (rc == RC::BUSY ? RC::INVALID : RC::READONLY_CANTLOCK);
+			_assert(rc == RC_BUSY || (wal->ReadOnly & Wal::RDONLY_SHM_RDONLY) != 0);
+			return (rc == RC_BUSY ? RC_INVALID : RC_READONLY_CANTLOCK);
 		}
 
 		rc = walLockShared(wal, WAL_READ_LOCK(mxI));
 		if (rc)
-			return (rc == RC::BUSY ? RC::INVALID : rc);
+			return (rc == RC_BUSY ? RC_INVALID : rc);
 		// Now that the read-lock has been obtained, check that neither the value in the aReadMark[] array or the contents of the wal-index
 		// header have changed.
 		//
@@ -1241,7 +1241,7 @@ walcheckpoint_out:
 		if (info->ReadMarks[mxI] != maxReadMark || _memcmp((void *)walIndexHeader(wal), &wal->Header, sizeof(Wal::IndexHeader)))
 		{
 			walUnlockShared(wal, WAL_READ_LOCK(mxI));
-			return RC::INVALID;
+			return RC_INVALID;
 		}
 		else
 		{
@@ -1262,11 +1262,11 @@ walcheckpoint_out:
 		do
 		{
 			rc = walTryBeginRead(this, changed, 0, ++count);
-		} while (rc == RC::INVALID);
-		ASSERTCOVERAGE((rc & 0xff) == RC::BUSY);
-		ASSERTCOVERAGE((rc & 0xff) == RC::IOERR);
-		ASSERTCOVERAGE(rc == RC::PROTOCOL);
-		ASSERTCOVERAGE(rc == RC::OK);
+		} while (rc == RC_INVALID);
+		ASSERTCOVERAGE((rc & 0xff) == RC_BUSY);
+		ASSERTCOVERAGE((rc & 0xff) == RC_IOERR);
+		ASSERTCOVERAGE(rc == RC_PROTOCOL);
+		ASSERTCOVERAGE(rc == RC_OK);
 		return rc;
 	}
 
@@ -1291,7 +1291,7 @@ walcheckpoint_out:
 		if (last == 0 || ReadLock == 0)
 		{
 			*inWal = false;
-			return RC::OK;
+			return RC_OK;
 		}
 
 		// Search the hash table or tables for an entry matching page number pgno. Each iteration of the following for() loop searches one
@@ -1318,7 +1318,7 @@ walcheckpoint_out:
 			volatile Pid *ids; // Pointer to array of page numbers
 			uint32 zero; // Frame number corresponding to aPgno[0]
 			RC rc = walHashGet(this, hash, &hashs, &ids, &zero);
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				return rc;
 			int collides = HASHTABLE_NSLOT; // Number of hash collisions remaining
 			for (int key = walHash(id); hashs[key]; key = walNextHash(key)) // Hash slot index
@@ -1360,7 +1360,7 @@ walcheckpoint_out:
 		}
 
 		*inWal = false;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ Pid Wal::DBSize()
@@ -1374,7 +1374,7 @@ walcheckpoint_out:
 		_assert(ReadLock >= 0);
 
 		if (ReadOnly)
-			return RC::READONLY;
+			return RC_READONLY;
 
 		// Only one writer allowed at a time.  Get the write lock.  Return SQLITE_BUSY if unable.
 		RC rc = walLockExclusive(this, WAL_WRITE_LOCK, 1);
@@ -1388,7 +1388,7 @@ walcheckpoint_out:
 		{
 			walUnlockExclusive(this, WAL_WRITE_LOCK, 1);
 			WriteLock = 0;
-			rc = RC::BUSY;
+			rc = RC_BUSY;
 		}
 
 		return rc;
@@ -1402,18 +1402,18 @@ walcheckpoint_out:
 			WriteLock = 0;
 			TruncateOnCommit = false;
 		}
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC Wal::Undo(int (*undo)(void *, Pid), void *undoCtx)
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (SysEx_ALWAYS(WriteLock))
 		{
 			// Restore the clients cache of the wal-index header to the state it was in before the client began writing to the database. 
 			_memcpy((void *)&Header, (void *)walIndexHeader(this), sizeof(Wal::IndexHeader));
 			Pid max = Header.MaxFrame;
-			for (Pid frame = Header.MaxFrame + 1;  SysEx_ALWAYS(rc == RC::OK) && frame <= max; frame++)
+			for (Pid frame = Header.MaxFrame + 1;  SysEx_ALWAYS(rc == RC_OK) && frame <= max; frame++)
 			{
 				// This call cannot fail. Unless the page for which the page number is passed as the second argument is (a) in the cache and 
 				// (b) has an outstanding reference, then xUndo is either a no-op (if (a) is false) or simply expels the page from the cache (if (b) is false).
@@ -1425,7 +1425,7 @@ walcheckpoint_out:
 			}
 			if (max != Header.MaxFrame) walCleanupHash(this);
 		}
-		_assert(rc == RC::OK);
+		_assert(rc == RC_OK);
 		return rc;
 	}
 
@@ -1459,12 +1459,12 @@ walcheckpoint_out:
 			walCleanupHash(this);
 		}
 
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ static int walRestartLog(Wal *wal)
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (wal->ReadLock == 0)
 		{
 			volatile WalCheckpointInfo *info = walCheckpointInfo(wal);
@@ -1474,7 +1474,7 @@ walcheckpoint_out:
 				uint32 salt1;
 				SysEx::PutRandom(4, &salt1);
 				rc = walLockExclusive(wal, WAL_READ_LOCK(1), WAL_NREADER - 1);
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 				{
 					// If all readers are using WAL_READ_LOCK(0) (in other words if no readers are currently using the WAL), then the transactions
 					// frames will overwrite the start of the existing log. Update the wal-index header to reflect this.
@@ -1495,7 +1495,7 @@ walcheckpoint_out:
 					_assert(info->ReadMarks[0]==0 );
 					walUnlockExclusive(wal, WAL_READ_LOCK(1), WAL_NREADER - 1);
 				}
-				else if (rc != RC::BUSY)
+				else if (rc != RC_BUSY)
 					return rc;
 			}
 			walUnlockShared(wal, WAL_READ_LOCK(0));
@@ -1505,11 +1505,11 @@ walcheckpoint_out:
 			{
 				int notUsed;
 				rc = walTryBeginRead(wal, &notUsed, 1, ++count);
-			} while (rc == RC::INVALID);
-			_assert((rc & 0xff) != RC::BUSY); // BUSY not possible when useWal==1
-			ASSERTCOVERAGE((rc & 0xff) == RC::IOERR);
-			ASSERTCOVERAGE(rc == RC::PROTOCOL);
-			ASSERTCOVERAGE(rc == RC::OK);
+			} while (rc == RC_INVALID);
+			_assert((rc & 0xff) != RC_BUSY); // BUSY not possible when useWal==1
+			ASSERTCOVERAGE((rc & 0xff) == RC_IOERR);
+			ASSERTCOVERAGE(rc == RC_PROTOCOL);
+			ASSERTCOVERAGE(rc == RC_OK);
 		}
 		return rc;
 	}
@@ -1546,7 +1546,7 @@ walcheckpoint_out:
 	{
 		void *data; // Data actually written
 #if defined(HAS_CODEC)
-		if ((data = sqlite3PagerCodec(page)) == nullptr) return RC::NOMEM;
+		if ((data = sqlite3PagerCodec(page)) == nullptr) return RC_NOMEM;
 #else
 		data = page->Data;
 #endif
@@ -1577,7 +1577,7 @@ walcheckpoint_out:
 
 		// See if it is possible to write these frames into the start of the log file, instead of appending to it at pWal->hdr.mxFrame.
 		RC rc;
-		if ((rc = walRestartLog(this)) != RC::OK)
+		if ((rc = walRestartLog(this)) != RC_OK)
 			return rc;
 
 		// If this is the first frame written into the log, write the WAL header to the start of the WAL file. See comments at the top of
@@ -1606,7 +1606,7 @@ walcheckpoint_out:
 
 			rc = WalFile->Write(walHdr, sizeof(walHdr), 0);
 			WALTRACE("WAL%p: wal-header write %s\n", this, rc ? "failed" : "ok");
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				return rc;
 
 			// Sync the header (unless SQLITE_IOCAP_SEQUENTIAL is true or unless all syncing is turned off by PRAGMA synchronous=OFF).  Otherwise
@@ -1684,19 +1684,19 @@ walcheckpoint_out:
 		// Append data to the wal-index. It is not necessary to lock the wal-index to do this as the SQLITE_SHM_WRITE lock held on the wal-index
 		// guarantees that there are no other writers, and no data that may be in use by existing readers is being overwritten.
 		frame = Header.MaxFrame;
-		for (PgHdr *p = list; p && rc == RC::OK; p = p->Dirty)
+		for (PgHdr *p = list; p && rc == RC_OK; p = p->Dirty)
 		{
 			frame++;
 			rc = walIndexAppend(this, frame, p->ID);
 		}
-		while (rc == RC::OK && extras > 0)
+		while (rc == RC_OK && extras > 0)
 		{
 			frame++;
 			extras--;
 			rc = walIndexAppend(this, frame, last->ID);
 		}
 
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			// Update the private copy of the header.
 			Header.SizePage = (uint16)((sizePage & 0xff00) | (sizePage >> 16));
@@ -1725,7 +1725,7 @@ walcheckpoint_out:
 		_assert(CheckpointLock == 0);
 		_assert(WriteLock == 0);
 
-		if (ReadOnly) return RC::READONLY;
+		if (ReadOnly) return RC_READONLY;
 		WALTRACE("WAL%p: checkpoint begins\n", this);
 		RC rc = walLockExclusive(this, WAL_CKPT_LOCK, 1);
 		if (rc) // Usually this is SQLITE_BUSY meaning that another thread or process is already running a checkpoint, or maybe a recovery.  But it might also be SQLITE_IOERR.
@@ -1741,22 +1741,22 @@ walcheckpoint_out:
 		if (mode != IPager::CHECKPOINT_PASSIVE)
 		{
 			rc = walBusyLock(this, busy, busyArg, WAL_WRITE_LOCK, 1);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 				WriteLock = true;
-			else if (rc == RC::BUSY)
+			else if (rc == RC_BUSY)
 			{
 				mode2 = IPager::CHECKPOINT_PASSIVE;
-				rc = RC::OK;
+				rc = RC_OK;
 			}
 		}
 
 		// Read the wal-index header.
 		bool isChanged = false; // True if a new wal-index header is loaded
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 			rc = walIndexReadHdr(this, &isChanged);
 
 		// Copy data from the log to the database file.
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			if (Header.MaxFrame && walPagesize(this) != bufLength)
 				rc = SysEx_CORRUPT_BKPT;
@@ -1764,7 +1764,7 @@ walcheckpoint_out:
 				rc = walCheckpoint(this, mode2, busy, busyArg, sync_flags, buf);
 
 			// If no error occurred, set the output variables.
-			if (rc == RC::OK || rc == RC::BUSY)
+			if (rc == RC_OK || rc == RC_BUSY)
 			{
 				if (logs) *logs = (int)Header.MaxFrame;
 				if (checkpoints) *checkpoints = (int)(walCheckpointInfo(this)->Backfills);
@@ -1784,7 +1784,7 @@ walcheckpoint_out:
 		walUnlockExclusive(this, WAL_CKPT_LOCK, 1);
 		CheckpointLock = 0;
 		WALTRACE("WAL%p: checkpoint %s\n", wal, rc ? "failed" : "ok");
-		return (rc == RC::OK && mode != mode2 ? RC::BUSY : rc);
+		return (rc == RC_OK && mode != mode2 ? RC_BUSY : rc);
 	}
 
 	__device__ int Wal::get_Callback()
@@ -1811,7 +1811,7 @@ walcheckpoint_out:
 			if (ExclusiveMode_)
 			{
 				ExclusiveMode_ = false;
-				if (walLockShared(this, WAL_READ_LOCK(ReadLock)) != RC::OK)
+				if (walLockShared(this, WAL_READ_LOCK(ReadLock)) != RC_OK)
 					ExclusiveMode_ = true;
 				rc = !ExclusiveMode_;
 			}

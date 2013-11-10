@@ -43,13 +43,13 @@ namespace Core
 			uint32 bin = index / p->_divisor;
 			index %= p->_divisor;
 			if (!p->u.Sub[bin])
-				if (!(p->u.Sub[bin] = new Bitvec(p->_divisor))) return RC::NOMEM;
+				if (!(p->u.Sub[bin] = new Bitvec(p->_divisor))) return RC_NOMEM;
 			p = p->u.Sub[bin];
 		}
 		if (p->_size <= BITVEC_NBIT)
 		{
 			p->u.Bitmap[index / BITVEC_SZELEM] |= (1 << (index & (BITVEC_SZELEM - 1)));
-			return RC::OK;
+			return RC_OK;
 		}
 		uint32 h = BITVEC_HASH(index++);
 		// if there wasn't a hash collision, and this doesn't completely fill the hash, then just add it without worring about sub-dividing and re-hashing.
@@ -62,7 +62,7 @@ namespace Core
 		// there was a collision, check to see if it's already in hash, if not, try to find a spot for it
 		do
 		{
-			if (p->u.Hash[h] == index) return RC::OK;
+			if (p->u.Hash[h] == index) return RC_OK;
 			h++;
 			if (h >= BITVEC_NINT) h = 0;
 		} while (p->u.Hash[h]);
@@ -71,7 +71,7 @@ bitvec_set_rehash:
 		if (p->_set >= BITVEC_MXHASH)
 		{
 			uint32 *values;
-			if (!(values = (uint32 *)SysEx::ScratchAlloc(sizeof(p->u.Hash)))) return RC::NOMEM;
+			if (!(values = (uint32 *)SysEx::ScratchAlloc(sizeof(p->u.Hash)))) return RC_NOMEM;
 			_memcpy(values, p->u.Hash, sizeof(p->u.Hash));
 			_memset(p->u.Sub, 0, sizeof(p->u.Sub));
 			p->_divisor = ((p->_size + BITVEC_NPTR - 1) / BITVEC_NPTR);
@@ -84,7 +84,7 @@ bitvec_set_rehash:
 bitvec_set_end:
 		p->_set++;
 		p->u.Hash[h] = index;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ void Bitvec::Clear(uint32 index, void *buffer)

@@ -1,6 +1,4 @@
 #include <Core\Core.cu.h>
-//using namespace Core;
-//using namespace Core::IO;
 
 #define TEST(id) \
 	__global__ void ioTest##id(void *r); \
@@ -13,17 +11,17 @@
 //////////////////////////////////////////////////
 
 // printf outputs
-//TEST(0) {
-//	_printf("test");
-//}}
+TEST(0) {
+	_printf("test");
+}}
 
-//// printf outputs
-//TEST(1) {
-//	auto vfs = VSystem::Find("gpu");
-//	auto file = (VFile *)SysEx::Alloc(vfs->SizeOsFile);
-//	auto rc = vfs->Open("C:\\T_\\Test.db", file, (VSystem::OPEN)((int)VSystem::OPEN_CREATE | (int)VSystem::OPEN_READWRITE | (int)VSystem::OPEN_MAIN_DB), nullptr);
-//	_printf("%d\n", rc);
-//	file->Write4(0, 123145);
-//	file->Close();
-//	SysEx::Free(file);
-//}}
+// printf outputs
+TEST(1) {
+	auto vfs = VSystem::Find("gpu");
+	auto file = (VFile *)SysEx::Alloc(vfs->SizeOsFile);
+	auto rc = vfs->Open("C:\\T_\\Test.db", file, (VSystem::OPEN)((int)VSystem::OPEN_CREATE | (int)VSystem::OPEN_READWRITE | (int)VSystem::OPEN_MAIN_DB), nullptr);
+	_printf("%d\n", rc);
+	file->Write4(0, 123145);
+	file->Close();
+	SysEx::Free(file);
+}}

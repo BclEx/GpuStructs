@@ -4,7 +4,7 @@
 using namespace System;
 using namespace Xunit;
 
-extern void runtimeTest0_host(cudaRuntimeHost &r);
+extern void ioTest0_host(cudaRuntimeHost &r);
 
 namespace Tests
 {
@@ -31,6 +31,6 @@ namespace Tests
 		}
 
 		[Fact]
-		void printf_outputs() { runtimeTest0_host(_runtimeHost); }
+		void printf_outputs() { ioTest0_host(_runtimeHost); }
 	};
 }

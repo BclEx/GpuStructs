@@ -435,7 +435,7 @@ namespace Core
 #endif
 #endif
 #if NO_SYNC // If we compiled with the SQLITE_NO_SYNC flag, then syncing is a no-op
-                return RC::OK;
+                return RC_OK;
 #elif WINRT
                 var stream = H.AsStreamForWrite();
                 stream.Flush();

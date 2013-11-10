@@ -113,7 +113,7 @@ namespace Core { namespace IO
 		{
 			unsigned char ac[4];
 			RC rc = Read(ac, sizeof(ac), offset);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 				*valueOut = ConvertEx::Get4(ac);
 			return rc;
 		}

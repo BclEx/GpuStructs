@@ -283,7 +283,7 @@ namespace Core
 			p->Hash = newHash;
 			p->Hash.length = newLength;
 		}
-		return (p->Hash ? RC::OK : RC::NOMEM);
+		return (p->Hash ? RC_OK : RC_NOMEM);
 	}
 
 	__device__ static void PinPage(PgHdr1 *page)
@@ -377,7 +377,7 @@ namespace Core
 		}
 		_pcache1.Group.MaxPinned = 10;
 		_pcache1.IsInit = true;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ void PCache1::Shutdown()

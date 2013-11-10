@@ -48,7 +48,7 @@ namespace Core
 		}
 		_assert(_vfsList != nullptr);
 		MutexEx::Leave(mutex);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ int VSystem::UnregisterVfs(VSystem *vfs)
@@ -57,6 +57,6 @@ namespace Core
 		MutexEx::Enter(mutex);
 		UnlinkVfs(vfs);
 		MutexEx::Leave(mutex);
-		return RC::OK;
+		return RC_OK;
 	}
 }

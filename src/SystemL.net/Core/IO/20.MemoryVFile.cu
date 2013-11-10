@@ -64,7 +64,7 @@ namespace Core { namespace IO
 		} while (read >= 0 && (chunk = chunk->Next) && read > 0);
 		_readpoint.Offset = offset + amount;
 		_readpoint.Chunk = chunk;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC MemoryVFile::Write(const void *buffer, int amount, int64 offset)
@@ -82,7 +82,7 @@ namespace Core { namespace IO
 				// New chunk is required to extend the file
 				FileChunk *newChunk = new FileChunk();
 				if (!newChunk)
-					return RC::IOERR_NOMEM;
+					return RC_IOERR_NOMEM;
 				newChunk->Next = nullptr;
 				if (chunk) { _assert(First); chunk->Next = newChunk; }
 				else { _assert(!First); First = newChunk; }
@@ -93,7 +93,7 @@ namespace Core { namespace IO
 			amount -= space;
 			_endpoint.Offset += space;
 		}
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC MemoryVFile::Truncate(int64 size)
@@ -107,24 +107,24 @@ namespace Core { namespace IO
 			SysEx::Free(tmp);
 		}
 		MemoryVFileOpen(this);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC MemoryVFile::Close()
 	{
 		Truncate(0);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC MemoryVFile::Sync(int flags)
 	{
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC MemoryVFile::get_FileSize(int64 &size)
 	{
 		size = (int64)_endpoint.Offset;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	// extensions

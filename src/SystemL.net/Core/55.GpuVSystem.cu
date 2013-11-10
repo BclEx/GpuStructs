@@ -86,46 +86,46 @@ namespace Core
 	__device__ RC GpuVFile::Close()
 	{
 		OSTRACE("CLOSE %d\n", H);
-		return RC::OK;
+		return RC_OK;
 		//_assert(H != NULL && H != INVALID_HANDLE_VALUE);
 		//int rc;
 		//rc = osCloseHandle(H);
 		//OSTRACE("CLOSE %d %s\n", H, rc ? "ok" : "failed");
 		//if (rc)
 		//	H = NULL;
-		//return (rc ? RC::OK : gpuLogError(RC::IOERR_CLOSE, gpuGetLastError(), "gpuClose", Path));
+		//return (rc ? RC_OK : gpuLogError(RC_IOERR_CLOSE, gpuGetLastError(), "gpuClose", Path));
 	}
 
 	__device__ RC GpuVFile::Read(void *buffer, int amount, int64 offset)
 	{
 		OSTRACE("READ %d lock=%d\n", H, Lock_);
-		return RC::OK;
+		return RC_OK;
 		//int retry = 0; // Number of retrys
 		//DWORD read; // Number of bytes actually read from file
 		//if (seekGpuFile(this, offset))
-		//	return RC::FULL;
+		//	return RC_FULL;
 		//while (!gpuReadFile(H, buffer, amount, &read, 0))
 		//{
 		//	DWORD lastErrno;
 		//	if (retryIoerr(&retry, &lastErrno)) continue;
 		//	LastErrno = lastErrno;
-		//	return winLogError(RC::IOERR_READ, LastErrno, "winRead", Path);
+		//	return winLogError(RC_IOERR_READ, LastErrno, "winRead", Path);
 		//}
 		//logIoerr(retry);
 		//if (read < (DWORD)amount)
 		//{
 		//	// Unread parts of the buffer must be zero-filled
 		//	memset(&((char *)buffer)[read], 0, amount - read);
-		//	return RC::IOERR_SHORT_READ;
+		//	return RC_IOERR_SHORT_READ;
 		//}
-		//return RC::OK;
+		//return RC_OK;
 	}
 
 	__device__ RC GpuVFile::Write(const void *buffer, int amount, int64 offset)
 	{
 		_assert(amount > 0);
 		OSTRACE("WRITE %d lock=%d\n", H, Lock_);
-		return RC::OK;
+		return RC_OK;
 		//int rc = 0; // True if error has occurred, else false
 		//int retry = 0; // Number of retries
 		//{
@@ -157,30 +157,30 @@ namespace Core
 		//if (rc)
 		//{
 		//	if (LastErrno == ERROR_HANDLE_DISK_FULL ||  LastErrno == ERROR_DISK_FULL)
-		//		return RC::FULL;
-		//	return winLogError(RC::IOERR_WRITE, LastErrno, "winWrite", Path);
+		//		return RC_FULL;
+		//	return winLogError(RC_IOERR_WRITE, LastErrno, "winWrite", Path);
 		//}
 		//else
 		//	logIoerr(retry);
-		//return RC::OK;
+		//return RC_OK;
 	}
 
 	__device__ RC GpuVFile::Truncate(int64 size)
 	{
 		OSTRACE("TRUNCATE %d %lld\n", H, size);
-		return RC::OK;
-		//RC rc = RC::OK;
+		return RC_OK;
+		//RC rc = RC_OK;
 		//// If the user has configured a chunk-size for this file, truncate the file so that it consists of an integer number of chunks (i.e. the
 		//// actual file size after the operation may be larger than the requested size).
 		//if (SizeChunk > 0)
 		//	size = ((size+SizeChunk-1)/SizeChunk)*SizeChunk;
 		//// SetEndOfFile() returns non-zero when successful, or zero when it fails.
 		//if (seekWinFile(this, size))
-		//	rc = winLogError(RC::IOERR_TRUNCATE, LastErrno, "winTruncate1", Path);
+		//	rc = winLogError(RC_IOERR_TRUNCATE, LastErrno, "winTruncate1", Path);
 		//else if (!osSetEndOfFile(H))
 		//{
 		//	LastErrno = osGetLastError();
-		//	rc = winLogError(RC::IOERR_TRUNCATE, LastErrno, "winTruncate2", Path);
+		//	rc = winLogError(RC_IOERR_TRUNCATE, LastErrno, "winTruncate2", Path);
 		//}
 		//OSTRACE("TRUNCATE %d %lld %s\n", H, size, rc ? "failed" : "ok");
 		//return rc;
@@ -191,42 +191,42 @@ namespace Core
 		// Check that one of SQLITE_SYNC_NORMAL or FULL was passed
 		_assert((flags&0x0F) == SYNC_NORMAL || (flags&0x0F) == SYNC_FULL);
 		OSTRACE("SYNC %d lock=%d\n", H, Lock_);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC GpuVFile::get_FileSize(int64 &size)
 	{
-		return RC::OK;
-		//RC rc = RC::OK;
+		return RC_OK;
+		//RC rc = RC_OK;
 		//FILE_STANDARD_INFO info;
 		//if (osGetFileInformationByHandleEx(H, FileStandardInfo, &info, sizeof(info)))
 		//	size = info.EndOfFile.QuadPart;
 		//else
 		//{
 		//	LastErrno = osGetLastError();
-		//	rc = winLogError(RC::IOERR_FSTAT, LastErrno, "winFileSize", Path);
+		//	rc = winLogError(RC_IOERR_FSTAT, LastErrno, "winFileSize", Path);
 		//}
 		//return rc;
 	}
 
 	__device__ RC GpuVFile::Lock(LOCK lock)
 	{
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC GpuVFile::CheckReservedLock(int &lock)
 	{
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC GpuVFile::Unlock(LOCK lock)
 	{
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC GpuVFile::FileControl(FCNTL op, void *arg)
 	{
-		return RC::NOTFOUND;
+		return RC_NOTFOUND;
 	}
 
 	__device__ uint GpuVFile::get_SectorSize()
@@ -254,7 +254,7 @@ namespace Core
 		//		// SQLITE_OPEN_FULLMUTEX or SQLITE_OPEN_SHAREDCACHE) are blocked before reaching the VFS.
 		//		flags = (OPEN)((uint)flags & 0x87f7f);
 		//
-		//		RC rc = RC::OK;
+		//		RC rc = RC_OK;
 		//		OPEN type = (OPEN)(flags & 0xFFFFFF00);  // Type of file to open
 		//		bool isExclusive = (flags & OPEN_EXCLUSIVE);
 		//		bool isDelete = (flags & OPEN_DELETEONCLOSE);
@@ -300,7 +300,7 @@ namespace Core
 		//		//	_assert(isDelete && !isOpenJournal);
 		//		//	_memset(tmpname, 0, MAX_PATH+2);
 		//		//	rc = getTempname(MAX_PATH+2, tmpname);
-		//		//	if (rc != RC::OK)
+		//		//	if (rc != RC_OK)
 		//		//		return rc;
 		//		//	utf8Name = tmpname;
 		//		//}
@@ -312,12 +312,12 @@ namespace Core
 		//		// Convert the filename to the system encoding.
 		//		void *converted = ConvertUtf8Filename(utf8Name); // Filename in OS encoding
 		//		if (!converted)
-		//			return RC::IOERR_NOMEM;
+		//			return RC_IOERR_NOMEM;
 		//
 		//		if (winIsDir(converted))
 		//		{
 		//			SysEx::Free(converted);
-		//			return RC::CANTOPEN_ISDIR;
+		//			return RC_CANTOPEN_ISDIR;
 		//		}
 		//
 		//		DWORD dwDesiredAccess;
@@ -359,7 +359,7 @@ namespace Core
 		//			if (h == INVALID_HANDLE_VALUE)
 		//			{
 		//				file->LastErrno = lastErrno;
-		//				winLogError(RC::CANTOPEN, file->LastErrno, "winOpen", utf8Name);
+		//				winLogError(RC_CANTOPEN, file->LastErrno, "winOpen", utf8Name);
 		//				SysEx::Free(converted);
 		//				if (isReadWrite && !isExclusive)
 		//					return Open(name, id, (OPEN)((flags|OPEN_READONLY) & ~(OPEN_CREATE|OPEN_READWRITE)), outFlags);
@@ -379,22 +379,22 @@ namespace Core
 		//			file->Path = name;
 		//			OpenCounter(+1);
 		//			return rc;
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 	__device__ RC GpuVSystem::Delete(const char *filename, bool syncDir)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 	__device__ RC GpuVSystem::Access(const char *filename, ACCESS flags, int *resOut)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 	__device__ RC GpuVSystem::FullPathname(const char *relative, int fullLength, char *full)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 #ifndef OMIT_LOAD_EXTENSION
@@ -434,23 +434,23 @@ namespace Core
 
 	__device__ RC GpuVSystem::CurrentTimeInt64(int64 *now)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 	__device__ RC GpuVSystem::CurrentTime(double *now)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 	__device__ RC GpuVSystem::GetLastError(int bufLength, char *buf)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 
 	__device__ RC GpuVSystem::SetSystemCall(const char *name, syscall_ptr newFunc)
 	{
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 	__device__ syscall_ptr GpuVSystem::GetSystemCall(const char *name)
 	{
@@ -470,7 +470,7 @@ namespace Core
 		_gpuVfs->MaxPathname = 260;
 		_gpuVfs->Name = "gpu";
 		RegisterVfs(_gpuVfs, true);
-		return RC::OK; 
+		return RC_OK; 
 	}
 
 	__device__ void VSystem::Shutdown()

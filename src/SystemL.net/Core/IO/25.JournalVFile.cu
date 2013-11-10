@@ -28,12 +28,12 @@ namespace Core { namespace IO
 
 	__device__ RC JournalVFile::CreateFile()
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (!Real)
 		{
 			VFile *real = (VFile *)&this[1];
 			rc = Vfs->Open(Journal, Real, Flags, 0);
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				Real = real;
 				if (Size > 0)
@@ -41,7 +41,7 @@ namespace Core { namespace IO
 					_assert(Size <= BufferLength);
 					rc = Real->Write(Buffer, Size, 0);
 				}
-				if (rc != RC::OK)
+				if (rc != RC_OK)
 				{
 					// If an error occurred while writing to the file, close it before returning. This way, SQLite uses the in-memory journal data to 
 					// roll back changes made to the internal page-cache before this function was called.
@@ -58,7 +58,7 @@ namespace Core { namespace IO
 		if (Real)
 			Real->Close();
 		SysEx::Free(Buffer);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC JournalVFile::Read(void *buffer, int amount, int64 offset)
@@ -66,17 +66,17 @@ namespace Core { namespace IO
 		if (Real)
 			return Real->Read(buffer, amount, offset);
 		if ((amount + offset) > Size)
-			return RC::IOERR_SHORT_READ;
+			return RC_IOERR_SHORT_READ;
 		_memcpy((char *)buffer, &Buffer[offset], amount);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC JournalVFile::Write(const void *buffer, int amount, int64 offset)
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		if (!Real && (offset + amount) > BufferLength)
 			rc = CreateFile();
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 		{
 			if (Real)
 				return Real->Write(buffer, amount, offset);
@@ -93,14 +93,14 @@ namespace Core { namespace IO
 			return Real->Truncate(size);
 		if (size < Size)
 			Size = (int)size;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC JournalVFile::Sync(int flags)
 	{
 		if (Real)
 			return Real->Sync(flags);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC JournalVFile::get_FileSize(int64 &size)
@@ -108,7 +108,7 @@ namespace Core { namespace IO
 		if (Real)
 			return Real->get_FileSize(size);
 		size = (int64)Size;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	// extensions
@@ -121,7 +121,7 @@ namespace Core { namespace IO
 		{
 			p->Buffer = (char *)SysEx::Alloc(bufferLength, true);
 			if (!p->Buffer)
-				return RC::NOMEM;
+				return RC_NOMEM;
 		}
 		else
 			return vfs->Open(name, file, flags, 0);
@@ -130,13 +130,13 @@ namespace Core { namespace IO
 		p->Flags = flags;
 		p->Journal = name;
 		p->Vfs = vfs;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ RC VFile::JournalVFileCreate(VFile *file)
 	{
 		if (file->Type != 2)
-			return RC::OK;
+			return RC_OK;
 		return ((JournalVFile *)file)->CreateFile();
 	}
 

@@ -2260,7 +2260,7 @@ namespace Core
         }
 
 #else
-//# define setChildPtrmaps(x) RC::OK
+//# define setChildPtrmaps(x) RC_OK
 #endif
         #endregion
 

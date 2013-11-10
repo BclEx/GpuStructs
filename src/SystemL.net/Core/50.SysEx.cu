@@ -9,7 +9,7 @@ namespace Core
 	__device__ RC SysEx::Initialize()
 	{
 		// mutex
-		RC rc = RC::OK; // = 3MutexEx::Initialize();
+		RC rc = RC_OK; // = 3MutexEx::Initialize();
 		if (rc) return rc;
 		//rc = Alloc::Initialize();
 		//rc = PCache::Initialize();
@@ -17,7 +17,7 @@ namespace Core
 		rc = VSystem::Initialize();
 		if (rc) return rc;
 		//PCache::PageBufferSetup(_config.Page, _config.SizePage, _config.Pages);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	__device__ void SysEx::Shutdown()

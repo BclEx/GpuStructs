@@ -140,7 +140,7 @@ namespace Core
 		{
 			IPCache *p = _pcache->Create(SizePage, SizeExtra + sizeof(PgHdr), Purgeable);
 			if (!p)
-				return RC::NOMEM;
+				return RC_NOMEM;
 			p->Cachesize(get_CacheSize());
 			Cache = p;
 		}
@@ -163,10 +163,10 @@ namespace Core
 			if (pg)
 			{
 #ifdef LOG_CACHE_SPILL
-				SysEx::Log(RC::FULL, "spill page %d making room for %d - cache used: %d/%d", pg->ID, id, _pcache->Pagecount(), NumberOfCachePages(this));
+				SysEx::Log(RC_FULL, "spill page %d making room for %d - cache used: %d/%d", pg->ID, id, _pcache->Pagecount(), NumberOfCachePages(this));
 #endif
 				RC rc = Stress(StressArg, pg);
-				if (rc != RC::OK && rc != RC::BUSY)
+				if (rc != RC_OK && rc != RC_BUSY)
 					return rc;
 			}
 			page = Cache->Fetch(id, true);
@@ -196,7 +196,7 @@ namespace Core
 				Page1 = pgHdr;
 		}
 		*pageOut = pgHdr;
-		return (pgHdr == nullptr && create ? RC::NOMEM : RC::OK);
+		return (pgHdr == nullptr && create ? RC_NOMEM : RC_OK);
 	}
 
 	__device__ void PCache::Release(PgHdr *p)

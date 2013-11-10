@@ -132,26 +132,26 @@ namespace Core
 #if _DEBUG
 	__device__ inline static RC CORRUPT_BKPT_(int line)
 	{
-		SysEx_LOG(RC::CORRUPT, "database corruption at line %d of [%.10s]", line, "src");
-		return RC::CORRUPT;
+		SysEx_LOG(RC_CORRUPT, "database corruption at line %d of [%.10s]", line, "src");
+		return RC_CORRUPT;
 	}
 	__device__ inline static RC MISUSE_BKPT_(int line)
 	{
-		SysEx_LOG(RC::MISUSE, "misuse at line %d of [%.10s]", line, "src");
-		return RC::MISUSE;
+		SysEx_LOG(RC_MISUSE, "misuse at line %d of [%.10s]", line, "src");
+		return RC_MISUSE;
 	}
 	__device__ inline static RC CANTOPEN_BKPT_(int line)
 	{
-		SysEx_LOG(RC::CANTOPEN, "cannot open file at line %d of [%.10s]", line, "src");
-		return RC::CANTOPEN;
+		SysEx_LOG(RC_CANTOPEN, "cannot open file at line %d of [%.10s]", line, "src");
+		return RC_CANTOPEN;
 	}
 #define SysEx_CORRUPT_BKPT CORRUPT_BKPT_(__LINE__)
 #define SysEx_MISUSE_BKPT MISUSE_BKPT_(__LINE__)
 #define SysEx_CANTOPEN_BKPT CANTOPEN_BKPT_(__LINE__)
 #else
-#define SysEx_CORRUPT_BKPT RC::CORRUPT
-#define SysEx_MISUSE_BKPT RC::MISUSE
-#define SysEx_CANTOPEN_BKPT RC::CANTOPEN
+#define SysEx_CORRUPT_BKPT RC_CORRUPT
+#define SysEx_MISUSE_BKPT RC_MISUSE
+#define SysEx_CANTOPEN_BKPT RC_CANTOPEN
 #endif
 
 }

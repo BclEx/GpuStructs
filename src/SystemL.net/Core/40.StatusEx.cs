@@ -149,7 +149,7 @@ namespace Core
 
         //        default:
         //            {
-        //                rc = SQLITE.ERROR;
+        //                rc = RC.ERROR;
         //                break;
         //            }
         //    }

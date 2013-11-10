@@ -5,20 +5,20 @@ namespace Core
 	{
 #ifdef OMIT_WAL
 
-		__device__ inline static RC Open(VSystem *vfs, VFile *dbFile, const char *walName, bool noShm, int64 maxWalSize, Wal **walOut) { return RC::OK; }
+		__device__ inline static RC Open(VSystem *vfs, VFile *dbFile, const char *walName, bool noShm, int64 maxWalSize, Wal **walOut) { return RC_OK; }
 		__device__ inline void Limit(int64 limit) { }
-		__device__ inline RC Close(VFile::SYNC sync_flags, int bufLength, uint8 *buf) { return RC::OK; }
-		__device__ inline RC BeginReadTransaction(bool *changed) { return RC::OK; }
+		__device__ inline RC Close(VFile::SYNC sync_flags, int bufLength, uint8 *buf) { return RC_OK; }
+		__device__ inline RC BeginReadTransaction(bool *changed) { return RC_OK; }
 		__device__ inline void EndReadTransaction() { }
-		__device__ inline RC Read(Pid id, bool *inWal, int bufLength, uint8 *buf) { return RC::OK; }
+		__device__ inline RC Read(Pid id, bool *inWal, int bufLength, uint8 *buf) { return RC_OK; }
 		__device__ inline Pid DBSize() { return 0; }
-		__device__ inline RC BeginWriteTransaction() { return RC::OK; }
-		__device__ inline RC EndWriteTransaction() { return RC::OK; }
-		__device__ inline RC Undo(RC (*undo)(void *, Pid), void *undoCtx) { return RC::OK; }
+		__device__ inline RC BeginWriteTransaction() { return RC_OK; }
+		__device__ inline RC EndWriteTransaction() { return RC_OK; }
+		__device__ inline RC Undo(RC (*undo)(void *, Pid), void *undoCtx) { return RC_OK; }
 		__device__ inline void Savepoint(uint32 *walData) { }
-		__device__ inline RC SavepointUndo(uint32 *walData) { return RC::OK; }
-		__device__ inline RC Frames(int sizePage, PgHdr *list, Pid truncate, bool isCommit, VFile::SYNC sync_flags) { return RC::OK; }
-		__device__ inline RC Checkpoint(int mode, int (*busy)(void*), void *busyArg, VFile::SYNC sync_flags, int bufLength, uint8 *buf, int *logs, int *checkpoints) { *logs = 0, *checkpoints = 0; return RC::OK; }
+		__device__ inline RC SavepointUndo(uint32 *walData) { return RC_OK; }
+		__device__ inline RC Frames(int sizePage, PgHdr *list, Pid truncate, bool isCommit, VFile::SYNC sync_flags) { return RC_OK; }
+		__device__ inline RC Checkpoint(int mode, int (*busy)(void*), void *busyArg, VFile::SYNC sync_flags, int bufLength, uint8 *buf, int *logs, int *checkpoints) { *logs = 0, *checkpoints = 0; return RC_OK; }
 		__device__ inline int get_Callback() { return 0; }
 		__device__ inline bool ExclusiveMode(int op) { return false; }
 		__device__ inline bool get_HeapMemory() { return false; }

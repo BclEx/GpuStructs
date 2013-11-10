@@ -40,6 +40,6 @@ namespace Core
 		*highwater = Stat.mxValue[op];
 		if (resetFlag)
 			Stat.mxValue[op] = Stat.nowValue[op];
-		return RC::OK;
+		return RC_OK;
 	}
 }

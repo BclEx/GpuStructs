@@ -690,11 +690,11 @@ namespace Core
 
 	RC WinVSystem::SetSystemCall(const char *name, syscall_ptr newFunc)
 	{
-		RC rc = RC::NOTFOUND;
+		RC rc = RC_NOTFOUND;
 		if (name == nullptr)
 		{
 			/// If no zName is given, restore all system calls to their default settings and return NULL
-			rc = RC::OK;
+			rc = RC_OK;
 			for (int i = 0; i < __arrayStaticLength(Syscalls); i++)
 				if (Syscalls[i].Default)
 					Syscalls[i].Current = Syscalls[i].Default;
@@ -707,7 +707,7 @@ namespace Core
 			{
 				if (!Syscalls[i].Default)
 					Syscalls[i].Default = Syscalls[i].Current;
-				rc = RC::OK;
+				rc = RC_OK;
 				if (!newFunc) newFunc = Syscalls[i].Default;
 				Syscalls[i].Current = newFunc;
 				break;
@@ -868,7 +868,7 @@ namespace Core
 		_assert(bytes >=0);
 		void *p = osHeapAlloc(heap, WIN32_HEAP_FLAGS, (SIZE_T)bytes);
 		if (!p)
-			SysEx_LOG(RC::NOMEM, "failed to HeapAlloc %u bytes (%d), heap=%p", bytes, osGetLastError(), (void*)heap);
+			SysEx_LOG(RC_NOMEM, "failed to HeapAlloc %u bytes (%d), heap=%p", bytes, osGetLastError(), (void*)heap);
 		return p;
 	}
 
@@ -883,7 +883,7 @@ namespace Core
 #endif
 		if (!prior) return; // Passing NULL to HeapFree is undefined.
 		if (!osHeapFree(heap, WIN32_HEAP_FLAGS, prior))
-			SysEx_LOG(RC::NOMEM, "failed to HeapFree block %p (%d), heap=%p", prior, osGetLastError(), (void*)heap);
+			SysEx_LOG(RC_NOMEM, "failed to HeapFree block %p (%d), heap=%p", prior, osGetLastError(), (void*)heap);
 	}
 
 	void *WinVAlloc::Realloc(void *prior, int bytes)
@@ -902,7 +902,7 @@ namespace Core
 		else
 			p = osHeapReAlloc(heap, WIN32_HEAP_FLAGS, prior, (SIZE_T)bytes);
 		if (!p)
-			SysEx_LOG(RC::NOMEM, "failed to %s %u bytes (%d), heap=%p", (prior ? "HeapReAlloc" : "HeapAlloc"), bytes, osGetLastError(), (void*)heap);
+			SysEx_LOG(RC_NOMEM, "failed to %s %u bytes (%d), heap=%p", (prior ? "HeapReAlloc" : "HeapAlloc"), bytes, osGetLastError(), (void*)heap);
 		return p;
 	}
 
@@ -919,7 +919,7 @@ namespace Core
 		SIZE_T n = osHeapSize(heap, WIN32_HEAP_FLAGS, p);
 		if (n == (SIZE_T)-1)
 		{
-			SysEx_LOG(RC::NOMEM, "failed to HeapSize block %p (%d), heap=%p", p, osGetLastError(), (void*)heap);
+			SysEx_LOG(RC_NOMEM, "failed to HeapSize block %p (%d), heap=%p", p, osGetLastError(), (void*)heap);
 			return 0;
 		}
 		return (int)n;
@@ -933,7 +933,7 @@ namespace Core
 	RC WinVAlloc::Init(void *appData)
 	{
 		WinMemData *winMemData = (WinMemData *)appData;
-		if (!winMemData) return RC::ERROR;
+		if (!winMemData) return RC_ERROR;
 #if _DEBUG
 		_assert(winMemData->Magic == WINMEM_MAGIC);
 #endif
@@ -943,8 +943,8 @@ namespace Core
 			winMemData->Heap = osHeapCreate(WIN32_HEAP_FLAGS, WIN32_HEAP_INIT_SIZE, WIN32_HEAP_MAX_SIZE);
 			if (!winMemData->Heap)
 			{
-				SysEx_LOG(RC::NOMEM, "failed to HeapCreate (%d), flags=%u, initSize=%u, maxSize=%u", osGetLastError(), WIN32_HEAP_FLAGS, WIN32_HEAP_INIT_SIZE, WIN32_HEAP_MAX_SIZE);
-				return RC::NOMEM;
+				SysEx_LOG(RC_NOMEM, "failed to HeapCreate (%d), flags=%u, initSize=%u, maxSize=%u", osGetLastError(), WIN32_HEAP_FLAGS, WIN32_HEAP_INIT_SIZE, WIN32_HEAP_MAX_SIZE);
+				return RC_NOMEM;
 			}
 			winMemData->Owned = TRUE;
 			_assert(winMemData->Owned);
@@ -953,8 +953,8 @@ namespace Core
 		winMemData->Heap = osGetProcessHeap();
 		if (!winMemData->Heap)
 		{
-			SysEx_LOG(RC::NOMEM, "failed to GetProcessHeap (%d)", osGetLastError());
-			return RC::NOMEM;
+			SysEx_LOG(RC_NOMEM, "failed to GetProcessHeap (%d)", osGetLastError());
+			return RC_NOMEM;
 		}
 		winMemData->Owned = FALSE;
 		_assert(!winMemData->Owned);
@@ -964,7 +964,7 @@ namespace Core
 #if !OS_WINRT && defined(WIN32_MALLOC_VALIDATE)
 		_assert(osHeapValidate(winMemData->Heap, WIN32_HEAP_FLAGS, NULL));
 #endif
-		return RC::OK;
+		return RC_OK;
 	}
 
 	void WinVAlloc::Shutdown(void *appData)
@@ -980,7 +980,7 @@ namespace Core
 			if (winMemData->Owned)
 			{
 				if (!osHeapDestroy(winMemData->Heap))
-					SysEx_LOG(RC::NOMEM, "failed to HeapDestroy (%d), heap=%p", osGetLastError(), (void*)winMemData->Heap);
+					SysEx_LOG(RC_NOMEM, "failed to HeapDestroy (%d), heap=%p", osGetLastError(), (void*)winMemData->Heap);
 				winMemData->Owned = FALSE;
 			}
 			winMemData->Heap = NULL;
@@ -1108,13 +1108,13 @@ namespace Core
 			{
 				valueUtf8 = UnicodeToUtf8(value);
 				if (!valueUtf8)
-					return RC::NOMEM;
+					return RC_NOMEM;
 			}
 			SysEx::Free(*directory);
 			*directory = valueUtf8;
-			return RC::OK;
+			return RC_OK;
 		}
-		return RC::ERROR;
+		return RC_ERROR;
 	}
 
 #pragma endregion
@@ -1173,7 +1173,7 @@ namespace Core
 			// free the UTF8 buffer
 			SysEx::Free(out);
 		}
-		return RC::OK;
+		return RC_OK;
 	}
 
 #define winLogError(a,b,c,d) winLogErrorAtLine(a,b,c,d,__LINE__)
@@ -1182,7 +1182,7 @@ namespace Core
 		char msg[500]; // Human readable error text
 		msg[0] = 0;
 		getLastErrorMsg(lastErrno, sizeof(msg), msg);
-		_assert(errcode != RC::OK);
+		_assert(errcode != RC_OK);
 		if (!path) path = "";
 		int i;
 		for (i = 0; msg[i] && msg[i] != '\r' && msg[i] != '\n'; i++) { }
@@ -1223,7 +1223,7 @@ namespace Core
 	static void logIoerr(int retry)
 	{
 		if (retry)
-			SysEx_LOG(RC::IOERR, "delayed %dms for lock/sharing conflict", win32IoerrRetryDelay*retry*(retry+1)/2);
+			SysEx_LOG(RC_IOERR, "delayed %dms for lock/sharing conflict", win32IoerrRetryDelay*retry*(retry+1)/2);
 	}
 
 #pragma endregion
@@ -1274,7 +1274,7 @@ namespace Core
 	{
 		LPWSTR name = Utf8ToUnicode(filename);
 		if (!name)
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 		// Initialize the local lockdata
 		memset(&file->Local, 0, sizeof(file->Local));
 		// Replace the backslashes from the filename and lowercase it to derive a mutex name.
@@ -1286,9 +1286,9 @@ namespace Core
 		if (!file->Mutex)
 		{
 			file->LastErrno = osGetLastError();
-			winLogError(RC::IOERR, file->LastErrno, "winceCreateLock1", filename);
+			winLogError(RC_IOERR, file->LastErrno, "winceCreateLock1", filename);
 			SysEx::Free(name);
-			return RC::IOERR;
+			return RC_IOERR;
 		}
 		// Acquire the mutex before continuing
 		winceMutexAcquire(file->Mutex);
@@ -1312,7 +1312,7 @@ namespace Core
 			if (!file->Shared)
 			{
 				file->LastErrno = osGetLastError();
-				winLogError(RC::IOERR, file->LastErrno, "winceCreateLock2", filename);
+				winLogError(RC_IOERR, file->LastErrno, "winceCreateLock2", filename);
 				logged = true;
 				osCloseHandle(file->SharedHandle);
 				file->SharedHandle = NULL;
@@ -1324,19 +1324,19 @@ namespace Core
 			if (!logged)
 			{
 				file->LastErrno = lastErrno;
-				winLogError(RC::IOERR, file->LastErrno, "winceCreateLock3", filename);
+				winLogError(RC_IOERR, file->LastErrno, "winceCreateLock3", filename);
 				logged = true;
 			}
 			winceMutexRelease(file->Mutex);
 			osCloseHandle(file->Mutex);
 			file->Mutex = NULL;
-			return RC::IOERR;
+			return RC_IOERR;
 		}
 		// Initialize the shared memory if we're supposed to
 		if (init)
 			memset(file->Shared, 0, sizeof(winceLock));
 		winceMutexRelease(file->Mutex);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	static void winceDestroyLock(WinVFile *file)
@@ -1527,7 +1527,7 @@ namespace Core
 		if (dwRet == INVALID_SET_FILE_POINTER && (lastErrno = osGetLastError()) != NO_ERROR)
 		{
 			file->LastErrno = lastErrno;
-			winLogError(RC::IOERR_SEEK, file->LastErrno, "seekWinFile", file->Path);
+			winLogError(RC_IOERR_SEEK, file->LastErrno, "seekWinFile", file->Path);
 			return 1;
 		}
 		return 0;
@@ -1539,7 +1539,7 @@ namespace Core
 		if (!ret)
 		{
 			file->LastErrno = osGetLastError();
-			winLogError(RC::IOERR_SEEK, file->LastErrno, "seekWinFile", file->Path);
+			winLogError(RC_IOERR_SEEK, file->LastErrno, "seekWinFile", file->Path);
 			return 1;
 		}
 		return 0;
@@ -1575,7 +1575,7 @@ namespace Core
 		if (rc)
 			H = NULL;
 		OpenCounter(-1);
-		return (rc ? RC::OK : winLogError(RC::IOERR_CLOSE, osGetLastError(), "winClose", Path));
+		return (rc ? RC_OK : winLogError(RC_IOERR_CLOSE, osGetLastError(), "winClose", Path));
 	}
 
 	RC WinVFile::Read(void *buffer, int amount, int64 offset)
@@ -1584,12 +1584,12 @@ namespace Core
 		OVERLAPPED overlapped; // The offset for ReadFile.
 #endif
 		int retry = 0; // Number of retrys
-		SimulateIOError(return RC::IOERR_READ);
+		SimulateIOError(return RC_IOERR_READ);
 		OSTRACE("READ %d lock=%d\n", H, Lock_);
 		DWORD read; // Number of bytes actually read from file
 #if OS_WINCE
 		if (seekWinFile(this, offset))
-			return RC::FULL;
+			return RC_FULL;
 		while (!osReadFile(H, buffer, amount, &read, 0))
 		{
 #else
@@ -1602,23 +1602,23 @@ namespace Core
 			DWORD lastErrno;
 			if (retryIoerr(&retry, &lastErrno)) continue;
 			LastErrno = lastErrno;
-			return winLogError(RC::IOERR_READ, LastErrno, "winRead", Path);
+			return winLogError(RC_IOERR_READ, LastErrno, "winRead", Path);
 		}
 		logIoerr(retry);
 		if (read < (DWORD)amount)
 		{
 			// Unread parts of the buffer must be zero-filled
 			memset(&((char *)buffer)[read], 0, amount - read);
-			return RC::IOERR_SHORT_READ;
+			return RC_IOERR_SHORT_READ;
 		}
-		return RC::OK;
+		return RC_OK;
 	}
 
 	RC WinVFile::Write(const void *buffer, int amount, int64 offset)
 	{
 		_assert(amount > 0);
-		SimulateIOError(return RC::IOERR_WRITE);
-		SimulateDiskfullError(return RC::FULL);
+		SimulateIOError(return RC_IOERR_WRITE);
+		SimulateDiskfullError(return RC_FULL);
 		OSTRACE("WRITE %d lock=%d\n", H, Lock_);
 		int rc = 0; // True if error has occurred, else false
 		int retry = 0; // Number of retries
@@ -1672,30 +1672,30 @@ namespace Core
 		if (rc)
 		{
 			if (LastErrno == ERROR_HANDLE_DISK_FULL ||  LastErrno == ERROR_DISK_FULL)
-				return RC::FULL;
-			return winLogError(RC::IOERR_WRITE, LastErrno, "winWrite", Path);
+				return RC_FULL;
+			return winLogError(RC_IOERR_WRITE, LastErrno, "winWrite", Path);
 		}
 		else
 			logIoerr(retry);
-		return RC::OK;
+		return RC_OK;
 	}
 
 	RC WinVFile::Truncate(int64 size)
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		OSTRACE("TRUNCATE %d %lld\n", H, size);
-		SimulateIOError(return RC::IOERR_TRUNCATE);
+		SimulateIOError(return RC_IOERR_TRUNCATE);
 		// If the user has configured a chunk-size for this file, truncate the file so that it consists of an integer number of chunks (i.e. the
 		// actual file size after the operation may be larger than the requested size).
 		if (SizeChunk > 0)
 			size = ((size+SizeChunk-1)/SizeChunk)*SizeChunk;
 		// SetEndOfFile() returns non-zero when successful, or zero when it fails.
 		if (seekWinFile(this, size))
-			rc = winLogError(RC::IOERR_TRUNCATE, LastErrno, "winTruncate1", Path);
+			rc = winLogError(RC_IOERR_TRUNCATE, LastErrno, "winTruncate1", Path);
 		else if (!osSetEndOfFile(H))
 		{
 			LastErrno = osGetLastError();
-			rc = winLogError(RC::IOERR_TRUNCATE, LastErrno, "winTruncate2", Path);
+			rc = winLogError(RC_IOERR_TRUNCATE, LastErrno, "winTruncate2", Path);
 		}
 		OSTRACE("TRUNCATE %d %lld %s\n", H, size, rc ? "failed" : "ok");
 		return rc;
@@ -1713,28 +1713,28 @@ namespace Core
 		_assert((flags&0x0F) == SYNC_NORMAL || (flags&0x0F) == SYNC_FULL);
 		OSTRACE("SYNC %d lock=%d\n", H, Lock_);
 		// Unix cannot, but some systems may return SQLITE_FULL from here. This line is to test that doing so does not cause any problems.
-		SimulateDiskfullError(return RC::FULL);
+		SimulateDiskfullError(return RC_FULL);
 #ifdef TEST
 		if ((flags&0x0F) == SYNC_FULL)
 			fullsync_count++;
 		sync_count++;
 #endif
 #ifdef NO_SYNC // If we compiled with the SQLITE_NO_SYNC flag, then syncing is a no-op
-		return RC::OK;
+		return RC_OK;
 #else
 		BOOL rc = osFlushFileBuffers(H);
 		SimulateIOError(rc = FALSE);
 		if (rc)
-			return RC::OK;
+			return RC_OK;
 		LastErrno = osGetLastError();
-		return winLogError(RC::IOERR_FSYNC, LastErrno, "winSync", Path);
+		return winLogError(RC_IOERR_FSYNC, LastErrno, "winSync", Path);
 #endif
 	}
 
 	RC WinVFile::get_FileSize(int64 &size)
 	{
-		RC rc = RC::OK;
-		SimulateIOError(return RC::IOERR_FSTAT);
+		RC rc = RC_OK;
+		SimulateIOError(return RC_IOERR_FSTAT);
 #if OS_WINRT
 		{
 			FILE_STANDARD_INFO info;
@@ -1743,7 +1743,7 @@ namespace Core
 			else
 			{
 				LastErrno = osGetLastError();
-				rc = winLogError(RC::IOERR_FSTAT, LastErrno, "winFileSize", Path);
+				rc = winLogError(RC_IOERR_FSTAT, LastErrno, "winFileSize", Path);
 			}
 		}
 #else
@@ -1755,7 +1755,7 @@ namespace Core
 			if (lowerBits == INVALID_FILE_SIZE && (lastErrno = osGetLastError()) != NO_ERROR)
 			{
 				LastErrno = lastErrno;
-				rc = winLogError(RC::IOERR_FSTAT, LastErrno, "winFileSize", Path);
+				rc = winLogError(RC_IOERR_FSTAT, LastErrno, "winFileSize", Path);
 			}
 		}
 #endif
@@ -1802,7 +1802,7 @@ namespace Core
 		if (res == 0 && (lastErrno = osGetLastError()) != ERROR_NOT_LOCKED)
 		{
 			file->LastErrno = lastErrno;
-			winLogError(RC::IOERR_UNLOCK, file->LastErrno, "unlockReadLock", file->Path);
+			winLogError(RC_IOERR_UNLOCK, file->LastErrno, "unlockReadLock", file->Path);
 		}
 		return res;
 	}
@@ -1814,7 +1814,7 @@ namespace Core
 		// If there is already a lock of this type or more restrictive on the OsFile, do nothing. Don't use the end_lock: exit path, as
 		// sqlite3OsEnterMutex() hasn't been called yet.
 		if (Lock_ >= lock)
-			return RC::OK;
+			return RC_OK;
 
 		// Make sure the locking sequence is correct
 		_assert(Lock_ != LOCK_NO || lock == LOCK_SHARED);
@@ -1895,12 +1895,12 @@ namespace Core
 		// Update the state of the lock has held in the file descriptor then return the appropriate result code.
 		RC rc;
 		if (res)
-			rc = RC::OK;
+			rc = RC_OK;
 		else
 		{
 			OSTRACE("LOCK FAILED %d trying for %d but got %d\n", H, lock, newLock);
 			LastErrno = lastErrno;
-			rc = RC::BUSY;
+			rc = RC_BUSY;
 		}
 		Lock_ = newLock;
 		return rc;
@@ -1908,7 +1908,7 @@ namespace Core
 
 	RC WinVFile::CheckReservedLock(int &lock)
 	{
-		SimulateIOError(return RC::IOERR_CHECKRESERVEDLOCK;);
+		SimulateIOError(return RC_IOERR_CHECKRESERVEDLOCK;);
 		int rc;
 		if (Lock_ >= LOCK_RESERVED)
 		{
@@ -1924,20 +1924,20 @@ namespace Core
 			OSTRACE("TEST WR-LOCK %d %d (remote)\n", H, rc);
 		}
 		lock = rc;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	RC WinVFile::Unlock(LOCK lock)
 	{
 		_assert(lock <= LOCK_SHARED);
 		OSTRACE("UNLOCK %d to %d was %d(%d)\n", H, lock, Lock_, SharedLockByte);
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		LOCK type = Lock_;
 		if (type >= LOCK_EXCLUSIVE)
 		{
 			winUnlockFile(&H, SHARED_FIRST, 0, SHARED_SIZE, 0);
 			if (lock == LOCK_SHARED && !getReadLock(this)) // This should never happen.  We should always be able to reacquire the read lock
-				rc = winLogError(RC::IOERR_UNLOCK, osGetLastError(), "winUnlock", Path);
+				rc = winLogError(RC_IOERR_UNLOCK, osGetLastError(), "winUnlock", Path);
 		}
 		if (type >= LOCK_RESERVED)
 			winUnlockFile(&H, RESERVED_BYTE, 0, 1, 0);
@@ -1968,19 +1968,19 @@ namespace Core
 		{
 		case FCNTL_LOCKSTATE:
 			*(int*)arg = Lock_;
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_LAST_ERRNO:
 			*(int*)arg = (int)LastErrno;
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_CHUNK_SIZE:
 			SizeChunk = *(int *)arg;
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_SIZE_HINT:
 			if (SizeChunk > 0)
 			{
 				int64 oldSize;
 				RC rc = get_FileSize(oldSize);
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 				{
 					int64 newSize = *(int64 *)arg;
 					if (newSize > oldSize)
@@ -1992,16 +1992,16 @@ namespace Core
 				}
 				return rc;
 			}
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_PERSIST_WAL:
 			winModeBit(this, (uint8)WINFILE_PERSIST_WAL, (int*)arg);
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_POWERSAFE_OVERWRITE:
 			winModeBit(this, (uint8)WINFILE_PSOW, (int*)arg);
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_VFSNAME:
 			*(char**)arg = "win32";
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_WIN32_AV_RETRY:
 			a = (int*)arg;
 			if (a[0] > 0)
@@ -2012,7 +2012,7 @@ namespace Core
 				win32IoerrRetryDelay = a[1];
 			else
 				a[1] = win32IoerrRetryDelay;
-			return RC::OK;
+			return RC_OK;
 		case FCNTL_TEMPFILENAME:
 			tfile = (char *)SysEx::Alloc(Vfs->MaxPathname, true);
 			if (tfile)
@@ -2020,9 +2020,9 @@ namespace Core
 				getTempname(Vfs->MaxPathname, tfile);
 				*(char**)arg = tfile;
 			}
-			return RC::OK;
+			return RC_OK;
 		}
-		return RC::NOTFOUND;
+		return RC_NOTFOUND;
 	}
 
 	uint WinVFile::get_SectorSize()
@@ -2105,13 +2105,13 @@ namespace Core
 			rc = winLockFile(&file->File.H, flags, offset, 0, bytes, 0);
 		}
 		if (rc)
-			rc = RC::OK;
+			rc = RC_OK;
 		else
 		{
 			file->LastErrno = osGetLastError();
-			rc = RC::BUSY;
+			rc = RC_BUSY;
 		}
-		OSTRACE("SHM-LOCK %d %s %s 0x%08lx\n", file->File.H, rc == RC::OK ? "ok" : "failed", lock == _SHM_UNLCK ? "UnlockFileEx" : "LockFileEx", file->LastErrno);
+		OSTRACE("SHM-LOCK %d %s %s 0x%08lx\n", file->File.H, rc == RC_OK ? "ok" : "failed", lock == _SHM_UNLCK ? "UnlockFileEx" : "LockFileEx", file->LastErrno);
 		return rc;
 	}
 
@@ -2163,14 +2163,14 @@ namespace Core
 
 		// Allocate space for the new sqlite3_shm object.  Also speculatively allocate space for a new winShmNode and filename.
 		struct winShm *p = (struct winShm *)SysEx::Alloc(sizeof(*p), true); // The connection to be opened */
-		if (!p) return RC::IOERR_NOMEM;
+		if (!p) return RC_IOERR_NOMEM;
 		int nameLength = _strlen30(file->Path); // Size of zName in bytes
 		struct winShmNode *shmNode; // The underlying mmapped file
 		struct winShmNode *newNode = (struct winShmNode *)SysEx::Alloc(sizeof(*shmNode) + nameLength + 17, true); // Newly allocated winShmNode
 		if (!newNode)
 		{
 			SysEx::Free(p);
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 		}
 		newNode->Filename = (char *)&newNode[1];
 		_snprintf(newNode->Filename, nameLength + 15, "%s-shm", file->Path);
@@ -2192,16 +2192,16 @@ namespace Core
 			_winShmNodeList = shmNode;
 			shmNode->Mutex = MutexEx::Alloc(MutexEx::MUTEX_FAST);
 			rc = file->Vfs->Open(shmNode->Filename, &shmNode->File, VSystem::OPEN_WAL | VSystem::OPEN_READWRITE | VSystem::OPEN_CREATE, nullptr);
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				goto shm_open_err;
 			// Check to see if another process is holding the dead-man switch. If not, truncate the file to zero length. 
-			if (winShmSystemLock(shmNode, _SHM_WRLCK, WIN_SHM_DMS, 1) == RC::OK)
+			if (winShmSystemLock(shmNode, _SHM_WRLCK, WIN_SHM_DMS, 1) == RC_OK)
 			{
 				rc = shmNode->File.Truncate(0);
-				if (rc != RC::OK)
-					rc = winLogError(RC::IOERR_SHMOPEN, osGetLastError(), "winOpenShm", file->Path);
+				if (rc != RC_OK)
+					rc = winLogError(RC_IOERR_SHMOPEN, osGetLastError(), "winOpenShm", file->Path);
 			}
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				winShmSystemLock(shmNode, _SHM_UNLCK, WIN_SHM_DMS, 1);
 				rc = winShmSystemLock(shmNode, _SHM_RDLCK, WIN_SHM_DMS, 1);
@@ -2224,7 +2224,7 @@ namespace Core
 		p->Next = shmNode->First;
 		shmNode->First = p;
 		MutexEx::Leave(shmNode->Mutex);
-		return RC::OK;
+		return RC_OK;
 
 		// Jump here on any error
 shm_open_err:
@@ -2239,7 +2239,7 @@ shm_open_err:
 	RC WinVFile::ShmUnmap(bool deleteFlag)
 	{
 		winShm *p = Shm; // The connection to be closed
-		if (p == nullptr) return RC::OK;
+		if (p == nullptr) return RC_OK;
 		winShmNode *shmNode = p->ShmNode; // The underlying shared-memory file
 
 		// Remove connection p from the set of connections associated with pShmNode
@@ -2258,7 +2258,7 @@ shm_open_err:
 		if (shmNode->Refs == 0)
 			winShmPurge(Vfs, deleteFlag);
 		winShmLeaveMutex();
-		return RC::OK;
+		return RC_OK;
 	}
 
 	RC WinVFile::ShmLock(int offset, int count, _SHM flags)
@@ -2270,7 +2270,7 @@ shm_open_err:
 		_assert(count == 1 || (flags & SHM_EXCLUSIVE) != 0);
 		uint16 mask = (uint16)((1U<<(offset+count)) - (1U<<offset)); // Mask of locks to take or release
 		_assert(count > 1 || mask == (1<<offset));
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		winShm *p = Shm; // The shared memory being locked
 		winShmNode *shmNode = p->ShmNode;
 		MutexEx::Enter(shmNode->Mutex);
@@ -2289,9 +2289,9 @@ shm_open_err:
 			if ((mask & allMask) == 0)
 				rc = winShmSystemLock(shmNode, _SHM_UNLCK, offset+WIN_SHM_BASE, count);
 			else
-				rc = RC::OK;
+				rc = RC_OK;
 			// Undo the local locks
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				p->ExclMask &= ~mask;
 				p->SharedMask &= ~mask;
@@ -2305,21 +2305,21 @@ shm_open_err:
 			{
 				if ((x->ExclMask & mask) != 0)
 				{
-					rc = RC::BUSY;
+					rc = RC_BUSY;
 					break;
 				}
 				allShared |= x->SharedMask;
 			}
 			// Get shared locks at the system level, if necessary
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 			{
 				if ((allShared & mask) == 0)
 					rc = winShmSystemLock(shmNode, _SHM_RDLCK, offset+WIN_SHM_BASE, count);
 				else
-					rc = RC::OK;
+					rc = RC_OK;
 			}
 			// Get the local shared locks
-			if (rc == RC::OK)
+			if (rc == RC_OK)
 				p->SharedMask |= mask;
 		}
 		else
@@ -2328,14 +2328,14 @@ shm_open_err:
 			for (x = shmNode->First; x; x = x->Next)
 				if ((x->ExclMask & mask) != 0 || (x->SharedMask & mask) != 0)
 				{
-					rc = RC::BUSY;
+					rc = RC_BUSY;
 					break;
 				}
 				// Get the exclusive locks at the system level.  Then if successful also mark the local connection as being locked.
-				if (rc == RC::OK)
+				if (rc == RC_OK)
 				{
 					rc = winShmSystemLock(shmNode, _SHM_WRLCK, offset+WIN_SHM_BASE, count);
-					if (rc == RC::OK)
+					if (rc == RC_OK)
 					{
 						_assert((p->SharedMask & mask) == 0);
 						p->ExclMask |= mask;
@@ -2356,12 +2356,12 @@ shm_open_err:
 
 	int WinVFile::ShmMap(int region, int sizeRegion, bool isWrite, void volatile **pp)
 	{
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		winShm *p = Shm;
 		if (!p)
 		{
 			rc = winOpenSharedMemory(this);
-			if (rc != RC::OK) return rc;
+			if (rc != RC_OK) return rc;
 			p = Shm;
 		}
 		winShmNode *shmNode = p->ShmNode;
@@ -2375,9 +2375,9 @@ shm_open_err:
 			// large enough to contain the requested region).
 			int64 size; // Current size of wal-index file
 			rc = shmNode->File->get_FileSize(&size);
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 			{
-				rc = winLogError(RC::IOERR_SHMSIZE, osGetLastError(), "winShmMap1", Path);
+				rc = winLogError(RC_IOERR_SHMSIZE, osGetLastError(), "winShmMap1", Path);
 				goto shmpage_out;
 			}
 			int bytes = (region+1)*sizeRegion; // Minimum required file size
@@ -2387,9 +2387,9 @@ shm_open_err:
 				// Alternatively, if isWrite is non-zero, use ftruncate() to allocate the requested memory region.
 				if (!isWrite) goto shmpage_out;
 				rc = shmNode->File->Truncate(bytes);
-				if (rc != RC::OK)
+				if (rc != RC_OK)
 				{
-					rc = winLogError(RC::IOERR_SHMSIZE, osGetLastError(), "winShmMap2", Path);
+					rc = winLogError(RC_IOERR_SHMSIZE, osGetLastError(), "winShmMap2", Path);
 					goto shmpage_out;
 				}
 			}
@@ -2398,7 +2398,7 @@ shm_open_err:
 			struct ShmRegion *newRegions = (struct ShmRegion *)SysEx::Realloc(shmNode->Regions, (region+1)*sizeof(newRegions[0])); // New aRegion[] array
 			if (!newRegions)
 			{
-				rc = RC::IOERR_NOMEM;
+				rc = RC_IOERR_NOMEM;
 				goto shmpage_out;
 			}
 			shmNode->Regions = newRegions;
@@ -2428,7 +2428,7 @@ shm_open_err:
 				if (!map)
 				{
 					shmNode->LastErrno = osGetLastError();
-					rc = winLogError(RC::IOERR_SHMMAP, shmNode->LastErrno, "winShmMap3", Path);
+					rc = winLogError(RC_IOERR_SHMMAP, shmNode->LastErrno, "winShmMap3", Path);
 					if (mapHandle) osCloseHandle(mapHandle);
 					goto shmpage_out;
 				}
@@ -2478,7 +2478,7 @@ shmpage_out:
 			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 			"0123456789";
 		// It's odd to simulate an io-error here, but really this is just using the io-error infrastructure to test that SQLite handles this function failing.
-		SimulateIOError(return RC::IOERR);
+		SimulateIOError(return RC_IOERR);
 		char tempPath[MAX_PATH+2];
 		memset(tempPath, 0, MAX_PATH+2);
 		if (temp_directory)
@@ -2496,7 +2496,7 @@ shmpage_out:
 				SysEx::Free(multi);
 			}
 			else
-				return RC::IOERR_NOMEM;
+				return RC_IOERR_NOMEM;
 		}
 #ifdef WIN32_HAS_ANSI
 		else
@@ -2511,14 +2511,14 @@ shmpage_out:
 				SysEx::Free(utf8);
 			}
 			else
-				return RC::IOERR_NOMEM;
+				return RC_IOERR_NOMEM;
 		}
 #endif
 #endif
 		// Check that the output buffer is large enough for the temporary file name. If it is not, return SQLITE_ERROR.
 		int tempPathLength = _strlen30(tempPath);
 		if ((tempPathLength + _strlen30(TEMP_FILE_PREFIX) + 18) >= bufLength)
-			return RC::ERROR;
+			return RC_ERROR;
 		size_t i;
 		for (i = tempPathLength; i > 0 && tempPath[i-1] == '\\'; i--) { }
 		tempPath[i] = 0;
@@ -2531,7 +2531,7 @@ shmpage_out:
 		buf[j] = 0;
 		buf[j+1] = 0;
 		OSTRACE("TEMP FILENAME: %s\n", buf);
-		return RC::OK; 
+		return RC_OK; 
 	}
 
 	static int winIsDir(const void *converted)
@@ -2569,7 +2569,7 @@ shmpage_out:
 		// SQLITE_OPEN_FULLMUTEX or SQLITE_OPEN_SHAREDCACHE) are blocked before reaching the VFS.
 		flags = (OPEN)((uint)flags & 0x87f7f);
 
-		RC rc = RC::OK;
+		RC rc = RC_OK;
 		OPEN type = (OPEN)(flags & 0xFFFFFF00);  // Type of file to open
 		bool isExclusive = ((flags & OPEN_EXCLUSIVE) != 0);
 		bool isDelete = ((flags & OPEN_DELETEONCLOSE) != 0);
@@ -2609,7 +2609,7 @@ shmpage_out:
 
 #if OS_WINRT
 		if (!temp_directory)
-			SysEx_LOG(RC::ERROR, "sqlite3_temp_directory variable should be set for WinRT");
+			SysEx_LOG(RC_ERROR, "sqlite3_temp_directory variable should be set for WinRT");
 #endif
 
 		// If the second argument to this function is NULL, generate a temporary file name to use 
@@ -2620,7 +2620,7 @@ shmpage_out:
 			_assert(isDelete && !isOpenJournal);
 			memset(tmpname, 0, MAX_PATH+2);
 			rc = getTempname(MAX_PATH+2, tmpname);
-			if (rc != RC::OK)
+			if (rc != RC_OK)
 				return rc;
 			utf8Name = tmpname;
 		}
@@ -2632,12 +2632,12 @@ shmpage_out:
 		// Convert the filename to the system encoding.
 		void *converted = ConvertUtf8Filename(utf8Name); // Filename in OS encoding
 		if (!converted)
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 
 		if (winIsDir(converted))
 		{
 			SysEx::Free(converted);
-			return RC::CANTOPEN_ISDIR;
+			return RC_CANTOPEN_ISDIR;
 		}
 
 		DWORD dwDesiredAccess;
@@ -2706,7 +2706,7 @@ shmpage_out:
 			if (h == INVALID_HANDLE_VALUE)
 			{
 				file->LastErrno = lastErrno;
-				winLogError(RC::CANTOPEN, file->LastErrno, "winOpen", utf8Name);
+				winLogError(RC_CANTOPEN, file->LastErrno, "winOpen", utf8Name);
 				SysEx::Free(converted);
 				if (isReadWrite && !isExclusive)
 					return Open(name, id, (OPEN)((flags|OPEN_READONLY) & ~(OPEN_CREATE|OPEN_READWRITE)), outFlags);
@@ -2717,7 +2717,7 @@ shmpage_out:
 			if (outFlags)
 				*outFlags = (isReadWrite ? OPEN_READWRITE : OPEN_READONLY);
 #if OS_WINCE
-			if (isReadWrite && type == OPEN_MAIN_DB && (rc = winceCreateLock(name, file)) != RC::OK)
+			if (isReadWrite && type == OPEN_MAIN_DB && (rc = winceCreateLock(name, file)) != RC_OK)
 			{
 				osCloseHandle(h);
 				SysEx::Free(converted);
@@ -2741,10 +2741,10 @@ shmpage_out:
 
 	RC WinVSystem::Delete(const char *filename, bool syncDir)
 	{
-		SimulateIOError(return RC::IOERR_DELETE;);
+		SimulateIOError(return RC_IOERR_DELETE;);
 		void *converted = ConvertUtf8Filename(filename);
 		if (!converted)
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 		DWORD attr;
 		RC rc;
 		DWORD lastErrno;
@@ -2759,7 +2759,7 @@ shmpage_out:
 				else
 				{
 					lastErrno = osGetLastError();
-					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC::IOERR_DELETE_NOENT : RC::ERROR); // Already gone?
+					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC_IOERR_DELETE_NOENT : RC_ERROR); // Already gone?
 					break;
 				}
 #else
@@ -2768,22 +2768,22 @@ shmpage_out:
 				if (attr == INVALID_FILE_ATTRIBUTES)
 				{
 					lastErrno = osGetLastError();
-					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC::IOERR_DELETE_NOENT : RC::ERROR); // Already gone?
+					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC_IOERR_DELETE_NOENT : RC_ERROR); // Already gone?
 					break;
 				}
 				if (attr & FILE_ATTRIBUTE_DIRECTORY)
 				{
-					rc = RC::ERROR; // Files only.
+					rc = RC_ERROR; // Files only.
 					break;
 				}
 				if (osDeleteFileW((LPCWSTR)converted))
 				{
-					rc = RC::OK; // Deleted OK.
+					rc = RC_OK; // Deleted OK.
 					break;
 				}
 				if (!retryIoerr(&cnt, &lastErrno))
 				{
-					rc = RC::ERROR; // No more retries.
+					rc = RC_ERROR; // No more retries.
 					break;
 				}
 			} while(1);
@@ -2794,28 +2794,28 @@ shmpage_out:
 				if (attr == INVALID_FILE_ATTRIBUTES)
 				{
 					lastErrno = osGetLastError();
-					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC::IOERR_DELETE_NOENT : RC::ERROR); // Already gone?
+					rc = (lastErrno == ERROR_FILE_NOT_FOUND || lastErrno == ERROR_PATH_NOT_FOUND ? RC_IOERR_DELETE_NOENT : RC_ERROR); // Already gone?
 					break;
 				}
 				if (attr & FILE_ATTRIBUTE_DIRECTORY)
 				{
-					rc = RC::ERROR; // Files only.
+					rc = RC_ERROR; // Files only.
 					break;
 				}
 				if (osDeleteFileA((LPCSTR)converted))
 				{
-					rc = RC::OK; // Deleted OK.
+					rc = RC_OK; // Deleted OK.
 					break;
 				}
 				if (!retryIoerr(&cnt, &lastErrno))
 				{
-					rc = RC::ERROR; // No more retries.
+					rc = RC_ERROR; // No more retries.
 					break;
 				}
 			} while(1);
 #endif
-		if (rc && rc != RC::IOERR_DELETE_NOENT)
-			rc = winLogError(RC::IOERR_DELETE, lastErrno, "winDelete", filename);
+		if (rc && rc != RC_IOERR_DELETE_NOENT)
+			rc = winLogError(RC_IOERR_DELETE, lastErrno, "winDelete", filename);
 		else
 			logIoerr(cnt);
 		SysEx::Free(converted);
@@ -2825,10 +2825,10 @@ shmpage_out:
 
 	RC WinVSystem::Access(const char *filename, ACCESS flags, int *resOut)
 	{
-		SimulateIOError(return RC::IOERR_ACCESS;);
+		SimulateIOError(return RC_IOERR_ACCESS;);
 		void *converted = ConvertUtf8Filename(filename);
 		if (!converted)
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 		DWORD attr;
 		int rc = 0;
 		DWORD lastErrno;
@@ -2851,9 +2851,9 @@ shmpage_out:
 				logIoerr(cnt);
 				if (lastErrno != ERROR_FILE_NOT_FOUND && lastErrno != ERROR_PATH_NOT_FOUND)
 				{
-					winLogError(RC::IOERR_ACCESS, lastErrno, "winAccess", filename);
+					winLogError(RC_IOERR_ACCESS, lastErrno, "winAccess", filename);
 					SysEx::Free(converted);
-					return RC::IOERR_ACCESS;
+					return RC_IOERR_ACCESS;
 				}
 				else
 					attr = INVALID_FILE_ATTRIBUTES;
@@ -2877,7 +2877,7 @@ shmpage_out:
 			_assert(!"Invalid flags argument");
 		}
 		*resOut = rc;
-		return RC::OK;
+		return RC_OK;
 	}
 
 	static BOOL winIsVerbatimPathname(const char *pathname)
@@ -2898,7 +2898,7 @@ shmpage_out:
 	RC WinVSystem::FullPathname(const char *relative, int fullLength, char *full)
 	{
 #if defined(__CYGWIN__)
-		SimulateIOError(return RC::ERROR);
+		SimulateIOError(return RC_ERROR);
 		_assert(MaxPathname >= MAX_PATH);
 		_assert(fullLength >= MaxPathname);
 		// NOTE: We are dealing with a relative path name and the data directory has been set.  Therefore, use it as the basis
@@ -2912,10 +2912,10 @@ shmpage_out:
 		}
 		else
 			cygwin_conv_path(CCP_POSIX_TO_WIN_A, relative, full, fullLength);
-		return RC::OK;
+		return RC_OK;
 #endif
 #if (OS_WINCE || OS_WINRT) && !defined(__CYGWIN__)
-		SimulateIOError(return RC::ERROR);
+		SimulateIOError(return RC_ERROR);
 		// WinCE has no concept of a relative pathname, or so I am told.
 		// WinRT has no way to convert a relative path to an absolute one.
 		// NOTE: We are dealing with a relative path name and the data directory has been set.  Therefore, use it as the basis
@@ -2924,7 +2924,7 @@ shmpage_out:
 			_snprintf(full, MIN(fullLength, MaxPathname), "%s\\%s", data_directory, relative);
 		else
 			_snprintf(full, MIN(fullLength, MaxPathname), "%s", relative);
-		return RC::OK;
+		return RC_OK;
 #endif
 #if !OS_WINCE && !OS_WINRT && !defined(__CYGWIN__)
 		// If this path name begins with "/X:", where "X" is any alphabetic character, discard the initial "/" from the pathname.
@@ -2932,17 +2932,17 @@ shmpage_out:
 			relative++;
 		// It's odd to simulate an io-error here, but really this is just using the io-error infrastructure to test that SQLite handles this
 		// function failing. This function could fail if, for example, the current working directory has been unlinked.
-		SimulateIOError(return RC::ERROR);
+		SimulateIOError(return RC_ERROR);
 		// NOTE: We are dealing with a relative path name and the data directory has been set.  Therefore, use it as the basis
 		//       for converting the relative path name to an absolute one by prepending the data directory and a backslash.
 		if (data_directory && !winIsVerbatimPathname(relative))
 		{
 			_snprintf(full, MIN(fullLength, MaxPathname), "%s\\%s", data_directory, relative);
-			return RC::OK;
+			return RC_OK;
 		}
 		void *converted = ConvertUtf8Filename(relative);
 		if (!converted)
-			return RC::IOERR_NOMEM;
+			return RC_IOERR_NOMEM;
 		DWORD bytes;
 		char *out;
 		if (isNT())
@@ -2951,24 +2951,24 @@ shmpage_out:
 			bytes = osGetFullPathNameW((LPCWSTR)converted, 0, 0, 0);
 			if (bytes == 0)
 			{
-				winLogError(RC::ERROR, osGetLastError(), "GetFullPathNameW1", (char *)converted);
+				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameW1", (char *)converted);
 				SysEx::Free(converted);
-				return RC::CANTOPEN_FULLPATH;
+				return RC_CANTOPEN_FULLPATH;
 			}
 			bytes += 3;
 			temp = (LPWSTR)SysEx::Alloc(bytes*sizeof(temp[0]), true);
 			if (!temp)
 			{
 				SysEx::Free(converted);
-				return RC::IOERR_NOMEM;
+				return RC_IOERR_NOMEM;
 			}
 			bytes = osGetFullPathNameW((LPCWSTR)converted, bytes, temp, 0);
 			if (bytes == 0)
 			{
-				winLogError(RC::ERROR, osGetLastError(), "GetFullPathNameW2", (char *)converted);
+				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameW2", (char *)converted);
 				SysEx::Free(converted);
 				SysEx::Free(temp);
-				return RC::CANTOPEN_FULLPATH;
+				return RC_CANTOPEN_FULLPATH;
 			}
 			SysEx::Free(converted);
 			out = UnicodeToUtf8(temp);
@@ -2981,24 +2981,24 @@ shmpage_out:
 			bytes = osGetFullPathNameA((char*)converted, 0, 0, 0);
 			if (bytes == 0)
 			{
-				winLogError(RC::ERROR, osGetLastError(), "GetFullPathNameA1", (char *)converted);
+				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameA1", (char *)converted);
 				SysEx::Free(converted);
-				return RC::CANTOPEN_FULLPATH;
+				return RC_CANTOPEN_FULLPATH;
 			}
 			bytes += 3;
 			temp = (char *)SysEx::Alloc(bytes*sizeof(temp[0]), true);
 			if (!temp)
 			{
 				SysEx::Free(converted);
-				return RC::IOERR_NOMEM;
+				return RC_IOERR_NOMEM;
 			}
 			bytes = osGetFullPathNameA((char*)converted, bytes, temp, 0);
 			if (bytes == 0)
 			{
-				winLogError(RC::ERROR, osGetLastError(), "GetFullPathNameA2", (char *)converted);
+				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameA2", (char *)converted);
 				SysEx::Free(converted);
 				SysEx::Free(temp);
-				return RC::CANTOPEN_FULLPATH;
+				return RC_CANTOPEN_FULLPATH;
 			}
 			SysEx::Free(converted);
 			out = win32_MbcsToUtf8(temp);
@@ -3009,9 +3009,9 @@ shmpage_out:
 		{
 			_snprintf(full, MIN(fullLength, MaxPathname), "%s", out);
 			SysEx::Free(out);
-			return RC::OK;
+			return RC_OK;
 		}
-		return RC::IOERR_NOMEM;
+		return RC_IOERR_NOMEM;
 #endif
 	}
 
@@ -3127,7 +3127,7 @@ shmpage_out:
 		osGetSystemTime(&time);
 		// if SystemTimeToFileTime() fails, it returns zero.
 		if (!osSystemTimeToFileTime(&time,&ft))
-			return RC::ERROR;
+			return RC_ERROR;
 #else
 		osGetSystemTimeAsFileTime(&ft);
 #endif
@@ -3136,14 +3136,14 @@ shmpage_out:
 		if (current_time)
 			*now = 1000*(int64)current_time + unixEpoch;
 #endif
-		return RC::OK;
+		return RC_OK;
 	}
 
 	RC WinVSystem::CurrentTime(double *now)
 	{
 		int64 i;
 		RC rc = CurrentTimeInt64(&i);
-		if (rc == RC::OK)
+		if (rc == RC_OK)
 			*now = i/86400000.0;
 		return rc;
 	}
@@ -3172,7 +3172,7 @@ shmpage_out:
 		_assert(winSysInfo.dwAllocationGranularity > 0);
 #endif
 		RegisterVfs(&_winVfs, true);
-		return RC::OK; 
+		return RC_OK; 
 	}
 
 	void VSystem::Shutdown()
