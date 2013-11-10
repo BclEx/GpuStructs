@@ -4055,7 +4055,7 @@ freepage_out:
 		if (*rcRef) return;
 
 		_assert(idx < page->Cells);
-		_assert(size == cellSize(page, idx) );
+		_assert(size == cellSize(page, idx));
 		_assert(Pager::Iswriteable(page->DBPage));
 		_assert(MutexEx::Held(page->Bt->Mutex));
 		uint8 *data = page->Data;

@@ -29,8 +29,8 @@ namespace Core
 #endif
 #else
 #define SysEx_LOG(X, ...) ((void)0)
-#define SysEx_OSTRACE(X)
-#define SysEx_IOTRACE(X)
+#define SysEx_OSTRACE(X, ...) ((void)0)
+#define SysEx_IOTRACE(X, ...) ((void)0)
 #endif
 
 #pragma endregion

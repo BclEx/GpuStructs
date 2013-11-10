@@ -43,7 +43,6 @@
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.net\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">

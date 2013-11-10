@@ -90,7 +90,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>_LIB;ENABLE_ATOMIC_WRITE;OMIT_WAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_LIB;ENABLE_ATOMIC_WRITE;OMIT_WAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -127,10 +127,8 @@
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\IO\30.VFile.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Text\00.StringBuilder.cu.h" />
-    <ClInclude Include="..\SystemL.net\Runtime.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
-    <ClCompile Include="Program.cu" />
     <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
     <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
