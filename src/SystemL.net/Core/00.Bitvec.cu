@@ -5,7 +5,9 @@ namespace Core
 {
 	__device__ Bitvec::Bitvec(uint32 size)
 	{
-		_size = size;
+		_assert(sizeof(Bitvec) == BITVEC_SZ);
+		_memset(this, 0, sizeof(Bitvec));
+		_size = size;		
 	}
 
 	__device__ bool Bitvec::Get(uint32 index)

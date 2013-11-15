@@ -50,6 +50,15 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Compile Include="Core+Vbde\Core+Vbde_h.cs" />
+    <Compile Include="Core+Vbde\Vdbe.cs" />
+    <Compile Include="Core+Vbde\VdbeApi.cs" />
+    <Compile Include="Core+Vbde\VdbeAux.cs" />
+    <Compile Include="Core+Vbde\VdbeBlob.cs" />
+    <Compile Include="Core+Vbde\VdbeInt_h.cs" />
+    <Compile Include="Core+Vbde\VdbeMem.cs" />
+    <Compile Include="Core+Vbde\VdbeTrace.cs" />
+    <Compile Include="Core+Vbde\Vdbe_h.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -61,6 +70,9 @@
     <Content Include="Core+Pager\Pager.cu.h" />
     <Content Include="Core+Pager\PCache.cu.h" />
     <Content Include="Core+Pager\Wal.cu.h" />
+    <Content Include="Core+Vbde\Core+Vbde.cu.h" />
+    <Content Include="Core+Vbde\Vdbe.cu.h" />
+    <Content Include="Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Core+Btree\Btree.cu" />
@@ -68,6 +80,13 @@
     <None Include="Core+Pager\PCache.cu" />
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
+    <None Include="Core+Vbde\Vdbe.cu" />
+    <None Include="Core+Vbde\VdbeApi.cu" />
+    <None Include="Core+Vbde\VdbeAux.cu" />
+    <None Include="Core+Vbde\VdbeBlob.cu" />
+    <None Include="Core+Vbde\VdbeMem.cu" />
+    <None Include="Core+Vbde\VdbeSort.cu" />
+    <None Include="Core+Vbde\VdbeTrace.cu" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SystemL.net\SystemL.net.csproj">
@@ -75,5 +94,6 @@
       <Name>SystemL.net</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

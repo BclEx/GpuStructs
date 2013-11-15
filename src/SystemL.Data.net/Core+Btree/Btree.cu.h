@@ -124,7 +124,7 @@ namespace Core
 
 		__device__ const char *get_Filename();
 		__device__ const char *get_Journalname();
-		//__device__ int sqlite3BtreeCopyFile(Btree *, Btree *);
+		//__device__ int CopyFile(Btree *, Btree *);
 
 		__device__ RC IncrVacuum();
 
@@ -194,8 +194,8 @@ namespace Core
 #endif
 
 #ifdef TEST
-		//__device__ int sqlite3BtreeCursorInfo(BtCursor*, int*, int);
-		//__device__ void sqlite3BtreeCursorList(Btree*);
+		//__device__ int CursorInfo(BtCursor*, int*, int);
+		//__device__ void CursorList(Btree*);
 #endif
 
 #ifndef OMIT_WAL

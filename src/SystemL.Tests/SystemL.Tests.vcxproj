@@ -23,9 +23,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CoreTest.cpp" />
-    <ClCompile Include="IOTest.cpp" />
-    <ClCompile Include="TextTest.cpp" />
+    <ClCompile Include="CoreTestH.cpp" />
+    <ClCompile Include="IOTestH.cpp" />
+    <ClCompile Include="TextTestH.cpp" />
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">

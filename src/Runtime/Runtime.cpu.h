@@ -7,6 +7,7 @@
 #include <assert.h>
 //#include <string.h>
 #pragma warning(disable:4996)
+#include "Runtime.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
@@ -37,6 +38,7 @@ __device__ inline void Coverage(int line) { }
 
 // Heap
 extern "C" __device__ inline void _runtimeSetHeap(void *heap) { }
+extern "C" inline cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
 extern "C" __device__ inline void runtimeRestrict(int threadid, int blockid) { }
 
 ///////////////////////////////////////////////////////////////////////////////

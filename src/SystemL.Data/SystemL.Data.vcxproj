@@ -31,6 +31,9 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vbde.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
     <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
@@ -38,6 +41,13 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeBlob.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeMem.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeSort.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
@@ -45,6 +55,13 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeBlob.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeMem.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeSort.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{AADAB731-E71B-406B-B023-6A3FD7957591}</ProjectGuid>
@@ -79,9 +96,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(ProjectName).$(LC)$(LD)D</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(ProjectName).$(LC)$(LD)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'">
     <ClCompile>

@@ -55,7 +55,6 @@
     <Content Include="Core\10.ConvertEx.cu.h" />
     <Content Include="Core\45.VAlloc.cu.h" />
     <Content Include="Core\50.VSystem.cu.h" />
-    <Content Include="Runtime.cu.h" />
     <None Include="Core\00.Bitvec.cu" />
     <None Include="Core\10.ConvertEx.cu" />
     <Content Include="Core\00.Bitvec.cu.h" />

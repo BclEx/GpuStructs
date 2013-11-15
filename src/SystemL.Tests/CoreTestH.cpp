@@ -5,6 +5,7 @@ using namespace System;
 using namespace Xunit;
 
 extern void coreTest0_host(cudaRuntimeHost &r);
+extern void coreTest1_host(cudaRuntimeHost &r);
 
 namespace Tests
 {
@@ -17,8 +18,7 @@ namespace Tests
 		{
 			// Choose which GPU to run on, change this on a multi-GPU system.
 			//checkCudaErrors(cudaSetDevice(0), throw gcnew Exception("cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?"));
-			_runtimeHost = cudaRuntimeInit(256, 4096);
-			cudaRuntimeSetHeap(_runtimeHost.heap);
+			_runtimeHost = cudaRuntimeInit(256, 4096); cudaRuntimeSetHeap(_runtimeHost.heap);
 		}
 		~CoreTest()
 		{
@@ -31,6 +31,9 @@ namespace Tests
 		}
 
 		[Fact]
-		void printf_outputs() { coreTest0_host(_runtimeHost); }
+		void bitvec() { coreTest0_host(_runtimeHost); }
+
+		[Fact]
+		void bitvec_failures() { coreTest1_host(_runtimeHost); }
 	};
 }

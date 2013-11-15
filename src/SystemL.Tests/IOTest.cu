@@ -1,5 +1,8 @@
 #include <Core\Core.cu.h>
 
+#pragma region Preamble
+
+#if __CUDACC__
 #define TEST(id) \
 	__global__ void ioTest##id(void *r); \
 	void ioTest##id##_host(cudaRuntimeHost &r) { ioTest##id<<<1, 1>>>(r.heap); cudaRuntimeExecute(r); } \
@@ -7,6 +10,17 @@
 { \
 	_runtimeSetHeap(r); \
 	SysEx::Initialize();
+#else
+#define TEST(id) \
+	__global__ void ioTest##id(void *r); \
+	void ioTest##id##_host(cudaRuntimeHost &r) { ioTest##id(r.heap); cudaRuntimeExecute(r); } \
+	__global__ void ioTest##id(void *r) \
+{ \
+	_runtimeSetHeap(r); \
+	SysEx::Initialize();
+#endif
+
+#pragma endregion
 
 //////////////////////////////////////////////////
 
