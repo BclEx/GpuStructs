@@ -2,15 +2,14 @@
 
 #pragma region CollSeq
 
-typedef struct CollSeq CollSeq;
-struct CollSeq
+typedef struct CollSeq
 {
 	char *Name;				// Name of the collating sequence, UTF-8 encoded
 	uint8 Enc;				// Text encoding handled by xCmp()
 	void *User;				// First argument to xCmp()
 	int (*Cmp)(void *, int, const void *, int, const void *);
 	void (*Del)(void *);	// Destructor for pUser
-};
+} CollSeq;
 
 #pragma endregion
 
@@ -23,12 +22,11 @@ enum SCHEMA_ : uint8
 	SCHEMA_Empty = 0x0004, // The file is empty (length 0 bytes)
 };
 
-typedef struct ISchema ISchema;
-struct ISchema
+typedef struct ISchema
 {
 	uint8 FileFormat;
 	SCHEMA_ Flags;
-};
+} ISchema;
 
 #pragma endregion
 
@@ -47,4 +45,3 @@ public:
 };
 
 #pragma endregion
-

@@ -50,7 +50,11 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
-    <Compile Include="Core+Vbde\Core+Vbde_h.cs" />
+    <Compile Include="Core+Table\Core+Table_h.cs" />
+    <Compile Include="Core+Table\Rowset.cs" />
+    <Compile Include="Core+Table\Table.cs" />
+    <Compile Include="Core+Table\VTable.cs" />
+    <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
     <Compile Include="Core+Vbde\Vdbe.cs" />
     <Compile Include="Core+Vbde\VdbeApi.cs" />
     <Compile Include="Core+Vbde\VdbeAux.cs" />
@@ -70,7 +74,8 @@
     <Content Include="Core+Pager\Pager.cu.h" />
     <Content Include="Core+Pager\PCache.cu.h" />
     <Content Include="Core+Pager\Wal.cu.h" />
-    <Content Include="Core+Vbde\Core+Vbde.cu.h" />
+    <Content Include="Core+Table\Core+Table.cu.h" />
+    <Content Include="Core+Vbde\Core+Vdbe.cu.h" />
     <Content Include="Core+Vbde\Vdbe.cu.h" />
     <Content Include="Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
@@ -80,6 +85,15 @@
     <None Include="Core+Pager\PCache.cu" />
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
+    <None Include="Core+Parse\Parse.yc">
+      <Generator>LALRReprint</Generator>
+    </None>
+    <None Include="Core+Parse\Parse.y">
+      <Generator>LALRReprint</Generator>
+    </None>
+    <None Include="Core+Table\Rowset.cu" />
+    <None Include="Core+Table\Table.cu" />
+    <None Include="Core+Table\VTable.cu" />
     <None Include="Core+Vbde\Vdbe.cu" />
     <None Include="Core+Vbde\VdbeApi.cu" />
     <None Include="Core+Vbde\VdbeAux.cu" />

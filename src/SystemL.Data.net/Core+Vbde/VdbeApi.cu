@@ -211,7 +211,7 @@ __device__ void sqlite3_result_error_nomem(sqlite3_context *ctx)
 __device__ static RC doWalCallbacks(Context *db)
 {
 	RC rc = RC_OK;
-#ifndef xOMIT_WAL
+#ifndef OMIT_WAL
 	for (int i = 0; i < db->Dbs.length; i++)
 	{
 		Btree *bt = db->Dbs[i].Bt;
@@ -220,18 +220,14 @@ __device__ static RC doWalCallbacks(Context *db)
 			int entrys = sqlite3PagerWalCallback(sqlite3BtreePager(bt));
 			if (db->WalCallback && entrys > 0 && rc == RC_OK)
 				rc = db->WalCallback(db->WalArg, db, db->Dbs[i].Name, entrys);
-
 		}
 	}
 #endif
 	return rc;
 }
 
-static int sqlite3Step(Vdbe *p)
+__device__ static RC sqlite3Step(Vdbe *p)
 {
-	sqlite3 *db;
-	int rc;
-
 	_assert(p);
 	if (p->Magic != VDBE_MAGIC_RUN)
 	{
@@ -255,6 +251,7 @@ static int sqlite3Step(Vdbe *p)
 	}
 
 	// Check that malloc() has not failed. If it has, return early.
+	RC rc;
 	Context *db = p->Db;
 	if (db->MallocFailed)
 	{
@@ -264,307 +261,213 @@ static int sqlite3Step(Vdbe *p)
 	if (p->PC <= 0 && P->Expired)
 	{
 		p->RC = RC_SCHEMA;
-		RC = RC_ERROR;
+		rc = RC_ERROR;
 		goto end_of_step;
 	}
-	if( p->pc<0 ){
-		/* If there are no other statements currently running, then
-		** reset the interrupt flag.  This prevents a call to sqlite3_interrupt
-		** from interrupting a statement that has not yet started.
-		*/
-		if( db->activeVdbeCnt==0 ){
-			db->u1.isInterrupted = 0;
-		}
-
-		assert( db->writeVdbeCnt>0 || db->autoCommit==0 || db->nDeferredCons==0 );
-
-#ifndef SQLITE_OMIT_TRACE
-		if( db->xProfile && !db->init.busy ){
-			sqlite3OsCurrentTimeInt64(db->pVfs, &p->startTime);
-		}
-#endif
-
-		db->activeVdbeCnt++;
-		if( p->readOnly==0 ) db->writeVdbeCnt++;
-		p->pc = 0;
-	}
-#ifndef SQLITE_OMIT_EXPLAIN
-	if( p->explain ){
-		rc = sqlite3VdbeList(p);
-	}else
-#endif /* SQLITE_OMIT_EXPLAIN */
+	if (p->PC < 0)
 	{
-		db->vdbeExecCnt++;
-		rc = sqlite3VdbeExec(p);
-		db->vdbeExecCnt--;
+		// If there are no other statements currently running, then reset the interrupt flag.  This prevents a call to sqlite3_interrupt
+		// from interrupting a statement that has not yet started.
+		if (db->ActiveVdbeCnt == 0)
+			db->U1.IsInterrupted = false;
+		_assert(db->WriteVdbeCnt > 0 || !db->AutoCommit || !db->DeferredCons);
+#ifndef OMIT_TRACE
+		if (db->xProfile && !db->Init.Busy)
+			db->Vfs->CurrentTimeInt64(&p->StartTime);
+#endif
+		db->ActiveVdbeCnt++;
+		if (!p->ReadOnly) db->WriteVdbeCnt++;
+		p->PC = 0;
 	}
 
-#ifndef SQLITE_OMIT_TRACE
-	/* Invoke the profile callback if there is one
-	*/
-	if( rc!=SQLITE_ROW && db->xProfile && !db->init.busy && p->zSql ){
-		sqlite3_int64 iNow;
-		sqlite3OsCurrentTimeInt64(db->pVfs, &iNow);
-		db->xProfile(db->pProfileArg, p->zSql, (iNow - p->startTime)*1000000);
+#ifndef OMIT_EXPLAIN
+	if (p->Explain)
+		rc = p->List();
+	else
+#endif
+	{
+		db->VdbeExecCnt++;
+		rc = p->Exec();
+		db->VdbeExecCnt--;
+	}
+
+#ifndef OMIT_TRACE
+	// Invoke the profile callback if there is one
+	if (rc != RC_ROW && db->xProfile && !db->Init.Busy && p->Sql)
+	{
+		int64 now;
+		db->Vfs->CurrentTimeInt64(&iNow);
+		db->xProfile(db->ProfileArg, p->Sql, (now - p->StartTime)*1000000);
 	}
 #endif
 
-	if( rc==SQLITE_DONE ){
-		assert( p->rc==SQLITE_OK );
-		p->rc = doWalCallbacks(db);
-		if( p->rc!=SQLITE_OK ){
-			rc = SQLITE_ERROR;
-		}
+	if (rc == RC_DONE)
+	{
+		_assert(p->RC == RC_OK);
+		p->RC = doWalCallbacks(db);
+		if (p->RC != RC_OK)
+			rc = RC_ERROR;
 	}
 
-	db->errCode = rc;
-	if( SQLITE_NOMEM==sqlite3ApiExit(p->db, p->rc) ){
-		p->rc = SQLITE_NOMEM;
-	}
+	db->ErrCode = rc;
+	if (sqlite3ApiExit(p->Db, p->RC) == RC_NOMEM)
+		p->RC = RC_NOMEM;
+
 end_of_step:
-	/* At this point local variable rc holds the value that should be 
-	** returned if this statement was compiled using the legacy 
-	** sqlite3_prepare() interface. According to the docs, this can only
-	** be one of the values in the first assert() below. Variable p->rc 
-	** contains the value that would be returned if sqlite3_finalize() 
-	** were called on statement p.
-	*/
-	assert( rc==SQLITE_ROW  || rc==SQLITE_DONE   || rc==SQLITE_ERROR 
-		|| rc==SQLITE_BUSY || rc==SQLITE_MISUSE
-		);
-	assert( p->rc!=SQLITE_ROW && p->rc!=SQLITE_DONE );
-	if( p->isPrepareV2 && rc!=SQLITE_ROW && rc!=SQLITE_DONE ){
-		/* If this statement was prepared using sqlite3_prepare_v2(), and an
-		** error has occurred, then return the error code in p->rc to the
-		** caller. Set the error code in the database handle to the same value.
-		*/ 
-		rc = sqlite3VdbeTransferError(p);
-	}
-	return (rc&db->errMask);
+	// At this point local variable rc holds the value that should be returned if this statement was compiled using the legacy 
+	// sqlite3_prepare() interface. According to the docs, this can only be one of the values in the first assert() below. Variable p->rc 
+	// contains the value that would be returned if sqlite3_finalize() were called on statement p.
+	_assert(rc == RC_ROW || rc == RC_DONE || rc == RC_ERROR || rc == RC_BUSY || rc == RC_MISUSE);
+	_assert(p->RC != RC_ROW && p->RC != RC_DONE);
+	// If this statement was prepared using sqlite3_prepare_v2(), and an error has occurred, then return the error code in p->rc to the
+	// caller. Set the error code in the database handle to the same value.
+	if (p->IsPrepareV2 && rc != RC_ROW && rc != RC_DONE)
+		rc = p->TransferError();
+	return (rc & db->ErrMask);
 }
 
-/*
-** The maximum number of times that a statement will try to reparse
-** itself before giving up and returning SQLITE_SCHEMA.
-*/
-#ifndef SQLITE_MAX_SCHEMA_RETRY
-# define SQLITE_MAX_SCHEMA_RETRY 5
+#ifndef MAX_SCHEMA_RETRY
+#define MAX_SCHEMA_RETRY 5
 #endif
 
-/*
-** This is the top-level implementation of sqlite3_step().  Call
-** sqlite3Step() to do most of the work.  If a schema error occurs,
-** call sqlite3Reprepare() and try again.
-*/
-int sqlite3_step(sqlite3_stmt *pStmt){
-	int rc = SQLITE_OK;      /* Result from sqlite3Step() */
-	int rc2 = SQLITE_OK;     /* Result from sqlite3Reprepare() */
-	Vdbe *v = (Vdbe*)pStmt;  /* the prepared statement */
-	int cnt = 0;             /* Counter to prevent infinite loop of reprepares */
-	sqlite3 *db;             /* The database connection */
+__device__ RC sqlite3_step(sqlite3_stmt *stmt)
+{
+	RC rc = RC_OK;      // Result from sqlite3Step()
+	RC rc2 = RC_OK;     // Result from sqlite3Reprepare()
+	Vdbe *v = (Vdbe *)stmt;  the prepared statement
+		int cnt = 0; // Counter to prevent infinite loop of reprepares
+	Context *db; // The database connection
 
-	if( vdbeSafetyNotNull(v) ){
-		return SQLITE_MISUSE_BKPT;
-	}
+	if (vdbeSafetyNotNull(v))
+		return RC_MISUSE_BKPT;
 	db = v->db;
-	sqlite3_mutex_enter(db->mutex);
-	v->doingRerun = 0;
-	while( (rc = sqlite3Step(v))==SQLITE_SCHEMA
-		&& cnt++ < SQLITE_MAX_SCHEMA_RETRY
-		&& (rc2 = rc = sqlite3Reprepare(v))==SQLITE_OK ){
-			sqlite3_reset(pStmt);
-			v->doingRerun = 1;
-			assert( v->expired==0 );
+	MutexEx::Enter(db->Mutex);
+	v->DoingRerun = false;
+	while ((rc = sqlite3Step(v)) == RC_SCHEMA &&
+		cnt++ < MAX_SCHEMA_RETRY &&
+		(rc2 = rc = sqlite3Reprepare(v)) == RC_OK)
+	{
+		sqlite3_reset(stmt);
+		v->DoingRerun = true;
+		_assert(!v->Expired);
 	}
-	if( rc2!=SQLITE_OK && ALWAYS(v->isPrepareV2) && ALWAYS(db->pErr) ){
-		/* This case occurs after failing to recompile an sql statement. 
-		** The error message from the SQL compiler has already been loaded 
-		** into the database handle. This block copies the error message 
-		** from the database handle into the statement and sets the statement
-		** program counter to 0 to ensure that when the statement is 
-		** finalized or reset the parser error message is available via
-		** sqlite3_errmsg() and sqlite3_errcode().
-		*/
-		const char *zErr = (const char *)sqlite3_value_text(db->pErr); 
-		sqlite3DbFree(db, v->zErrMsg);
-		if( !db->mallocFailed ){
-			v->zErrMsg = sqlite3DbStrDup(db, zErr);
-			v->rc = rc2;
-		} else {
-			v->zErrMsg = 0;
-			v->rc = rc = SQLITE_NOMEM;
-		}
+	if (rc2 != RC_OK && ALWAYS(v->IsPrepareV2) && ALWAYS(db->Err))
+	{
+		// This case occurs after failing to recompile an sql statement. The error message from the SQL compiler has already been loaded 
+		// into the database handle. This block copies the error message from the database handle into the statement and sets the statement
+		// program counter to 0 to ensure that when the statement is finalized or reset the parser error message is available via
+		// sqlite3_errmsg() and sqlite3_errcode().
+		const char *err = (const char *)sqlite3_value_text(db->Err); 
+		sqlite3DbFree(db, v->ErrMsg);
+		if (!db->MallocFailed) { v->ErrMsg = sqlite3DbStrDup(db, err); v->rc = rc2; }
+		else { v->ErrMsg = nullptr; v->RC = rc = RC_NOMEM; }
 	}
 	rc = sqlite3ApiExit(db, rc);
-	sqlite3_mutex_leave(db->mutex);
+	MutexEx::Leave(db->Mutex);
 	return rc;
 }
 
-/*
-** Extract the user data from a sqlite3_context structure and return a
-** pointer to it.
-*/
-void *sqlite3_user_data(sqlite3_context *p){
-	assert( p && p->pFunc );
-	return p->pFunc->pUserData;
+#pragma endregion
+
+#pragma region Name3
+
+__device__ void *sqlite3_user_data(sqlite3_context *ctx)
+{
+	_assert(ctx && ctx->Func);
+	return ctx->Func->UserData;
 }
 
-/*
-** Extract the user data from a sqlite3_context structure and return a
-** pointer to it.
-**
-** IMPLEMENTATION-OF: R-46798-50301 The sqlite3_context_db_handle() interface
-** returns a copy of the pointer to the database connection (the 1st
-** parameter) of the sqlite3_create_function() and
-** sqlite3_create_function16() routines that originally registered the
-** application defined function.
-*/
-sqlite3 *sqlite3_context_db_handle(sqlite3_context *p){
-	assert( p && p->pFunc );
-	return p->s.db;
+__device__ Context *sqlite3_context_db_handle(sqlite3_context *ctx)
+{
+	_assert(ctx && ctx->Func);
+	return ctx->S.Db;
 }
 
-/*
-** The following is the implementation of an SQL function that always
-** fails with an error message stating that the function is used in the
-** wrong context.  The sqlite3_overload_function() API might construct
-** SQL function that use this routine so that the functions will exist
-** for name resolution but are actually overloaded by the xFindFunction
-** method of virtual tables.
-*/
-void sqlite3InvalidFunction(
-	sqlite3_context *context,  /* The function calling context */
-	int NotUsed,               /* Number of arguments to the function */
-	sqlite3_value **NotUsed2   /* Value of each argument */
-	){
-		const char *zName = context->pFunc->zName;
-		char *zErr;
-		UNUSED_PARAMETER2(NotUsed, NotUsed2);
-		zErr = sqlite3_mprintf(
-			"unable to use function %s in the requested context", zName);
-		sqlite3_result_error(context, zErr, -1);
-		sqlite3_free(zErr);
+__device__ void sqlite3InvalidFunction(sqlite3_context *ctx, int notUsed, sqlite3_value **notUsed2)
+{
+	const char *name = ctx->Func->Name;
+	char *err = sqlite3_mprintf("unable to use function %s in the requested context", name);
+	sqlite3_result_error(ctx, err, -1);
+	SysEx::Free(err);
 }
 
-/*
-** Allocate or return the aggregate context for a user function.  A new
-** context is allocated on the first call.  Subsequent calls return the
-** same context that was returned on prior calls.
-*/
-void *sqlite3_aggregate_context(sqlite3_context *p, int nByte){
-	Mem *pMem;
-	assert( p && p->pFunc && p->pFunc->xStep );
-	assert( sqlite3_mutex_held(p->s.db->mutex) );
-	pMem = p->pMem;
-	testcase( nByte<0 );
-	if( (pMem->flags & MEM_Agg)==0 ){
-		if( nByte<=0 ){
-			sqlite3VdbeMemReleaseExternal(pMem);
-			pMem->flags = MEM_Null;
-			pMem->z = 0;
-		}else{
-			sqlite3VdbeMemGrow(pMem, nByte, 0);
-			pMem->flags = MEM_Agg;
-			pMem->u.pDef = p->pFunc;
-			if( pMem->z ){
-				memset(pMem->z, 0, nByte);
-			}
+__device__ void *sqlite3_aggregate_context(sqlite3_context *ctx, int bytes)
+{
+	_assert(ctx && ctx->Func && ctx->Func->xStep);
+	_assert(MutexEx::Held(ctx->S.Db->Mutex));
+	Mem *mem = ctx->Mem;
+	ASSERTCOVERAGE(bytes < 0);
+	if ((mem->Flags & MEM_Agg) == 0)
+	{
+		if (bytes <= 0)
+		{
+			Vdbe::MemReleaseExternal(mem);
+			mem->Flags = MEM_Null;
+			mem->Z = nullptr;
+		}
+		else
+		{
+			Vdbe::MemGrow(mem, bytes, 0);
+			mem->Flags = MEM_Agg;
+			mem->U.Def = ctx->Func;
+			if (mem->Z)
+				memset(mem->Z, 0, bytes);
 		}
 	}
-	return (void*)pMem->z;
+	return (void *)mem->Z;
 }
 
-/*
-** Return the auxilary data pointer, if any, for the iArg'th argument to
-** the user-function defined by pCtx.
-*/
-void *sqlite3_get_auxdata(sqlite3_context *pCtx, int iArg){
-	VdbeFunc *pVdbeFunc;
+__device__ void *sqlite3_get_auxdata(sqlite3_context *ctx, int arg)
+{
+	_assert(MutexEx::Held(ctx->S.Db->Mutex));
+	VdbeFunc *vdbeFunc = ctx->pVdbeFunc;
+	if (!vdbeFunc || arg >= vdbeFunc->AuxsLength || arg < 0)
+		return nullptr;
+	return vdbeFunc->Auxs[arg].Aux;
+}
 
-	assert( sqlite3_mutex_held(pCtx->s.db->mutex) );
-	pVdbeFunc = pCtx->pVdbeFunc;
-	if( !pVdbeFunc || iArg>=pVdbeFunc->nAux || iArg<0 ){
-		return 0;
+__device__ void sqlite3_set_auxdata(sqlite3_context *ctx, int iArg, void *pAux, void (*delete_)(void*))
+{
+	if (iArg < 0) goto failed;
+	_assert(MutexEx::Held(ctx->S.Db->Mutex));
+	VdbeFunc *vdbeFunc = ctx->VdbeFunc;
+	if (!vdbeFunc || vdbeFunc->nAux <= iArg)
+	{
+		int nAux = (pVdbeFunc ? pVdbeFunc->nAux : 0);
+		int nMalloc = sizeof(VdbeFunc) + sizeof(struct AuxData)*iArg;
+		vdbeFunc = sqlite3DbRealloc(ctx->S.Db, vdbeFunc, nMalloc);
+		if (!vdbeFunc)
+			goto failed;
+		ctx->VdbeFunc = vdbeFunc;
+		memset(&vdbeFunc->Auxs[nAux], 0, sizeof(struct AuxData)*(iArg+1-nAux));
+		vdbeFunc->nAux = iArg+1;
+		vdbeFunc->pFunc = ctx->Func;
 	}
-	return pVdbeFunc->apAux[iArg].pAux;
-}
 
-/*
-** Set the auxilary data pointer and delete function, for the iArg'th
-** argument to the user-function defined by pCtx. Any previous value is
-** deleted by calling the delete function specified when it was set.
-*/
-void sqlite3_set_auxdata(
-	sqlite3_context *pCtx, 
-	int iArg, 
-	void *pAux, 
-	void (*xDelete)(void*)
-	){
-		struct AuxData *pAuxData;
-		VdbeFunc *pVdbeFunc;
-		if( iArg<0 ) goto failed;
-
-		assert( sqlite3_mutex_held(pCtx->s.db->mutex) );
-		pVdbeFunc = pCtx->pVdbeFunc;
-		if( !pVdbeFunc || pVdbeFunc->nAux<=iArg ){
-			int nAux = (pVdbeFunc ? pVdbeFunc->nAux : 0);
-			int nMalloc = sizeof(VdbeFunc) + sizeof(struct AuxData)*iArg;
-			pVdbeFunc = sqlite3DbRealloc(pCtx->s.db, pVdbeFunc, nMalloc);
-			if( !pVdbeFunc ){
-				goto failed;
-			}
-			pCtx->pVdbeFunc = pVdbeFunc;
-			memset(&pVdbeFunc->apAux[nAux], 0, sizeof(struct AuxData)*(iArg+1-nAux));
-			pVdbeFunc->nAux = iArg+1;
-			pVdbeFunc->pFunc = pCtx->pFunc;
-		}
-
-		pAuxData = &pVdbeFunc->apAux[iArg];
-		if( pAuxData->pAux && pAuxData->xDelete ){
-			pAuxData->xDelete(pAuxData->pAux);
-		}
-		pAuxData->pAux = pAux;
-		pAuxData->xDelete = xDelete;
-		return;
+	struct AuxData *auxData = &vdbeFunc->Auxs[iArg];
+	if( pAuxData->pAux && pAuxData->xDelete ){
+		pAuxData->xDelete(pAuxData->pAux);
+	}
+	pAuxData->pAux = pAux;
+	pAuxData->xDelete = xDelete;
+	return;
 
 failed:
-		if( xDelete ){
-			xDelete(pAux);
-		}
+	if (delete_)
+		delete_(aux);
 }
 
-#ifndef SQLITE_OMIT_DEPRECATED
-/*
-** Return the number of times the Step function of a aggregate has been 
-** called.
-**
-** This function is deprecated.  Do not use it for new code.  It is
-** provide only to avoid breaking legacy code.  New aggregate function
-** implementations should keep their own counts within their aggregate
-** context.
-*/
-int sqlite3_aggregate_count(sqlite3_context *p){
-	assert( p && p->pMem && p->pFunc && p->pFunc->xStep );
-	return p->pMem->n;
-}
-#endif
-
-/*
-** Return the number of columns in the result set for the statement pStmt.
-*/
-int sqlite3_column_count(sqlite3_stmt *pStmt){
-	Vdbe *pVm = (Vdbe *)pStmt;
-	return pVm ? pVm->nResColumn : 0;
+__device__ int sqlite3_column_count(sqlite3_stmt *stmt)
+{
+	Vdbe *v = (Vdbe *)stmt;
+	return (v ? v->ResColumns : 0);
 }
 
-/*
-** Return the number of values available from the current row of the
-** currently executing statement pStmt.
-*/
-int sqlite3_data_count(sqlite3_stmt *pStmt){
-	Vdbe *pVm = (Vdbe *)pStmt;
-	if( pVm==0 || pVm->pResultSet==0 ) return 0;
-	return pVm->nResColumn;
+__device__ int sqlite3_data_count(sqlite3_stmt *stmt)
+{
+	Vdbe *v = (Vdbe *)stmt;
+	if (!vm || !vm->ResultSet) return 0;
+	return v->ResColumns;
 }
 
 
@@ -645,10 +548,10 @@ static void columnMallocFailure(sqlite3_stmt *pStmt)
 	}
 }
 
-/**************************** sqlite3_column_  *******************************
-** The following routines are used to access elements of the current row
-** in the result set.
-*/
+#pragma endregion
+
+#pragma region sqlite3_column_
+
 const void *sqlite3_column_blob(sqlite3_stmt *pStmt, int i){
 	const void *val;
 	val = sqlite3_value_blob( columnMem(pStmt,i) );
@@ -855,22 +758,10 @@ const void *sqlite3_column_origin_name16(sqlite3_stmt *pStmt, int N){
 #endif /* SQLITE_OMIT_UTF16 */
 #endif /* SQLITE_ENABLE_COLUMN_METADATA */
 
+#pragma endregion
 
-/******************************* sqlite3_bind_  ***************************
-** 
-** Routines used to attach values to wildcards in a compiled SQL statement.
-*/
-/*
-** Unbind the value bound to variable i in virtual machine p. This is the 
-** the same as binding a NULL value to the column. If the "i" parameter is
-** out of range, then SQLITE_RANGE is returned. Othewise SQLITE_OK.
-**
-** A successful evaluation of this routine acquires the mutex on p.
-** the mutex is released if any kind of error occurs.
-**
-** The error code stored in database p->db is overwritten with the return
-** value in any case.
-*/
+#pragma region sqlite3_bind_
+
 static int vdbeUnbind(Vdbe *p, int i){
 	Mem *pVar;
 	if( vdbeSafetyNotNull(p) ){
@@ -1116,34 +1007,9 @@ int sqlite3TransferBindings(sqlite3_stmt *pFromStmt, sqlite3_stmt *pToStmt){
 	return SQLITE_OK;
 }
 
-#ifndef SQLITE_OMIT_DEPRECATED
-/*
-** Deprecated external interface.  Internal/core SQLite code
-** should call sqlite3TransferBindings.
-**
-** Is is misuse to call this routine with statements from different
-** database connections.  But as this is a deprecated interface, we
-** will not bother to check for that condition.
-**
-** If the two statements contain a different number of bindings, then
-** an SQLITE_ERROR is returned.  Nothing else can go wrong, so otherwise
-** SQLITE_OK is returned.
-*/
-int sqlite3_transfer_bindings(sqlite3_stmt *pFromStmt, sqlite3_stmt *pToStmt){
-	Vdbe *pFrom = (Vdbe*)pFromStmt;
-	Vdbe *pTo = (Vdbe*)pToStmt;
-	if( pFrom->nVar!=pTo->nVar ){
-		return SQLITE_ERROR;
-	}
-	if( pTo->isPrepareV2 && pTo->expmask ){
-		pTo->expired = 1;
-	}
-	if( pFrom->isPrepareV2 && pFrom->expmask ){
-		pFrom->expired = 1;
-	}
-	return sqlite3TransferBindings(pFromStmt, pToStmt);
-}
-#endif
+#pragma endregion
+
+#pragma region Name4
 
 /*
 ** Return the sqlite3* database handle to which the prepared statement given
@@ -1151,7 +1017,8 @@ int sqlite3_transfer_bindings(sqlite3_stmt *pFromStmt, sqlite3_stmt *pToStmt){
 ** the first argument to the sqlite3_prepare() that was used to create
 ** the statement in the first place.
 */
-sqlite3 *sqlite3_db_handle(sqlite3_stmt *pStmt){
+sqlite3 *sqlite3_db_handle(sqlite3_stmt *pStmt)
+{
 	return pStmt ? ((Vdbe*)pStmt)->db : 0;
 }
 
@@ -1198,3 +1065,5 @@ int sqlite3_stmt_status(sqlite3_stmt *pStmt, int op, int resetFlag){
 	if( resetFlag ) pVdbe->aCounter[op-1] = 0;
 	return v;
 }
+
+#pragma endregion

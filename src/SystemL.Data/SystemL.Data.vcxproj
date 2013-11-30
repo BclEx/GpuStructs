@@ -31,7 +31,8 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h" />
-    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vbde.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Table\Core+Table.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
@@ -41,6 +42,9 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\Table.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />
@@ -55,6 +59,9 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Table\Table.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />

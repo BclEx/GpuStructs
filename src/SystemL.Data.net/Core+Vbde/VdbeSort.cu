@@ -1,97 +1,12 @@
-/*
-** 2011 July 9
-**
-** The author disclaims copyright to this source code.  In place of
-** a legal notice, here is a blessing:
-**
-**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.
-**
-*************************************************************************
-** This file contains code for the VdbeSorter object, used in concert with
-** a VdbeCursor to sort large numbers of keys (as may be required, for
-** example, by CREATE INDEX statements on tables too large to fit in main
-** memory).
-*/
-
 #include "sqliteInt.h"
 #include "vdbeInt.h"
-
 
 typedef struct VdbeSorterIter VdbeSorterIter;
 typedef struct SorterRecord SorterRecord;
 typedef struct FileWriter FileWriter;
 
-/*
-** NOTES ON DATA STRUCTURE USED FOR N-WAY MERGES:
-**
-** As keys are added to the sorter, they are written to disk in a series
-** of sorted packed-memory-arrays (PMAs). The size of each PMA is roughly
-** the same as the cache-size allowed for temporary databases. In order
-** to allow the caller to extract keys from the sorter in sorted order,
-** all PMAs currently stored on disk must be merged together. This comment
-** describes the data structure used to do so. The structure supports 
-** merging any number of arrays in a single pass with no redundant comparison 
-** operations.
-**
-** The aIter[] array contains an iterator for each of the PMAs being merged.
-** An aIter[] iterator either points to a valid key or else is at EOF. For 
-** the purposes of the paragraphs below, we assume that the array is actually 
-** N elements in size, where N is the smallest power of 2 greater to or equal 
-** to the number of iterators being merged. The extra aIter[] elements are 
-** treated as if they are empty (always at EOF).
-**
-** The aTree[] array is also N elements in size. The value of N is stored in
-** the VdbeSorter.nTree variable.
-**
-** The final (N/2) elements of aTree[] contain the results of comparing
-** pairs of iterator keys together. Element i contains the result of 
-** comparing aIter[2*i-N] and aIter[2*i-N+1]. Whichever key is smaller, the
-** aTree element is set to the index of it. 
-**
-** For the purposes of this comparison, EOF is considered greater than any
-** other key value. If the keys are equal (only possible with two EOF
-** values), it doesn't matter which index is stored.
-**
-** The (N/4) elements of aTree[] that preceed the final (N/2) described 
-** above contains the index of the smallest of each block of 4 iterators.
-** And so on. So that aTree[1] contains the index of the iterator that 
-** currently points to the smallest key value. aTree[0] is unused.
-**
-** Example:
-**
-**     aIter[0] -> Banana
-**     aIter[1] -> Feijoa
-**     aIter[2] -> Elderberry
-**     aIter[3] -> Currant
-**     aIter[4] -> Grapefruit
-**     aIter[5] -> Apple
-**     aIter[6] -> Durian
-**     aIter[7] -> EOF
-**
-**     aTree[] = { X, 5   0, 5    0, 3, 5, 6 }
-**
-** The current element is "Apple" (the value of the key indicated by 
-** iterator 5). When the Next() operation is invoked, iterator 5 will
-** be advanced to the next key in its segment. Say the next key is
-** "Eggplant":
-**
-**     aIter[5] -> Eggplant
-**
-** The contents of aTree[] are updated first by comparing the new iterator
-** 5 key to the current key of iterator 4 (still "Grapefruit"). The iterator
-** 5 value is still smaller, so aTree[6] is set to 5. And so on up the tree.
-** The value of iterator 6 - "Durian" - is now smaller than that of iterator
-** 5, so aTree[3] is set to 6. Key 0 is smaller than key 6 (Banana<Durian),
-** so the value written into element 1 of the array is 0. As follows:
-**
-**     aTree[] = { X, 0   0, 6    0, 3, 5, 6 }
-**
-** In other words, each time we advance to the next sorter element, log2(N)
-** key comparison operations are required, where N is the number of segments
-** being merged (rounded up to the next power of 2).
-*/
+#pragma region Structs
+
 struct VdbeSorter {
   i64 iWriteOff;                  /* Current write offset within file pTemp1 */
   i64 iReadOff;                   /* Current read offset within file pTemp1 */
@@ -155,6 +70,10 @@ struct SorterRecord {
 
 /* Maximum number of segments to merge in a single pass. */
 #define SORTER_MAX_MERGE_COUNT 16
+
+#pragma endregion
+
+#pragma region Sort
 
 /*
 ** Free all memory belonging to the VdbeSorterIter object passed as the second
@@ -368,7 +287,6 @@ static int vdbeSorterIterInit(
   return rc;
 }
 
-
 /*
 ** Compare key1 (buffer pKey1, size nKey1 bytes) with key2 (buffer pKey2, 
 ** size nKey2 bytes).  Argument pKeyInfo supplies the collation functions
@@ -461,6 +379,10 @@ static int vdbeSorterDoCompare(const VdbeCursor *pCsr, int iOut){
   pSorter->aTree[iOut] = iRes;
   return SQLITE_OK;
 }
+
+#pragma endregion
+
+#pragma region Sort2
 
 /*
 ** Initialize the temporary index cursor just opened as a sorter cursor.
@@ -1036,3 +958,5 @@ int sqlite3VdbeSorterCompare(
   vdbeSorterCompare(pCsr, 1, pVal->z, pVal->n, pKey, nKey, pRes);
   return SQLITE_OK;
 }
+
+#pragma endregion

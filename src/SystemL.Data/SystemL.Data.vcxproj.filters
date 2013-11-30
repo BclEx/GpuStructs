@@ -10,6 +10,9 @@
     <Filter Include="Core+Vbde">
       <UniqueIdentifier>{ca606226-a182-4a7f-90d9-b6d75c488bc5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Core+Table">
+      <UniqueIdentifier>{1f9ce095-e008-42de-ba6a-22b00149cfb5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
@@ -36,13 +39,13 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h">
       <Filter>Core+Pager</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vbde.cu.h">
-      <Filter>Core+Vbde</Filter>
-    </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu.h">
       <Filter>Core+Vbde</Filter>
     </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h">
+      <Filter>Core+Vbde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h">
       <Filter>Core+Vbde</Filter>
     </ClInclude>
   </ItemGroup>

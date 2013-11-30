@@ -1,12 +1,12 @@
 // vdbe.c
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
 
 namespace Core
 {
 #pragma region Preamble
 
 #ifdef _DEBUG
-#define memAboutToChange(P,M) sqlite3VdbeMemAboutToChange(P,M)
+#define memAboutToChange(P,M) P->MemAboutToChange(M)
 #else
 #define memAboutToChange(P,M)
 #endif
@@ -18,9 +18,9 @@ namespace Core
 	int sqlite3_max_blobsize = 0;
 	__device__ static void updateMaxBlobsize(Mem *p) { if ((p->Flags & (MEM_Str|MEM_Blob)) != 0 && p->n > sqlite3_max_blobsize) sqlite3_max_blobsize = p->n; }
 	int sqlite3_found_count = 0;
-# define UPDATE_MAX_BLOBSIZE(P) updateMaxBlobsize(P)
+#define UPDATE_MAX_BLOBSIZE(P) updateMaxBlobsize(P)
 #else
-# define UPDATE_MAX_BLOBSIZE(P)
+#define UPDATE_MAX_BLOBSIZE(P)
 #endif
 
 #define Stringify(P, enc) if (((P)->Flags & (MEM_Str|MEM_Blob)) == 0 && P->MemStringify(enc)) { goto no_mem; }
@@ -34,14 +34,14 @@ namespace Core
 	__device__ void Vdbe::MemStoreType(Mem *mem)
 	{
 		int flags = mem->Flags;
-		if (flags & MEM_Null) pMem->Type = SQLITE_NULL;
+		if (flags & MEM_Null) mem->Type = SQLITE_NULL;
 		else if (flags & MEM_Int) mem->Type = SQLITE_INTEGER;
 		else if (flags & MEM_Real) mem->Type = SQLITE_FLOAT;
 		else if (flags & MEM_Str) mem->Type = SQLITE_TEXT;
 		else mem->Type = SQLITE_BLOB;
 	}
 
-	__device__ static VdbeCursor *allocateCursor(Vdbe *p, int curId, int fields, int dbId, bool isBtreeCursor)
+	__device__ static VdbeCursor *allocateCursor(Vdbe *p, int curID, int fields, int dbId, bool isBtreeCursor)
 	{
 		// Find the memory cell that will be used to store the blob of memory required for this VdbeCursor structure. It is convenient to use a 
 		// vdbe memory cell to manage the memory allocation required for a VdbeCursor structure for the following reasons:
@@ -54,36 +54,34 @@ namespace Core
 		//
 		// Memory cells for cursors are allocated at the top of the address space. Memory cell (p->nMem) corresponds to cursor 0. Space for
 		// cursor 1 is managed by memory cell (p->nMem-1), etc.
-		Mem *mem = &p->aMem[p->nMem-iCur];
+		Mem *mem = &p->Mems[p->Mems.Length - curID];
 
-		VdbeCursor *pCx = nullptr;
+		VdbeCursor *cx = nullptr;
 		int bytes = SysEx_ROUND8(sizeof(VdbeCursor)) +
 			(isBtreeCursor ? Btree::CursorSize() : 0) +
 			2*fields*sizeof(uint32);
 
-		_assert(iCur < p->nCursor);
-		if (p->apCsr[iCur])
+		_assert(curID < p->Cursors.length);
+		if (p->Cursors[curID])
 		{
-			sqlite3VdbeFreeCursor(p, p->apCsr[iCur]);
-			p->apCsr[iCur] = 0;
+			p->FreeCursor(p->Cursors[curID]); p->Cursors[curID] = nullptr;
 		}
 		if (Vdbe::MemGrow(mem, bytes, 0) == RC_OK)
 		{
-			p->apCsr[iCur] = pCx = (VdbeCursor *)mem->z;
-			_memset(pCx, 0, sizeof(VdbeCursor));
-			pCx->iDb = iDb;
-			pCx->nField = fields;
+			p->Cursors[curID] = cx = (VdbeCursor *)mem->Z;
+			_memset(cx, 0, sizeof(VdbeCursor));
+			cx->Db = db;
+			cx->Fields = fields;
 			if (fields)
-				pCx->aType = (uint32 *)&mem->z[SysEx_ROUND8(sizeof(VdbeCursor))];
+				cx->Types = (uint32 *)&mem->z[SysEx_ROUND8(sizeof(VdbeCursor))];
 			if (isBtreeCursor)
 			{
-				pCx->pCursor = (BtCursor *)&mem->z[SysEx_ROUND8(sizeof(VdbeCursor)) + 2*fields*sizeof(uint32)];
-				pCx->pCursor->CursorZero();
+				cx->Cursor = (BtCursor *)&mem->z[SysEx_ROUND8(sizeof(VdbeCursor)) + 2*fields*sizeof(uint32)];
+				cx->Cursor->CursorZero();
 			}
 		}
-		return pCx;
+		return cx;
 	}
-
 
 #if 0
 
@@ -6066,3 +6064,4 @@ abort_due_to_interrupt:
 
 #endif
 #pragma endregion
+}

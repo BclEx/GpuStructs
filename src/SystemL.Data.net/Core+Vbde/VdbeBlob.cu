@@ -1,22 +1,8 @@
-/*
-** 2007 May 1
-**
-** The author disclaims copyright to this source code.  In place of
-** a legal notice, here is a blessing:
-**
-**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.
-**
-*************************************************************************
-**
-** This file contains code used to implement incremental BLOB I/O.
-*/
-
 #include "sqliteInt.h"
 #include "vdbeInt.h"
 
-#ifndef SQLITE_OMIT_INCRBLOB
+#pragma region Blob
+#ifndef OMIT_INCRBLOB
 
 /*
 ** Valid sqlite3_blob* handles point to Incrblob structures.
@@ -216,7 +202,7 @@ int sqlite3_blob_open(
     if( flags ){
       const char *zFault = 0;
       Index *pIdx;
-#ifndef SQLITE_OMIT_FOREIGN_KEY
+#ifndef OMIT_FOREIGN_KEY
       if( db->flags&SQLITE_ForeignKeys ){
         /* Check that the column is not part of an FK child key definition. It
         ** is not necessary to check if it is part of a parent key, as parent
@@ -272,7 +258,7 @@ int sqlite3_blob_open(
       sqlite3VdbeUsesBtree(v, iDb); 
 
       /* Configure the OP_TableLock instruction */
-#ifdef SQLITE_OMIT_SHARED_CACHE
+#ifdef OMIT_SHARED_CACHE
       sqlite3VdbeChangeToNoop(v, 2);
 #else
       sqlite3VdbeChangeP1(v, 2, iDb);
@@ -466,4 +452,5 @@ int sqlite3_blob_reopen(sqlite3_blob *pBlob, sqlite3_int64 iRow){
   return rc;
 }
 
-#endif /* #ifndef SQLITE_OMIT_INCRBLOB */
+#endif
+#pragma endregion

@@ -1,206 +1,215 @@
 using System;
 using System.Diagnostics;
-using System.Text;
 
-using Bitmask = System.UInt64;
-using u8 = System.Byte;
-using u16 = System.UInt16;
-using u32 = System.UInt32;
-
-namespace Community.CsharpSqlite
+namespace Core
 {
-  public partial class Sqlite3
-  {
-    /*
-    ** 2009 November 25
-    **
-    ** The author disclaims copyright to this source code.  In place of
-    ** a legal notice, here is a blessing:
-    **
-    **    May you do good and not evil.
-    **    May you find forgiveness for yourself and forgive others.
-    **    May you share freely, never taking more than you give.
-    **
-    *************************************************************************
-    **
-    ** This file contains code used to insert the values of host parameters
-    ** (aka "wildcards") into the SQL text output by sqlite3_trace().
-    *************************************************************************
-    **  Included in SQLite3 port to C#-SQLite;  2008 Noah B Hart
-    **  C#-SQLite is an independent reimplementation of the SQLite software library
-    **
-    **  SQLITE_SOURCE_ID: 2011-05-19 13:26:54 ed1da510a239ea767a01dc332b667119fa3c908e
-    **
-    *************************************************************************
-    */
-    //#include "sqliteInt.h"
-    //#include "vdbeInt.h"
-
-#if !SQLITE_OMIT_TRACE
-
-    /*
-** zSql is a zero-terminated string of UTF-8 SQL text.  Return the number of
-** bytes in this text up to but excluding the first character in
-** a host parameter.  If the text contains no host parameters, return
-** the total number of bytes in the text.
-*/
-    static int findNextHostParameter( string zSql, int iOffset, ref int pnToken )
+    public partial class Vdbe
     {
-      int tokenType = 0;
-      int nTotal = 0;
-      int n;
 
-      pnToken = 0;
-      while ( iOffset < zSql.Length )
-      {
-        n = sqlite3GetToken( zSql, iOffset, ref tokenType );
-        Debug.Assert( n > 0 && tokenType != TK_ILLEGAL );
-        if ( tokenType == TK_VARIABLE )
-        {
-          pnToken = n;
-          break;
-        }
-        nTotal += n;
-        iOffset += n;// zSql += n;
-      }
-      return nTotal;
-    }
+        #region Trace
+#if !OMIT_TRACE
 
-    /*
-    ** This function returns a pointer to a nul-terminated string in memory
-    ** obtained from sqlite3DbMalloc(). If sqlite3.vdbeExecCnt is 1, then the
-    ** string contains a copy of zRawSql but with host parameters expanded to 
-    ** their current bindings. Or, if sqlite3.vdbeExecCnt is greater than 1, 
-    ** then the returned string holds a copy of zRawSql with "-- " prepended
-    ** to each line of text.
-    **
-    ** The calling function is responsible for making sure the memory returned
-    ** is eventually freed.
-    **
-    ** ALGORITHM:  Scan the input string looking for host parameters in any of
-    ** these forms:  ?, ?N, $A, @A, :A.  Take care to avoid text within
-    ** string literals, quoted identifier names, and comments.  For text forms,
-    ** the host parameter index is found by scanning the perpared
-    ** statement for the corresponding OP_Variable opcode.  Once the host
-    ** parameter index is known, locate the value in p->aVar[].  Then render
-    ** the value as a literal in place of the host parameter name.
-    */
-    static string sqlite3VdbeExpandSql(
-    Vdbe p,                  /* The prepared statement being evaluated */
-    string zRawSql           /* Raw text of the SQL statement */
-    )
-    {
-      sqlite3 db;              /* The database connection */
-      int idx = 0;             /* Index of a host parameter */
-      int nextIndex = 1;       /* Index of next ? host parameter */
-      int n;                   /* Length of a token prefix */
-      int nToken = 0;          /* Length of the parameter token */
-      int i;                   /* Loop counter */
-      Mem pVar;                /* Value of a host parameter */
-      StrAccum _out = new StrAccum( 1000 );               /* Accumulate the _output here */
-      StringBuilder zBase = new StringBuilder( 100 ); /* Initial working space */
-      int izRawSql = 0;
-
-      db = p.db;
-      sqlite3StrAccumInit( _out, null, 100,
-            db.aLimit[SQLITE_LIMIT_LENGTH] );
-      _out.db = db;
-      if ( db.vdbeExecCnt > 1 )
-      {
-        while ( izRawSql < zRawSql.Length )
+        static int findNextHostParameter(string sql, int sqlIdx, ref int tokens)
         {
-          //string zStart = zRawSql;
-          while ( zRawSql[izRawSql++] != '\n' && izRawSql < zRawSql.Length )
-            ;
-          sqlite3StrAccumAppend( _out, "-- ", 3 );
-          sqlite3StrAccumAppend( _out, zRawSql, (int)izRawSql );//zRawSql - zStart );
-        }
-      }
-      else
-      {
-        while ( izRawSql < zRawSql.Length )
-        {
-          n = findNextHostParameter( zRawSql, izRawSql, ref nToken );
-          Debug.Assert( n > 0 );
-          sqlite3StrAccumAppend( _out, zRawSql.Substring( izRawSql, n ), n );
-          izRawSql += n;
-          Debug.Assert( izRawSql < zRawSql.Length || nToken == 0 );
-          if ( nToken == 0 )
-            break;
-          if ( zRawSql[izRawSql] == '?' )
-          {
-            if ( nToken > 1 )
+            int total = 0;
+            tokens = 0;
+            while (sqlIdx < sql.Length)
             {
-              Debug.Assert( sqlite3Isdigit( zRawSql[izRawSql + 1] ) );
-              sqlite3GetInt32( zRawSql, izRawSql + 1, ref idx );
+                int tokenType = 0;
+                int n = sqlite3GetToken(sql, sqlIdx, ref tokenType);
+                Debug.Assert(n > 0 && tokenType != TK_ILLEGAL);
+                if (tokenType == TK_VARIABLE)
+                {
+                    tokens = n;
+                    break;
+                }
+                total += n;
+                sqlIdx += n;
             }
+            return total;
+        }
+
+        static string sqlite3VdbeExpandSql(Vdbe p, string rawSql)
+        {
+            Text.StringBuilder b = new Text.StringBuilder(); // Accumulate the _output here
+            Text.StringBuilder.Init(b, 100, db.Limits[LIMIT_LENGTH]);
+            Context db = p.Db; // The database connection
+            b.Db = db;
+            int rawSqlIdx = 0;
+            int nextIndex = 1; // Index of next ? host parameter
+            int idx = 0; // Index of a host parameter
+            if (db.VdbeExecCnt > 1)
+                while (rawSqlIdx < rawSql.Length)
+                {
+                    while (rawSql[rawSqlIdx++] != '\n' && rawSqlIdx < rawSql.Length) ;
+                    b.Append("-- ", 3);
+                    b.Append(rawSql, (int)rawSqlIdx);
+                }
             else
-            {
-              idx = nextIndex;
-            }
-          }
-          else
-          {
-            Debug.Assert( zRawSql[izRawSql] == ':' || zRawSql[izRawSql] == '$' || zRawSql[izRawSql] == '@' );
-            testcase( zRawSql[izRawSql] == ':' );
-            testcase( zRawSql[izRawSql] == '$' );
-            testcase( zRawSql[izRawSql] == '@' );
-            idx = sqlite3VdbeParameterIndex( p, zRawSql.Substring( izRawSql, nToken ), nToken );
-            Debug.Assert( idx > 0 );
-          }
-          izRawSql += nToken;
-          nextIndex = idx + 1;
-          Debug.Assert( idx > 0 && idx <= p.nVar );
-          pVar = p.aVar[idx - 1];
-          if ( ( pVar.flags & MEM_Null ) != 0 )
-          {
-            sqlite3StrAccumAppend( _out, "NULL", 4 );
-          }
-          else if ( ( pVar.flags & MEM_Int ) != 0 )
-          {
-            sqlite3XPrintf( _out, "%lld", pVar.u.i );
-          }
-          else if ( ( pVar.flags & MEM_Real ) != 0 )
-          {
-            sqlite3XPrintf( _out, "%!.15g", pVar.r );
-          }
-          else if ( ( pVar.flags & MEM_Str ) != 0 )
-          {
-#if !SQLITE_OMIT_UTF16
-u8 enc = ENC(db);
-if( enc!=SQLITE_UTF8 ){
-Mem utf8;
-memset(&utf8, 0, sizeof(utf8));
-utf8.db = db;
-sqlite3VdbeMemSetStr(&utf8, pVar.z, pVar.n, enc, SQLITE_STATIC);
-sqlite3VdbeChangeEncoding(&utf8, SQLITE_UTF8);
-sqlite3XPrintf(_out, "'%.*q'", utf8.n, utf8.z);
-sqlite3VdbeMemRelease(&utf8);
-}else
+                while (rawSqlIdx < rawSql.Length)
+                {
+                    int tokenLength = 0; // Length of the parameter token
+                    int n = findNextHostParameter(rawSql, rawSqlIdx, ref tokenLength); // Length of a token prefix
+                    Debug.Assert(n > 0);
+                    b.Append(rawSql.Substring(rawSqlIdx, n), n);
+                    rawSqlIdx += n;
+                    Debug.Assert(rawSqlIdx < rawSql.Length || tokenLength == 0);
+                    if (tokenLength == 0) break;
+                    if (rawSql[rawSqlIdx] == '?')
+                    {
+                        if (tokenLength > 1)
+                        {
+                            Debug.Assert(char.IsDigit(rawSql[rawSqlIdx + 1]));
+                            sqlite3GetInt32(rawSql, rawSqlIdx + 1, ref idx);
+                        }
+                        else
+                            idx = nextIndex;
+                    }
+                    else
+                    {
+                        Debug.Assert(rawSql[rawSqlIdx] == ':' || rawSql[rawSqlIdx] == '$' || rawSql[rawSqlIdx] == '@');
+                        ASSERTCOVERAGE(rawSql[rawSqlIdx] == ':');
+                        ASSERTCOVERAGE(rawSql[rawSqlIdx] == '$');
+                        ASSERTCOVERAGE(rawSql[rawSqlIdx] == '@');
+                        idx = p.ParameterIndex(rawSql.Substring(rawSqlIdx, tokenLength), tokenLength);
+                        Debug.Assert(idx > 0);
+                    }
+                    rawSqlIdx += tokenLength;
+                    nextIndex = idx + 1;
+                    Debug.Assert(idx > 0 && idx <= p.Vars.length);
+                    Mem var = p.Vars[idx - 1]; // Value of a host parameter
+                    if ((var.flags & MEM_Null) != 0) b.Append("NULL", 4);
+                    else if ((var.flags & MEM_Int) != 0) sqlite3XPrintf(b, "%lld", var.u.I);
+                    else if ((var.flags & MEM_Real) != 0) sqlite3XPrintf(b, "%!.15g", var.R);
+                    else if ((var.flags & MEM_Str) != 0)
+                    {
+#if !OMIT_UTF16
+                        byte enc = ENC(db);
+                        if (enc != SQLITE_UTF8)
+                        {
+                            Mem utf8;
+                            memset(&utf8, 0, sizeof(utf8));
+                            utf8.db = db;
+                            Vdbe.MemSetStr(&utf8, var.z, var.n, enc, SQLITE_STATIC);
+                            Vdbe.ChangeEncoding(&utf8, SQLITE_UTF8);
+                            sqlite3XPrintf(b, "'%.*q'", utf8.n, utf8.z);
+                            Vdbe.MemRelease(&utf8);
+                        }
+                        else
 #endif
-            {
-              sqlite3XPrintf( _out, "'%.*q'", pVar.n, pVar.z );
-            }
-          }
-          else if ( ( pVar.flags & MEM_Zero ) != 0 )
-          {
-            sqlite3XPrintf( _out, "zeroblob(%d)", pVar.u.nZero );
-          }
-          else
-          {
-            Debug.Assert( ( pVar.flags & MEM_Blob ) != 0 );
-            sqlite3StrAccumAppend( _out, "x'", 2 );
-            for ( i = 0; i < pVar.n; i++ )
-            {
-              sqlite3XPrintf( _out, "%02x", pVar.zBLOB[i] & 0xff );
-            }
-            sqlite3StrAccumAppend( _out, "'", 1 );
-          }
+                            sqlite3XPrintf(b, "'%.*q'", var.n, var.z);
+                    }
+                    else if ((var.Flags & MEM_Zero) != 0) sqlite3XPrintf(b, "zeroblob(%d)", var.u.Zero);
+                    else
+                    {
+                        Debug.Assert((var.flags & MEM_Blob) != 0);
+                        b.Append("x'", 2);
+                        for (int i = 0; i < var.N; i++) sqlite3XPrintf(b, "%02x", var.zBLOB[i] & 0xff);
+                        b.Append("'", 1);
+                    }
+                }
+            return b.ToString();
         }
-      }
-      return sqlite3StrAccumFinish( _out );
-    }
 
-#endif //* #if !SQLITE_OMIT_TRACE */
-  }
+#endif
+        #endregion
+
+
+        #region Explain
+#if ENABLE_TREE_EXPLAIN
+
+	__device__ void sqlite3ExplainBegin(Vdbe *vdbe)
+	{
+		if (vdbe)
+		{
+			SysEx::BeginBenignAlloc();
+			Explain *p = (Explain *)SysEx::Alloc(sizeof(Explain), true);
+			if (p)
+			{
+				p->Vdbe = vdbe;
+				SysEx::Free(vdbe->Explain);
+				vdbe->Explain = p;
+				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), MAX_LENGTH);
+				p->Str.UseMalloc = 2;
+			}
+			else
+				SysEx::EndBenignAlloc();
+		}
+	}
+
+	__device__ inline static int endsWithNL(Explain *p)
+	{
+		return (p && p->Str.zText && p->Str.nChar && p->Str.zText[p->Str.nChar-1]=='\n');
+	}
+
+	__device__ void sqlite3ExplainPrintf(Vdbe *pVdbe, const char *zFormat, ...)
+	{
+		Explain *p;
+		if (vdbe && (p = vdbe->Explain) != nullptr)
+		{
+			va_list ap;
+			if (p->Indents && endsWithNL(p))
+			{
+				int n = p->Indents;
+				if (n > __arrayStaticLength(p->Indents)) n = __arrayStaticLength(p->Indents);
+				sqlite3AppendSpace(&p->Str, p->Indents[n-1]);
+			}   
+			va_start(ap, format);
+			sqlite3VXPrintf(&p->Str, 1, zFormat, ap);
+			va_end(ap);
+		}
+	}
+
+	__device__ void sqlite3ExplainNL(Vdbe *vdbe)
+	{
+		Explain *p;
+		if (vdbe && (p = vdbe->Explain) != nullptr && !endsWithNL(p))
+			p->Str.Append("\n", 1);
+	}
+
+	__device__ void sqlite3ExplainPush(Vdbe *vdbe)
+	{
+		Explain *p;
+		if (vdbe && (p = vdbe->Explain)!=0 ){
+			if (p->Str.zText && p->Indents.Length < __arrayStaticLength(p->Indents))
+			{
+				const char *z = p->str.zText;
+				int i = p->str.nChar-1;
+				int x;
+				while( i>=0 && z[i]!='\n' ){ i--; }
+				x = (p->str.nChar - 1) - i;
+				if( p->nIndent && x<p->aIndent[p->nIndent-1] ){
+					x = p->aIndent[p->nIndent-1];
+				}
+				p->aIndent[p->nIndent] = x;
+			}
+			p->nIndent++;
+		}
+	}
+
+	__device__ void sqlite3ExplainPop(Vdbe *p)
+	{
+		if (p && p->Explain) p->Explain->Indents.Length--;
+	}
+
+	__device__ void sqlite3ExplainFinish(Vdbe *vdbe)
+	{
+		if (vdbe && vdbe->Explain)
+		{
+			SysEx::Free(vdbe->ExplainString);
+			sqlite3ExplainNL(vdbe);
+			vdbe->ExplainString = vdbe->Explain->Str.ToString();
+			SysEx::Free(vdbe->Explain); vdbe->Explain = nullptr;
+			SysEx::EndBenignAlloc();
+		}
+	}
+
+	__device__ const char *sqlite3VdbeExplanation(Vdbe *vdbe)
+	{
+		return (vdbe && vdbe->ExplainString ? vdbe->ExplainString : nullptr);
+	}
+
+#endif
+#endregion
+    }
 }

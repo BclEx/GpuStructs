@@ -1,4 +1,6 @@
 // vdbe.h
+#include <stdio.h>
+
 namespace Core
 {
 	//#include "opcodes.h"
@@ -51,6 +53,10 @@ namespace Core
 	typedef struct VdbeFunc VdbeFunc;
 	typedef struct Mem Mem;
 	typedef struct SubProgram SubProgram;
+	//
+	typedef struct VdbeCursor VdbeCursor;
+	typedef struct Parse Parse;
+	typedef struct VTable VTable;
 
 	typedef unsigned bft;
 	class Vdbe
@@ -149,7 +155,7 @@ namespace Core
 		__device__ void SetSql(const char *z, int n, int);
 		__device__ static void Swap(Vdbe *, Vdbe *);
 		__device__ VdbeOp *TakeOpArray(int *, int *);
-		__device__ sqlite3_value *GetValue(int, uint8);
+		__device__ Mem *GetValue(int, uint8);
 		__device__ void SetVarmask(int);
 #ifndef OMIT_TRACE
 		__device__ char *ExpandSql(const char *);
@@ -172,9 +178,9 @@ namespace Core
 #define VdbeNoopComment(X)
 #endif
 
-	private:
+	public: //was:private
 		Context *Db;            // The database connection that owns this statement
-		array_t<Op> Ops;        // Space to hold the virtual machine's program
+		array_t<VdbeOp> Ops;        // Space to hold the virtual machine's program
 		array_t<Mem> Mems;      // The memory locations
 		Mem **Args;				// Arguments to currently executing user function
 		Mem *ColNames;          // Column names to return
@@ -186,14 +192,14 @@ namespace Core
 		char *ErrMsg;			// Error message written here
 		Vdbe *Prev, *Next;		// Linked list of VDBEs with the same Vdbe.db
 		array_t<VdbeCursor *> Cursors;   // One element of this array for each open cursor
-		array_t<ynvar, Mem> * Vars;   // Values for the OP_Variable opcode.
-		array_t<ynvar, char *> VarNames;// Name of variables
+		array_t2<yVars, Mem> * Vars;   // Values for the OP_Variable opcode.
+		array_t2<yVars, char *> VarNames;// Name of variables
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
 		RC RC;                 // Value to return
 		uint8 ErrorAction;         // Recovery action to do in case of an error
 		uint8 MinWriteFileFormat;  // Minimum file format for writable database files
-		bft Explain:2;          // True if EXPLAIN present on SQL command
+		bft HasExplain:2;          // True if EXPLAIN present on SQL command
 		bft InVtabMethod:2;     // See comments above
 		bft ChangeCntOn:1;      // True to update the change-counter
 		bft Expired:1;          // True if the VM needs to be recompiled
@@ -231,7 +237,7 @@ namespace Core
 		__device__ void PopStack(int);
 		__device__ static int CursorMoveto(VdbeCursor *);
 #if defined(_DEBUG) || defined(VDBE_PROFILE)
-		__device__ static void PrintOp(FILE *, int, Op *);
+		__device__ static void PrintOp(FILE *, int, VdbeOp *);
 #endif
 		__device__ static uint32 SerialTypeLen(uint32);
 		__device__ static uint32 SerialType(Mem *, int);

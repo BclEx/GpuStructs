@@ -1,9 +1,11 @@
 // vdbeint.h
+#include "Core+Vdbe.cu.h"
 namespace Core
 {
-	typedef struct VdbeOp Op;
+	typedef struct VdbeOp VdbeOp;
 	typedef struct VdbeSorter VdbeSorter;
 	typedef struct Explain Explain;
+	typedef struct RowSet RowSet;
 
 	typedef struct VdbeCursor
 	{
@@ -39,16 +41,16 @@ namespace Core
 		// aRow might point to (ephemeral) data for the current row, or it might be NULL.
 		uint32 cacheStatus;     // Cache is valid if this matches Vdbe.cacheCtr
 		int payloadSize;		// Total number of bytes in the record
-		uint32 *aType;          // Type values for all entries in the record
-		uint32 *aOffset;        // Cached offsets to the start of each columns data
-		uint8 *aRow;            // Data for the current row, if all on one page
+		uint32 *Types;          // Type values for all entries in the record
+		uint32 *Offsets;        // Cached offsets to the start of each columns data
+		uint8 *Rows;            // Data for the current row, if all on one page
 	} VdbeCursor;
 
 	typedef struct VdbeFrame
 	{
 		Vdbe *V;					// VM this frame belongs to
 		struct VdbeFrame *Parent;	// Parent of this frame, or NULL if parent is main
-		array_t<Op> *Ops;			// Program instructions for parent frame
+		array_t<VdbeOp> *Ops;			// Program instructions for parent frame
 		array_t<Mem> *Mems;			// Array of memory cells for parent frame
 		array_t<uint8> *OnceFlags;	// Array of OP_Once flags for parent frame
 		array_t<VdbeCursor> **Cursors;	// Array of Vdbe cursors for parent frame
@@ -96,7 +98,7 @@ namespace Core
 	};
 #define MemSetTypeFlag(p, f) ((p)->Flags = ((p)->Flags&~(MEM_TypeMask|MEM_Zero))|f)
 #ifdef _DEBUG
-#define memIsValid(M)  ((M)->Flags & MEM_Invalid)==0
+#define memIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif
 
 	struct Mem
@@ -110,8 +112,8 @@ namespace Core
 			FuncDef *Def;		// Used only when flags==MEM_Agg
 			RowSet *RowSet;		// Used only when flags==MEM_RowSet
 			VdbeFrame *Frame;	// Used when flags==MEM_Frame
-		} U;
-		int n;			// Number of characters in string value, excluding '\0'
+		} u;
+		int N;			// Number of characters in string value, excluding '\0'
 		MEM Flags;		// Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
 		uint8 Type;		// One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
 		uint8 Enc;		// SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
@@ -125,7 +127,7 @@ namespace Core
 
 	struct VdbeFunc
 	{
-		FuncDef *pFunc;         // The definition of the function
+		FuncDef *Func;         // The definition of the function
 		int AuxLength;          // Number of entries allocated for apAux[]
 		struct AuxData
 		{
@@ -134,7 +136,8 @@ namespace Core
 		} Auxs[1];              // One slot for each function argument
 	};
 
-	struct sqlite3_context
+	// was:sqlite3_context
+	struct FuncContext
 	{
 		FuncDef *Func;			// Pointer to function information.  MUST BE FIRST
 		VdbeFunc *VdbeFunc;		// Auxilary data, if created.
@@ -148,9 +151,9 @@ namespace Core
 	struct Explain
 	{
 		Vdbe *Vdbe;			// Attach the explanation to this Vdbe
-		StringBuilder Str;	// The string being accumulated
+		Text::StringBuilder Str; // The string being accumulated
 		int IndentLength;	// Number of elements in aIndent
-		uint16 Indents[100];	// Levels of indentation
+		uint16 Indents[100]; // Levels of indentation
 		char ZBase[100];	// Initial space
 	};
 
@@ -158,6 +161,5 @@ namespace Core
 #define VDBE_MAGIC_RUN      0xbdf20da3    // VDBE is ready to execute
 #define VDBE_MAGIC_HALT     0x519c2973    // VDBE has completed execution
 #define VDBE_MAGIC_DEAD     0xb606c3c8    // The VDBE has been deallocated
-
 
 }

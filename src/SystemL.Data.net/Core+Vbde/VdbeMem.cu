@@ -1,22 +1,7 @@
-/*
-** 2004 May 26
-**
-** The author disclaims copyright to this source code.  In place of
-** a legal notice, here is a blessing:
-**
-**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.
-**
-*************************************************************************
-**
-** This file contains code use to manipulate "Mem" structure.  A "Mem"
-** stores a single value in the VDBE.  Mem is an opaque structure visible
-** only within the VDBE.  Interface routines refer to a Mem using the
-** name sqlite_value
-*/
 #include "sqliteInt.h"
 #include "vdbeInt.h"
+
+#pragma region Memory
 
 /*
 ** If pMem is an object with a valid string representation, this routine
@@ -1159,3 +1144,5 @@ int sqlite3ValueBytes(sqlite3_value *pVal, u8 enc){
   }
   return 0;
 }
+
+#pragma endregion

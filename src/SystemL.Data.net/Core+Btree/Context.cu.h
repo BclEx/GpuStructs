@@ -50,14 +50,26 @@ namespace Core
 			FLAG_EnableTrigger = 0x40000000,
 		};
 
+
+		//VSystem *Vfs;					// OS Interface
+		//struct Vdbe *Vdbe;			// List of active virtual machines
+		//CollSeq *DefaultColl;			// The default collating sequence (BINARY)
 		MutexEx Mutex;
+		array_t<DB> DBs;				// All backends / Number of backends currently in use
 		FLAG Flags;
+		int64 LastRowID;                // ROWID of most recent insert (see above)
 		BusyHandlerType *BusyHandler;
 		int Savepoints;					// Number of non-transaction savepoints
+		//int Limits[SQLITE_N_LIMIT];		// Limits
 		int ActiveVdbeCnt;
-		DB *DBs;						// All backends
-		int DBsUsed;					// Number of backends currently in use
 
+#ifndef OMIT_VIRTUALTABLE
+		Hash Modules;					// populated by sqlite3_create_module()
+		VTableContext *VTableCtx;       // Context for active vtab connect/create
+		array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
+		VTable *Disconnect;				// Disconnect these in next sqlite3_prepare()
+#endif
+		
 		__device__ int InvokeBusyHandler()
 		{
 			if (SysEx_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
