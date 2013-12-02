@@ -106,7 +106,7 @@ extern "C" const unsigned char _runtimeCtypeMap[256];
 
 // array
 template <typename T> struct array_t { size_t length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
-template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
+template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t2() { data = nullptr; length = 0; } inline array_t2(T *a) { data = a; length = (size_t)0; } inline array_t2(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; length = 0; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp

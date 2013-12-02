@@ -13,6 +13,9 @@
     <Filter Include="Core+Table">
       <UniqueIdentifier>{1f9ce095-e008-42de-ba6a-22b00149cfb5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Core+Parse">
+      <UniqueIdentifier>{6c903d71-a44c-4e72-a9ac-9925971f9116}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
@@ -47,6 +50,9 @@
     </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h">
       <Filter>Core+Vbde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Table\Core+Table.cu.h">
+      <Filter>Core+Table</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -85,6 +91,15 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu">
       <Filter>Core+Vbde</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu">
+      <Filter>Core+Table</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu">
+      <Filter>Core+Table</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Table\Table.cu">
+      <Filter>Core+Table</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -21,6 +21,71 @@ namespace Core
 
         #endregion
 
+        internal const int VERSION_NUMBER = 3007016;
+
+        #region Memory Allocation
+
+        [Flags]
+        public enum MEMTYPE : byte
+        {
+            HEAP = 0x01,         // General heap allocations
+            LOOKASIDE = 0x02,    // Might have been lookaside memory
+            SCRATCH = 0x04,      // Scratch allocations
+            PCACHE = 0x08,       // Page cache allocations
+            DB = 0x10,           // Uses sqlite3DbMalloc, not sqlite_malloc
+        }
+        public static void BeginBenignAlloc() { }
+        public static void EndBenignAlloc() { }
+        public static byte[] Alloc(int size) { return new byte[size]; }
+        public static byte[] Alloc(int size, bool clear) { return new byte[size]; }
+        public static T[] Alloc<T>(byte s, int size) where T : struct { return new T[size / s]; }
+        public static T[] Alloc<T>(byte s, int size, bool clear) where T : struct { return new T[size / s]; }
+        public static byte[] TagAlloc(object tag, int size) { return new byte[size]; }
+        public static byte[] TagAlloc(object tag, int size, bool clear) { return new byte[size]; }
+        public static T[] TagAlloc<T>(object tag, byte s, int size) where T : struct { return new T[size / s]; }
+        public static T[] TagAlloc<T>(object tag, byte s, int size, bool clear) where T : struct { return new T[size / s]; }
+        public static int AllocSize(byte[] p)
+        {
+            Debug.Assert(MemdebugHasType(p, MEMTYPE.HEAP));
+            Debug.Assert(MemdebugNoType(p, MEMTYPE.DB));
+            return p.Length;
+        }
+        public static int TagAllocSize(object tag, byte[] p)
+        {
+            Debug.Assert(MemdebugHasType(p, MEMTYPE.HEAP));
+            Debug.Assert(MemdebugNoType(p, MEMTYPE.DB));
+            return p.Length;
+        }
+        public static void Free<T>(ref T p) where T : class { p = null; }
+        public static void TagFree<T>(object tag, ref T p) where T : class { p = null; }
+        public static byte[] ScratchAlloc(int size) { return new byte[size]; }
+        public static void ScratchFree(ref byte[] p) { p = null; }
+        public static bool HeapNearlyFull() { return false; }
+        public static T[] Realloc<T>(int s, T[] p, int bytes)
+        {
+            var newT = new T[bytes / s];
+            Array.Copy(p, newT, Math.Min(p.Length, newT.Length));
+            return newT;
+        }
+        public static T[] TagRealloc<T>(object tag, int s, T[] p, int bytes)
+        {
+            var newT = new T[bytes / s];
+            Array.Copy(p, newT, Math.Min(p.Length, newT.Length));
+            return newT;
+        }
+        //
+#if MEMDEBUG
+        //public static void MemdebugSetType<T>(T X, MEMTYPE Y);
+        //public static bool MemdebugHasType<T>(T X, MEMTYPE Y);
+        //public static bool MemdebugNoType<T>(T X, MEMTYPE Y);
+#else
+        public static void MemdebugSetType<T>(T X, MEMTYPE Y) { }
+        public static bool MemdebugHasType<T>(T X, MEMTYPE Y) { return true; }
+        public static bool MemdebugNoType<T>(T X, MEMTYPE Y) { return true; }
+#endif
+
+        #endregion
+
         public static RC Initialize()
         {
             // mutex
@@ -43,8 +108,6 @@ namespace Core
             //MutexEx.Shutdown();
         }
 
-        internal const int VERSION_NUMBER = 3007016;
-
         //internal static RC OSError(RC rc, string func, string path)
         //{
         //    var sf = new StackTrace(new StackFrame(true)).GetFrame(0);
@@ -59,50 +122,6 @@ namespace Core
         //    //sqlite3_log("os_win.c:%d: (%d) %s(%s) - %s", sf.GetFileLineNumber(), errorID, func, sf.GetFileName(), message);
         //    return rc;
         //}
-
-        [Flags]
-        public enum MEMTYPE : byte
-        {
-            HEAP = 0x01,         // General heap allocations
-            LOOKASIDE = 0x02,    // Might have been lookaside memory
-            SCRATCH = 0x04,      // Scratch allocations
-            PCACHE = 0x08,       // Page cache allocations
-            DB = 0x10,           // Uses sqlite3DbMalloc, not sqlite_malloc
-        }
-        public static void BeginBenignAlloc() { }
-        public static void EndBenignAlloc() { }
-        public static byte[] Alloc(int size) { return new byte[size]; }
-        public static byte[] Alloc(int size, bool clear) { return new byte[size]; }
-        public static T[] Alloc<T>(byte s, int size) where T : struct { return new T[size / s]; }
-        public static T[] Alloc<T>(byte s, int size, bool clear) where T : struct { return new T[size / s]; }
-        public static int AllocSize(byte[] p)
-        {
-            Debug.Assert(MemdebugHasType(p, MEMTYPE.HEAP));
-            Debug.Assert(MemdebugNoType(p, MEMTYPE.DB));
-            return p.Length;
-        }
-        public static void Free(ref byte[] p) { p = null; }
-        public static byte[] ScratchAlloc(int size) { return new byte[size]; }
-        public static void ScratchFree(ref byte[] p) { p = null; }
-        public static bool HeapNearlyFull() { return false; }
-        public static T[] Realloc<T>(int s, T[] p, int bytes)
-        {
-            var newT = new T[bytes / s];
-            Array.Copy(p, newT, Math.Min(p.Length, newT.Length));
-            return newT;
-        }
-        //
-#if MEMDEBUG
-        //public static void MemdebugSetType<T>(T X, MEMTYPE Y);
-        //public static bool MemdebugHasType<T>(T X, MEMTYPE Y);
-        //public static bool MemdebugNoType<T>(T X, MEMTYPE Y);
-#else
-        public static void MemdebugSetType<T>(T X, MEMTYPE Y) { }
-        public static bool MemdebugHasType<T>(T X, MEMTYPE Y) { return true; }
-        public static bool MemdebugNoType<T>(T X, MEMTYPE Y) { return true; }
-#endif
-
-        ///////////////////
 
         public static bool ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
         public static bool NEVER(bool x) { return x; }

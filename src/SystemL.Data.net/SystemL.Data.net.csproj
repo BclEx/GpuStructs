@@ -13,13 +13,14 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK</DefineConstants>
+    <DefineConstants>DEBUG;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;XXX;OMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <NoWarn>0618</NoWarn>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <OutputPath>bin\Release\</OutputPath>
@@ -50,19 +51,24 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Content Include="Core+Parse\Parse1.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Parse.y</DependentUpon>
+    </Content>
     <Compile Include="Core+Table\Core+Table_h.cs" />
     <Compile Include="Core+Table\Rowset.cs" />
     <Compile Include="Core+Table\Table.cs" />
     <Compile Include="Core+Table\VTable.cs" />
-    <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
-    <Compile Include="Core+Vbde\Vdbe.cs" />
-    <Compile Include="Core+Vbde\VdbeApi.cs" />
-    <Compile Include="Core+Vbde\VdbeAux.cs" />
-    <Compile Include="Core+Vbde\VdbeBlob.cs" />
-    <Compile Include="Core+Vbde\VdbeInt_h.cs" />
-    <Compile Include="Core+Vbde\VdbeMem.cs" />
-    <Compile Include="Core+Vbde\VdbeTrace.cs" />
-    <Compile Include="Core+Vbde\Vdbe_h.cs" />
+    <None Include="Core+Vbde\Core+Vdbe_h.cs" />
+    <None Include="Core+Vbde\Vdbe.cs" />
+    <None Include="Core+Vbde\VdbeApi.cs" />
+    <None Include="Core+Vbde\VdbeAux.cs" />
+    <None Include="Core+Vbde\VdbeBlob.cs" />
+    <None Include="Core+Vbde\VdbeInt_h.cs" />
+    <None Include="Core+Vbde\VdbeMem.cs" />
+    <None Include="Core+Vbde\VdbeTrace.cs" />
+    <None Include="Core+Vbde\Vdbe_h.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -74,6 +80,14 @@
     <Content Include="Core+Pager\Pager.cu.h" />
     <Content Include="Core+Pager\PCache.cu.h" />
     <Content Include="Core+Pager\Wal.cu.h" />
+    <Content Include="Core+Parse\Parse.c">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Parse.yc</DependentUpon>
+    </Content>
+    <Content Include="Core+Parse\Parse.h">
+      <DependentUpon>Parse.yc</DependentUpon>
+    </Content>
     <Content Include="Core+Table\Core+Table.cu.h" />
     <Content Include="Core+Vbde\Core+Vdbe.cu.h" />
     <Content Include="Core+Vbde\Vdbe.cu.h" />
@@ -85,11 +99,19 @@
     <None Include="Core+Pager\PCache.cu" />
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
-    <None Include="Core+Parse\Parse.yc">
-      <Generator>LALRReprint</Generator>
+    <None Include="Core+Parse\Parse.out">
+      <DependentUpon>Parse.yc</DependentUpon>
+    </None>
+    <None Include="Core+Parse\Parse.template">
+      <DependentUpon>Parse.yc</DependentUpon>
     </None>
     <None Include="Core+Parse\Parse.y">
-      <Generator>LALRReprint</Generator>
+      <Generator>LALR</Generator>
+      <LastGenOutput>Parse1.cs</LastGenOutput>
+    </None>
+    <None Include="Core+Parse\Parse.yc">
+      <Generator>LALRC</Generator>
+      <LastGenOutput>Parse.c</LastGenOutput>
     </None>
     <None Include="Core+Table\Rowset.cu" />
     <None Include="Core+Table\Table.cu" />

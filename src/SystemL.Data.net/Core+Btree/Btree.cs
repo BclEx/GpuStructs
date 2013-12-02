@@ -294,7 +294,7 @@ namespace Core
 #else
         static void invalidateOverflowCache(BtCursor cur) { }
         static void invalidateAllOverflowCache(BtShared bt) { }
-        static void invalidateIncrblobCursors(Btree x, long y, int z) { }
+        static void invalidateIncrblobCursors(Btree x, long y, bool z) { }
 #endif
 
         #endregion

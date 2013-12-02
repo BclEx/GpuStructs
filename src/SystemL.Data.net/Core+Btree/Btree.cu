@@ -1241,7 +1241,7 @@ ptrmap_exit:
 					_assert(bt->Refs > 0);
 					if (_strcmp(fullPathname, bt->Pager->get_Filename(false)) == 0 && bt->Pager->get_Vfs() == vfs)
 					{
-						for (int i = ctx->DBsUsed - 1; i >= 0; i--)
+						for (int i = ctx->DBs.length - 1; i >= 0; i--)
 						{
 							Btree *existing = ctx->DBs[i].Bt;
 							if (existing && existing->Bt == bt)
@@ -1357,7 +1357,7 @@ ptrmap_exit:
 		if (p->Sharable)
 		{
 			Btree *sib;
-			for (int i = 0; i < ctx->DBsUsed; i++)
+			for (int i = 0; i < ctx->DBs.length; i++)
 				if ((sib = ctx->DBs[i].Bt) != nullptr && sib->Sharable)
 				{
 					while (sib->Prev) { sib = sib->Prev; }

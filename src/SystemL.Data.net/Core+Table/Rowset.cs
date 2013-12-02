@@ -17,7 +17,7 @@ namespace Core
     }
 
     [Flags]
-    enum ROWSET : byte
+    public enum ROWSET : byte
     {
         SORTED = 0x01,   // True if RowSet.pEntry is sorted
         NEXT = 0x02,		// True if sqlite3RowSetNext() has been called

@@ -5,7 +5,6 @@ namespace Core
 {
     public partial class Vdbe
     {
-
         #region Trace
 #if !OMIT_TRACE
 
@@ -114,7 +113,6 @@ namespace Core
 #endif
         #endregion
 
-
         #region Explain
 #if ENABLE_TREE_EXPLAIN
 
@@ -210,6 +208,6 @@ namespace Core
 	}
 
 #endif
-#endregion
+        #endregion
     }
 }

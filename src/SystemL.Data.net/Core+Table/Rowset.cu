@@ -10,7 +10,7 @@ namespace Core
 	};
 
 #define ROWSET_ALLOCATION_SIZE 1024
-#define ROWSET_ENTRY_PER_CHUNK \ ((ROWSET_ALLOCATION_SIZE-8)/sizeof(struct RowSetEntry))
+#define ROWSET_ENTRY_PER_CHUNK ((ROWSET_ALLOCATION_SIZE-8)/sizeof(struct RowSetEntry))
 
 	struct RowSetChunk
 	{
@@ -23,6 +23,8 @@ namespace Core
 		ROWSET_SORTED = 0x01,   // True if RowSet.pEntry is sorted
 		ROWSET_NEXT = 0x02,		// True if sqlite3RowSetNext() has been called
 	};
+	ROWSET __device__ inline operator|=(ROWSET a, int b) { return (ROWSET)(a | b); }
+	ROWSET __device__ inline operator&=(ROWSET a, int b) { return (ROWSET)(a & b); }
 
 	struct RowSet
 	{

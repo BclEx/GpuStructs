@@ -2,6 +2,7 @@
 
 #pragma region Table
 
+typedef struct FuncContext FuncContext;
 typedef struct VTable VTable;
 typedef struct IndexInfo IndexInfo;
 typedef struct VTableCursor VTableCursor;
@@ -27,7 +28,7 @@ public:
 	__device__ virtual int Sync(VTable *vtab);
 	__device__ virtual int Commit(VTable *vtab);
 	__device__ virtual int Rollback(VTable *vtab);
-	__device__ virtual int FindFunction(VTable *vtab, int argsLength, const char *name, void (**func)(FunContext *, int, Mem **), void **args);
+	__device__ virtual int FindFunction(VTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
 	__device__ virtual int Rename(VTable *vtab, const char *new_);
 	__device__ virtual int Savepoint(VTable *vtab, int);
 	__device__ virtual int Release(VTable *vtab, int);

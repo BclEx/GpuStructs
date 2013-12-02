@@ -29,6 +29,7 @@ namespace Core
 		}
 
 		// If this is the first row, then generate an extra row containing the names of all columns.
+		char *z; // A single column of result
 		if (!p->Rows)
 		{
 			p->Columns = columns;
@@ -36,7 +37,7 @@ namespace Core
 			{
 				z = sqlite3_mprintf("%s", colv[i]);
 				if (!z) goto malloc_failed;
-				p->Results[p->Results.Length++] = z;
+				p->Results[p->Results.length++] = z;
 			}
 		}
 		else if (p->Columns != columns)
@@ -52,7 +53,6 @@ namespace Core
 		{
 			for (int i = 0; i < columns; i++)
 			{
-				char *z; // A single column of result
 				if (!argv[i])
 					z = nullptr;
 				else
@@ -85,7 +85,7 @@ malloc_failed:
 		r.Columns = 0;
 		r.RC = RC_OK;
 		r.ResultsAlloc = 20;
-		r.Results = SysEx::Alloc(sizeof(char *)*r.ResultsAlloc);
+		r.Results.data = (char **)SysEx::Alloc(sizeof(char *)*r.ResultsAlloc);
 		r.Results.length = 1;
 		if (!r.Results)
 		{
@@ -145,6 +145,6 @@ malloc_failed:
 			SysEx::Free(results);
 		}
 	}
-
 }
+
 #endif

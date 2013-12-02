@@ -1043,4 +1043,4 @@ int sqlite3_vtab_config(sqlite3 *db, int op, ...){
 	return rc;
 }
 
-#endif /* SQLITE_OMIT_VIRTUALTABLE */
+#endif

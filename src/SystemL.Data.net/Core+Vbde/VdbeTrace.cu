@@ -3,7 +3,6 @@
 
 namespace Core
 {
-
 #pragma region Trace
 #ifndef OMIT_TRACE
 
