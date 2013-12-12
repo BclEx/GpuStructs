@@ -1,5 +1,6 @@
 // vdbeint.h
 #include "Core+Vdbe.cu.h"
+
 namespace Core
 {
 	typedef struct VdbeOp VdbeOp;
@@ -26,8 +27,8 @@ namespace Core
 		bool IsOrdered;			// True if the underlying table is BTREE_UNORDERED
 		bool IsSorter;			// True if a new-style sorter
 		bool MultiPseudo;		// Multi-register pseudo-cursor
-		sqlite3_vtab_cursor *VtabCursor;  // The cursor for a virtual table
-		const sqlite3_module *Module;     // Module for cursor pVtabCursor
+		VTableCursor *VtabCursor;  // The cursor for a virtual table
+		const ITableModule *Module;     // Module for cursor pVtabCursor
 		int64 SeqCount;			// Sequence counter
 		int64 MovetoTarget;		// Argument to the deferred sqlite3BtreeMoveto()
 		int64 LastRowid;		// Last rowid from a Next or NextIdx operation
@@ -101,7 +102,7 @@ namespace Core
 #define memIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif
 
-	struct Mem
+	typedef struct Mem
 	{
 		Context *Db;	// The associated database connection
 		char *Z;		// String or BLOB value
@@ -115,7 +116,7 @@ namespace Core
 		} u;
 		int N;			// Number of characters in string value, excluding '\0'
 		MEM Flags;		// Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
-		uint8 Type;		// One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
+		TYPE Type;		// One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
 		uint8 Enc;		// SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
 #ifdef _DEBUG
 		Mem *ScopyFrom;	// This Mem is a shallow copy of pScopyFrom
@@ -123,7 +124,7 @@ namespace Core
 #endif
 		void (*Del)(void *); // If not null, call this function to delete Mem.z
 		char *Malloc;	// Dynamic buffer allocated by sqlite3_malloc()
-	};
+	} Mem;
 
 	struct VdbeFunc
 	{

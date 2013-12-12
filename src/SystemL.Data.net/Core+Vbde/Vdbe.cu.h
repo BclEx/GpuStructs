@@ -55,6 +55,7 @@ namespace Core
 	typedef struct SubProgram SubProgram;
 	//
 	typedef struct VdbeCursor VdbeCursor;
+	typedef struct VdbeFrame VdbeFrame;
 	typedef struct Parse Parse;
 	typedef struct VTable VTable;
 

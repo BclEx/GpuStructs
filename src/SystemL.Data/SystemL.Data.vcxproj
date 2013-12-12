@@ -45,9 +45,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Table\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -127,7 +125,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;OMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

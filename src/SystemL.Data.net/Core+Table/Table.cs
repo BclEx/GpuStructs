@@ -6,171 +6,123 @@ namespace Core
     #region Table
 #if !OMIT_GET_TABLE
 
-        class TabResult
-        {
-            public string[] azResult;
-            public string zErrMsg;
-            public int nResult;
-            public int nAlloc;
-            public int nRow;
-            public int nColumn;
-            public int nData;
-            public int rc;
-        };
+    class TabResult
+    {
+        public string[] Results;
+        public int ResultsLength;
+        public string ErrMsg;
+        public int ResultsAlloc;
+        public int Rows;
+        public int Columns;
+        public RC RC;
+    };
 
-        static public int sqlite3_get_table_cb(object pArg, long nCol, object Oargv, object Ocolv)
+    public class Table
+    {
+        public static bool sqlite3_get_table_cb(object arg, int columns, string[] argv, string[] colv)
         {
-            string[] argv = (string[])Oargv;
-            string[] colv = (string[])Ocolv;
-            TabResult p = (TabResult)pArg;
-            int need;
-            int i;
-            string z;
-
+            TabResult p = (TabResult)arg;
             // Make sure there is enough space in p.azResult to hold everything we need to remember from this invocation of the callback.
-            if (p.nRow == 0 && argv != null)
+            int need = (p.Rows == 0 && argv != null ? (int)columns * 2 : (int)columns);
+            if (p.ResultsLength + need >= p.ResultsAlloc)
             {
-                need = (int)nCol * 2;
-            }
-            else
-            {
-                need = (int)nCol;
-            }
-            if (p.nData + need >= p.nAlloc)
-            {
-                string[] azNew;
-                p.nAlloc = p.nAlloc * 2 + need + 1;
-                azNew = new string[p.nAlloc];//sqlite3_realloc( p.azResult, sizeof(char*)*p.nAlloc );
-                if (azNew == null) goto malloc_failed;
-                p.azResult = azNew;
+                p.ResultsAlloc = p.ResultsAlloc * 2 + need;
+                string[] newResults = new string[p.ResultsAlloc];
+                if (newResults == null) goto malloc_failed;
+                p.Results = newResults;
             }
 
             // If this is the first row, then generate an extra row containing the names of all columns.
-            if (p.nRow == 0)
+            string z; // A single column of result
+            if (p.Rows == 0)
             {
-                p.nColumn = (int)nCol;
-                for (i = 0; i < nCol; i++)
+                p.Columns = (int)columns;
+                for (int i = 0; i < columns; i++)
                 {
-                    z = sqlite3_mprintf("%s", colv[i]);
+                    z = colv[i];
                     if (z == null) goto malloc_failed;
-                    p.azResult[p.nData++ - 1] = z;
+                    p.Results[p.ResultsLength++] = z;
                 }
             }
-            else if (p.nColumn != nCol)
+            else if (p.Columns != columns)
             {
-                //sqlite3_free(ref p.zErrMsg);
-                p.zErrMsg = sqlite3_mprintf(
-                "sqlite3_get_table() called with two or more incompatible queries"
-                );
-                p.rc = SQLITE_ERROR;
-                return 1;
+                p.ErrMsg = "sqlite3_get_table() called with two or more incompatible queries";
+                p.RC = RC.ERROR;
+                return true;
             }
 
-            /* Copy over the row data
-            */
+            // Copy over the row data
             if (argv != null)
             {
-                for (i = 0; i < nCol; i++)
+                for (int i = 0; i < columns; i++)
                 {
                     if (argv[i] == null)
-                    {
                         z = null;
-                    }
                     else
-                    {
-                        int n = sqlite3Strlen30(argv[i]) + 1;
-                        //z = sqlite3_malloc( n );
-                        //if( z==0 ) goto malloc_failed;
-                        z = argv[i];//memcpy(z, argv[i], n);
-                    }
-                    p.azResult[p.nData++ - 1] = z;
+                        z = argv[i];
+                    p.Results[p.ResultsLength++] = z;
                 }
-                p.nRow++;
+                p.Rows++;
             }
-            return 0;
+            return false;
 
         malloc_failed:
-            p.rc = SQLITE_NOMEM;
-            return 1;
+            p.RC = RC.NOMEM;
+            return true;
         }
 
-        static public int sqlite3_get_table(sqlite3 db, string zSql, ref string[] pazResult, ref int pnRow, ref int pnColumn, ref string pzErrMsg)
+        public static RC sqlite3_get_table(Context db, string sql, ref string[] results, ref int rows, ref int columns, ref string errMsg)
         {
-            int rc;
-            TabResult res = new TabResult();
-
-            pazResult = null;
-            pnColumn = 0;
-            pnRow = 0;
-            pzErrMsg = "";
-            res.zErrMsg = "";
-            res.nResult = 0;
-            res.nRow = 0;
-            res.nColumn = 0;
-            res.nData = 1;
-            res.nAlloc = 20;
-            res.rc = SQLITE_OK;
-            res.azResult = new string[res.nAlloc];// sqlite3_malloc( sizeof( char* ) * res.nAlloc );
-            if (res.azResult == null)
+            results = null;
+            columns = 0;
+            rows = 0;
+            errMsg = null;
+            TabResult r = new TabResult();
+            r.ErrMsg = null;
+            r.Rows = 0;
+            r.Columns = 0;
+            r.RC = RC.OK;
+            r.ResultsAlloc = 20;
+            r.Results = new string[r.ResultsAlloc];
+            r.ResultsLength = 1;
+            if (r.Results == null)
+                return (db.ErrCode = RC.NOMEM);
+            r.Results[0] = null;
+            RC rc = Sql.sqlite3_exec(db, sql, sqlite3_get_table_cb, r, ref errMsg);
+            //Debug.Assert(sizeof(r.Results[0])>= sizeof(r.ResultsLength));
+            //r.Results = INT_TO_PTR(r.ResultsLength);
+            if (((int)rc & 0xff) == (int)RC.ABORT)
             {
-                db.errCode = SQLITE_NOMEM;
-                return SQLITE_NOMEM;
-            }
-            res.azResult[0] = null;
-            rc = sqlite3_exec(db, zSql, (dxCallback)sqlite3_get_table_cb, res, ref pzErrMsg);
-            //Debug.Assert( sizeof(res.azResult[0])>= sizeof(res.nData) );
-            //res.azResult = SQLITE_INT_TO_PTR( res.nData );
-            if ((rc & 0xff) == SQLITE_ABORT)
-            {
-                //sqlite3_free_table(ref res.azResult[1] );
-                if (res.zErrMsg != "")
+                sqlite3_free_table(ref r.Results);
+                if (r.ErrMsg != null)
                 {
-                    if (pzErrMsg != null)
+                    if (errMsg != null)
                     {
-                        //sqlite3_free(ref pzErrMsg);
-                        pzErrMsg = sqlite3_mprintf("%s", res.zErrMsg);
+                        SysEx.Free(ref errMsg);
+                        errMsg = r.ErrMsg;
                     }
-                    //sqlite3_free(ref res.zErrMsg);
+                    SysEx.Free(ref r.ErrMsg);
                 }
-                db.errCode = res.rc;  /* Assume 32-bit assignment is atomic */
-                return res.rc;
+                return (db.ErrCode = r.RC); // Assume 32-bit assignment is atomic
             }
-            //sqlite3_free(ref res.zErrMsg);
-            if (rc != SQLITE_OK)
+            SysEx.Free(ref r.ErrMsg);
+            if (rc != RC.OK)
             {
-                //sqlite3_free_table(ref res.azResult[1]);
+                sqlite3_free_table(ref r.Results);
                 return rc;
             }
-            if (res.nAlloc > res.nData)
-            {
-                string[] azNew;
-                Array.Resize(ref res.azResult, res.nData - 1);//sqlite3_realloc( res.azResult, sizeof(char*)*(res.nData+1) );
-                //if( azNew==null ){
-                //  //sqlite3_free_table(ref res.azResult[1]);
-                //  db.errCode = SQLITE_NOMEM;
-                //  return SQLITE_NOMEM;
-                //}
-                res.nAlloc = res.nData + 1;
-                //res.azResult = azNew;
-            }
-            pazResult = res.azResult;
-            pnColumn = res.nColumn;
-            pnRow = res.nRow;
+            if (r.ResultsAlloc > r.ResultsLength)
+                Array.Resize(ref r.Results, r.ResultsLength);
+            results = r.Results;
+            columns = r.Columns;
+            rows = r.Rows;
             return rc;
         }
 
-        static void sqlite3_free_table(ref string azResult)
+        static void sqlite3_free_table(ref string[] results)
         {
-            if (azResult != null)
-            {
-                //int i, n;
-                //azResult--;
-                //Debug.Assert( azResult!=0 );
-                //n = SQLITE_PTR_TO_INT(azResult[0]);
-                //for(i=1; i<n; i++){ if( azResult[i] ) //sqlite3_free(azResult[i]); }
-                //sqlite3_free(ref azResult);
-            }
         }
+    }
 #endif
     #endregion
 }

@@ -66,7 +66,7 @@ struct IndexInfo
 	};
 	// INPUTS
 	array_t<struct IndexInfo_Constraint> Constraints; // Table of WHERE clause constraints
-	array_t<struct IndexInfo_Orderby> aOrderBys; // The ORDER BY clause
+	array_t<struct IndexInfo_Orderby> OrderBys; // The ORDER BY clause
 	// OUTPUTS
 	array_t<struct IndexInfo_Constraintusage> ConstraintUsage;
 	int IdxNum;                // Number used to identify the index
@@ -95,3 +95,5 @@ int sqlite3_declare_vtab(Context *, const char *sql);
 int sqlite3_overload_function(Context *, const char *funcName, int args);
 
 #pragma endregion
+
+__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);

@@ -35,7 +35,7 @@ namespace Core
 			p->Columns = columns;
 			for (int i = 0; i < columns; i++)
 			{
-				z = sqlite3_mprintf("%s", colv[i]);
+				z = __mprintf("%s", colv[i]);
 				if (!z) goto malloc_failed;
 				p->Results[p->Results.length++] = z;
 			}
@@ -43,7 +43,7 @@ namespace Core
 		else if (p->Columns != columns)
 		{
 			SysEx::Free(p->ErrMsg);
-			p->ErrMsg = sqlite3_mprintf("sqlite3_get_table() called with two or more incompatible queries");
+			p->ErrMsg = __mprintf("sqlite3_get_table() called with two or more incompatible queries");
 			p->RC = RC_ERROR;
 			return true;
 		}
@@ -73,6 +73,7 @@ malloc_failed:
 		return true;
 	}
 
+	__device__ void sqlite3_free_table(char **results);
 	__device__ RC sqlite3_get_table(Context *db, const char *sql, char ***results, int *rows, int *columns, char **errMsg)
 	{
 		*results = nullptr;
@@ -88,14 +89,11 @@ malloc_failed:
 		r.Results.data = (char **)SysEx::Alloc(sizeof(char *)*r.ResultsAlloc);
 		r.Results.length = 1;
 		if (!r.Results)
-		{
-			db->ErrCode = RC_NOMEM;
-			return RC_NOMEM;
-		}
+			return (db->ErrCode = RC_NOMEM);
 		r.Results[0] = nullptr;
-		RC rc = sqlite3_exec(db, sql, sqlite3_get_table_cb, &r, errMsg);
-		_assert(sizeof(r.Results[0]) >= sizeof(r.Results.Length));
-		r.Results[0] = INT_TO_PTR(res.Results.Length);
+		RC rc = sqlite3_exec(db, sql, sqlite3_get_table_cb, (char **)&r, errMsg);
+		_assert(sizeof(r.Results[0]) >= sizeof(r.Results.length));
+		r.Results[0] = (char *)INT_TO_PTR(r.Results.length);
 		if ((rc & 0xff) == RC_ABORT)
 		{
 			sqlite3_free_table(&r.Results[1]);
@@ -104,12 +102,11 @@ malloc_failed:
 				if (errMsg)
 				{
 					SysEx::Free(*errMsg);
-					*errMsg = sqlite3_mprintf("%s", r.ErrMsg);
+					*errMsg = __mprintf("%s", r.ErrMsg);
 				}
 				SysEx::Free(r.ErrMsg);
 			}
-			db->ErrCode = r.RC; // Assume 32-bit assignment is atomic
-			return r.RC;
+			return (db->ErrCode = r.RC); // Assume 32-bit assignment is atomic
 		}
 		SysEx::Free(r.ErrMsg);
 		if (rc != RC_OK)

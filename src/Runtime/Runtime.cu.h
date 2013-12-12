@@ -358,6 +358,137 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 #pragma endregion
 
 //////////////////////
+// MPRINTF
+#pragma region MPRINTF
+
+#define MPRINTF_PREAMBLE \
+	char *start, *end, *bufptr, *fmtstart; \
+	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return nullptr;
+#define MPRINTF_ARG(argname) \
+	bufptr = __copyArg(bufptr, argname, end);
+#define MPRINTF_POSTAMBLE \
+	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	__runtimeWriteHeader(RUNTIMETYPE_MPRINTF, start, (end ? fmtstart : nullptr)); \
+	return nullptr; //(end ? (int)(end - start) : 0);
+
+__device__ static char *__mprintf(const char *fmt)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1> __device__ static char *__mprintf(const char *fmt, T1 arg1)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_ARG(arg6);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_ARG(arg6);
+	MPRINTF_ARG(arg7);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_ARG(arg6);
+	MPRINTF_ARG(arg7);
+	MPRINTF_ARG(arg8);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_ARG(arg6);
+	MPRINTF_ARG(arg7);
+	MPRINTF_ARG(arg8);
+	MPRINTF_ARG(arg9);
+	MPRINTF_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
+{
+	MPRINTF_PREAMBLE;
+	MPRINTF_ARG(arg1);
+	MPRINTF_ARG(arg2);
+	MPRINTF_ARG(arg3);
+	MPRINTF_ARG(arg4);
+	MPRINTF_ARG(arg5);
+	MPRINTF_ARG(arg6);
+	MPRINTF_ARG(arg7);
+	MPRINTF_ARG(arg8);
+	MPRINTF_ARG(arg9);
+	MPRINTF_ARG(argA);
+	MPRINTF_POSTAMBLE;
+}
+
+#undef MPRINTF_PREAMBLE
+#undef MPRINTF_ARG
+#undef MPRINTF_POSTAMBLE
+
+#pragma endregion
+
+//////////////////////
 // THROW
 #pragma region THROW
 

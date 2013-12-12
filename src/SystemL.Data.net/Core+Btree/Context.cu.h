@@ -1,6 +1,7 @@
 namespace Core
 {
 	typedef class Btree Btree;
+	typedef class Savepoint Savepoint;
 
 	class Context
 	{
@@ -51,25 +52,30 @@ namespace Core
 		};
 
 
-		//VSystem *Vfs;					// OS Interface
-		//struct Vdbe *Vdbe;			// List of active virtual machines
-		//CollSeq *DefaultColl;			// The default collating sequence (BINARY)
+		//VSystem *Vfs;				// OS Interface
+		//struct Vdbe *Vdbe;		// List of active virtual machines
+		//CollSeq *DefaultColl;		// The default collating sequence (BINARY)
 		MutexEx Mutex;
-		array_t<DB> DBs;				// All backends / Number of backends currently in use
+		array_t<DB> DBs;			// All backends / Number of backends currently in use
 		FLAG Flags;
-		int64 LastRowID;                // ROWID of most recent insert (see above)
-		BusyHandlerType *BusyHandler;
-		int Savepoints;					// Number of non-transaction savepoints
-		//int Limits[SQLITE_N_LIMIT];		// Limits
+		int64 LastRowID;            // ROWID of most recent insert (see above)
+		//unsigned int OpenFlags;	// Flags passed to sqlite3_vfs.xOpen()
+		RC ErrCode;					// Most recent error code (RC_*)
+		int ErrMask;				// & result codes with this before returning
+		
+		uint8 IsTransactionSavepoint;    // True if the outermost savepoint is a TS
+		//int Limits[SQLITE_N_LIMIT];	// Limits
 		int ActiveVdbeCnt;
-
 #ifndef OMIT_VIRTUALTABLE
 		Hash Modules;					// populated by sqlite3_create_module()
 		VTableContext *VTableCtx;       // Context for active vtab connect/create
 		array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
 		VTable *Disconnect;				// Disconnect these in next sqlite3_prepare()
 #endif
-		
+		BusyHandlerType *BusyHandler;
+		Savepoint *Savepoint;        // List of active savepoints
+		int Savepoints;				// Number of non-transaction savepoints
+
 		__device__ int InvokeBusyHandler()
 		{
 			if (SysEx_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)

@@ -89,5 +89,7 @@ namespace Core
             //if (SQLITE_TEMP_STORE < 1 || SQLITE_TEMP_STORE > 3) return false;
             //return false;
         }
+
+        public RC ErrCode { get; set; }
     }
 }
