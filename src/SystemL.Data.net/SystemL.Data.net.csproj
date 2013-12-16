@@ -61,7 +61,7 @@
     <Compile Include="Core+Table\Table.cs" />
     <Compile Include="Core+Table\VTable.cs" />
     <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
-    <Compile Include="Core+Vbde\Vdbe.cs" />
+    <None Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
     <None Include="Core+Vbde\VdbeAux.cs" />
     <None Include="Core+Vbde\VdbeBlob.cs" />

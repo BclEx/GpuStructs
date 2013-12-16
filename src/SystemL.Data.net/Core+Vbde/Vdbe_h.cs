@@ -173,12 +173,12 @@ const int COLNAME_N = 1;     // Number of COLNAME_xxx symbols
         //#if !OMIT_TRIGGER
         //void sqlite3VdbeLinkSubProgram(Vdbe *, SubProgram );
         //#endif
-#if !NDEBUG
+#if !DEBUG
         static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeComment(v, zFormat, ap); }
         static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeNoopComment(v, zFormat, ap); }
 #else
-    static void VdbeComment( Vdbe v, string zFormat, params object[] ap ) { }
-    static void VdbeNoopComment( Vdbe v, string zFormat, params object[] ap ) { }
+        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { }
+        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { }
 #endif
 
         //void sqlite3VdbeFreeCursor(Vdbe *, VdbeCursor);

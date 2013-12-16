@@ -162,7 +162,7 @@ namespace Core
             string[] encnames = new string[] { "(X)", "(8)", "(16LE)", "(16BE)" };
             buf.Length = 0;
             csr.Length = 0;
-            
+
             MEM f = mem.Flags;
             if ((f & MEM.Blob) != 0)
             {
@@ -188,10 +188,10 @@ namespace Core
                 buf.Append(c);
                 buf.AppendFormat("{0}[", mem.N);
                 int i; for (i = 0; i < 16 && i < mem.N; i++)
-                    buf.AppendFormat("{0:%02X}", ((int)mem.ZBLOB[i] & 0xFF));
+                    buf.AppendFormat("{0:%02X}", ((int)mem.Z[i] & 0xFF));
                 for (i = 0; i < 16 && i < mem.N; i++)
                 {
-                    char z = (char)mem.ZBLOB[i];
+                    char z = (char)mem.Z[i];
                     if (z < 32 || z > 126) buf.Append('.');
                     else buf.Append(z);
                 }
@@ -224,7 +224,7 @@ namespace Core
                 buf.Append('[');
                 for (int j = 0; j < 15 && j < mem.N; j++)
                 {
-                    byte c = (mem.Z != null ? (byte)mem.Z[j] : mem.ZBLOB[j]);
+                    byte c = (byte)mem.Z[j];
                     buf.Append(c >= 0x20 && c < 0x7f ? (char)c : '.');
                 }
                 buf.Append(']');
@@ -234,26 +234,26 @@ namespace Core
 
         static void memTracePrint(FILE _out, Mem p)
         {
-            if ((p.Flags & MEM.Null) != 0) fprintf(_out, " NULL");
-            else if ((p.Flags & (MEM.Int | MEM.Str)) == (MEM.Int | MEM.Str)) fprintf(_out, " si:%lld", p.u.I);
+            if ((p.Flags & MEM.Null) != 0) _out.Write(" NULL");
+            else if ((p.Flags & (MEM.Int | MEM.Str)) == (MEM.Int | MEM.Str)) _out.Write(" si:%lld", p.u.I);
 #if !OMIT_FLOATING_POINT
-            else if ((p.Flags & MEM.Int) != 0) fprintf(_out, " i:%lld", p.u.I);
+            else if ((p.Flags & MEM.Int) != 0) _out.Write(" i:%lld", p.u.I);
 #endif
-            else if ((p.Flags & MEM.Real) != 0) fprintf(_out, " r:%g", p.R);
-            else if ((p.Flags & MEM.RowSet) != 0) fprintf(_out, " (rowset)");
+            else if ((p.Flags & MEM.Real) != 0) _out.Write(" r:%g", p.R);
+            else if ((p.Flags & MEM.RowSet) != 0) _out.Write(" (rowset)");
             else
             {
                 StringBuilder buf = new StringBuilder(200);
                 MemPrettyPrint(p, buf);
-                fprintf(_out, " ");
-                fprintf(_out, "%s", buf);
+                _out.Write(" ");
+                _out.Write("%s", buf);
             }
         }
         static void registerTrace(FILE _out, int iReg, Mem p)
         {
-            fprintf(_out, "reg[%d] = ", iReg);
+            _out.Write("reg[%d] = ", iReg);
             memTracePrint(_out, p);
-            fprintf(_out, "\n");
+            _out.Write("\n");
         }
 
         static void REGISTER_TRACE(Vdbe p, int R, Mem M) { if (p.Trace != null) registerTrace(p.Trace, R, M); }

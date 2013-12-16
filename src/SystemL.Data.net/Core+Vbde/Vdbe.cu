@@ -85,7 +85,7 @@ namespace Core
 		return cx;
 	}
 
-	static void applyNumericAffinity(Mem *rec)
+	__device__ static void applyNumericAffinity(Mem *rec)
 	{
 		if ((rec->Flags & (MEM_Real|MEM_Int)) == 0)
 		{
@@ -107,7 +107,7 @@ namespace Core
 		}
 	}
 
-	static void applyAffinity(Mem *rec, char affinity, TEXTENCODE encode)
+	__device__ static void applyAffinity(Mem *rec, char affinity, TEXTENCODE encode)
 	{
 		if (affinity == AFF_TEXT)
 		{
@@ -125,7 +125,7 @@ namespace Core
 		}
 	}
 
-	TYPE sqlite3_value_numeric_type(Mem *mem)
+	__device__ TYPE sqlite3_value_numeric_type(Mem *mem)
 	{
 		if (mem->Type == TYPE_TEXT)
 		{
@@ -135,15 +135,15 @@ namespace Core
 		return mem->Type;
 	}
 
-	void sqlite3ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
+	__device__ void sqlite3ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
 	{
 		applyAffinity(mem, affinity, encode);
 	}
 
 #ifdef _DEBUG
-	void sqlite3VdbeMemPrettyPrint(Mem *mem, char *buf)
-	{
-		static const char *const encnames[] = {"(X)", "(8)", "(16LE)", "(16BE)"};
+	__constant__ static const char *const encnames[] = {"(X)", "(8)", "(16LE)", "(16BE)"};
+	__device__ void sqlite3VdbeMemPrettyPrint(Mem *mem, char *buf)
+	{	
 		char *csr = buf;
 
 		int f = mem->Flags;
@@ -229,7 +229,7 @@ namespace Core
 		}
 	}
 
-	static void memTracePrint(FILE *out, Mem *p)
+	__device__ static void memTracePrint(FILE *out, Mem *p)
 	{
 		if (p->Flags & MEM_Invalid) fprintf(out, " undefined");
 		else if (p->Flags & MEM_Null) fprintf(out, " NULL");
@@ -248,7 +248,7 @@ namespace Core
 		}
 	}
 
-	static void registerTrace(FILE *out, int reg, Mem *p)
+	__device__ static void registerTrace(FILE *out, int reg, Mem *p)
 	{
 		fprintf(out, "REG[%d] = ", reg);
 		memTracePrint(out, p);
@@ -267,7 +267,7 @@ namespace Core
 #define CHECK_FOR_INTERRUPT if (db->u1.IsInterrupted) goto abort_due_to_interrupt;
 
 #ifndef NDEBUG
-	static int checkSavepointCount(Context *db)
+	__device__ static int checkSavepointCount(Context *db)
 	{
 		int n = 0;
 		for (Savepoint *p = db->Savepoint; p; p = p->Next) n++;
@@ -276,7 +276,7 @@ namespace Core
 	}
 #endif
 
-	static void importVtabErrMsg(Vdbe *p, VTable *vtab)
+	__device__ static void importVtabErrMsg(Vdbe *p, VTable *vtab)
 	{
 		Context *db = p->Db;
 		SysEx::TagFree(db, p->ErrMsg);
@@ -290,7 +290,7 @@ namespace Core
 #pragma region Main
 #if 0
 
-	int sqlite3VdbeExec(Vdbe *p)
+	__device__ int sqlite3VdbeExec(Vdbe *p)
 	{
 		int pc = 0;					// The program counter
 		Op *aOp = p->aOp;			// Copy of p->aOp

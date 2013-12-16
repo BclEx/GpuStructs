@@ -2,8 +2,24 @@ using System;
 
 namespace Core
 {
-    public struct array_t<T> { public int length; public T[] data; array_t(T[] a) { data = a; length = 0; } array_t(T[] a, int b) { data = a; length = b; } public static implicit operator T[](array_t<T> p) { return p.data; } };
-    public struct array_t2<TLength, T> where TLength : struct { public TLength length; public T[] data; array_t2(T[] a) { data = a; length = default(TLength); } array_t2(T[] a, TLength b) { data = a; length = b; } public static implicit operator T[](array_t2<TLength, T> p) { return p.data; } };
+    public struct array_t<T>
+    {
+        public int length;
+        public T[] data;
+        public array_t(T[] a) { data = a; length = 0; }
+        public array_t(T[] a, int b) { data = a; length = b; }
+        public static implicit operator T[](array_t<T> p) { return p.data; }
+        public T this[int i] { get { return data[i]; } set { data[i] = value; } }
+    };
+    public struct array_t2<TLength, T> where TLength : struct
+    {
+        public TLength length;
+        public T[] data;
+        public array_t2(T[] a) { data = a; length = default(TLength); }
+        public array_t2(T[] a, TLength b) { data = a; length = b; }
+        public static implicit operator T[](array_t2<TLength, T> p) { return p.data; }
+        public T this[int i] { get { return data[i]; } set { data[i] = value; } }
+    };
 
     public static class cs
     {

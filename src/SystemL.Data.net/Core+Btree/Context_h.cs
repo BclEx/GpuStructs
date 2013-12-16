@@ -50,12 +50,25 @@ namespace Core
         }
 
         public MutexEx Mutex;
+        public array_t<DB> DBs = new array_t<DB>(new DB[MAX_ATTACHED]); // All backends / Number of backends currently in use
         public FLAG Flags;
-        public BusyHandlerType BusyHandler;
-        public int Savepoints;                      // Number of non-transaction savepoints
+        public long LastRowID; // ROWID of most recent insert (see above)
+        //public uint OpenFlags;	// Flags passed to sqlite3_vfs.xOpen()
+        public RC ErrCode;					// Most recent error code (RC_*)
+        public int ErrMask;				// & result codes with this before returning
+
+        public byte IsTransactionSavepoint;    // True if the outermost savepoint is a TS
+        //int Limits[SQLITE_N_LIMIT];	// Limits
         public int ActiveVdbeCnt;
-        public DB[] DBs = new DB[MAX_ATTACHED];     // All backends
-        public int DBsUsed;                          // Number of backends currently in use
+#if !OMIT_VIRTUALTABLE
+		public Hash Modules;					// populated by sqlite3_create_module()
+		public VTableContext VTableCtx;       // Context for active vtab connect/create
+		public array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
+		public VTable Disconnect;				// Disconnect these in next sqlite3_prepare()
+#endif
+        public BusyHandlerType BusyHandler;
+        public Savepoint Savepoint;        // List of active savepoints
+        public int Savepoints;                      // Number of non-transaction savepoints
 
         public int InvokeBusyHandler()
         {
@@ -89,7 +102,5 @@ namespace Core
             //if (SQLITE_TEMP_STORE < 1 || SQLITE_TEMP_STORE > 3) return false;
             //return false;
         }
-
-        public RC ErrCode { get; set; }
     }
 }

@@ -161,8 +161,8 @@ namespace Core
 #endif
 
 #ifndef NDEBUG
-		__device__ void Comment(const char*, ...);
-		__device__ void NoopComment(const char*, ...);
+		//__device__ void Comment(const char*, ...);
+		//__device__ void NoopComment(const char*, ...);
 #define VdbeComment(X) Comment X
 #define VdbeNoopComment(X) NoopComment X
 #else

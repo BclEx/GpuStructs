@@ -1233,7 +1233,7 @@ namespace Core
                         Debug.Assert(bt.Refs > 0);
                         if (fullPathname == bt.Pager.get_Filename(false) && bt.Pager.get_Vfs() == vfs)
                         {
-                            for (var i = ctx.DBsUsed - 1; i >= 0; i--)
+                            for (var i = ctx.DBs.length - 1; i >= 0; i--)
                             {
                                 var existing = ctx.DBs[i].Bt;
                                 if (existing != null && existing.Bt == bt)
@@ -1349,7 +1349,7 @@ namespace Core
             if (p.Sharable)
             {
                 Btree sib;
-                for (var i = 0; i < ctx.DBsUsed; i++)
+                for (var i = 0; i < ctx.DBs.length; i++)
                     if ((sib = ctx.DBs[i].Bt) != null && sib.Sharable)
                     {
                         while (sib.Prev != null) { sib = sib.Prev; }

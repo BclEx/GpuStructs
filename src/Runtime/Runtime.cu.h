@@ -35,8 +35,9 @@ __device__ __forceinline__ void Coverage(int line) { }
 #define RUNTIME_ALIGNSIZE sizeof(long long)
 #define RUNTIMETYPE_PRINTF 1
 #define RUNTIMETYPE_SNPRINTF 2
-#define RUNTIMETYPE_ASSERT 3
-#define RUNTIMETYPE_THROW 4
+#define RUNTIMETYPE_MPRINTF 3
+#define RUNTIMETYPE_ASSERT 4
+#define RUNTIMETYPE_THROW 5
 
 #pragma endregion
 
