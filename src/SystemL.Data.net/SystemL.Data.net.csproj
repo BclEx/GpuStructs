@@ -67,7 +67,7 @@
     <None Include="Core+Vbde\VdbeBlob.cs" />
     <Compile Include="Core+Vbde\VdbeInt_h.cs" />
     <None Include="Core+Vbde\VdbeMem.cs" />
-    <None Include="Core+Vbde\VdbeTrace.cs" />
+    <Compile Include="Core+Vbde\VdbeTrace.cs" />
     <Compile Include="Core+Vbde\Vdbe_h.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>

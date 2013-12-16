@@ -58,12 +58,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeMem.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeSort.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeSort.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
