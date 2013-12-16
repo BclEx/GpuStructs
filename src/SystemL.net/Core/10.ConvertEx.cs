@@ -1,8 +1,20 @@
 using System.Diagnostics;
 namespace Core
 {
+    public enum TEXTENCODE : byte
+    {
+        UTF8 = 1,
+        UTF16LE = 2,
+        UTF16BE = 3,
+        UTF16 = 4, // Use native byte order
+        ANY = 5, // sqlite3_create_function only
+        UTF16_ALIGNED = 8, // sqlite3_create_collation only
+    }
+
     public static class ConvertEx
     {
+        #region Varint
+
         private const uint SLOT_0_2_0 = 0x001fc07f;
         private const uint SLOT_4_2_0 = 0xf01fc07f;
         private const uint MAX_U32 = (uint)((((ulong)1) << 32) - 1);
@@ -276,6 +288,10 @@ namespace Core
             return i;
         }
 
+        #endregion
+
+        #region Get/Put
+
         public static uint Get4(byte[] p) { return (uint)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]); }
         public static uint Get4(byte[] p, int offset) { return (offset + 3 > p.Length) ? 0 : (uint)((p[0 + offset] << 24) | (p[1 + offset] << 16) | (p[2 + offset] << 8) | p[3 + offset]); }
         public static uint Get4(byte[] p, uint offset) { return (offset + 3 > p.Length) ? 0 : (uint)((p[0 + offset] << 24) | (p[1 + offset] << 16) | (p[2 + offset] << 8) | p[3 + offset]); }
@@ -425,5 +441,204 @@ namespace Core
             p[offset + 0] = (byte)(v >> 8);
             p[offset + 1] = (byte)v;
         }
+
+        #endregion
+
+        #region Atof
+
+        public static bool Atof(string z, ref double out_, int length, TEXTENCODE encode)
+        {
+#if !OMIT_FLOATING_POINT
+            out_ = 0.0; // Default return value, in case of an error
+            if (string.IsNullOrEmpty(z))
+                return false;
+
+            // getsize
+            int zIdx = 0;
+            int incr = (encode == TEXTENCODE.UTF8 ? 1 : 2);
+            if (encode == TEXTENCODE.UTF16BE) zIdx++;
+
+            // skip leading spaces            
+            while (zIdx < length && char.IsWhiteSpace(z[zIdx])) zIdx++;
+            if (zIdx >= length) return false;
+
+            // get sign of significand
+            int sign = 1; // sign of significand
+            if (z[zIdx] == '-') { sign = -1; zIdx += incr; }
+            else if (z[zIdx] == '+') zIdx += incr;
+
+            // sign * significand * (10 ^ (esign * exponent))
+            long s = 0;      // significand
+            int d = 0;      // adjust exponent for shifting decimal point
+            int esign = 1;  // sign of exponent
+            int e = 0;      // exponent
+            bool eValid = true;  // True exponent is either not used or is well-formed
+            int digits = 0;
+
+            // skip leading zeroes
+            while (zIdx < z.Length && z[zIdx] == '0') { zIdx += incr; digits++; }
+
+            // copy max significant digits to significand
+            while (zIdx < length && char.IsDigit(z[zIdx]) && s < ((long.MaxValue - 9) / 10)) { s = s * 10 + (z[zIdx] - '0'); zIdx += incr; digits++; }
+            while (zIdx < length && char.IsDigit(z[zIdx])) { zIdx += incr; digits++; d++; }
+            if (zIdx >= length) goto do_atof_calc;
+
+            // if decimal point is present
+            if (z[zIdx] == '.')
+            {
+                zIdx += incr;
+                // copy digits from after decimal to significand (decrease exponent by d to shift decimal right)
+                while (zIdx < length && char.IsDigit(z[zIdx]) && s < ((long.MaxValue - 9) / 10)) { s = s * 10 + (z[zIdx] - '0'); zIdx += incr; digits++; d--; }
+                while (zIdx < length && char.IsDigit(z[zIdx])) { zIdx += incr; digits++; } // skip non-significant digits
+            }
+            if (zIdx >= length) goto do_atof_calc;
+
+            // if exponent is present
+            if (z[zIdx] == 'e' || z[zIdx] == 'E')
+            {
+                zIdx += incr;
+                eValid = false;
+                if (zIdx >= length) goto do_atof_calc;
+                // get sign of exponent
+                if (z[zIdx] == '-') { esign = -1; zIdx += incr; }
+                else if (z[zIdx] == '+') zIdx += incr;
+                // copy digits to exponent
+                while (zIdx < length && char.IsDigit(z[zIdx])) { e = e * 10 + (z[zIdx] - '0'); zIdx += incr; eValid = true; }
+            }
+
+            // skip trailing spaces
+            if (digits != 0 && eValid) while (zIdx < length && char.IsWhiteSpace(z[zIdx])) zIdx += incr;
+
+        do_atof_calc:
+
+            // adjust exponent by d, and update sign
+            e = (e * esign) + d;
+            if (e < 0) { esign = -1; e *= -1; }
+            else esign = 1;
+
+            // if !significand 
+            double result = 0.0;
+            if (s == 0)
+                result = (sign < 0 && digits != 0 ? -0.0 : 0.0); // In the IEEE 754 standard, zero is signed. Add the sign if we've seen at least one digit
+            else
+            {
+                // attempt to reduce exponent
+                if (esign > 0) while (s < (long.MaxValue / 10) && e > 0) { e--; s *= 10; }
+                else while ((s % 10) == 0 && e > 0) { e--; s /= 10; }
+
+                // adjust the sign of significand
+                s = (sign < 0 ? -s : s);
+
+                // if exponent, scale significand as appropriate and store in result.
+                if (e != 0)
+                {
+                    double scale = 1.0;
+                    // attempt to handle extremely small/large numbers better
+                    if (e > 307 && e < 342)
+                    {
+                        while ((e % 308) != 0) { scale *= 1.0e+1; e -= 1; }
+                        if (esign < 0) { result = s / scale; result /= 1.0e+308; }
+                        else { result = s * scale; result *= 1.0e+308; }
+                    }
+                    else if (e >= 342)
+                        result = (esign < 0 ? 0.0 * s : 1e308 * 1e308 * s); // Infinity
+                    else
+                    {
+                        // 1.0e+22 is the largest power of 10 than can be represented exactly.
+                        while ((e % 22) != 0) { scale *= 1.0e+1; e -= 1; }
+                        while (e > 0) { scale *= 1.0e+22; e -= 22; }
+                        result = (esign < 0 ? s / scale : s * scale);
+                    }
+                }
+                else
+                    result = (double)s;
+            }
+
+
+            out_ = result; // store the result
+            return (zIdx >= length && digits > 0 && eValid); // return true if number and no extra non-whitespace chracters after
+#else
+            return !Atoi64(z, out_, length, encode);
+#endif
+        }
+
+        static int compare2pow63(string z, int incr)
+        {
+            string pow63 = "922337203685477580"; // 012345678901234567
+            int c = 0;
+            for (int i = 0; c == 0 && i < 18; i++)
+                c = (z[i * incr] - pow63[i]) * 10;
+            if (c == 0)
+            {
+                c = z[18 * incr] - '8';
+                //ASSERTCOVERAGE(c == -1);
+                //ASSERTCOVERAGE(c == 0);
+                //ASSERTCOVERAGE(c == +1);
+            }
+            return c;
+        }
+
+        public static bool Atoi64(string z, ref long out_, int length, TEXTENCODE encode)
+        {
+            if (z == null)
+            {
+                out_ = 0;
+                return true;
+            }
+
+            // get size
+            int zIdx = 0;//  string zStart;
+            int incr = (encode == TEXTENCODE.UTF8 ? 1 : 2);
+            if (encode == TEXTENCODE.UTF16BE) zIdx++;
+
+            // skip leading spaces            
+            while (zIdx < length && char.IsWhiteSpace(z[zIdx])) zIdx += incr;
+
+            // get sign of significand
+            int neg = 0; // assume positive
+            if (zIdx < length)
+            {
+                if (z[zIdx] == '-') { neg = 1; zIdx += incr; }
+                else if (z[zIdx] == '+') zIdx += incr;
+            }
+
+            if (length > z.Length) length = z.Length;
+
+            // skip leading zeros
+            while (zIdx < length - 1 && z[zIdx] == '0') zIdx += incr;
+
+            ulong u = 0;
+
+            int c = 0;
+
+            // Skip leading zeros.
+            int i; for (i = zIdx; i < length && (c = z[i]) >= '0' && c <= '9'; i += incr) u = u * 10 + (ulong)(c - '0');
+
+            if (u > long.MaxValue) out_ = long.MinValue;
+            else out_ = (neg != 0 ? -(long)u : (long)u);
+
+            //ASSERTCOVERAGE(i - zIdx == 18);
+            //ASSERTCOVERAGE(i - zIdx == 19);
+            //ASSERTCOVERAGE(i - zIdx == 20);
+            if ((c != 0 && i < length) || i == zIdx || i - zIdx > 19 * incr) return true; // zNum is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
+            else if (i - zIdx < 19 * incr) { Debug.Assert(u <= long.MaxValue); return false; } // Less than 19 digits, so we know that it fits in 64 bits
+            else
+            {
+                c = compare2pow63(z.Substring(zIdx), incr); // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
+                if (c < 0) { Debug.Assert(u <= long.MaxValue); return false; } // zNum is less than 9223372036854775808 so it fits
+                else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows 
+                else { Debug.Assert(u - 1 == long.MaxValue); Debug.Assert(out_ == long.MinValue); return (neg == 0); } // zNum is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
+            }
+        }
+
+        //static int Atoi(string z)
+        //{
+        //    int x = 0;
+        //    if (!string.IsNullOrEmpty(z))
+        //        GetInt32(z, ref x);
+        //    return x;
+        //}
+
+        #endregion
     }
 }

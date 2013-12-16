@@ -1,4 +1,5 @@
 // vdbe.c
+#include "Core+Vdbe.cu.h"
 #include "VdbeInt.cu.h"
 
 namespace Core
@@ -90,10 +91,10 @@ namespace Core
 		{
 			double r;
 			int64 i;
-			uint8 enc = rec->Enc;
+			TEXTENCODE encode = rec->Encode;
 			if ((rec->Flags & MEM_Str) == 0) return;
-			if (sqlite3AtoF(rec->Z, &r, rec->N, enc) == 0) return;
-			if (sqlite3Atoi64(rec->Z, &i, rec->N, enc) == 0)
+			if (!ConvertEx::Atof(rec->Z, &r, rec->N, encode)) return;
+			if (!ConvertEx::Atoi64(rec->Z, &i, rec->N, encode))
 			{
 				rec->u.I = i;
 				rec->Flags |= MEM_Int;
@@ -106,13 +107,13 @@ namespace Core
 		}
 	}
 
-	static void applyAffinity(Mem *rec, char affinity, uint8 enc)
+	static void applyAffinity(Mem *rec, char affinity, TEXTENCODE encode)
 	{
 		if (affinity == AFF_TEXT)
 		{
 			// Only attempt the conversion to TEXT if there is an integer or real representation (blob and NULL do not get converted) but no string representation.
 			if ((rec->Flags & MEM_Str) && (rec->Flags & (MEM_Real | MEM_Int) == 0))
-				Vdbe::MemStringify(rec, enc);
+				Vdbe::MemStringify(rec, encode);
 			rec->Flags &= ~(MEM_Real|MEM_Int);
 		}
 		else if (affinity != AFF_NONE)
@@ -134,9 +135,9 @@ namespace Core
 		return mem->Type;
 	}
 
-	void sqlite3ValueApplyAffinity(Mem *mem, uint8 affinity, uint8 enc)
+	void sqlite3ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
 	{
-		applyAffinity(mem, affinity, enc);
+		applyAffinity(mem, affinity, encode);
 	}
 
 #ifdef _DEBUG
@@ -183,7 +184,7 @@ namespace Core
 				if (z < 32 || z > 126) *csr++ = '.';
 				else *csr++ = z;
 			}
-			__snprintf(csr, 100, "]%s", encnames[mem->Enc]);
+			__snprintf(csr, 100, "]%s", encnames[mem->Encode]);
 			csr += _strlen30(csr);
 			if (f & MEM_Zero)
 			{
@@ -222,7 +223,7 @@ namespace Core
 				buf[k++] = (c >= 0x20 && c < 0x7f ? c : '.');
 			}
 			buf[k++] = ']';
-			__snprintf(&buf[k], 100, encnames[mem->Enc]);
+			__snprintf(&buf[k], 100, encnames[mem->Encode]);
 			k += _strlen30(&buf[k]);
 			buf[k++] = '\0';
 		}
@@ -230,20 +231,14 @@ namespace Core
 
 	static void memTracePrint(FILE *out, Mem *p)
 	{
-		if (p->Flags & MEM_Invalid)
-			fprintf(out, " undefined");
-		else if (p->Flags & MEM_Null)
-			fprintf(out, " NULL");
-		else if ((p->Flags & (MEM_Int|MEM_Str)) == (MEM_Int|MEM_Str))
-			fprintf(out, " si:%lld", p->u.I);
-		else if (p->Flags & MEM_Int)
-			fprintf(out, " i:%lld", p->u.I);
+		if (p->Flags & MEM_Invalid) fprintf(out, " undefined");
+		else if (p->Flags & MEM_Null) fprintf(out, " NULL");
+		else if ((p->Flags & (MEM_Int|MEM_Str)) == (MEM_Int|MEM_Str)) fprintf(out, " si:%lld", p->u.I);
+		else if (p->Flags & MEM_Int) fprintf(out, " i:%lld", p->u.I);
 #ifndef OMIT_FLOATING_POINT
-		else if (p->Flags & MEM_Real)
-			fprintf(out, " r:%g", p->R);
+		else if (p->Flags & MEM_Real) fprintf(out, " r:%g", p->R);
 #endif
-		else if (p->Flags & MEM_RowSet)
-			fprintf(out, " (rowset)");
+		else if (p->Flags & MEM_RowSet) fprintf(out, " (rowset)");
 		else
 		{
 			char buf[200];
@@ -285,7 +280,7 @@ namespace Core
 	{
 		Context *db = p->Db;
 		SysEx::TagFree(db, p->ErrMsg);
-		p->ErrMsg = sqlite3DbStrDup(db, vtab->ErrMsg);
+		p->ErrMsg = SysEx::TagStrDup(db, vtab->ErrMsg);
 		SysEx::Free(vtab->ErrMsg);
 		vtab->ErrMsg = nullptr;
 	}

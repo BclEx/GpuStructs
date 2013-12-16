@@ -20,50 +20,41 @@ namespace Core
 #define COLNAME_N 2	// Store the name and decltype
 #endif
 #endif
-
 #define ADDR(X)  (-1-(X))
-
-	enum P4T : int8
-	{
-		P4T_NOTUSED = 0,	// The P4 parameter is not used
-		P4T_DYNAMIC = -1,	// Pointer to a string obtained from sqliteMalloc()
-		P4T_STATIC = -2,	// Pointer to a static string
-		P4T_COLLSEQ = -4,	// P4 is a pointer to a CollSeq structure
-		P4T_FUNCDEF = -5,	// P4 is a pointer to a FuncDef structure
-		P4T_KEYINFO = -6,	// P4 is a pointer to a KeyInfo structure
-		P4T_VDBEFUNC =-7,	// P4 is a pointer to a VdbeFunc structure
-		P4T_MEM  = -8,		// P4 is a pointer to a Mem*    structure
-		P4T_TRANSIENT = 0,	// P4 is a pointer to a transient string
-		P4T_VTAB = -10,		// P4 is a pointer to an sqlite3_vtab structure
-		P4T_MPRINTF = -11,	// P4 is a string obtained from sqlite3_mprintf()
-		P4T_REAL = -12,		// P4 is a 64-bit floating point value
-		P4T_INT64 = -13,	// P4 is a 64-bit signed integer
-		P4T_INT32 = -14,	// P4 is a 32-bit signed integer
-		P4T_INTARRAY = -15,	// P4 is a vector of 32-bit integers
-		P4T_SUBPROGRAM = -18, // P4 is a pointer to a SubProgram structure
-		P4T_ADVANCE = -19,	// P4 is a pointer to BtreeNext() or BtreePrev()
-		// When adding a P4 argument using P4_KEYINFO, a copy of the KeyInfo structure is made.  That copy is freed when the Vdbe is finalized.  But if the
-		// argument is P4_KEYINFO_HANDOFF, the passed in pointer is used.  It still gets freed when the Vdbe is finalized so it still should be obtained
-		// from a single sqliteMalloc().  But no copy is made and the calling function should *not* try to free the KeyInfo.
-		P4T_KEYINFO_HANDOFF = -16,
-		P4T_KEYINFO_STATIC = -17,
-	};
-
-	//typedef class Vdbe Vdbe;
-	typedef struct VdbeFunc VdbeFunc;
-	typedef struct Mem Mem;
-	typedef struct SubProgram SubProgram;
-	//
-	typedef struct VdbeCursor VdbeCursor;
-	typedef struct VdbeFrame VdbeFrame;
-	typedef struct Parse Parse;
-	typedef struct VTable VTable;
 
 	typedef unsigned bft;
 	class Vdbe
 	{
 	public:
-		typedef struct VdbeOp
+
+		enum P4T : int8
+		{
+			P4T_NOTUSED = 0,	// The P4 parameter is not used
+			P4T_DYNAMIC = -1,	// Pointer to a string obtained from sqliteMalloc()
+			P4T_STATIC = -2,	// Pointer to a static string
+			P4T_COLLSEQ = -4,	// P4 is a pointer to a CollSeq structure
+			P4T_FUNCDEF = -5,	// P4 is a pointer to a FuncDef structure
+			P4T_KEYINFO = -6,	// P4 is a pointer to a KeyInfo structure
+			P4T_VDBEFUNC =-7,	// P4 is a pointer to a VdbeFunc structure
+			P4T_MEM  = -8,		// P4 is a pointer to a Mem*    structure
+			P4T_TRANSIENT = 0,	// P4 is a pointer to a transient string
+			P4T_VTAB = -10,		// P4 is a pointer to an sqlite3_vtab structure
+			P4T_MPRINTF = -11,	// P4 is a string obtained from sqlite3_mprintf()
+			P4T_REAL = -12,		// P4 is a 64-bit floating point value
+			P4T_INT64 = -13,	// P4 is a 64-bit signed integer
+			P4T_INT32 = -14,	// P4 is a 32-bit signed integer
+			P4T_INTARRAY = -15,	// P4 is a vector of 32-bit integers
+			P4T_SUBPROGRAM = -18, // P4 is a pointer to a SubProgram structure
+			P4T_ADVANCE = -19,	// P4 is a pointer to BtreeNext() or BtreePrev()
+			// When adding a P4 argument using P4_KEYINFO, a copy of the KeyInfo structure is made.  That copy is freed when the Vdbe is finalized.  But if the
+			// argument is P4_KEYINFO_HANDOFF, the passed in pointer is used.  It still gets freed when the Vdbe is finalized so it still should be obtained
+			// from a single sqliteMalloc().  But no copy is made and the calling function should *not* try to free the KeyInfo.
+			P4T_KEYINFO_HANDOFF = -16,
+			P4T_KEYINFO_STATIC = -17,
+		};
+
+		struct SubProgram;
+		struct VdbeOp
 		{
 			uint8 Opcode;   // What operation to perform
 			P4T P4Type;		// One of the P4_xxx constants for p4
@@ -85,7 +76,7 @@ namespace Core
 				Mem *Mem;				// Used when p4type is P4_MEM
 				VTable *Vtab;			// Used when p4type is P4_VTAB
 				KeyInfo *KeyInfo;		// Used when p4type is P4_KEYINFO
-				int *ai;				// Used when p4type is P4_INTARRAY
+				int *Is;				// Used when p4type is P4_INTARRAY
 				SubProgram *Program;	// Used when p4type is P4_SUBPROGRAM
 				int (*Advance)(BtCursor *, int *);
 			} P4;			// fourth parameter
@@ -96,7 +87,7 @@ namespace Core
 			int Cnt;        // Number of times this instruction was executed
 			u64 Cycles;     // Total time spent executing this instruction
 #endif
-		} VdbeOp;
+		};
 
 		struct SubProgram
 		{
@@ -108,13 +99,13 @@ namespace Core
 			SubProgram *Next;           // Next sub-program already visited
 		};
 
-		typedef struct VdbeOpList
+		struct VdbeOpList
 		{
-			uint8 Ppcode;	// What operation to perform
+			uint8 Opcode;	// What operation to perform
 			int8 P1;		// First operand
 			int8 P2;		// Second parameter (often the jump destination)
 			int8 P3;		// Third parameter
-		} VdbeOpList;
+		};
 
 		__device__ static Vdbe *Create(Context *);
 		__device__ int AddOp0(int);
@@ -135,7 +126,7 @@ namespace Core
 		__device__ void UsesBtree(int);
 		__device__ VdbeOp *GetOp(int);
 		__device__ int MakeLabel();
-		__device__ void RunOnlyOnce();
+		__device__ void set_RunOnlyOnce();
 		__device__ void Delete();
 		__device__ static void ClearObject(Context *, Vdbe *);
 		__device__ void MakeReady(Parse *);
@@ -144,7 +135,7 @@ namespace Core
 		__device__ int CurrentAddr();
 #ifdef _DEBUG
 		__device__ int AssertMayAbort(int);
-		__device__ void Trace(FILE *);
+		__device__ void set_Trace(FILE *);
 #endif
 		__device__ void ResetStepResult();
 		__device__ void Rewind();
@@ -152,7 +143,7 @@ namespace Core
 		__device__ void SetNumCols(int);
 		__device__ int SetColName(int, int, const char *, void(*)(void *));
 		__device__ void CountChanges();
-		__device__ Context *Db();
+		__device__ Context *get_Db();
 		__device__ void SetSql(const char *z, int n, int);
 		__device__ static void Swap(Vdbe *, Vdbe *);
 		__device__ VdbeOp *TakeOpArray(int *, int *);
@@ -187,7 +178,7 @@ namespace Core
 		Mem *ColNames;          // Column names to return
 		Mem *ResultSet;			// Pointer to an array of results
 		int OpsAlloc;           // Number of slots allocated for Ops[]
-		array_t<int> *Labels;     // Space to hold the labels
+		array_t<int> *Labels;   // Space to hold the labels
 		uint16 ResColumns;		// Number of columns in one row of the result set
 		uint32 Magic;			// Magic number for sanity checking
 		char *ErrMsg;			// Error message written here
@@ -197,8 +188,8 @@ namespace Core
 		array_t2<yVars, char *> VarNames;// Name of variables
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
-		RC RC;                 // Value to return
-		uint8 ErrorAction;         // Recovery action to do in case of an error
+		RC RC;					// Value to return
+		uint8 ErrorAction;      // Recovery action to do in case of an error
 		uint8 MinWriteFileFormat;  // Minimum file format for writable database files
 		bft HasExplain:2;          // True if EXPLAIN present on SQL command
 		bft InVtabMethod:2;     // See comments above
@@ -218,9 +209,9 @@ namespace Core
 		int64 StartTime;        // Time when query started - used for profiling
 #endif
 		int64 FkConstraints;    // Number of imm. FK constraints this VM
-		int64 StmtDefCons;     // Number of def. constraints when stmt started
+		int64 StmtDefCons;		// Number of def. constraints when stmt started
 		char *Sql;				// Text of the SQL statement that generated this
-		void *pFree;            // Free this when deleting the vdbe
+		void *FreeThis;         // Free this when deleting the vdbe
 #ifdef _DEBUG
 		FILE *Trace;            // Write an execution trace here, if not NULL
 #endif

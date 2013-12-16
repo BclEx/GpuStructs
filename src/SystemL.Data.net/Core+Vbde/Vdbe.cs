@@ -1,26 +1,17 @@
+using FILE = System.IO.TextWriter;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-//using FILE = System.IO.TextWriter;
-//using i32 = System.Int32;
-//using i64 = System.Int64;
-//using sqlite_int64 = System.Int64;
-//using u8 = System.Byte;
-//using u16 = System.UInt16;
-//using u32 = System.UInt32;
-//using u64 = System.UInt64;
-//using sqlite3_int64 = System.Int64;
-//using Pgno = System.UInt32;
-#if SQLITE_MAX_ATTACHED//>30
-//  typedef sqlite3_uint64 yDbMask;
+
+#region Limits
+#if MAX_ATTACHED
 using yDbMask = System.Int64; 
 #else
-//  typedef unsigned int yDbMask;
 using yDbMask = System.Int32;
 #endif
-//using sqlite3_value = Sqlite3.Mem;
-//using Op = Sqlite3.VdbeOp;
+#endregion
+
 namespace Core
 {
     public partial class Vdbe
@@ -38,11 +29,11 @@ namespace Core
         static int sqlite3_interrupt_count = 0;
         static int sqlite3_sort_count = 0;
         static int sqlite3_max_blobsize = 0;
-        static void updateMaxBlobsize(Mem p) { if ((p.flags & (MEM_Str | MEM_Blob)) != 0 && p.n > sqlite3_max_blobsize) sqlite3_max_blobsize = p.n; }
+        static void updateMaxBlobsize(Mem p) { if ((p.Flags & (MEM.Str | MEM.Blob)) != 0 && p.N > sqlite3_max_blobsize) sqlite3_max_blobsize = p.N; }
         static int sqlite3_found_count = 0;
         static void UPDATE_MAX_BLOBSIZE(Mem P) { updateMaxBlobsize(P); }
 #else
-        static void UPDATE_MAX_BLOBSIZE( Mem P ) { }
+        static void UPDATE_MAX_BLOBSIZE(Mem P) { }
 #endif
         static void Deephemeralize(Mem P) { }
 
@@ -53,14 +44,15 @@ namespace Core
 
         #endregion
 
-        static void sqlite3VdbeMemStoreType(Mem mem)
+        #region Name2
+        public static void MemStoreType(Mem mem)
         {
-            int flags = mem.Flags;
-            if ((flags & MEM_Null) != 0) { mem.type = SQLITE_NULL; mem.z = null; mem.zBLOB = null; }
-            else if ((flags & MEM_Int) != 0) mem.type = SQLITE_INTEGER;
-            else if ((flags & MEM_Real) != 0) mem.type = SQLITE_FLOAT;
-            else if ((flags & MEM_Str) != 0) mem.type = SQLITE_TEXT;
-            else mem.type = SQLITE_BLOB;
+            MEM flags = mem.Flags;
+            if ((flags & MEM.Null) != 0) { mem.Type = TYPE.NULL; mem.Z = null; }
+            else if ((flags & MEM.Int) != 0) mem.Type = TYPE.INTEGER;
+            else if ((flags & MEM.Real) != 0) mem.Type = TYPE.FLOAT;
+            else if ((flags & MEM.Str) != 0) mem.Type = TYPE.TEXT;
+            else mem.Type = TYPE.BLOB;
         }
 
         static VdbeCursor allocateCursor(Vdbe p, int curID, int fields, int db, bool isBtreeCursor)
@@ -78,406 +70,223 @@ namespace Core
             // cursor 1 is managed by memory cell (p->nMem-1), etc.
             VdbeCursor cx = null;
 
-            Debug.Assert(curID < p.Cursors);
+            Debug.Assert(curID < p.Cursors.length);
             if (p.Cursors[curID] != null)
             {
-                p.FreeCursor(p.Cursors[curID]); p.Cursors[curID] = null;
+                p.FreeCursor(p.Cursors[curID]);
+                p.Cursors[curID] = null;
             }
             {
                 p.Cursors[curID] = cx = new VdbeCursor();
                 cx.Db = db;
                 cx.Fields = fields;
                 if (fields != 0)
-                    cx.Type = new uint[fields];
+                    cx.Types = new uint[fields];
                 if (isBtreeCursor)
                 {
                     cx.Cursor = sqlite3MemMallocBtCursor(cx.Cursor);
-                    cx.Cursor.CursorZero();
+                    Btree.CursorZero(cx.Cursor);
                 }
             }
             return cx;
         }
 
-        /*
-        ** Try to convert a value into a numeric representation if we can
-        ** do so without loss of information.  In other words, if the string
-        ** looks like a number, convert it into a number.  If it does not
-        ** look like a number, leave it alone.
-        */
-        static void applyNumericAffinity(Mem pRec)
+        static void applyNumericAffinity(Mem rec)
         {
-            if ((pRec.flags & (MEM_Real | MEM_Int)) == 0)
+            if ((rec.Flags & (MEM.Real | MEM.Int)) == 0)
             {
-                double rValue = 0.0;
-                i64 iValue = 0;
-                u8 enc = pRec.enc;
-                if ((pRec.flags & MEM_Str) == 0)
-                    return;
-                if (sqlite3AtoF(pRec.z, ref rValue, pRec.n, enc) == false)
-                    return;
-                if (0 == sqlite3Atoi64(pRec.z, ref iValue, pRec.n, enc))
+                double r = 0.0;
+                long i = 0;
+                TEXTENCODE encode = rec.Encode;
+                if ((rec.Flags & MEM.Str) == 0) return;
+                if (!ConvertEx.Atof(rec.Z, ref r, rec.N, encode)) return;
+                if (!ConvertEx.Atoi64(rec.Z, ref i, rec.N, encode))
                 {
-                    pRec.u.i = iValue;
-                    pRec.flags |= MEM_Int;
+                    rec.u.I = i;
+                    rec.Flags |= MEM.Int;
                 }
                 else
                 {
-                    pRec.r = rValue;
-                    pRec.flags |= MEM_Real;
+                    rec.R = r;
+                    rec.Flags |= MEM.Real;
                 }
             }
         }
 
-        /*
-        ** Processing is determine by the affinity parameter:
-        **
-        ** SQLITE_AFF_INTEGER:
-        ** SQLITE_AFF_REAL:
-        ** SQLITE_AFF_NUMERIC:
-        **    Try to convert pRec to an integer representation or a
-        **    floating-point representation if an integer representation
-        **    is not possible.  Note that the integer representation is
-        **    always preferred, even if the affinity is REAL, because
-        **    an integer representation is more space efficient on disk.
-        **
-        ** SQLITE_AFF_TEXT:
-        **    Convert pRec to a text representation.
-        **
-        ** SQLITE_AFF_NONE:
-        **    No-op.  pRec is unchanged.
-        */
-        static void applyAffinity(
-        Mem pRec,          /* The value to apply affinity to */
-        char affinity,      /* The affinity to be applied */
-        int enc              /* Use this text encoding */
-        )
+        static void applyAffinity(Mem rec, AFF affinity, TEXTENCODE encode)
         {
-            if (affinity == SQLITE_AFF_TEXT)
+            if (affinity == AFF.TEXT)
             {
-                /* Only attempt the conversion to TEXT if there is an integer or real
-                ** representation (blob and NULL do not get converted) but no string
-                ** representation.
-                */
-                if (0 == (pRec.flags & MEM_Str) && (pRec.flags & (MEM_Real | MEM_Int)) != 0)
-                {
-                    sqlite3VdbeMemStringify(pRec, enc);
-                }
-                if ((pRec.flags & (MEM_Blob | MEM_Str)) == (MEM_Blob | MEM_Str))
-                {
-                    StringBuilder sb = new StringBuilder(pRec.zBLOB.Length);
-                    for (int i = 0; i < pRec.zBLOB.Length; i++)
-                        sb.Append((char)pRec.zBLOB[i]);
-                    pRec.z = sb.ToString();
-                    sqlite3_free(ref pRec.zBLOB);
-                    pRec.flags = (u16)(pRec.flags & ~MEM_Blob);
-                }
-                pRec.flags = (u16)(pRec.flags & ~(MEM_Real | MEM_Int));
+                // Only attempt the conversion to TEXT if there is an integer or real representation (blob and NULL do not get converted) but no string representation.
+                if ((rec.Flags & MEM.Str) == 0 && (rec.Flags & (MEM.Real | MEM.Int)) != 0)
+                    MemStringify(rec, encode);
+                //if ((rec.flags & (MEM.Blob | MEM.Str)) == (MEM.Blob | MEM.Str))
+                //{
+                //    var sb = new StringBuilder(rec.zBLOB.Length);
+                //    for (int i = 0; i < rec.zBLOB.Length; i++)
+                //        sb.Append((char)rec.zBLOB[i]);
+                //    rec.Z = sb.ToString();
+                //    SysEx.Free(ref rec.zBLOB);
+                //    rec.flags &= ~MEM_Blob;
+                //}
+                rec.Flags &= ~(MEM.Real | MEM.Int);
             }
-            else if (affinity != SQLITE_AFF_NONE)
+            else if (affinity != AFF.NONE)
             {
-                Debug.Assert(affinity == SQLITE_AFF_INTEGER || affinity == SQLITE_AFF_REAL
-                || affinity == SQLITE_AFF_NUMERIC);
-                applyNumericAffinity(pRec);
-                if ((pRec.flags & MEM_Real) != 0)
-                {
-                    sqlite3VdbeIntegerAffinity(pRec);
-                }
+                Debug.Assert(affinity == AFF.INTEGER || affinity == AFF.REAL || affinity == AFF.NUMERIC);
+                applyNumericAffinity(rec);
+                if ((rec.Flags & MEM.Real) != 0)
+                    IntegerAffinity(rec);
             }
         }
 
-        /*
-        ** Try to convert the type of a function argument or a result column
-        ** into a numeric representation.  Use either INTEGER or REAL whichever
-        ** is appropriate.  But only do the conversion if it is possible without
-        ** loss of information and return the revised type of the argument.
-        */
-        static int sqlite3_value_numeric_type(sqlite3_value pVal)
+        static TYPE sqlite3_value_numeric_type(Mem mem)
         {
-            Mem pMem = (Mem)pVal;
-            if (pMem.type == SQLITE_TEXT)
+            if (mem.Type == TYPE.TEXT)
             {
-                applyNumericAffinity(pMem);
-                sqlite3VdbeMemStoreType(pMem);
+                applyNumericAffinity(mem);
+                MemStoreType(mem);
             }
-            return pMem.type;
+            return mem.Type;
         }
 
-        /*
-        ** Exported version of applyAffinity(). This one works on sqlite3_value*,
-        ** not the internal Mem type.
-        */
-        static void sqlite3ValueApplyAffinity(
-        sqlite3_value pVal,
-        char affinity,
-        int enc
-        )
+        static void sqlite3ValueApplyAffinity(Mem mem, char affinity, TEXTENCODE encode)
         {
-            applyAffinity((Mem)pVal, affinity, enc);
+            applyAffinity(mem, (AFF)affinity, encode);
         }
 
-#if SQLITE_DEBUG
-    /*
-** Write a nice string representation of the contents of cell pMem
-** into buffer zBuf, length nBuf.
-*/
-    static StringBuilder zCsr = new StringBuilder( 100 );
-    static void sqlite3VdbeMemPrettyPrint( Mem pMem, StringBuilder zBuf )
-    {
-      zBuf.Length = 0;
-      zCsr.Length = 0;
-      int f = pMem.flags;
+#if DEBUG
+        static StringBuilder csr = new StringBuilder(100);
+        static void sqlite3VdbeMemPrettyPrint(Mem mem, StringBuilder buf)
+        {
+            string[] encnames = new string[] { "(X)", "(8)", "(16LE)", "(16BE)" };
+            buf.Length = 0;
+            csr.Length = 0;
+            
+            MEM f = mem.Flags;
+            if ((f & MEM.Blob) != 0)
+            {
+                char c;
+                if ((f & MEM.Dyn) != 0)
+                {
+                    c = 'z';
+                    Debug.Assert((f & (MEM.Static | MEM.Ephem)) == 0);
+                }
+                else if ((f & MEM.Static) != 0)
+                {
+                    c = 't';
+                    Debug.Assert((f & (MEM.Dyn | MEM.Ephem)) == 0);
+                }
+                else if ((f & MEM.Ephem) != 0)
+                {
+                    c = 'e';
+                    Debug.Assert((f & (MEM.Static | MEM.Dyn)) == 0);
+                }
+                else
+                    c = 's';
 
-      string[] encnames = new string[] { "(X)", "(8)", "(16LE)", "(16BE)" };
+                buf.Append(c);
+                buf.AppendFormat("{0}[", mem.N);
+                int i; for (i = 0; i < 16 && i < mem.N; i++)
+                    buf.AppendFormat("{0:%02X}", ((int)mem.ZBLOB[i] & 0xFF));
+                for (i = 0; i < 16 && i < mem.N; i++)
+                {
+                    char z = (char)mem.ZBLOB[i];
+                    if (z < 32 || z > 126) buf.Append('.');
+                    else buf.Append(z);
+                }
+                buf.AppendFormat("]{0}", encnames[(byte)mem.Encode]);
+                if ((f & MEM.Zero) != 0)
+                    buf.AppendFormat("+{0}z", mem.u.Zero);
+            }
+            else if ((f & MEM.Str) != 0)
+            {
+                buf.Append(' ');
+                if ((f & MEM.Dyn) != 0)
+                {
+                    buf.Append('z');
+                    Debug.Assert((f & (MEM.Static | MEM.Ephem)) == 0);
+                }
+                else if ((f & MEM.Static) != 0)
+                {
+                    buf.Append('t');
+                    Debug.Assert((f & (MEM.Dyn | MEM.Ephem)) == 0);
+                }
+                else if ((f & MEM.Ephem) != 0)
+                {
+                    buf.Append('s');
+                    Debug.Assert((f & (MEM.Static | MEM.Dyn)) == 0);
+                }
+                else
+                    buf.Append('s');
 
-      if ( ( f & MEM_Blob ) != 0 )
-      {
-        int i;
-        char c;
-        if ( ( f & MEM_Dyn ) != 0 )
-        {
-          c = 'z';
-          Debug.Assert( ( f & ( MEM_Static | MEM_Ephem ) ) == 0 );
-        }
-        else if ( ( f & MEM_Static ) != 0 )
-        {
-          c = 't';
-          Debug.Assert( ( f & ( MEM_Dyn | MEM_Ephem ) ) == 0 );
-        }
-        else if ( ( f & MEM_Ephem ) != 0 )
-        {
-          c = 'e';
-          Debug.Assert( ( f & ( MEM_Static | MEM_Dyn ) ) == 0 );
-        }
-        else
-        {
-          c = 's';
+                buf.AppendFormat("{0}", mem.N);
+                buf.Append('[');
+                for (int j = 0; j < 15 && j < mem.N; j++)
+                {
+                    byte c = (mem.Z != null ? (byte)mem.Z[j] : mem.ZBLOB[j]);
+                    buf.Append(c >= 0x20 && c < 0x7f ? (char)c : '.');
+                }
+                buf.Append(']');
+                buf.Append(encnames[(byte)mem.Encode]);
+            }
         }
 
-        sqlite3_snprintf( 100, zCsr, "%c", c );
-        zBuf.Append( zCsr );//zCsr += sqlite3Strlen30(zCsr);
-        sqlite3_snprintf( 100, zCsr, "%d[", pMem.n );
-        zBuf.Append( zCsr );//zCsr += sqlite3Strlen30(zCsr);
-        for ( i = 0; i < 16 && i < pMem.n; i++ )
+        static void memTracePrint(FILE _out, Mem p)
         {
-          sqlite3_snprintf( 100, zCsr, "%02X", ( (int)pMem.zBLOB[i] & 0xFF ) );
-          zBuf.Append( zCsr );//zCsr += sqlite3Strlen30(zCsr);
-        }
-        for ( i = 0; i < 16 && i < pMem.n; i++ )
-        {
-          char z = (char)pMem.zBLOB[i];
-          if ( z < 32 || z > 126 )
-            zBuf.Append( '.' );//*zCsr++ = '.';
-          else
-            zBuf.Append( z );//*zCsr++ = z;
-        }
-
-        sqlite3_snprintf( 100, zCsr, "]%s", encnames[pMem.enc] );
-        zBuf.Append( zCsr );//zCsr += sqlite3Strlen30(zCsr);
-        if ( ( f & MEM_Zero ) != 0 )
-        {
-          sqlite3_snprintf( 100, zCsr, "+%dz", pMem.u.nZero );
-          zBuf.Append( zCsr );//zCsr += sqlite3Strlen30(zCsr);
-        }
-        //*zCsr = '\0';
-      }
-      else if ( ( f & MEM_Str ) != 0 )
-      {
-        int j;//, k;
-        zBuf.Append( ' ' );
-        if ( ( f & MEM_Dyn ) != 0 )
-        {
-          zBuf.Append( 'z' );
-          Debug.Assert( ( f & ( MEM_Static | MEM_Ephem ) ) == 0 );
-        }
-        else if ( ( f & MEM_Static ) != 0 )
-        {
-          zBuf.Append( 't' );
-          Debug.Assert( ( f & ( MEM_Dyn | MEM_Ephem ) ) == 0 );
-        }
-        else if ( ( f & MEM_Ephem ) != 0 )
-        {
-          zBuf.Append( 's' ); //zBuf.Append( 'e' );
-          Debug.Assert( ( f & ( MEM_Static | MEM_Dyn ) ) == 0 );
-        }
-        else
-        {
-          zBuf.Append( 's' );
-        }
-        //k = 2;
-        sqlite3_snprintf( 100, zCsr, "%d", pMem.n );//zBuf[k], "%d", pMem.n );
-        zBuf.Append( zCsr );
-        //k += sqlite3Strlen30( &zBuf[k] );
-        zBuf.Append( '[' );// zBuf[k++] = '[';
-        for ( j = 0; j < 15 && j < pMem.n; j++ )
-        {
-          u8 c = pMem.z != null ? (u8)pMem.z[j] : pMem.zBLOB[j];
-          if ( c >= 0x20 && c < 0x7f )
-          {
-            zBuf.Append( (char)c );//zBuf[k++] = c;
-          }
-          else
-          {
-            zBuf.Append( '.' );//zBuf[k++] = '.';
-          }
-        }
-        zBuf.Append( ']' );//zBuf[k++] = ']';
-        sqlite3_snprintf( 100, zCsr, encnames[pMem.enc] );//& zBuf[k], encnames[pMem.enc] );
-        zBuf.Append( zCsr );
-        //k += sqlite3Strlen30( &zBuf[k] );
-        //zBuf[k++] = 0;
-      }
-    }
+            if ((p.Flags & MEM.Null) != 0) fprintf(_out, " NULL");
+            else if ((p.Flags & (MEM.Int | MEM.Str)) == (MEM.Int | MEM.Str)) fprintf(_out, " si:%lld", p.u.I);
+#if !OMIT_FLOATING_POINT
+            else if ((p.Flags & MEM.Int) != 0) fprintf(_out, " i:%lld", p.u.I);
 #endif
+            else if ((p.Flags & MEM.Real) != 0) fprintf(_out, " r:%g", p.R);
+            else if ((p.Flags & MEM.RowSet) != 0) fprintf(_out, " (rowset)");
+            else
+            {
+                StringBuilder buf = new StringBuilder(200);
+                MemPrettyPrint(p, buf);
+                fprintf(_out, " ");
+                fprintf(_out, "%s", buf);
+            }
+        }
+        static void registerTrace(FILE _out, int iReg, Mem p)
+        {
+            fprintf(_out, "reg[%d] = ", iReg);
+            memTracePrint(_out, p);
+            fprintf(_out, "\n");
+        }
 
-#if SQLITE_DEBUG
-    /*
-** Print the value of a register for tracing purposes:
-*/
-    static void memTracePrint( FILE _out, Mem p )
-    {
-      if ( ( p.flags & MEM_Null ) != 0 )
-      {
-        fprintf( _out, " NULL" );
-      }
-      else if ( ( p.flags & ( MEM_Int | MEM_Str ) ) == ( MEM_Int | MEM_Str ) )
-      {
-        fprintf( _out, " si:%lld", p.u.i );
-#if !SQLITE_OMIT_FLOATING_POINT
-      }
-      else if ( ( p.flags & MEM_Int ) != 0 )
-      {
-        fprintf( _out, " i:%lld", p.u.i );
-#endif
-      }
-      else if ( ( p.flags & MEM_Real ) != 0 )
-      {
-        fprintf( _out, " r:%g", p.r );
-      }
-      else if ( ( p.flags & MEM_RowSet ) != 0 )
-      {
-        fprintf( _out, " (rowset)" );
-      }
-      else
-      {
-        StringBuilder zBuf = new StringBuilder( 200 );
-        sqlite3VdbeMemPrettyPrint( p, zBuf );
-        fprintf( _out, " " );
-        fprintf( _out, "%s", zBuf );
-      }
-    }
-    static void registerTrace( FILE _out, int iReg, Mem p )
-    {
-      fprintf( _out, "reg[%d] = ", iReg );
-      memTracePrint( _out, p );
-      fprintf( _out, "\n" );
-    }
-#endif
-
-#if SQLITE_DEBUG
-    //#  define REGISTER_TRACE(R,M) if(p.trace)registerTrace(p.trace,R,M)
-    static void REGISTER_TRACE( Vdbe p, int R, Mem M )
-    {
-      if ( p.trace != null )
-        registerTrace( p.trace, R, M );
-    }
+        static void REGISTER_TRACE(Vdbe p, int R, Mem M) { if (p.Trace != null) registerTrace(p.Trace, R, M); }
 #else
-        //#  define REGISTER_TRACE(R,M)
         static void REGISTER_TRACE(Vdbe p, int R, Mem M) { }
 #endif
 
 
-#if VDBE_PROFILE
-
-/*
-** hwtime.h contains inline assembler code for implementing
-** high-performance timing routines.
-*/
-//#include "hwtime.h"
-
-#endif
-
-        /*
-** The CHECK_FOR_INTERRUPT macro defined here looks to see if the
-** sqlite3_interrupt() routine has been called.  If it has been, then
-** processing of the VDBE program is interrupted.
-**
-** This macro added to every instruction that does a jump in order to
-** implement a loop.  This test used to be on every single instruction,
-** but that meant we more testing that we needed.  By only testing the
-** flag on jump instructions, we get a (small) speed improvement.
-*/
-        //#define CHECK_FOR_INTERRUPT \
-        //   if( db.u1.isInterrupted ) goto abort_due_to_interrupt;
-
 #if !NDEBUG
-        /*
-** This function is only called from within an Debug.Assert() expression. It
-** checks that the sqlite3.nTransaction variable is correctly set to
-** the number of non-transaction savepoints currently in the
-** linked list starting at sqlite3.pSavepoint.
-**
-** Usage:
-**
-**     Debug.Assert( checkSavepointCount(db) );
-*/
-        static int checkSavepointCount(sqlite3 db)
+        static int checkSavepointCount(Context db)
         {
             int n = 0;
-            Savepoint p;
-            for (p = db.pSavepoint; p != null; p = p.pNext)
-                n++;
-            Debug.Assert(n == (db.nSavepoint + db.isTransactionSavepoint));
+            for (Savepoint p = db.Savepoint; p != null; p = p.Next) n++;
+            Debug.Assert((db.Savepoints + db.IsTransactionSavepoint) == n);
             return 1;
         }
 #else
-static int checkSavepointCount( sqlite3 db ) { return 1; }
+        static int checkSavepointCount(Context db) { return 1; }
 #endif
 
-        /*
-** Transfer error message text from an sqlite3_vtab.zErrMsg (text stored
-** in memory obtained from sqlite3_malloc) into a Vdbe.zErrMsg (text stored
-** in memory obtained from sqlite3DbMalloc).
-*/
-        static void importVtabErrMsg(Vdbe p, sqlite3_vtab pVtab)
+        static void importVtabErrMsg(Vdbe p, VTable vtab)
         {
-            sqlite3 db = p.db;
-            sqlite3DbFree(db, ref p.zErrMsg);
-            p.zErrMsg = pVtab.zErrMsg; // sqlite3DbStrDup( db, pVtab.zErrMsg );
-            //sqlite3_free( pVtab.zErrMsg );
-            pVtab.zErrMsg = null;
+            Context db = p.Db;
+            SysEx.TagFree(db, ref p.ErrMsg);
+            p.ErrMsg = vtab.ErrMsg;
+            //SysEx.Free(vtab.zErrMsg );
+            vtab.ErrMsg = null;
         }
 
-        /*
-        ** Execute as much of a VDBE program as we can then return.
-        **
-        ** sqlite3VdbeMakeReady() must be called before this routine in order to
-        ** close the program with a final OP_Halt and to set up the callbacks
-        ** and the error message pointer.
-        **
-        ** Whenever a row or result data is available, this routine will either
-        ** invoke the result callback (if there is one) or return with
-        ** SQLITE_ROW.
-        **
-        ** If an attempt is made to open a locked database, then this routine
-        ** will either invoke the busy callback (if there is one) or it will
-        ** return SQLITE_BUSY.
-        **
-        ** If an error occurs, an error message is written to memory obtained
-        ** from sqlite3Malloc() and p.zErrMsg is made to point to that memory.
-        ** The error code is stored in p.rc and this routine returns SQLITE_ERROR.
-        **
-        ** If the callback ever returns non-zero, then the program exits
-        ** immediately.  There will be no error message but the p.rc field is
-        ** set to SQLITE_ABORT and this routine will return SQLITE_ERROR.
-        **
-        ** A memory allocation error causes p.rc to be set to SQLITE_NOMEM and this
-        ** routine to return SQLITE_ERROR.
-        **
-        ** Other fatal errors return SQLITE_ERROR.
-        **
-        ** After this routine has finished, sqlite3VdbeFinalize() should be
-        ** used to clean up the mess that was left behind.
-        */
+        #endregion
+
+        #region Main
+#if false
         static int sqlite3VdbeExec(
         Vdbe p                         /* The VDBE */
         )
@@ -6831,5 +6640,8 @@ abort_due_to_interrupt:
       sqlite3SetString( ref p.zErrMsg, db, sqlite3ErrStr( rc ) );
       goto vdbe_error_halt;
     }
+    }
+#endif
+        #endregion
     }
 }

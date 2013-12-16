@@ -3,6 +3,9 @@
 
 namespace Core
 {
+
+#pragma region Varint
+
 #define SLOT_2_0     0x001fc07f
 #define SLOT_4_2_0   0xf01fc07f
 
@@ -293,4 +296,207 @@ namespace Core
 		while (v != 0 && SysEx_ALWAYS(i < 9));
 		return i;
 	}
+
+#pragma endregion
+
+#pragma region Atof
+
+	__device__ bool ConvertEx::Atof(const char *z, double *out, int length, TEXTENCODE encode)
+	{
+#ifndef OMIT_FLOATING_POINT
+		_assert(encode == TEXTENCODE_UTF8 || encode == TEXTENCODE_UTF16LE || encode == TEXTENCODE_UTF16BE);
+		*out = 0.0; // Default return value, in case of an error
+		const char *end = z + length;
+
+		// get size
+		int incr;
+		bool nonNum = false;
+		if (encode == TEXTENCODE_UTF8)
+			incr = 1;
+		else
+		{
+			_assert(TEXTENCODE_UTF16LE == 2 && TEXTENCODE_UTF16BE == 3);
+			incr = 2;
+			int i; for (i = 3 - encode; i < length && z[i] == 0; i += 2) { }
+			nonNum = (i < length);
+			end = z + i + encode - 3;
+			z += (encode & 1);
+		}
+
+		// skip leading spaces
+		while (z < end && _isspace(*z)) z += incr;
+		if (z >= end) return false;
+
+		// get sign of significand
+		int sign = 1; // sign of significand
+		if (*z == '-') { sign = -1; z += incr; }
+		else if (*z == '+') z += incr;
+
+		// sign * significand * (10 ^ (esign * exponent))
+		int digits = 0; 
+		bool eValid = true;  // True exponent is either not used or is well-formed
+		int64 s = 0;   // significand
+		int esign = 1; // sign of exponent
+		int e = 0; // exponent
+		int d = 0; // adjust exponent for shifting decimal point
+
+		// skip leading zeroes
+		while (z < end && z[0] == '0') z += incr, digits++;
+
+		// copy max significant digits to significand
+		while (z < end && _isdigit(*z) && s < ((LARGEST_INT64 - 9) / 10)) { s = s * 10 + (*z - '0'); z += incr, digits++; }
+		while (z < end && _isdigit(*z)) z += incr, digits++, d++; // skip non-significant significand digits (increase exponent by d to shift decimal left)
+		if (z >= end) goto do_atof_calc;
+
+		// if decimal point is present
+		if (*z == '.')
+		{
+			z += incr;
+			// copy digits from after decimal to significand (decrease exponent by d to shift decimal right)
+			while (z < end && _isdigit(*z) && s < ((LARGEST_INT64 - 9) / 10)) { s = s * 10 + (*z - '0'); z += incr, digits++, d--; }
+			while (z < end && _isdigit(*z)) z += incr, digits++; // skip non-significant digits
+		}
+		if (z >= end) goto do_atof_calc;
+
+		// if exponent is present
+		if (*z == 'e' || *z == 'E')
+		{
+			z += incr;
+			eValid = false;
+			if (z >= end) goto do_atof_calc;
+			// get sign of exponent
+			if (*z == '-') { esign = -1; z += incr; }
+			else if (*z == '+') z += incr;
+			// copy digits to exponent
+			while (z < end && _isdigit(*z)) { e = (e < 10000 ? e * 10 + (*z - '0') : 10000); z += incr; eValid = true; }
+		}
+
+		// skip trailing spaces
+		if (digits && eValid) while (z < end && _isspace(*z)) z += incr;
+
+do_atof_calc:
+		// adjust exponent by d, and update sign
+		e = (e * esign) + d;
+		if (e < 0) { esign = -1; e *= -1; }
+		else esign = 1;
+
+		// if !significand
+		double result;
+		if (!s)
+			result = (sign < 0 && digits ? -0.0 : 0.0); // In the IEEE 754 standard, zero is signed. Add the sign if we've seen at least one digit
+		else
+		{
+			// attempt to reduce exponent
+			if (esign > 0) while (s < (LARGEST_INT64 / 10) && e > 0) e--, s *= 10;
+			else while (!(s % 10) && e > 0) e--, s /= 10;
+
+			// adjust the sign of significand
+			s = (sign < 0 ? -s : s);
+
+			// if exponent, scale significand as appropriate and store in result.
+			if (e)
+			{
+				long double scale = 1.0;
+				// attempt to handle extremely small/large numbers better
+				if (e > 307 && e < 342)
+				{
+					while (e % 308) { scale *= 1.0e+1; e -= 1; }
+					if (esign < 0) { result = s / scale; result /= 1.0e+308; }
+					else { result = s * scale; result *= 1.0e+308; }
+				}
+				else if (e >= 342)
+					result = (esign < 0 ? 0.0 * s : 1e308 * 1e308 * s); // Infinity
+				else
+				{
+					// 1.0e+22 is the largest power of 10 than can be represented exactly. */
+					while (e % 22) { scale *= 1.0e+1; e -= 1; }
+					while (e > 0) { scale *= 1.0e+22; e -= 22; }
+					result = (esign < 0 ? s / scale : s * scale);
+				}
+			}
+			else
+				result = (double)s;
+		}
+
+		*out = result; // store the result
+		return (z > end && digits > 0 && eValid && !nonNum); // return true if number and no extra non-whitespace chracters after
+#else
+		return !Atoi64(z, rResult, length, enc);
+#endif
+	}
+
+	__device__ static int compare2pow63(const char *z, int incr)
+	{
+		const char *pow63 = "922337203685477580"; // 012345678901234567
+		int c = 0;
+		for (int i = 0; c == 0 && i < 18; i++)
+			c = (z[i * incr] - pow63[i]) * 10;
+		if (c == 0)
+		{
+			c = z[18 * incr] - '8';
+			ASSERTCOVERAGE(c == -1);
+			ASSERTCOVERAGE(c == 0);
+			ASSERTCOVERAGE(c == +1);
+		}
+		return c;
+	}
+
+	__device__ bool ConvertEx::Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode)
+	{
+		_assert(encode == TEXTENCODE_UTF8 || encode == TEXTENCODE_UTF16LE || encode == TEXTENCODE_UTF16BE);
+		//	*out = 0.0; // Default return value, in case of an error
+		const char *start;
+		const char *end = z + length;
+
+		// get size
+		int incr;
+		bool nonNum = false;
+		if (encode == TEXTENCODE_UTF8)
+			incr = 1;
+		else
+		{
+			_assert(TEXTENCODE_UTF16LE == 2 && TEXTENCODE_UTF16BE == 3);
+			incr = 2;
+			int i; for (i = 3 - encode; i < length && z[i] == 0; i += 2) { }
+			nonNum = (i < length);
+			end = z + i + encode - 3;
+			z += (encode & 1);
+		}
+
+		// skip leading spaces
+		while (z < end && _isspace(*z)) z += incr;
+
+		// get sign of significand
+		int neg = 0; // assume positive
+		if (z < end)
+		{
+			if (*z == '-') { neg = 1; z += incr; }
+			else if (*z == '+') z += incr;
+		}
+		start = z;
+
+		// skip leading zeros
+		while (z < end && z[0] == '0') z += incr;
+
+		uint64 u = 0;
+		int c = 0;
+		int i; for (i = 0; &z[i] < end && (c = z[i]) >= '0' && c <= '9'; i += incr) u = u * 10 + c - '0';
+		if (u > LARGEST_INT64) *out = SMALLEST_INT64;
+		else *out = (neg ?  -(int64)u : (int64)u);
+
+		ASSERTCOVERAGE(i == 18);
+		ASSERTCOVERAGE(i == 19);
+		ASSERTCOVERAGE(i == 20);
+		if ((c != 0 && &z[i] < end) || (i == 0 && start == z) || i > 19 * incr || nonNum) return true; // z is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
+		else if (i < 19 * incr) { _assert(u <= LARGEST_INT64); return false; } // Less than 19 digits, so we know that it fits in 64 bits
+		else // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
+		{
+			c = compare2pow63(z, incr);
+			if (c < 0) { _assert(u <= LARGEST_INT64); return false; } // zNum is less than 9223372036854775808 so it fits
+			else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows
+			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return (neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
+		}
+	}
+
+#pragma endregion
 }

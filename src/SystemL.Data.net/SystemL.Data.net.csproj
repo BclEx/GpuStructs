@@ -60,15 +60,15 @@
     <Compile Include="Core+Table\Rowset.cs" />
     <Compile Include="Core+Table\Table.cs" />
     <Compile Include="Core+Table\VTable.cs" />
-    <None Include="Core+Vbde\Core+Vdbe_h.cs" />
-    <None Include="Core+Vbde\Vdbe.cs" />
+    <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
+    <Compile Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
     <None Include="Core+Vbde\VdbeAux.cs" />
     <None Include="Core+Vbde\VdbeBlob.cs" />
-    <None Include="Core+Vbde\VdbeInt_h.cs" />
+    <Compile Include="Core+Vbde\VdbeInt_h.cs" />
     <None Include="Core+Vbde\VdbeMem.cs" />
     <None Include="Core+Vbde\VdbeTrace.cs" />
-    <None Include="Core+Vbde\Vdbe_h.cs" />
+    <Compile Include="Core+Vbde\Vdbe_h.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>

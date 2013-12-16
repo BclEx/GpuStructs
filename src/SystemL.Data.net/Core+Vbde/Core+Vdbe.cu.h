@@ -1,22 +1,26 @@
 ﻿#include "../Core+Table/Core+Table.cu.h"
 namespace Core
 {
-	typedef struct Mem Mem;
-	typedef struct FuncContext FuncContext;
+	struct Parse;
+	struct VTable;
 
-#pragma region Limits
+	enum TYPE : uint8
+	{
+		TYPE_INTEGER = 1,
+		TYPE_FLOAT = 2,
+		TYPE_BLOB = 4,
+		TYPE_NULL = 5,
+		TYPE_TEXT = 3,
+	};
 
-#if MAX_ATTACHED > 30
-	typedef uint64 yDbMask;
-#else
-	typedef unsigned int yDbMask;
-#endif
+#pragma region Internal
 
-#if MAX_VARIABLE_NUMBER <= 32767
-	typedef int16 yVars;
-#else
-	typedef int yVars;
-#endif
+	struct VdbeCursor;
+	struct VdbeFrame;
+	struct Mem;
+	struct VdbeFunc;
+	struct FuncContext;
+	struct Explain;
 
 #pragma endregion 
 
@@ -41,20 +45,20 @@ namespace Core
 		void *UserData;
 	};
 
-	typedef struct FuncDef
+	struct FuncDef
 	{
 		int16 Args;				// Number of arguments.  -1 means unlimited
 		uint8 PrefEnc;			// Preferred text encoding (SQLITE_UTF8, 16LE, 16BE)
 		FUNC Flags;				// Some combination of SQLITE_FUNC_*
 		void *UserData;			// User data parameter
-		struct FuncDef *Next;	// Next function with same name */
+		FuncDef *Next;	// Next function with same name */
 		void (*Func)(FuncContext *, int, Mem**); // Regular function
 		void (*Step)(FuncContext *, int, Mem**); // Aggregate step
 		void (*Finalize)(FuncContext *); // Aggregate finalizer
 		char *Name;				// SQL name of the function.
 		FuncDef *Hash;			// Next with a different name but the same hash
 		FuncDestructor *Destructor; // Reference counted destructor function
-	} FuncDef;
+	};
 
 	//   FUNCTION(zName, nArg, iArg, bNC, xFunc)
 	//     Used to create a scalar function definition of a function zName implemented by C function xFunc that accepts nArg arguments. The
@@ -81,14 +85,30 @@ namespace Core
 
 #pragma endregion
 
+#pragma region Limits
+
+#if MAX_ATTACHED > 30
+	typedef uint64 yDbMask;
+#else
+	typedef unsigned int yDbMask;
+#endif
+
+#if MAX_VARIABLE_NUMBER <= 32767
+	typedef int16 yVars;
+#else
+	typedef int yVars;
+#endif
+
+#pragma endregion 
+
 #pragma region Savepoint
 
-	typedef struct Savepoint
+	struct Savepoint
 	{
 		char *Name;				// Savepoint name (nul-terminated)
 		int64 DeferredCons;		// Number of deferred fk violations
 		Savepoint *Next;		// Parent savepoint (if any)
-	} Savepoint;
+	};
 
 	enum SAVEPOINT
 	{
@@ -118,15 +138,6 @@ namespace Core
 #define sqlite3IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
 
 #pragma endregion
-
-	enum TYPE : uint8
-	{
-		TYPE_INTEGER = 1,
-		TYPE_FLOAT = 2,
-		TYPE_BLOB = 4,
-		TYPE_NULL = 5,
-		TYPE_TEXT = 3,
-	};
 
 }
 #include "Vdbe.cu.h"

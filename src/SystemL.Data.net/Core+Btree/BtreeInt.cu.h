@@ -5,8 +5,6 @@ namespace Core
 #define MX_CELL_SIZE(bt)  ((int)(bt->PageSize-8))
 #define MX_CELL(bt) ((bt->PageSize-8)/6)
 
-	typedef struct MemPage MemPage;
-
 #ifndef FILE_HEADER
 #define FILE_HEADER "SQLite format 3"
 #endif
@@ -20,7 +18,7 @@ namespace Core
 #define PTF_LEAFDATA  0x04
 #define PTF_LEAF      0x08
 
-	struct MemPage
+	typedef struct MemPage
 	{
 		bool IsInit;			// True if previously initialized. MUST BE FIRST!
 		uint8 Overflows;		// Number of overflow cell bodies in aCell[]
@@ -44,7 +42,7 @@ namespace Core
 		uint8 *CellIdx;			// The cell index area
 		IPage *DBPage;			// Pager page handle
 		Pid ID;					// Page number for this page
-	};
+	} MemPage;
 
 #define EXTRA_SIZE sizeof(MemPage)
 
@@ -59,7 +57,7 @@ namespace Core
 		BTS_PENDING = 0x0040,		// Waiting for read-locks to clear
 	};
 
-	struct BtShared
+	typedef struct BtShared
 	{
 		Pager *Pager;			// The page cache
 		Context *Ctx;			// Database connection currently using this Btree
@@ -93,10 +91,9 @@ namespace Core
 		Btree *Writer;			// Btree with currently open write transaction
 #endif
 		uint8 *TmpSpace;		// BtShared.pageSize bytes of space for tmp use
-	};
+	} BtShared;
 
-	typedef struct CellInfo CellInfo;
-	struct CellInfo
+	typedef struct CellInfo
 	{
 		int64 Key;				// The key for INTKEY tables, or number of bytes in key
 		uint8 *Cell;			// Pointer to the start of cell content
@@ -106,7 +103,7 @@ namespace Core
 		uint16 Local;			// Amount of payload held locally
 		uint16 Overflow;	// Offset to overflow page number.  Zero if no overflow
 		uint16 Size;			// Size of the cell content on the main b-tree page
-	};
+	} CellInfo;
 
 #define BTCURSOR_MAX_DEPTH 20
 
@@ -118,7 +115,7 @@ namespace Core
 		CURSOR_FAULT = 3,
 	};
 
-	struct BtCursor
+	typedef struct BtCursor
 	{
 		Btree *Btree;           // The Btree to which this cursor belongs
 		BtShared *Bt;           // The BtShared this cursor points to
@@ -144,7 +141,7 @@ namespace Core
 		int16 ID;				// Index of current page in apPage
 		uint16 Idxs[BTCURSOR_MAX_DEPTH]; // Current index in apPage[i]
 		MemPage *Pages[BTCURSOR_MAX_DEPTH]; // Pages from root to current page
-	};
+	} BtCursor;
 
 #define MJ_PID(x) ((Pid)((PENDING_BYTE / ((x)->PageSize)) + 1))
 #define PENDING_BYTE_PAGE(bt) MJ_PID(bt)
@@ -166,8 +163,7 @@ namespace Core
 	_assert(p->Bt->InTransaction != TRANS_NONE || p->Bt->Transactions == 0); \
 	_assert(p->Bt->InTransaction >= p->InTrans); 
 
-	typedef struct IntegrityCk IntegrityCk;
-	struct IntegrityCk
+	typedef struct IntegrityCk
 	{
 		BtShared *Bt;		// The tree being checked out
 		Pager *Pager;		// The associated pager.  Also accessible by pBt->pPager
@@ -177,7 +173,7 @@ namespace Core
 		int Errors;			// Number of messages written to zErrMsg so far
 		bool MallocFailed;	// A memory allocation error has occurred
 		Text::StringBuilder ErrMsg; // Accumulate the error message text here
-	};
+	} IntegrityCk;
 
 	BTS __device__ inline operator|=(BTS a, int b) { return (BTS)(a | b); }
 	BTS __device__ inline operator&=(BTS a, int b) { return (BTS)(a & b); }

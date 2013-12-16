@@ -22,6 +22,8 @@ typedef unsigned long long	uint64;
 #define MIN_TYPE(x) (-MAX_TYPE(x)-1)
 #define MAX_UTYPE(x) (((((x)1U<<((sizeof(x)-1)*8))-1)<<8)|255U)
 #define MIN_UTYPE(x) 0
+#define LARGEST_INT64 (0xffffffff|(((int64)0x7fffffff)<<32))
+#define SMALLEST_INT64 (((int64)-1) - LARGEST_INT64)
 
 // Macros to determine whether the machine is big or little endian, evaluated at runtime.
 #if defined(i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__)

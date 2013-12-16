@@ -1,14 +1,11 @@
 // vdbeint.h
-#include "Core+Vdbe.cu.h"
-
 namespace Core
 {
-	typedef struct VdbeOp VdbeOp;
-	typedef struct VdbeSorter VdbeSorter;
-	typedef struct Explain Explain;
-	typedef struct RowSet RowSet;
+	struct VdbeOp;
+	struct VdbeSorter;
+	struct RowSet;
 
-	typedef struct VdbeCursor
+	struct VdbeCursor
 	{
 		BtCursor *Cursor;		// The cursor structure of the backend
 		Btree *Bt;				// Separate file holding temporary table
@@ -27,14 +24,18 @@ namespace Core
 		bool IsOrdered;			// True if the underlying table is BTREE_UNORDERED
 		bool IsSorter;			// True if a new-style sorter
 		bool MultiPseudo;		// Multi-register pseudo-cursor
+#ifndef OMIT_VIRTUALTABLE
 		VTableCursor *VtabCursor;  // The cursor for a virtual table
 		const ITableModule *Module;     // Module for cursor pVtabCursor
+#endif
 		int64 SeqCount;			// Sequence counter
 		int64 MovetoTarget;		// Argument to the deferred sqlite3BtreeMoveto()
 		int64 LastRowid;		// Last rowid from a Next or NextIdx operation
 		VdbeSorter *Sorter;		// Sorter object for OP_SorterOpen cursors
+
 		// Result of last sqlite3BtreeMoveto() done by an OP_NotExists or OP_IsUnique opcode on this cursor.
 		int SeekResult;
+
 		// Cached information about the header for the data record that the cursor is currently pointing to.  Only valid if cacheStatus matches
 		// Vdbe.cacheCtr.  Vdbe.cacheCtr will never take on the value of CACHE_STALE and so setting cacheStatus=CACHE_STALE guarantees that
 		// the cache is out of date.
@@ -45,23 +46,23 @@ namespace Core
 		uint32 *Types;          // Type values for all entries in the record
 		uint32 *Offsets;        // Cached offsets to the start of each columns data
 		uint8 *Rows;            // Data for the current row, if all on one page
-	} VdbeCursor;
+	};
 
-	typedef struct VdbeFrame
+	struct VdbeFrame
 	{
 		Vdbe *V;					// VM this frame belongs to
 		struct VdbeFrame *Parent;	// Parent of this frame, or NULL if parent is main
-		array_t<VdbeOp> *Ops;			// Program instructions for parent frame
+		array_t<VdbeOp> *Ops;		// Program instructions for parent frame
 		array_t<Mem> *Mems;			// Array of memory cells for parent frame
 		array_t<uint8> *OnceFlags;	// Array of OP_Once flags for parent frame
 		array_t<VdbeCursor> **Cursors;	// Array of Vdbe cursors for parent frame
 		void *Token;				// Copy of SubProgram.token
 		int64 LastRowid;			// Last insert rowid (sqlite3.lastRowid)
-		int Pc;						// Program Counter in parent (calling) frame
+		int PC;						// Program Counter in parent (calling) frame
 		int ChildMems;				// Number of memory cells for child frame
 		int ChildCursors;			// Number of cursors for child frame
 		int Changes;				// Statement changes (Vdbe.nChanges)
-	} VdbeFrame;
+	};
 
 #define VdbeFrameMem(p) ((Mem *)&((uint8 *)p)[SysEx_ROUND8(sizeof(VdbeFrame))])
 
@@ -97,16 +98,18 @@ namespace Core
 		MEM_Zero = 0x0000,
 #endif
 	};
+	MEM __device__ inline operator|=(MEM a, int b) { return (MEM)(a | b); }
+	MEM __device__ inline operator&=(MEM a, int b) { return (MEM)(a & b); }
 #define MemSetTypeFlag(p, f) ((p)->Flags = ((p)->Flags&~(MEM_TypeMask|MEM_Zero))|f)
 #ifdef _DEBUG
 #define memIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif
 
-	typedef struct Mem
+	struct Mem
 	{
-		Context *Db;	// The associated database connection
-		char *Z;		// String or BLOB value
-		double R;		// Real value
+		Context *Db;			// The associated database connection
+		char *Z;				// String or BLOB value
+		double R;				// Real value
 		union {
 			int64 I;            // Integer value used when MEM_Int is set in flags
 			int Zero;			// Used when bit MEM_Zero is set in flags
@@ -114,21 +117,21 @@ namespace Core
 			RowSet *RowSet;		// Used only when flags==MEM_RowSet
 			VdbeFrame *Frame;	// Used when flags==MEM_Frame
 		} u;
-		int N;			// Number of characters in string value, excluding '\0'
-		MEM Flags;		// Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
-		TYPE Type;		// One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
-		uint8 Enc;		// SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
+		int N;					// Number of characters in string value, excluding '\0'
+		MEM Flags;				// Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
+		TYPE Type;				// One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
+		TEXTENCODE Encode;		// SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
 #ifdef _DEBUG
-		Mem *ScopyFrom;	// This Mem is a shallow copy of pScopyFrom
-		void *Filler;	// So that sizeof(Mem) is a multiple of 8
+		Mem *ScopyFrom;			// This Mem is a shallow copy of pScopyFrom
+		void *Filler;			// So that sizeof(Mem) is a multiple of 8
 #endif
-		void (*Del)(void *); // If not null, call this function to delete Mem.z
-		char *Malloc;	// Dynamic buffer allocated by sqlite3_malloc()
-	} Mem;
+		void (*Del)(void *);	// If not null, call this function to delete Mem.z
+		char *Malloc;			// Dynamic buffer allocated by sqlite3_malloc()
+	};
 
 	struct VdbeFunc
 	{
-		FuncDef *Func;         // The definition of the function
+		FuncDef *Func;			// The definition of the function
 		int AuxLength;          // Number of entries allocated for apAux[]
 		struct AuxData
 		{
@@ -145,17 +148,17 @@ namespace Core
 		Mem S;					// The return value is stored here
 		Mem *Mem;				// Memory cell used to store aggregate context
 		CollSeq *Coll;			// Collating sequence
-		int IsError;			// Error code returned by the function
+		RC IsError;				// Error code returned by the function
 		bool SkipFlag;			// Skip skip accumulator loading if true
 	};
 
 	struct Explain
 	{
-		Vdbe *Vdbe;			// Attach the explanation to this Vdbe
+		Vdbe *Vdbe;				// Attach the explanation to this Vdbe
 		Text::StringBuilder Str; // The string being accumulated
-		int IndentLength;	// Number of elements in aIndent
-		uint16 Indents[100]; // Levels of indentation
-		char ZBase[100];	// Initial space
+		int IndentLength;		// Number of elements in aIndent
+		uint16 Indents[100];	// Levels of indentation
+		char ZBase[100];		// Initial space
 	};
 
 #define VDBE_MAGIC_INIT     0x26bceaa5    // Building a VDBE program

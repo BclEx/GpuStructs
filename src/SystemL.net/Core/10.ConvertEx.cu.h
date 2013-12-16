@@ -1,13 +1,27 @@
 ﻿namespace Core
 {
+	enum TEXTENCODE : uint8
+	{
+		TEXTENCODE_UTF8 = 1,
+		TEXTENCODE_UTF16LE = 2,
+		TEXTENCODE_UTF16BE = 3,
+		TEXTENCODE_UTF16 = 4, // Use native byte order
+		TEXTENCODE_ANY = 5, // sqlite3_create_function only
+		TEXTENCODE_UTF16_ALIGNED = 8, // sqlite3_create_collation only
+	};
+
 	class ConvertEx
 	{
 	public:
+#pragma region Varint
 		__device__ static int PutVarint(unsigned char *p, uint64 v);
 		__device__ static int PutVarint4(unsigned char *p, uint32 v);
 		__device__ static uint8 GetVarint(const unsigned char *p, uint64 *v);
 		__device__ static uint8 GetVarint4(const unsigned char *p, uint32 *v);
 		__device__ static int GetVarintLength(uint64 v);
+#pragma endregion
+		__device__ static bool Atof(const char *z, double *out, int length, TEXTENCODE encode);
+		__device__ static bool Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode);
 		__device__ inline static uint16 Get2nz(const uint8 *p) { return ((( (int)((p[0]<<8) | p[1]) -1)&0xffff)+1); }
 		__device__ inline static uint16 Get2(const uint8 *p) { return (p[0]<<8) | p[1]; }
 		__device__ inline static void Put2(unsigned char *p, uint32 v)
