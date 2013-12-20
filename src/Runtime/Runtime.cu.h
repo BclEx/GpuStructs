@@ -554,8 +554,8 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
-template <typename T> struct array_t { size_t length; T *data; __device__ inline array_t() { data = nullptr; length = 0; } __device__ inline array_t(T *a) { data = a; length = 0; } __device__ inline array_t(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; length = 0; } __device__ inline operator T *() { return data; } };
-template <typename TLength, typename T> struct array_t2 { TLength length; T *data; __device__ inline array_t2() { data = nullptr; length = 0; } __device__ inline array_t2(T *a) { data = a; length = 0; } __device__ inline array_t2(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; length = 0; } __device__ inline operator T *() { return data; } };
+template <typename T> struct array_t { size_t length; T *data; __device__ inline array_t() { data = nullptr; length = 0; } __device__ inline array_t(T *a) { data = a; length = 0; } __device__ inline array_t(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
+template <typename TLength, typename T> struct array_t2 { TLength length; T *data; __device__ inline array_t2() { data = nullptr; length = 0; } __device__ inline array_t2(T *a) { data = a; length = 0; } __device__ inline array_t2(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strcmp

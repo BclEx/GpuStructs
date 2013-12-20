@@ -125,6 +125,13 @@ namespace Core { namespace IO
 			return Write(ac, 4, offset);
 		}
 
+		__device__ inline RC CloseAndFree()
+		{
+			RC rc = Close();
+			SysEx::Free(this);
+			return rc;
+		}
+
 		// extensions
 #ifdef ENABLE_ATOMIC_WRITE
 		__device__ static RC JournalVFileOpen(VSystem *vfs, const char *name, VFile *file, VSystem::OPEN flags, int bufferLength);

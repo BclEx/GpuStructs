@@ -52,8 +52,8 @@ namespace Core
 		};
 
 
-		//VSystem *Vfs;				// OS Interface
-		//struct Vdbe *Vdbe;		// List of active virtual machines
+		VSystem *Vfs;				// OS Interface
+		//array_t<Vdbe> Vdbe;				// List of active virtual machines
 		//CollSeq *DefaultColl;		// The default collating sequence (BINARY)
 		MutexEx Mutex;
 		array_t<DB> DBs;			// All backends / Number of backends currently in use

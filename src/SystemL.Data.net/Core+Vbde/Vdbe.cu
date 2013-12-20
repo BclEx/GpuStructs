@@ -1,5 +1,4 @@
 // vdbe.c
-#include "Core+Vdbe.cu.h"
 #include "VdbeInt.cu.h"
 
 namespace Core

@@ -1,5 +1,4 @@
 // btree.h
-typedef struct Mem Mem;
 namespace Core
 {
 #define N_BTREE_META 10
@@ -8,11 +7,9 @@ namespace Core
 #define DEFAULT_AUTOVACUUM AUTOVACUUM_NONE
 #endif
 
-	typedef struct KeyInfo KeyInfo;
-	typedef struct UnpackedRecord UnpackedRecord;
-	typedef class Btree Btree;
-	typedef struct BtCursor BtCursor;
-	typedef struct BtShared BtShared;
+	struct Mem;
+	struct BtCursor;
+	struct BtShared;
 
 	struct KeyInfo
 	{
@@ -29,6 +26,8 @@ namespace Core
 		UNPACKED_PREFIX_MATCH = 0x02,	// A prefix match is considered OK
 		UNPACKED_PREFIX_SEARCH = 0x04,	// Ignore final (rowid) field
 	};
+	__device__ UNPACKED inline operator|=(UNPACKED a, int b) { return (UNPACKED)(a | b); }
+
 
 	struct UnpackedRecord
 	{

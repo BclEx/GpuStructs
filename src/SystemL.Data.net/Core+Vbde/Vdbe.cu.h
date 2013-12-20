@@ -188,7 +188,7 @@ namespace Core
 		array_t2<yVars, char *> VarNames;// Name of variables
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
-		RC RC;					// Value to return
+		RC RC_;					// Value to return
 		uint8 ErrorAction;      // Recovery action to do in case of an error
 		uint8 MinWriteFileFormat;  // Minimum file format for writable database files
 		bft HasExplain:2;          // True if EXPLAIN present on SQL command
@@ -281,13 +281,14 @@ namespace Core
 		__device__ static void MemStoreType(Mem *mem);
 		__device__ int TransferError();
 
-		__device__ static int SorterInit(Context *, VdbeCursor *);
-		__device__ static void SorterClose(Context *, VdbeCursor *);
-		__device__ static int SorterRowkey(const VdbeCursor *, Mem *);
-		__device__ static int SorterNext(Context *, const VdbeCursor *, int *);
-		__device__ static int SorterRewind(Context *, const VdbeCursor *, int *);
-		__device__ static int SorterWrite(Context *, const VdbeCursor *, Mem *);
-		__device__ static int SorterCompare(const VdbeCursor *, Mem *, int *);
+		// vbdesort
+		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor); //@
+		__device__ static void SorterClose(Context *db, VdbeCursor *cursor); //@
+		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem); //@
+		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof); //@
+		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof); //@
+		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem); //@
+		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r); //@
 
 #if !defined(OMIT_SHARED_CACHE) && THREADSAFE>0
 		__device__ void Enter();

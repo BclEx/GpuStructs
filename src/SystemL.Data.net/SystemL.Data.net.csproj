@@ -89,9 +89,9 @@
       <DependentUpon>Parse.yc</DependentUpon>
     </Content>
     <Content Include="Core+Table\Core+Table.cu.h" />
-    <Content Include="Core+Vbde\Core+Vdbe.cu.h" />
-    <Content Include="Core+Vbde\Vdbe.cu.h" />
-    <Content Include="Core+Vbde\VdbeInt.cu.h" />
+    <None Include="Core+Vbde\Core+Vdbe.cu.h" />
+    <None Include="Core+Vbde\Vdbe.cu.h" />
+    <None Include="Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Core+Btree\Btree.cu" />

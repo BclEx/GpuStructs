@@ -1,4 +1,5 @@
 // vdbeint.h
+#include "Core+Vdbe.cu.h"
 namespace Core
 {
 	struct VdbeOp;
@@ -100,7 +101,7 @@ namespace Core
 	};
 	MEM __device__ inline operator|=(MEM a, int b) { return (MEM)(a | b); }
 	MEM __device__ inline operator&=(MEM a, int b) { return (MEM)(a & b); }
-#define MemSetTypeFlag(p, f) ((p)->Flags = ((p)->Flags&~(MEM_TypeMask|MEM_Zero))|f)
+#define MemSetTypeFlag(p, f) (p->Flags = (MEM)((p->Flags&~(MEM_TypeMask|MEM_Zero))|(int)f))
 #ifdef _DEBUG
 #define memIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif
