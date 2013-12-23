@@ -396,7 +396,11 @@ do_atof_calc:
 			// if exponent, scale significand as appropriate and store in result.
 			if (e)
 			{
+#if __CUDACC__
+				double scale = 1.0;
+#else
 				long double scale = 1.0;
+#endif
 				// attempt to handle extremely small/large numbers better
 				if (e > 307 && e < 342)
 				{

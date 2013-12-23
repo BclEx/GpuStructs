@@ -89,6 +89,13 @@ namespace Core
 		__device__ inline static bool MemdebugNoType(void *p, MEMTYPE memType) { return true; }
 #endif
 
+		__device__ inline static void *TagRellocOrFree(void *tag, void *old, size_t newSize)
+		{
+			void *p = TagRealloc(tag, old, newSize);
+			if (!p) TagFree(tag, old);
+			return p;
+		}
+
 		__device__ inline static char *TagStrDup(void *tag, const char *z)
 		{
 			if (z == nullptr) return nullptr;

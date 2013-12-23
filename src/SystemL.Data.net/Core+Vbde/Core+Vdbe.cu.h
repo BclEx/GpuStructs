@@ -24,6 +24,11 @@ namespace Core
 
 #pragma endregion 
 
+	typedef void (*Destructor_t)(void *);
+#define DESTRUCTOR_STATIC ((Destructor_t)0)
+#define DESTRUCTOR_TRANSIENT ((Destructor_t)-1)
+#define DESTRUCTOR_DYNAMIC ((Destructor_t)sqlite3MallocSize)
+
 #pragma region Func
 
 	enum FUNC : uint8

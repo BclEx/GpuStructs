@@ -5,7 +5,7 @@ namespace Core {
 	struct CollSeq
 	{
 		char *Name;				// Name of the collating sequence, UTF-8 encoded
-		uint8 Enc;				// Text encoding handled by xCmp()
+		TEXTENCODE Encode;		// Text encoding handled by xCmp()
 		void *User;				// First argument to xCmp()
 		int (*Cmp)(void *, int, const void *, int, const void *);
 		void (*Del)(void *);	// Destructor for pUser

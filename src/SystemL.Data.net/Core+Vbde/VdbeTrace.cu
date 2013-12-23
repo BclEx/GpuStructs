@@ -1,8 +1,8 @@
 // vdbetrace.c
 #include "VdbeInt.cu.h"
 
-namespace Core
-{
+namespace Core {
+
 #pragma region Trace
 #ifndef OMIT_TRACE
 

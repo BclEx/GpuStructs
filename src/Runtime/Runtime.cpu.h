@@ -1,9 +1,15 @@
 #ifndef __RUNTIME_CPU_H__
 #define __RUNTIME_CPU_H__
 #include <stdio.h>
+#ifndef __device__
 #define __device__
+#endif
+#ifndef __constant__
 #define __constant__ const
+#endif
+#ifndef __shared__
 #define __shared__
+#endif
 #include <assert.h>
 //#include <string.h>
 #pragma warning(disable:4996)

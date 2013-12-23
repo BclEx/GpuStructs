@@ -1,7 +1,23 @@
 namespace Core
 {
-	typedef class Btree Btree;
-	typedef class Savepoint Savepoint;
+	class Btree;
+	struct Savepoint;
+
+	enum LIMIT
+	{
+		LIMIT_LENGTH = 0,
+		LIMIT_SQL_LENGTH = 1,
+		LIMIT_COLUMN = 2,
+		LIMIT_EXPR_DEPTH = 3,
+		LIMIT_COMPOUND_SELECT = 4,
+		LIMIT_VDBE_OP = 5,
+		LIMIT_FUNCTION_ARG = 6,
+		LIMIT_ATTACHED = 7,
+		LIMIT_LIKE_PATTERN_LENGTH = 8,
+		LIMIT_VARIABLE_NUMBER = 9,
+		LIMIT_TRIGGER_DEPTH = 10,
+		LIMIT_MAX_ = 11,
+	};
 
 	class Context
 	{
@@ -62,9 +78,11 @@ namespace Core
 		//unsigned int OpenFlags;	// Flags passed to sqlite3_vfs.xOpen()
 		RC ErrCode;					// Most recent error code (RC_*)
 		int ErrMask;				// & result codes with this before returning
-		
+
+		bool MallocFailed;			// True if we have seen a malloc failure
+
 		uint8 IsTransactionSavepoint;    // True if the outermost savepoint is a TS
-		//int Limits[SQLITE_N_LIMIT];	// Limits
+		int Limits[LIMIT_MAX_];	// Limits
 		int ActiveVdbeCnt;
 #ifndef OMIT_VIRTUALTABLE
 		Hash Modules;					// populated by sqlite3_create_module()

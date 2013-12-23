@@ -240,42 +240,56 @@ namespace Core
 		__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
 		__device__ static int IdxKeyCompare(VdbeCursor *, UnpackedRecord *, int *);
 		__device__ static int IdxRowid(Context *, BtCursor *, int64 *);
-		__device__ static int sqlite3MemCompare(const Mem *, const Mem *, const CollSeq *);
+		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll); //@.mem
 		__device__ int Exec();
 		__device__ int List();
 		__device__ int Halt();
-		__device__ static int ChangeEncoding(Mem *, int);
-		__device__ static int MemTooBig(Mem *);
-		__device__ static int MemCopy(Mem *, const Mem *);
-		__device__ static void MemShallowCopy(Mem *, const Mem *, int);
-		__device__ static void MemMove(Mem *, Mem *);
-		__device__ static int MemNulTerminate(Mem *);
-		__device__ static int MemSetStr(Mem *, const char*, int, uint8, void(*)(void *));
-		__device__ static void MemSetInt64(Mem *, int64);
+
+		// vdbemem
+		__device__ static RC ChangeEncoding(Mem *mem, TEXTENCODE newEncode); //@
+		__device__ static RC MemGrow(Mem *mem, size_t newSize, bool preserve); //@
+		__device__ static RC MemMakeWriteable(Mem *mem); //@
+#ifndef OMIT_INCRBLOB
+		__device__ static RC MemExpandBlob(Mem *mem); //@
+#define ExpandBlob(P) (((P)->Flags & MEM_Zero)?MemExpandBlob(P):0)
+#else
+#define MemExpandBlob(x) RC_OK
+#define ExpandBlob(P) RC_OK
+#endif
+		__device__ static RC MemNulTerminate(Mem *mem); //@
+		__device__ static RC MemStringify(Mem *mem, TEXTENCODE encode); //@
+		__device__ static RC MemFinalize(Mem *mem, FuncDef *func); //@
+		__device__ static void MemReleaseExternal(Mem *mem); //@
+		__device__ static void MemRelease(Mem *mem); //@
+		__device__ static int64 IntValue(Mem *mem); //@
+		__device__ static double RealValue(Mem *mem); //@
+		__device__ static void IntegerAffinity(Mem *mem); //@
+		__device__ static RC MemIntegerify(Mem *mem); //@
+		__device__ static RC MemRealify(Mem *mem); //@
+		__device__ static RC MemNumerify(Mem *mem); //@
+		__device__ static void MemSetNull(Mem *mem); //@
+		__device__ static void MemSetZeroBlob(Mem *mem, int n); //@
+		__device__ static void MemSetInt64(Mem *mem, int64 value); //@
 #ifdef OMIT_FLOATING_POINT
 #define MemSetDouble MemSetInt64
 #else
-		__device__ static void MemSetDouble(Mem *, double);
+		__device__ static void MemSetDouble(Mem *mem, double value); //@
 #endif
-		__device__ static void MemSetNull(Mem *);
-		__device__ static void MemSetZeroBlob(Mem *,int);
-		__device__ static void MemSetRowSet(Mem *);
-		__device__ static int MemMakeWriteable(Mem *);
-		__device__ static int MemStringify(Mem *, int);
-		__device__ static int64 IntValue(Mem *);
-		__device__ static int MemIntegerify(Mem *);
-		__device__ static double RealValue(Mem *);
-		__device__ static void IntegerAffinity(Mem *);
-		__device__ static int MemRealify(Mem *);
-		__device__ static int MemNumerify(Mem *);
-		__device__ static int MemFromBtree(BtCursor *, int, int, int, Mem *);
-		__device__ static void MemRelease(Mem *p);
-		__device__ static void MemReleaseExternal(Mem *p);
+		__device__ static void MemSetRowSet(Mem *mem); //@
+		__device__ static bool MemTooBig(Mem *mem); //@
+#ifdef _DEBUG
+		__device__ void MemAboutToChange(Vdbe *vdbe, Mem *mem); //@
+#endif
+		__device__ static void MemShallowCopy(Mem *to, const Mem *from, uint16 srcType); //@
+		__device__ static RC MemCopy(Mem *to, const Mem *from); //@
+		__device__ static void MemMove(Mem *to, Mem *from); //@
+		__device__ static RC MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *)); //@
+		__device__ static RC MemFromBtree(BtCursor *cursor, int offset, int amount, bool key, Mem *mem); //@
+
 #define VdbeMemRelease(X) if((X)->Flags&(MEM_Agg|MEM_Dyn|MEM_RowSet|MEM_Frame)) Vdbe::MemReleaseExternal(X);
-		__device__ static int MemFinalize(Mem *, FuncDef *);
+
 		__device__ static const char *sqlite3OpcodeName(int);
-		__device__ static int MemGrow(Mem *mem, int n, int preserve);
-		__device__ int sqlite3VdbeCloseStatement(Vdbe *, int);
+		__device__ int CloseStatement(Vdbe *, int);
 		__device__ static void FrameDelete(VdbeFrame *);
 		__device__ static int FrameRestore(VdbeFrame *);
 		__device__ static void MemStoreType(Mem *mem);
@@ -298,30 +312,16 @@ namespace Core
 #define sqlite3VdbeLeave(X)
 #endif
 
-#ifdef _DEBUG
-		__device__ void MemAboutToChange(Mem *);
-#endif
-
 #ifndef OMIT_FOREIGN_KEY
 		__device__ int CheckFk(int);
 #else
 #define CheckFk(i) 0
 #endif
-
-		__device__ static int MemTranslate(Mem*, uint8);
+		__device__ static RC MemTranslate(Mem *mem, TEXTENCODE encode);
 #ifdef _DEBUG
 		__device__ void PrintSql();
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif
-		__device__ static int MemHandleBom(Mem *mem);
-
-#ifndef OMIT_INCRBLOB
-		__device__ static int MemExpandBlob(Mem *);
-#define ExpandBlob(P) (((P)->Flags&MEM_Zero)?MemExpandBlob(P):0)
-#else
-#define MemExpandBlob(x) RC_OK
-#define ExpandBlob(P) RC_OK
-#endif
-
+		__device__ static RC MemHandleBom(Mem *mem);
 	};
 }

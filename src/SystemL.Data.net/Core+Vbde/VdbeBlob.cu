@@ -1,5 +1,5 @@
-#include "sqliteInt.h"
-#include "vdbeInt.h"
+// vdbeblob.cu
+#include "VdbeInt.cu.h"
 
 #pragma region Blob
 #ifndef OMIT_INCRBLOB

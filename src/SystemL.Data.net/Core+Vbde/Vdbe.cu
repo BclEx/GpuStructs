@@ -12,12 +12,12 @@ namespace Core
 #endif
 
 #ifdef TEST
-	int sqlite3_search_count = 0;
-	int sqlite3_interrupt_count = 0;
-	int sqlite3_sort_count = 0;
-	int sqlite3_max_blobsize = 0;
+	__device__ int sqlite3_search_count = 0;
+	__device__ int sqlite3_interrupt_count = 0;
+	__device__ int sqlite3_sort_count = 0;
+	__device__ int sqlite3_max_blobsize = 0;
 	__device__ static void updateMaxBlobsize(Mem *p) { if ((p->Flags & (MEM_Str|MEM_Blob)) != 0 && p->N > sqlite3_max_blobsize) sqlite3_max_blobsize = p->N; }
-	int sqlite3_found_count = 0;
+	__device__ int sqlite3_found_count = 0;
 #define UPDATE_MAX_BLOBSIZE(P) updateMaxBlobsize(P)
 #else
 #define UPDATE_MAX_BLOBSIZE(P)
