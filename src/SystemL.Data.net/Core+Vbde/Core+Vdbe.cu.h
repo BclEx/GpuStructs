@@ -27,7 +27,7 @@ namespace Core
 	typedef void (*Destructor_t)(void *);
 #define DESTRUCTOR_STATIC ((Destructor_t)0)
 #define DESTRUCTOR_TRANSIENT ((Destructor_t)-1)
-#define DESTRUCTOR_DYNAMIC ((Destructor_t)sqlite3MallocSize)
+#define DESTRUCTOR_DYNAMIC ((Destructor_t)SysEx::AllocSize)
 
 #pragma region Func
 
@@ -141,6 +141,18 @@ namespace Core
 	};
 
 #define sqlite3IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
+
+#pragma endregion
+
+#pragma region Mem
+
+	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
+	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
+	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);
+	__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
+	__device__ void Mem_Free(Mem *mem);
+	__device__ Mem *Mem_New(Context *db);
+	__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
 
 #pragma endregion
 

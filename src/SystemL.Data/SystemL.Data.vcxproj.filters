@@ -16,6 +16,9 @@
     <Filter Include="Core+Parse">
       <UniqueIdentifier>{6c903d71-a44c-4e72-a9ac-9925971f9116}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Core+Expr">
+      <UniqueIdentifier>{f494160b-8abd-433e-846e-d9c06c354a3b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
@@ -53,6 +56,9 @@
     </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Table\Core+Table.cu.h">
       <Filter>Core+Table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Expr\Core+Expr.cu.h">
+      <Filter>Core+Expr</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

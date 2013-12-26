@@ -186,7 +186,7 @@ namespace Core {
 			mem->Del((void *)mem->Z);
 			mem->Del = nullptr;
 		}
-		else if (mem->Flags & MEM_RowSet) sqlite3RowSetClear(mem->u.RowSet);
+		else if (mem->Flags & MEM_RowSet) RowSet_Clear(mem->u.RowSet);
 		else if (mem->Flags & MEM_Frame) MemSetNull(mem);
 	}
 
@@ -311,7 +311,7 @@ namespace Core {
 			frame->V->DelFrames = frame;
 		}
 		if (mem->Flags & MEM_RowSet)
-			sqlite3RowSetClear(mem->u.RowSet);
+			RowSet_Clear(mem->u.RowSet);
 		MemSetTypeFlag(mem, MEM_Null);
 		mem->Type = TYPE_NULL;
 	}
@@ -370,7 +370,7 @@ namespace Core {
 		else
 		{
 			_assert(mem->Malloc);
-			mem->u.RowSet = sqlite3RowSetInit(db, mem->Malloc, SysEx::TagAllocSize(db, mem->Malloc));
+			mem->u.RowSet = RowSet_Init(db, mem->Malloc, SysEx::TagAllocSize(db, mem->Malloc));
 			_assert(mem->u.RowSet != 0);
 			mem->Flags = MEM_RowSet;
 		}
@@ -462,7 +462,7 @@ namespace Core {
 			MemSetNull(mem);
 			return RC_OK;
 		}
-		int  limit = (mem->Db ? mem->Db->Limits[LIMIT_LENGTH] : MAX_LENGTH); // Maximum allowed string or blob size
+		int  limit = (mem->Db ? mem->Db->Limits[LIMIT_LENGTH] : CORE_MAX_LENGTH); // Maximum allowed string or blob size
 		MEM flags = (encode == 0 ? MEM_Blob : MEM_Str); // New value for pMem->flags
 		int bytes = n; // New value for pMem->n
 		if (bytes < 0)
@@ -560,9 +560,9 @@ namespace Core {
 				Mem c2; _memset(&c2, 0, sizeof(c2));
 				Vdbe::MemShallowCopy(&c1, mem1, MEM_Ephem);
 				Vdbe::MemShallowCopy(&c2, mem2, MEM_Ephem);
-				const void *v1 = sqlite3ValueText(&c1, coll->Encode);
+				const void *v1 = Mem_Text(&c1, coll->Encode);
 				int n1 = (!v1 ? 0 : c1.N);
-				const void *v2 = sqlite3ValueText(&c2, coll->Encode);
+				const void *v2 = Mem_Text(&c2, coll->Encode);
 				int n2 = (!v2 ? 0 : c2.N);
 				r = coll->Cmp(coll->User, n1, v1, n2, v2);
 				Vdbe::MemRelease(&c1);
@@ -610,7 +610,7 @@ namespace Core {
 		return rc;
 	}
 
-	__device__ const void *sqlite3ValueText(Mem *mem, TEXTENCODE encode)
+	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode)
 	{
 		if (!mem) return nullptr;
 		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
@@ -641,7 +641,7 @@ namespace Core {
 	}
 
 
-	__device__ Mem *sqlite3ValueNew(Context *db)
+	__device__ Mem *Mem_New(Context *db)
 	{
 		Mem *p = (Mem *)SysEx::TagAlloc(db, sizeof(*p));
 		if (p)
@@ -653,7 +653,7 @@ namespace Core {
 		return p;
 	}
 
-	__device__ RC sqlite3ValueFromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
+	__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
 	{
 		if (!expr)
 		{
@@ -691,7 +691,7 @@ namespace Core {
 			{
 				memAsString = sqlite3MPrintf(db, "%s%s", neg, expr->u.Token);
 				if (!memAsString) goto no_mem;
-				sqlite3ValueSetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
+				Mem_SetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
 				if (op == TK_FLOAT) mem->Type = TYPE_FLOAT;
 			}
 			if ((op == TK_INTEGER || op == TK_FLOAT) && affinity == AFF_NONE)
@@ -746,26 +746,26 @@ namespace Core {
 no_mem:
 		db->MallocFailed = true;
 		SysEx::TagFree(db, memAsString);
-		sqlite3ValueFree(mem);
+		Mem_Free(mem);
 		*value = nullptr;
 		return RC_NOMEM;
 	}
 
-	__device__ void sqlite3ValueSetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *))
+	__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *))
 	{
 		if (mem) Vdbe::MemSetStr(mem, (const char *)z, n, encode, del);
 	}
 
-	__device__ void sqlite3ValueFree(Mem *mem)
+	__device__ void Mem_Free(Mem *mem)
 	{
 		if (!mem) return;
 		Vdbe::MemRelease(mem);
 		SysEx::TagFree(mem->Db, mem);
 	}
 
-	__device__ int sqlite3ValueBytes(Mem *mem, TEXTENCODE encode)
+	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode)
 	{
-		if ((mem->Flags & MEM_Blob) != 0 || sqlite3ValueText(mem, encode))
+		if ((mem->Flags & MEM_Blob) != 0 || Mem_Text(mem, encode))
 			return (mem->Flags & MEM_Zero ? mem->N + mem->u.Zero : mem->N);
 		return 0;
 	}

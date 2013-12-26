@@ -43,6 +43,7 @@
     <Compile Include="Core+Btree\Btree_h.cs" />
     <Compile Include="Core+Btree\Context_h.cs" />
     <Compile Include="Core+Btree\Core+Btree_h.cs" />
+    <Compile Include="Core+Expr\Core+Expr_h.cs" />
     <Compile Include="Core+Pager\Core+Pager_h.cs" />
     <Compile Include="Core+Pager\Pager.cs" />
     <Compile Include="Core+Pager\Pager_h.cs" />
@@ -51,6 +52,7 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Content Include="Core+Expr\Core+Expr.cu.h" />
     <Content Include="Core+Parse\Parse1.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

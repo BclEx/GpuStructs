@@ -27,6 +27,7 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\BtreeInt.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Context.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Core+Btree.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Expr\Core+Expr.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Core+Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h" />

@@ -3,6 +3,9 @@
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
+#ifdef HAVE_ISNAN
+#include <math.h>
+#endif
 #include "Runtime.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -615,5 +618,34 @@ __device__ inline int _strlen30(const char *z)
 	while (*z2) { z2++; }
 	return 0x3fffffff & (int)(z2 - z);
 }
+
+#ifndef OMIT_FLOATING_POINT
+__device__ inline int _isNaN(double x)
+{
+#if !defined(HAVE_ISNAN)
+	// Systems that support the isnan() library function should probably make use of it by compiling with -DHAVE_ISNAN.  But we have
+	// found that many systems do not have a working isnan() function so this implementation is provided as an alternative.
+	//
+	// This NaN test sometimes fails if compiled on GCC with -ffast-math. On the other hand, the use of -ffast-math comes with the following
+	// warning:
+	//
+	//      This option [-ffast-math] should never be turned on by any -O option since it can result in incorrect output for programs
+	//      which depend on an exact implementation of IEEE or ISO rules/specifications for math functions.
+	//
+	// Under MSVC, this NaN test may fail if compiled with a floating-point precision mode other than /fp:precise.  From the MSDN 
+	// documentation:
+	//
+	//      The compiler [with /fp:precise] will properly handle comparisons involving NaN. For example, x != x evaluates to true if x is NaN 
+#ifdef __FAST_MATH__
+#error Runtime will not work correctly with the -ffast-math option of GCC.
+#endif
+	volatile double y = x;
+	volatile double z = y;
+	return (y != z);
+#else
+	return isnan(x);
+#endif
+}
+#endif
 
 #endif // __RUNTIME_CU_H__

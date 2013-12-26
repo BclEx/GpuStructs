@@ -94,7 +94,7 @@ namespace Core
 		Savepoint *Savepoint;        // List of active savepoints
 		int Savepoints;				// Number of non-transaction savepoints
 
-		__device__ int InvokeBusyHandler()
+		__device__ inline int InvokeBusyHandler()
 		{
 			if (SysEx_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
 				return 0;
@@ -105,6 +105,20 @@ namespace Core
 				BusyHandler->Busys++;
 			return rc;
 		}
+
+		//__device__ inline static RC ApiExit(Context *ctx, RC rc)
+		//{
+		//	// If the db handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
+		//	// is unsafe, as is the call to sqlite3Error().
+		//	_assert(!ctx || MutexEx::Held(ctx->Mutex) );
+		//	if (ctx && (ctx->MallocFailed || rc == RC_IOERR_NOMEM))
+		//	{
+		//		sqlite3Error(db, RC_NOMEM, 0);
+		//		ctx->MallocFailed = false;
+		//		rc = RC_NOMEM;
+		//	}
+		//	return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
+		//}
 
 		// HOOKS
 #if ENABLE_UNLOCK_NOTIFY

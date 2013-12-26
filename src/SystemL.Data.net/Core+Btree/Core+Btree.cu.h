@@ -1,7 +1,8 @@
 ﻿#include "../Core+Pager/Core+Pager.cu.h"
+namespace Core {
 
 #pragma region CollSeq
-namespace Core {
+
 	struct CollSeq
 	{
 		char *Name;				// Name of the collating sequence, UTF-8 encoded
@@ -41,14 +42,16 @@ namespace Core {
 		SCHEMA Flags;		// Flags associated with this schema
 		int CacheSize;		// Number of pages to use in the cache
 	};
-}
+
 #pragma endregion
+}
 
 #include "Context.cu.h"
 #include "Btree.cu.h"
 
-#pragma region IVdbe
 namespace Core {
+#pragma region IVdbe
+
 	class IVdbe
 	{
 	public:
@@ -57,5 +60,6 @@ namespace Core {
 		__device__ virtual void DeleteUnpackedRecord(UnpackedRecord *r);
 		__device__ virtual int RecordCompare(int cells, const void *cellKey, UnpackedRecord *idxKey);
 	};
-}
+
 #pragma endregion
+}

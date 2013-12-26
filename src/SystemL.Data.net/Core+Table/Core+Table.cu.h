@@ -1,6 +1,113 @@
 ﻿#include "../Core+Btree/Core+Btree.cu.h"
 namespace Core
 {
+	struct VTable;
+	struct Trigger;
+
+	struct Module
+	{
+		const ITableModule *Module;       // Callback pointers
+		const char *Name;                   // Name passed to create_module()
+		void *Aux;                          // pAux passed to create_module()
+		void (*Destroy)(void *);            // Module destructor function
+	};
+
+	enum COLFLAG : uint16
+	{
+		COLFLAG_PRIMKEY = 0x0001,    // Column is part of the primary key
+		COLFLAG_HIDDEN = 0x0002,    // A hidden column in a virtual table
+	};
+
+	struct Column
+	{
+		char *Name;     // Name of this column
+		Expr *Dflt;     // Default value of this column
+		char *DfltName; // Original text of the default value
+		char *zType;     // Data type for this column
+		char *zColl;     // Collating sequence.  If NULL, use the default
+		uint8 NotNull;      // An OE_ code for handling a NOT NULL constraint
+		char Affinity;   // One of the SQLITE_AFF_... values
+		COLFLAG ColFlags;    // Boolean properties.  See COLFLAG_ defines below
+	};
+
+	struct VTable
+	{
+		Context *Db;            // Database connection associated with this table
+		Module *Module;			// Pointer to module implementation
+		VTable *VTable;			// Pointer to vtab instance
+		int Refs;               // Number of pointers to this structure
+		bool Constraint;        // True if constraints are supported
+		int Savepoint;          // Depth of the SAVEPOINT stack
+		VTable *Next;			// Next in linked list (see above)
+	};
+
+	struct FKey
+	{
+		Table *pFrom;     /* Table containing the REFERENCES clause (aka: Child) */
+		FKey *pNextFrom;  /* Next foreign key in pFrom */
+		char *zTo;        /* Name of table that the key points to (aka: Parent) */
+		FKey *pNextTo;    /* Next foreign key on table named zTo */
+		FKey *pPrevTo;    /* Previous foreign key on table named zTo */
+		int nCol;         /* Number of columns in this key */
+		/* EV: R-30323-21917 */
+		uint8 isDeferred;    /* True if constraint checking is deferred till COMMIT */
+		uint8 aAction[2];          /* ON DELETE and ON UPDATE actions, respectively */
+		Trigger *apTrigger[2];  /* Triggers for aAction[] actions */
+		struct sColMap {  /* Mapping of columns in pFrom to columns in zTo */
+			int iFrom;         /* Index of column in pFrom */
+			char *zCol;        /* Name of column in zTo.  If 0 use PRIMARY KEY */
+		} aCol[1];        /* One entry for each of nCol column s */
+	};
+
+	enum TF : uint8
+	{
+		TF_Readonly = 0x01,    // Read-only system table
+		TF_Ephemeral = 0x02,    // An ephemeral table
+		TF_HasPrimaryKey = 0x04,    // Table has a primary key
+		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
+		TF_Virtual = 0x10,    // Is a virtual table
+	};
+
+	struct Table
+	{
+		char *zName;         /* Name of the table or view */
+		Column *aCol;        /* Information about each column */
+		Index *pIndex;       /* List of SQL indexes on this table. */
+		Select *pSelect;     /* NULL for tables.  Points to definition if a view. */
+		FKey *pFKey;         /* Linked list of all foreign keys in this table */
+		char *zColAff;       /* String defining the affinity of each column */
+#ifndef SQLITE_OMIT_CHECK
+		ExprList *pCheck;    /* All CHECK constraints */
+#endif
+		tRowcnt nRowEst;     /* Estimated rows in table - from sqlite_stat1 table */
+		int tnum;            /* Root BTree node for this table (see note above) */
+		i16 iPKey;           /* If not negative, use aCol[iPKey] as the primary key */
+		i16 nCol;            /* Number of columns in this table */
+		u16 nRef;            /* Number of pointers to this Table */
+		TF tabFlags;         /* Mask of TF_* values */
+		u8 keyConf;          /* What to do in case of uniqueness conflict on iPKey */
+#ifndef OMIT_ALTERTABLE
+		int addColOffset;    /* Offset in CREATE TABLE stmt to add a new column */
+#endif
+#ifndef OMIT_VIRTUALTABLE
+		int nModuleArg;      /* Number of arguments to the module */
+		char **azModuleArg;  /* Text of all module args. [0] is module name */
+		VTable *pVTable;     /* List of VTable objects. */
+#endif
+		Trigger *pTrigger;   /* List of triggers stored in pSchema */
+		Schema *pSchema;     /* Schema that contains this table */
+		Table *pNextZombie;  /* Next on the Parse.pZombieTab list */
+	};
+
+#ifndef OMIT_VIRTUALTABLE
+#define IsVirtual(X)      (((X)->tabFlags & TF_Virtual)!=0)
+#define IsHiddenColumn(X) (((X)->colFlags & COLFLAG_HIDDEN)!=0)
+#else
+#define IsVirtual(X)      0
+#define IsHiddenColumn(X) 0
+#endif
+
+
 
 #pragma region Table
 
@@ -95,6 +202,17 @@ namespace Core
 
 	int sqlite3_declare_vtab(Context *, const char *sql);
 	int sqlite3_overload_function(Context *, const char *funcName, int args);
+
+#pragma endregion
+
+#pragma region Rowset
+
+	struct RowSet;
+	__device__ RowSet *RowSet_Init(Context *db, void *space, unsigned int n);
+	__device__ void RowSet_Clear(RowSet *p);
+	__device__ void RowSet_Insert(RowSet *p, int64 rowid);
+	__device__ bool RowSet_Test(RowSet *rowSet, uint8 batch, int64 rowid);
+	__device__ bool RowSet_Next(RowSet *p, int64 *rowid);
 
 #pragma endregion
 

@@ -34,4 +34,4 @@ typedef unsigned long long	uint64;
 #define TYPE_LITTLEENDIAN (*(char *)(&__one) == 1)
 #endif
 
-#endif /* __CORE_TYPES_H__ */
+#endif // __CORE_TYPES_H__

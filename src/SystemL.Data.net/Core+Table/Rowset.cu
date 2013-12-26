@@ -5,17 +5,17 @@ namespace Core
 	struct RowSetEntry
 	{            
 		int64 V;                    // ROWID value for this entry
-		struct RowSetEntry *Right;	// Right subtree (larger entries) or list
-		struct RowSetEntry *Left;	// Left subtree (smaller entries)
+		RowSetEntry *Right;	// Right subtree (larger entries) or list
+		RowSetEntry *Left;	// Left subtree (smaller entries)
 	};
 
 #define ROWSET_ALLOCATION_SIZE 1024
-#define ROWSET_ENTRY_PER_CHUNK ((ROWSET_ALLOCATION_SIZE-8)/sizeof(struct RowSetEntry))
+#define ROWSET_ENTRY_PER_CHUNK ((ROWSET_ALLOCATION_SIZE-8)/sizeof(RowSetEntry))
 
 	struct RowSetChunk
 	{
-		struct RowSetChunk *NextChunk; // Next chunk on list of them all
-		struct RowSetEntry Entrys[ROWSET_ENTRY_PER_CHUNK]; // Allocated entries
+		RowSetChunk *NextChunk; // Next chunk on list of them all
+		RowSetEntry Entrys[ROWSET_ENTRY_PER_CHUNK]; // Allocated entries
 	};
 
 	enum ROWSET : uint8
@@ -28,17 +28,17 @@ namespace Core
 
 	struct RowSet
 	{
-		struct RowSetChunk *Chunk;		// List of all chunk allocations
+		RowSetChunk *Chunk;		// List of all chunk allocations
 		Context *Db;					// The database connection
-		struct RowSetEntry *Entry;		// List of entries using pRight
-		struct RowSetEntry *Last;		// Last entry on the pEntry list
-		array_t<struct RowSetEntry> Fresh;  // Source of new entry objects
-		struct RowSetEntry *Forest;		// List of binary trees of entries
+		RowSetEntry *Entry;		// List of entries using pRight
+		RowSetEntry *Last;		// Last entry on the pEntry list
+		array_t<RowSetEntry> Fresh;  // Source of new entry objects
+		RowSetEntry *Forest;		// List of binary trees of entries
 		ROWSET Flags;                    // Various flags
 		uint8 Batch;                    // Current insert batch
 	};
 
-	__device__ RowSet *sqlite3RowSetInit(Context *db, void *space, unsigned int n)
+	__device__ RowSet *RowSet_Init(Context *db, void *space, unsigned int n)
 	{
 		_assert(n >= SysEx_ROUND8(sizeof(RowSet **)));
 		RowSet *p = (RowSet *)space;
@@ -48,13 +48,13 @@ namespace Core
 		p->Last = nullptr;
 		p->Forest = nullptr;
 		p->Fresh = (struct RowSetEntry *)(SysEx_ROUND8(sizeof(*p)) + (char *)p);
-		p->Fresh.length = (uint16)((n - SysEx_ROUND8(sizeof(*p))) / sizeof(struct RowSetEntry));
+		p->Fresh.length = (uint16)((n - SysEx_ROUND8(sizeof(*p))) / sizeof(RowSetEntry));
 		p->Flags = ROWSET_SORTED;
 		p->Batch = 0;
 		return p;
 	}
 
-	__device__ void sqlite3RowSetClear(RowSet *p)
+	__device__ void RowSet_Clear(RowSet *p)
 	{
 		struct RowSetChunk *chunk, *nextChunk;
 		for (chunk = p->Chunk; chunk; chunk = nextChunk)
@@ -70,12 +70,12 @@ namespace Core
 		p->Flags = ROWSET_SORTED;
 	}
 
-	__device__ static struct RowSetEntry *rowSetEntryAlloc(RowSet *p)
+	__device__ static RowSetEntry *rowSetEntryAlloc(RowSet *p)
 	{
 		_assert(p);
 		if (!p->Fresh.length)
 		{
-			struct RowSetChunk *newChunk = (struct RowSetChunk *)SysEx::TagAlloc(p->Db, sizeof(*newChunk));
+			RowSetChunk *newChunk = (RowSetChunk *)SysEx::TagAlloc(p->Db, sizeof(*newChunk));
 			if (!newChunk)
 				return nullptr;
 			newChunk->NextChunk = p->Chunk;
@@ -87,16 +87,16 @@ namespace Core
 		return p->Fresh.data++;
 	}
 
-	__device__ void sqlite3RowSetInsert(RowSet *p, int64 rowid)
+	__device__ void RowSet_Insert(RowSet *p, int64 rowid)
 	{
 		// This routine is never called after sqlite3RowSetNext()
 		_assert(p && (p->Flags & ROWSET_NEXT) == 0);
 
-		struct RowSetEntry *entry = rowSetEntryAlloc(p); // The new entry
+		RowSetEntry *entry = rowSetEntryAlloc(p); // The new entry
 		if (!entry) return;
 		entry->V = rowid;
 		entry->Right = nullptr;
-		struct RowSetEntry *last = p->Last; // The last prior entry
+		RowSetEntry *last = p->Last; // The last prior entry
 		if (last)
 		{
 			if ((p->Flags & ROWSET_SORTED) != 0 && rowid <= last->V)
@@ -108,10 +108,10 @@ namespace Core
 		p->Last = entry;
 	}
 
-	__device__ static struct RowSetEntry *rowSetEntryMerge(struct RowSetEntry *a, struct RowSetEntry *b)
+	__device__ static RowSetEntry *rowSetEntryMerge(RowSetEntry *a, RowSetEntry *b)
 	{
-		struct RowSetEntry head;
-		struct RowSetEntry *tail = &head;
+		RowSetEntry head;
+		RowSetEntry *tail = &head;
 		while (a && b)
 		{
 			_assert(!a->Right || a->V <= a->Right->V);
@@ -144,10 +144,10 @@ namespace Core
 		return head.Right;
 	}
 
-	__device__ static struct RowSetEntry *rowSetEntrySort(struct RowSetEntry *p)
+	__device__ static RowSetEntry *rowSetEntrySort(RowSetEntry *p)
 	{
 		unsigned int i;
-		struct RowSetEntry *next, *buckets[40];
+		RowSetEntry *next, *buckets[40];
 		_memset(buckets, 0, sizeof(buckets));
 		while (p)
 		{
@@ -167,12 +167,12 @@ namespace Core
 		return p;
 	}
 
-	__device__ static void rowSetTreeToList(struct RowSetEntry *parent, struct RowSetEntry **first, struct RowSetEntry **last)
+	__device__ static void rowSetTreeToList(RowSetEntry *parent, RowSetEntry **first, RowSetEntry **last)
 	{
 		_assert(parent);
 		if (parent->Left)
 		{
-			struct RowSetEntry *p;
+			RowSetEntry *p;
 			rowSetTreeToList(parent->Left, first, &p);
 			p->Right = parent;
 		}
@@ -185,12 +185,12 @@ namespace Core
 		_assert(!(*last)->Right);
 	}
 
-	__device__ static struct RowSetEntry *rowSetNDeepTree(struct RowSetEntry **list, int depth)
+	__device__ static RowSetEntry *rowSetNDeepTree(RowSetEntry **list, int depth)
 	{
 		if (!*list)
 			return nullptr;
-		struct RowSetEntry *p; // Root of the new tree
-		struct RowSetEntry *left; // Left subtree
+		RowSetEntry *p; // Root of the new tree
+		RowSetEntry *left; // Left subtree
 		if (depth == 1)
 		{
 			p = *list;
@@ -208,15 +208,15 @@ namespace Core
 		return p;
 	}
 
-	__device__ static struct RowSetEntry *rowSetListToTree(struct RowSetEntry *list)
+	__device__ static RowSetEntry *rowSetListToTree(RowSetEntry *list)
 	{
 		_assert(list);
-		struct RowSetEntry *p = list; // Current tree root
+		RowSetEntry *p = list; // Current tree root
 		list = p->Right;
 		p->Left = p->Right = nullptr;
 		for (int depth = 1; list; depth++)
 		{
-			struct RowSetEntry *left = p; // Left subtree
+			RowSetEntry *left = p; // Left subtree
 			p = list;
 			list = p->Right;
 			p->Left = left;
@@ -237,10 +237,10 @@ namespace Core
 #if 0
 		while (p->Forest)
 		{
-			struct RowSetEntry *tree = p->Forest->Left;
+			RowSetEntry *tree = p->Forest->Left;
 			if (tree)
 			{
-				struct RowSetEntry *head, *tail;
+				RowSetEntry *head, *tail;
 				rowSetTreeToList(tree, &head, &tail);
 				p->Entry = rowSetEntryMerge(p->Entry, head);
 			}
@@ -250,7 +250,7 @@ namespace Core
 		p->Flags |= ROWSET_NEXT; // Verify this routine is never called again
 	}
 
-	__device__ bool sqlite3RowSetNext(RowSet *p, int64 *rowid)
+	__device__ bool RowSet_Next(RowSet *p, int64 *rowid)
 	{
 		_assert(p);
 
@@ -269,19 +269,19 @@ namespace Core
 		return false;
 	}
 
-	__device__ bool sqlite3RowSetTest(RowSet *rowSet, uint8 batch, int64 rowid)
+	__device__ bool RowSet_Test(RowSet *rowSet, uint8 batch, int64 rowid)
 	{
 		// This routine is never called after sqlite3RowSetNext()
 		_assert(rowSet && (rowSet->Flags & ROWSET_NEXT) == 0);
 
 		// Sort entries into the forest on the first test of a new batch 
-		struct RowSetEntry *p, *tree;
+		RowSetEntry *p, *tree;
 		if (batch != rowSet->Batch)
 		{
 			p = rowSet->Entry;
 			if (p)
 			{
-				struct RowSetEntry **prevTree = &rowSet->Forest;
+				RowSetEntry **prevTree = &rowSet->Forest;
 				if ((rowSet->Flags & ROWSET_SORTED) == 0)
 					p = rowSetEntrySort(p);
 				for (tree = rowSet->Forest; tree; tree = tree->Right)
@@ -294,7 +294,7 @@ namespace Core
 					}
 					else
 					{
-						struct RowSetEntry *aux, *tail;
+						RowSetEntry *aux, *tail;
 						rowSetTreeToList(tree->Left, &aux, &tail);
 						tree->Left = nullptr;
 						p = rowSetEntryMerge(aux, p);

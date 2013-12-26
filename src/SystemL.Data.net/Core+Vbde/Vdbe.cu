@@ -106,7 +106,7 @@ namespace Core
 		}
 	}
 
-	__device__ static void applyAffinity(Mem *rec, char affinity, TEXTENCODE encode)
+	__device__ static void applyAffinity(Mem *rec, uint8 affinity, TEXTENCODE encode)
 	{
 		if (affinity == AFF_TEXT)
 		{
@@ -134,14 +134,14 @@ namespace Core
 		return mem->Type;
 	}
 
-	__device__ void sqlite3ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
+	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
 	{
 		applyAffinity(mem, affinity, encode);
 	}
 
 #ifdef _DEBUG
 	__constant__ static const char *const encnames[] = {"(X)", "(8)", "(16LE)", "(16BE)"};
-	__device__ void sqlite3VdbeMemPrettyPrint(Mem *mem, char *buf)
+	__device__ void Vdbe::MemPrettyPrint(Mem *mem, char *buf)
 	{	
 		char *csr = buf;
 

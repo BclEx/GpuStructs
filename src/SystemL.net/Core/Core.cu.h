@@ -4,6 +4,14 @@
 #include <Runtime.cpu.h>
 #endif
 
+#pragma region Limits
+
+#ifndef CORE_MAX_LENGTH
+#define CORE_MAX_LENGTH 1000000000
+#endif
+
+#pragma endregion
+
 #if defined(__GNUC__) && 0
 #define likely(X)    __builtin_expect((X),1)
 #define unlikely(X)  __builtin_expect((X),0)
