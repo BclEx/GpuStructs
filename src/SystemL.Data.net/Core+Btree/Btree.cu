@@ -62,7 +62,7 @@ namespace Core
 
 		// If the client is reading  or writing an index and the schema is not loaded, then it is too difficult to actually check to see if
 		// the correct locks are held.  So do not bother - just return true. This case does not come up very often anyhow.
-		ISchema *schema = btree->Bt->Schema;
+		Schema *schema = btree->Bt->Schema;
 		if (isIndex && (!schema || (schema->Flags & SCHEMA_SchemaLoaded) == 0))
 			return true;
 
@@ -6086,13 +6086,13 @@ cleardatabasepage_out:
 		return (Backups != 0);
 	}
 
-	__device__ ISchema *Btree::Schema(int bytes, void (*free)(void *))
+	__device__ Schema *Btree::Schema(int bytes, void (*free)(void *))
 	{
 		BtShared *bt = Bt;
 		Enter();
 		if (!bt->Schema && bytes)
 		{
-			bt->Schema = (ISchema *)SysEx::TagAlloc(nullptr, bytes, true);
+			bt->Schema = (Core::Schema *)SysEx::TagAlloc(nullptr, bytes, true);
 			bt->FreeSchema = free;
 		}
 		Leave();

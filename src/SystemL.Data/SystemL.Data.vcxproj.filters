@@ -10,14 +10,8 @@
     <Filter Include="Core+Vbde">
       <UniqueIdentifier>{ca606226-a182-4a7f-90d9-b6d75c488bc5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core+Table">
+    <Filter Include="Core+Syntax">
       <UniqueIdentifier>{1f9ce095-e008-42de-ba6a-22b00149cfb5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core+Parse">
-      <UniqueIdentifier>{6c903d71-a44c-4e72-a9ac-9925971f9116}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core+Expr">
-      <UniqueIdentifier>{f494160b-8abd-433e-846e-d9c06c354a3b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -54,11 +48,8 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h">
       <Filter>Core+Vbde</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.Data.net\Core+Table\Core+Table.cu.h">
-      <Filter>Core+Table</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.Data.net\Core+Expr\Core+Expr.cu.h">
-      <Filter>Core+Expr</Filter>
+    <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Core+Syntax.cu.h">
+      <Filter>Core+Syntax</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -98,14 +89,14 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu">
       <Filter>Core+Vbde</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu">
-      <Filter>Core+Table</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu">
+      <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu">
-      <Filter>Core+Table</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu">
+      <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\Table.cu">
-      <Filter>Core+Table</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu">
+      <Filter>Core+Syntax</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

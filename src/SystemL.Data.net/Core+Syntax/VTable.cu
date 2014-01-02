@@ -1,5 +1,8 @@
 #ifndef OMIT_VIRTUALTABLE
-#include "Core+Table.cu.h"
+#include "Core+Syntax.cu.h"
+
+namespace Core
+{
 
 struct VTableContext
 {
@@ -7,7 +10,7 @@ struct VTableContext
 	Table *Table;		// The Table object to which the virtual table belongs
 };
 
-__device__ static RCt sqlite3_create_module(Context *db, const char *name, const ITableModule *module, void *aux, void (*destroy)(void *))
+__device__ static RC sqlite3_create_module(Context *db, const char *name, const ITableModule *module, void *aux, void (*destroy)(void *))
 {
 	RC rc = RC_OK;
 	MutexEx::Enter(db->Mutex);
@@ -34,7 +37,7 @@ __device__ static RCt sqlite3_create_module(Context *db, const char *name, const
 			}
 		}
 	}
-	rc = sqlite3ApiExit(db, rc);
+	rc = SysEx::ApiExit(db, rc);
 	if (rc != RC_OK && destroy) destroy(aux);
 	MutexEx::Leave(db->Mutex);
 	return rc;
@@ -1043,4 +1046,5 @@ int sqlite3_vtab_config(sqlite3 *db, int op, ...){
 	return rc;
 }
 
+}
 #endif

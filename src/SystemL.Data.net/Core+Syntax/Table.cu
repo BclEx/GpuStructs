@@ -1,5 +1,5 @@
 #ifndef OMIT_GET_TABLE
-#include "Core+Table.cu.h"
+#include "Core+Syntax.cu.h"
 #include <stdlib.h>
 #include <string.h>
 

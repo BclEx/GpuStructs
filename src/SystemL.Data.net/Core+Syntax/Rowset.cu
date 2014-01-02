@@ -1,4 +1,4 @@
-#include "Core+Table.cu.h"
+#include "Core+Syntax.cu.h"
 
 namespace Core
 {
@@ -263,7 +263,7 @@ namespace Core
 			*rowid = p->Entry->V;
 			p->Entry = p->Entry->Right;
 			if (!p->Entry)
-				sqlite3RowSetClear(p);
+				RowSet::Clear(p);
 			return true;
 		}
 		return false;

@@ -27,12 +27,11 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\BtreeInt.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Context.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Core+Btree.cu.h" />
-    <ClInclude Include="..\SystemL.Data.net\Core+Expr\Core+Expr.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Core+Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h" />
-    <ClInclude Include="..\SystemL.Data.net\Core+Table\Core+Table.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Core+Syntax.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h" />
@@ -43,9 +42,9 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\Table.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -64,9 +63,9 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Table\Rowset.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Table\Table.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Table\VTable.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />
@@ -118,7 +117,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;OMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

@@ -37,7 +37,7 @@ namespace Core
 			Btree *Bt;					// The B*Tree structure for this database file
 			uint8 InTrans;				// 0: not writable.  1: Transaction.  2: Checkpoint
 			uint8 SafetyLevel;			// How aggressive at syncing data to disk
-			ISchema *Schema;			// Pointer to database schema (possibly shared)
+			Schema *Schema;			// Pointer to database schema (possibly shared)
 		};
 
 		enum FLAG : uint32

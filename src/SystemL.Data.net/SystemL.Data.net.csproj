@@ -43,7 +43,6 @@
     <Compile Include="Core+Btree\Btree_h.cs" />
     <Compile Include="Core+Btree\Context_h.cs" />
     <Compile Include="Core+Btree\Core+Btree_h.cs" />
-    <Compile Include="Core+Expr\Core+Expr_h.cs" />
     <Compile Include="Core+Pager\Core+Pager_h.cs" />
     <Compile Include="Core+Pager\Pager.cs" />
     <Compile Include="Core+Pager\Pager_h.cs" />
@@ -52,16 +51,15 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
-    <Content Include="Core+Expr\Core+Expr.cu.h" />
-    <Content Include="Core+Parse\Parse1.cs">
+    <Content Include="Parse1.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Parse.y</DependentUpon>
     </Content>
-    <Compile Include="Core+Table\Core+Table_h.cs" />
-    <Compile Include="Core+Table\Rowset.cs" />
-    <Compile Include="Core+Table\Table.cs" />
-    <Compile Include="Core+Table\VTable.cs" />
+    <Compile Include="Core+Syntax\Core+Syntax_h.cs" />
+    <Compile Include="Core+Syntax\Rowset.cs" />
+    <Compile Include="Core+Syntax\Table.cs" />
+    <Compile Include="Core+Syntax\VTable.cs" />
     <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
     <None Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
@@ -82,15 +80,15 @@
     <Content Include="Core+Pager\Pager.cu.h" />
     <Content Include="Core+Pager\PCache.cu.h" />
     <Content Include="Core+Pager\Wal.cu.h" />
-    <Content Include="Core+Parse\Parse.c">
+    <Content Include="Parse.c">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Parse.yc</DependentUpon>
     </Content>
-    <Content Include="Core+Parse\Parse.h">
+    <Content Include="Parse.h">
       <DependentUpon>Parse.yc</DependentUpon>
     </Content>
-    <Content Include="Core+Table\Core+Table.cu.h" />
+    <Content Include="Core+Syntax\Core+Syntax.cu.h" />
     <None Include="Core+Vbde\Core+Vdbe.cu.h" />
     <None Include="Core+Vbde\Vdbe.cu.h" />
     <None Include="Core+Vbde\VdbeInt.cu.h" />
@@ -101,23 +99,23 @@
     <None Include="Core+Pager\PCache.cu" />
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
-    <None Include="Core+Parse\Parse.out">
+    <None Include="Parse.out">
       <DependentUpon>Parse.yc</DependentUpon>
     </None>
-    <None Include="Core+Parse\Parse.template">
+    <None Include="Parse.template">
       <DependentUpon>Parse.yc</DependentUpon>
     </None>
-    <None Include="Core+Parse\Parse.y">
+    <None Include="Parse.y">
       <Generator>LALR</Generator>
       <LastGenOutput>Parse1.cs</LastGenOutput>
     </None>
-    <None Include="Core+Parse\Parse.yc">
+    <None Include="Parse.yc">
       <Generator>LALRC</Generator>
       <LastGenOutput>Parse.c</LastGenOutput>
     </None>
-    <None Include="Core+Table\Rowset.cu" />
-    <None Include="Core+Table\Table.cu" />
-    <None Include="Core+Table\VTable.cu" />
+    <None Include="Core+Syntax\Rowset.cu" />
+    <None Include="Core+Syntax\Table.cu" />
+    <None Include="Core+Syntax\VTable.cu" />
     <None Include="Core+Vbde\Vdbe.cu" />
     <None Include="Core+Vbde\VdbeApi.cu" />
     <None Include="Core+Vbde\VdbeAux.cu" />

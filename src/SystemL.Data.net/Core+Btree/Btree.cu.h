@@ -116,7 +116,7 @@ namespace Core
 		__device__ bool IsInTrans();
 		__device__ bool IsInReadTrans();
 		__device__ bool IsInBackup();
-		__device__ ISchema *Schema(int bytes, void (*free)(void *));
+		__device__ Schema *Schema(int bytes, void (*free)(void *));
 		__device__ RC SchemaLocked();
 		__device__ RC LockTable(Pid tableID, bool isWriteLock);
 		__device__ RC Savepoint(IPager::SAVEPOINT op, int savepoint);
