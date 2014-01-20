@@ -67,19 +67,19 @@ namespace Core
         // OUTPUTS
         public IndexInfo_Constraintusage[] ConstraintUsage;
         public int ConstraintUsageLength;
-        public int IdxNum;                // Number used to identify the index
-        public string IdxStr;              // String, possibly obtained from sqlite3_malloc
-        public int NeedToFreeIdxStr;      // Free idxStr using sqlite3_free() if true
-        public int OrderByConsumed;       // True if output is already ordered
-        public double EstimatedCost;      // Estimated cost of using this index
+        public int IdxNum;              // Number used to identify the index
+        public string IdxStr;           // String, possibly obtained from sqlite3_malloc
+        public int NeedToFreeIdxStr;    // Free idxStr using sqlite3_free() if true
+        public int OrderByConsumed;     // True if output is already ordered
+        public double EstimatedCost;    // Estimated cost of using this index
     }
 
     //int sqlite3_create_module(Context db, string name, ITableModule p, byte[] clientData, Action<object> destroy);
 
     public struct VTable
     {
-        public ITableModule Module;		// The module for this virtual table
-        public string ErrMsg;					// Error message from sqlite3_mprintf()
+        public ITableModule IModule;	// The module for this virtual table
+        public string ErrMsg;			// Error message from sqlite3_mprintf()
         // Virtual table implementations will typically add additional fields
     }
 

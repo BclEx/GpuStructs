@@ -1,3 +1,4 @@
+// vtab.c
 #ifndef OMIT_VIRTUALTABLE
 #include "Core+Syntax.cu.h"
 
@@ -25,7 +26,7 @@ __device__ static RC sqlite3_create_module(Context *db, const char *name, const 
 			char *nameCopy = (char *)(&mod[1]);
 			_memcpy(nameCopy, name, nameLength+1);
 			mod->Name = nameCopy;
-			mod->Module = module;
+			mod->IModule = imodule;
 			mod->Aux = aux;
 			mod->Destroy = destroy;
 			Module *delMod = (Module *)sqlite3HashInsert(&db->Modules, nameCopy, nameLength, (void*)mod);

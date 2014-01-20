@@ -41,7 +41,7 @@
     <Compile Include="Core+Btree\Btree.cs" />
     <Compile Include="Core+Btree\BtreeInt_h.cs" />
     <Compile Include="Core+Btree\Btree_h.cs" />
-    <Compile Include="Core+Btree\Context_h.cs" />
+    <Compile Include="Core+Btree\BContext_h.cs" />
     <Compile Include="Core+Btree\Core+Btree_h.cs" />
     <Compile Include="Core+Pager\Core+Pager_h.cs" />
     <Compile Include="Core+Pager\Pager.cs" />
@@ -51,11 +51,13 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Content Include="Core+Syntax\Context.cu.h" />
     <Content Include="Parse1.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Parse.y</DependentUpon>
     </Content>
+    <Compile Include="Core+Syntax\Context_h.cs" />
     <Compile Include="Core+Syntax\Core+Syntax_h.cs" />
     <Compile Include="Core+Syntax\Rowset.cs" />
     <Compile Include="Core+Syntax\Table.cs" />
@@ -74,7 +76,7 @@
   <ItemGroup>
     <Content Include="Core+Btree\Btree.cu.h" />
     <Content Include="Core+Btree\BtreeInt.cu.h" />
-    <Content Include="Core+Btree\Context.cu.h" />
+    <Content Include="Core+Btree\BContext.cu.h" />
     <Content Include="Core+Btree\Core+Btree.cu.h" />
     <Content Include="Core+Pager\Core+Pager.cu.h" />
     <Content Include="Core+Pager\Pager.cu.h" />

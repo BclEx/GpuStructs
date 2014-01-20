@@ -22,30 +22,30 @@ namespace Core
 {
     public class VdbeCursor
     {
-        public Btree.BtCursor Cursor;       // The cursor structure of the backend
-        public Btree Bt;              // Separate file holding temporary table
-        public KeyInfo KeyInfo;       // Info about index keys needed by index cursors
-        public int Db;                // Index of cursor database in db->aDb[] (or -1)
-        public int PseudoTableReg;    // Register holding pseudotable content.
-        public int Fields;            // Number of fields in the header
-        public bool Zeroed;           // True if zeroed out and ready for reuse
-        public bool RowidIsValid;     // True if lastRowid is valid
-        public bool AtFirst;          // True if pointing to first entry
-        public bool UseRandomRowid;   // Generate new record numbers semi-randomly
-        public bool NullRow;          // True if pointing to a row with no data
-        public bool deferredMoveto;   // A call to sqlite3BtreeMoveto() is needed
-        public bool IsTable;          // True if a table requiring integer keys
-        public bool IsIndex;          // True if an index containing keys only - no data
-        public bool IsOrdered;        // True if the underlying table is BTREE_UNORDERED
-        public bool IsSorter;		// True if a new-style sorter
-        public bool MultiPseudo;	// Multi-register pseudo-cursor
+        public Btree.BtCursor Cursor;   // The cursor structure of the backend
+        public Btree Bt;                // Separate file holding temporary table
+        public KeyInfo KeyInfo;         // Info about index keys needed by index cursors
+        public int Db;                  // Index of cursor database in db->aDb[] (or -1)
+        public int PseudoTableReg;      // Register holding pseudotable content.
+        public int Fields;              // Number of fields in the header
+        public bool Zeroed;             // True if zeroed out and ready for reuse
+        public bool RowidIsValid;       // True if lastRowid is valid
+        public bool AtFirst;            // True if pointing to first entry
+        public bool UseRandomRowid;     // Generate new record numbers semi-randomly
+        public bool NullRow;            // True if pointing to a row with no data
+        public bool deferredMoveto;     // A call to sqlite3BtreeMoveto() is needed
+        public bool IsTable;            // True if a table requiring integer keys
+        public bool IsIndex;            // True if an index containing keys only - no data
+        public bool IsOrdered;          // True if the underlying table is BTREE_UNORDERED
+        public bool IsSorter;		    // True if a new-style sorter
+        public bool MultiPseudo;	    // Multi-register pseudo-cursor
 #if !OMIT_VIRTUALTABLE
-      public VTableCursor VtabCursor;  // The cursor for a virtual table
-      public ITableModule Module;   // Module for cursor pVtabCursor
+      public VTableCursor VtabCursor;   // The cursor for a virtual table
+      public ITableModule IModule;      // Module for cursor pVtabCursor
 #endif
-        public long SeqCount;         // Sequence counter
-        public long MovetoTarget;     // Argument to the deferred sqlite3BtreeMoveto()
-        public long LastRowid;        // Last rowid from a Next or NextIdx operation
+        public long SeqCount;           // Sequence counter
+        public long MovetoTarget;       // Argument to the deferred sqlite3BtreeMoveto()
+        public long LastRowid;          // Last rowid from a Next or NextIdx operation
         public VdbeSorter Sorter;		// Sorter object for OP_SorterOpen cursors
 
         // Result of last sqlite3BtreeMoveto() done by an OP_NotExists or OP_IsUnique opcode on this cursor.
@@ -56,11 +56,11 @@ namespace Core
         // the cache is out of date.
         //
         // aRow might point to (ephemeral) data for the current row, or it might be NULL.
-        public uint CacheStatus;      // Cache is valid if this matches Vdbe.cacheCtr
-        public int PayloadSize;     // Total number of bytes in the record
-        public uint[] Types;          // Type values for all entries in the record
-        public uint[] Offsets;        // Cached offsets to the start of each columns data
-        public int Rows;             // Pointer to Data for the current row, if all on one page
+        public uint CacheStatus;        // Cache is valid if this matches Vdbe.cacheCtr
+        public int PayloadSize;         // Total number of bytes in the record
+        public uint[] Types;            // Type values for all entries in the record
+        public uint[] Offsets;          // Cached offsets to the start of each columns data
+        public int Rows;                // Pointer to Data for the current row, if all on one page
 
         public VdbeCursor Copy() { return (VdbeCursor)MemberwiseClone(); }
 
@@ -69,22 +69,22 @@ namespace Core
 
     public class VdbeFrame
     {
-        public Vdbe V;                    // VM this frame belongs to
-        public VdbeFrame Parent;          // Parent of this frame, or NULL if parent is main
-        public Vdbe.VdbeOp[] Ops;            // Program instructions for parent frame
+        public Vdbe V;                  // VM this frame belongs to
+        public VdbeFrame Parent;        // Parent of this frame, or NULL if parent is main
+        public Vdbe.VdbeOp[] Ops;       // Program instructions for parent frame
         public int OpsLength;
-        public Mem[] Mems;                // Array of memory cells for parent frame
+        public Mem[] Mems;              // Array of memory cells for parent frame
         public int MemsLength;
-        public byte[] OnceFlags;          // Array of OP_Once flags for parent frame
+        public byte[] OnceFlags;        // Array of OP_Once flags for parent frame
         public int OnceFlagsLength;
-        public VdbeCursor[] Cursors;     // Array of Vdbe cursors for parent frame
+        public VdbeCursor[] Cursors;    // Array of Vdbe cursors for parent frame
         public int CursorsLength;
-        public int Token;              // Copy of SubProgram.token
+        public int Token;               // Copy of SubProgram.token
         public long LastRowid;          // Last insert rowid (sqlite3.lastRowid)
-        public int PC;                 // Program Counter in parent (calling) frame
-        public int ChildMems;          // Number of memory cells for child frame
-        public int ChildCursors;          // Number of cursors for child frame
-        public int Changes;            // Statement changes (Vdbe.nChanges)
+        public int PC;                  // Program Counter in parent (calling) frame
+        public int ChildMems;           // Number of memory cells for child frame
+        public int ChildCursors;        // Number of cursors for child frame
+        public int Changes;             // Statement changes (Vdbe.nChanges)
         // Needed for C# Implementation
         public Mem[] _ChildMems;        // Array of memory cells for child frame
         public VdbeCursor[] _ChildCursors; // Array of cursors for child frame
@@ -125,31 +125,31 @@ namespace Core
 
     public class Mem
     {
-        public Context Db;            // The associated database connection
-        public string Z;              // String value
-        public double R;              // Real value
+        public Context Db;              // The associated database connection
+        public string Z;                // String value
+        public double R;                // Real value
         public struct u_t
         {
-            public long I;               // Integer value used when MEM_Int is set in flags
-            public int Zero;           // Used when bit MEM_Zero is set in flags
-            public FuncDef Def;        // Used only when flags==MEM_Agg
-            public RowSet RowSet;      // Used only when flags==MEM_RowSet
-            public VdbeFrame Frame;    // Used when flags==MEM_Frame
+            public long I;              // Integer value used when MEM_Int is set in flags
+            public int Zero;            // Used when bit MEM_Zero is set in flags
+            public FuncDef Def;         // Used only when flags==MEM_Agg
+            public RowSet RowSet;       // Used only when flags==MEM_RowSet
+            public VdbeFrame Frame;     // Used when flags==MEM_Frame
         };
         public u_t u;
-        public int N;                 // Number of characters in string value, excluding '\0'
-        public MEM Flags;             // Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
+        public int N;                   // Number of characters in string value, excluding '\0'
+        public MEM Flags;               // Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
         public TYPE Type;               // One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc
-        public TEXTENCODE Encode;                // SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
+        public TEXTENCODE Encode;       // SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
 #if DEBUG
-        public Mem ScopyFrom;        // This Mem is a shallow copy of pScopyFrom
-        public object Filler;        // So that sizeof(Mem) is a multiple of 8
+        public Mem ScopyFrom;           // This Mem is a shallow copy of pScopyFrom
+        public object Filler;           // So that sizeof(Mem) is a multiple of 8
 #endif
-        public Action<object> Del;            // If not null, call this function to delete Mem.z
+        public Action<object> Del;      // If not null, call this function to delete Mem.z
         // Needed for C# Implementation
-        public Mem _Mem;              // Used when C# overload Z as MEM space
+        public Mem _Mem;                // Used when C# overload Z as MEM space
         //public SumCtx _SumCtx;        // Used when C# overload Z as Sum context
-        public Vdbe.SubProgram[] _SubProgram;// Used when C# overload Z as SubProgram
+        public Vdbe.SubProgram[] _SubProgram;   // Used when C# overload Z as SubProgram
         public Text.StringBuilder _StrAccum;    // Used when C# overload Z as STR context
         public object _MD5Context;    // Used when C# overload Z as MD5 context
 

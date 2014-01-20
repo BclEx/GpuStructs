@@ -21,9 +21,6 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\BtreeInt.cu.h">
       <Filter>Core+Btree</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.Data.net\Core+Btree\Context.cu.h">
-      <Filter>Core+Btree</Filter>
-    </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Core+Btree.cu.h">
       <Filter>Core+Btree</Filter>
     </ClInclude>
@@ -49,6 +46,12 @@
       <Filter>Core+Vbde</Filter>
     </ClInclude>
     <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Core+Syntax.cu.h">
+      <Filter>Core+Syntax</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\BContext.cu.h">
+      <Filter>Core+Btree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Context.cu.h">
       <Filter>Core+Syntax</Filter>
     </ClInclude>
   </ItemGroup>

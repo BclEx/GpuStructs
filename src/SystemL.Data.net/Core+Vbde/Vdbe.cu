@@ -111,7 +111,7 @@ namespace Core
 		if (affinity == AFF_TEXT)
 		{
 			// Only attempt the conversion to TEXT if there is an integer or real representation (blob and NULL do not get converted) but no string representation.
-			if ((rec->Flags & MEM_Str) && (rec->Flags & (MEM_Real | MEM_Int) == 0))
+			if ((rec->Flags & MEM_Str) && ((rec->Flags & (MEM_Real | MEM_Int)) == 0))
 				Vdbe::MemStringify(rec, encode);
 			rec->Flags &= ~(MEM_Real|MEM_Int);
 		}
@@ -269,13 +269,13 @@ namespace Core
 	__device__ static int checkSavepointCount(Context *db)
 	{
 		int n = 0;
-		for (Savepoint *p = db->Savepoint; p; p = p->Next) n++;
-		_assert((db->Savepoints + db->IsTransactionSavepoint) == n);
+		for (Savepoint *p = db->Savepoints; p; p = p->Next) n++;
+		_assert((db->SavepointsLength + db->IsTransactionSavepoint) == n);
 		return 1;
 	}
 #endif
 
-	__device__ static void importVtabErrMsg(Vdbe *p, VTable *vtab)
+	__device__ static void importVtabErrMsg(Vdbe *p, IVTable *vtab)
 	{
 		Context *db = p->Db;
 		SysEx::TagFree(db, p->ErrMsg);

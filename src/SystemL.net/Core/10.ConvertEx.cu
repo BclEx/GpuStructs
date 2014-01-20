@@ -498,7 +498,7 @@ do_atof_calc:
 			c = compare2pow63(z, incr);
 			if (c < 0) { _assert(u <= LARGEST_INT64); return false; } // zNum is less than 9223372036854775808 so it fits
 			else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows
-			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return (neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
+			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return !neg; } //(neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
 		}
 	}
 

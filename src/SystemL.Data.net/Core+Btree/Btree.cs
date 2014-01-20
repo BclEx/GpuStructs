@@ -62,7 +62,7 @@ namespace Core
         {
             // If this database is not shareable, or if the client is reading and has the read-uncommitted flag set, then no lock is required. 
             // Return true immediately.
-            if (!btree.Sharable || (lockType == LOCK.READ && (btree.Ctx.Flags & Context.FLAG.ReadUncommitted) != 0))
+            if (!btree.Sharable || (lockType == LOCK.READ && (btree.Ctx.Flags & BContext.FLAG.ReadUncommitted) != 0))
                 return true;
 
             // If the client is reading  or writing an index and the schema is not loaded, then it is too difficult to actually check to see if
@@ -102,7 +102,7 @@ namespace Core
             for (var p = btree.Bt.Cursor; p != null; p = p.Next)
                 if (p.RootID == root &&
                     p.Btree != btree &&
-                    (p.Btree.Ctx.Flags & Context.FLAG.ReadUncommitted) == 0)
+                    (p.Btree.Ctx.Flags & BContext.FLAG.ReadUncommitted) == 0)
                     return true;
             return false;
         }
@@ -113,7 +113,7 @@ namespace Core
             Debug.Assert(p.HoldsMutex());
             Debug.Assert(lockType == LOCK.READ || lockType == LOCK.WRITE);
             Debug.Assert(p.Ctx != null);
-            Debug.Assert((p.Ctx.Flags & Context.FLAG.ReadUncommitted) == 0 || lockType == LOCK.WRITE || table == 1);
+            Debug.Assert((p.Ctx.Flags & BContext.FLAG.ReadUncommitted) == 0 || lockType == LOCK.WRITE || table == 1);
 
             // If requesting a write-lock, then the Btree must have an open write transaction on this file. And, obviously, for this to be so there
             // must be an open write transaction on the file itself.
@@ -128,7 +128,7 @@ namespace Core
             // If some other connection is holding an exclusive lock, the requested lock may not be obtained.
             if (bt.Writer != p && (bt.BtsFlags & BTS.EXCLUSIVE) != 0)
             {
-                Context.ConnectionBlocked(p.Ctx, bt.Writer.Ctx);
+                BContext.ConnectionBlocked(p.Ctx, bt.Writer.Ctx);
                 return RC.LOCKED_SHAREDCACHE;
             }
 
@@ -144,7 +144,7 @@ namespace Core
                 Debug.Assert(lockType == LOCK.READ || iter.Btree == p || iter.Lock == LOCK.READ);
                 if (iter.Btree != p && iter.Table == table && iter.Lock != lockType)
                 {
-                    Context.ConnectionBlocked(p.Ctx, iter.Btree.Ctx);
+                    BContext.ConnectionBlocked(p.Ctx, iter.Btree.Ctx);
                     if (lockType == LOCK.WRITE)
                     {
                         Debug.Assert(p == bt.Writer);
@@ -164,7 +164,7 @@ namespace Core
 
             // A connection with the read-uncommitted flag set will never try to obtain a read-lock using this function. The only read-lock obtained
             // by a connection in read-uncommitted mode is on the sqlite_master table, and that lock is obtained in BtreeBeginTrans().
-            Debug.Assert((p.Ctx.Flags & Context.FLAG.ReadUncommitted) == 0 || lock_ == LOCK.WRITE);
+            Debug.Assert((p.Ctx.Flags & BContext.FLAG.ReadUncommitted) == 0 || lock_ == LOCK.WRITE);
 
             // This function should only be called on a sharable b-tree after it has been determined that no other b-tree holds a conflicting lock.
             var bt = p.Bt;
@@ -1172,7 +1172,7 @@ namespace Core
             return bt.Ctx.InvokeBusyHandler();
         }
 
-        static RC Open(VSystem vfs, string filename, Context ctx, ref Btree btree, OPEN flags, VSystem.OPEN vfsFlags)
+        static RC Open(VSystem vfs, string filename, BContext ctx, ref Btree btree, OPEN flags, VSystem.OPEN vfsFlags)
         {
             // True if opening an ephemeral, temporary database
             bool tempDB = string.IsNullOrEmpty(filename);
@@ -1703,7 +1703,7 @@ namespace Core
                     rc = bt.Pager.SetPageSize(ref bt.PageSize, (int)(pageSize - usableSize));
                     return rc;
                 }
-                if ((bt.Ctx.Flags & Context.FLAG.RecoveryMode) == 0 && pages > pagesFile)
+                if ((bt.Ctx.Flags & BContext.FLAG.RecoveryMode) == 0 && pages > pagesFile)
                 {
                     rc = SysEx.CORRUPT_BKPT();
                     goto page1_init_failed;
@@ -1828,7 +1828,7 @@ namespace Core
 #if !OMIT_SHARED_CACHE
             // If another database handle has already opened a write transaction on this shared-btree structure and a second write transaction is
             // requested, return SQLITE_LOCKED.
-            Context blockingCtx = null;
+            BContext blockingCtx = null;
             if ((wrflag != 0 && bt.InTransaction == TRANS.WRITE) || (bt.BtsFlags & BTS.PENDING) != 0)
                 blockingCtx = bt.Writer.Ctx;
             else if (wrflag > 1)
@@ -1843,7 +1843,7 @@ namespace Core
 
             if (blockingCtx != null)
             {
-                Context.ConnectionBlocked(Ctx, blockingCtx);
+                BContext.ConnectionBlocked(Ctx, blockingCtx);
                 rc = RC.LOCKED_SHAREDCACHE;
                 goto trans_begun;
             }
@@ -5509,7 +5509,7 @@ namespace Core
             // This error is caught long before control reaches this point.
             if (SysEx.NEVER(bt.Cursor != null))
             {
-                Context.ConnectionBlocked(p.Ctx, bt.Cursor.Btree.Ctx);
+                BContext.ConnectionBlocked(p.Ctx, bt.Cursor.Btree.Ctx);
                 return RC.LOCKED_SHAREDCACHE;
             }
 

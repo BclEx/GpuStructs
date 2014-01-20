@@ -11,8 +11,8 @@ namespace Core
 
 	struct VdbeSorter
 	{
-		int64 WriteOff;					// Current write offset within file pTemp1
-		int64 ReadOff;					// Current read offset within file pTemp1
+		int64 WriteOffset;				// Current write offset within file pTemp1
+		int64 ReadOffset;				// Current read offset within file pTemp1
 		int InMemory;					// Current size of pRecord list as PMA
 		int PMAs;                       // Number of PMAs stored in pTemp1
 		int MinPmaSize;                 // Minimum PMA size, in bytes
@@ -26,7 +26,7 @@ namespace Core
 
 	struct VdbeSorterIter
 	{
-		int64 ReadOff;					// Current read offset
+		int64 ReadOffset;				// Current read offset
 		int64 Eof;						// 1 byte past EOF for this iterator
 		VFile *File;					// File iterator is reading from
 		array_t<uint8> Alloc;			// Allocated space
@@ -40,7 +40,7 @@ namespace Core
 		array_t<uint8> Buffer;			// Pointer to write buffer
 		int BufStart;					// First byte of buffer to write
 		int BufEnd;						// Last byte of buffer to write
-		int64 WriteOff;					// Offset of start of buffer in file
+		int64 WriteOffset;				// Offset of start of buffer in file
 		VFile *File;					// File to write to
 	};
 
@@ -71,15 +71,15 @@ namespace Core
 
 		// If there is no more data to be read from the buffer, read the next p->nBuffer bytes of data from the file into it. Or, if there are less
 		// than p->nBuffer bytes remaining in the PMA, read all remaining data.
-		int bufferIdx = (p->ReadOff % p->Buffer.length); // Offset within buffer to read from
+		int bufferIdx = (int)(p->ReadOffset % p->Buffer.length); // Offset within buffer to read from
 		if (bufferIdx == 0)
 		{
 			// Determine how many bytes of data to read.
-			int read = ((p->Eof - p->ReadOff) > (int64)p->Buffer.length ? p->Buffer.length : (int)(p->Eof - p->ReadOff)); // Bytes to read from disk
+			int read = (int)((p->Eof - p->ReadOffset) > p->Buffer.length ? p->Buffer.length : p->Eof - p->ReadOffset); // Bytes to read from disk
 			_assert(read > 0);
 
 			// Read data from the file. Return early if an error occurs.
-			RC rc = p->File->Read(p->Buffer, read, p->ReadOff);
+			RC rc = p->File->Read(p->Buffer, read, p->ReadOffset);
 			_assert(rc != RC_IOERR_SHORT_READ);
 			if (rc != RC_OK) return rc;
 		}
@@ -90,7 +90,7 @@ namespace Core
 			// The requested data is available in the in-memory buffer. In this case there is no need to make a copy of the data, just return a 
 			// pointer into the buffer to the caller.
 			*out_ = &p->Buffer[bufferIdx];
-			p->ReadOff += bytes;
+			p->ReadOffset += bytes;
 		}
 		// The requested data is not all available in the in-memory buffer. In this case, allocate space at p->aAlloc[] to copy the requested
 		// range into. Then return a copy of pointer p->aAlloc to the caller.
@@ -108,7 +108,7 @@ namespace Core
 
 			// Copy as much data as is available in the buffer into the start of p->aAlloc[].
 			_memcpy(p->Alloc.data, &p->Buffer[bufferIdx], avail);
-			p->ReadOff += avail;
+			p->ReadOffset += avail;
 
 			// The following loop copies up to p->nBuffer bytes per iteration into the p->aAlloc[] buffer.
 			int remaining = bytes - avail; // Bytes remaining to copy
@@ -131,9 +131,9 @@ namespace Core
 
 	__device__ static RC vdbeSorterIterVarint(Context *db, VdbeSorterIter *p, uint64 *out_)
 	{
-		int bufferIdx = p->ReadOff % p->Buffer.length;
+		int bufferIdx = (int)(p->ReadOffset % p->Buffer.length);
 		if (bufferIdx && (p->Buffer.length - bufferIdx) >= 9)
-			p->ReadOff += ConvertEx::GetVarint(&p->Buffer[bufferIdx], out_);
+			p->ReadOffset += ConvertEx::GetVarint(&p->Buffer[bufferIdx], out_);
 		else
 		{
 			uint8 varint[16], *a;
@@ -151,7 +151,7 @@ namespace Core
 
 	__device__ static RC vdbeSorterIterNext(Context *db, VdbeSorterIter *iter)
 	{
-		if (iter->ReadOff >= iter->Eof)
+		if (iter->ReadOffset >= iter->Eof)
 		{
 			vdbeSorterIterZero(db, iter); // This is an EOF condition
 			return RC_OK;
@@ -168,12 +168,12 @@ namespace Core
 
 	__device__ static RC vdbeSorterIterInit(Context *db, const VdbeSorter *sorter, int64 start, VdbeSorterIter *iter, int64 *bytes)
 	{
-		_assert(sorter->WriteOff > start);
+		_assert(sorter->WriteOffset > start);
 		_assert(!iter->Alloc);
 		_assert(!iter->Buffer);
 		int bufferLength = db->DBs[0].Bt->GetPageSize();
 		iter->File = sorter->Temp1;
-		iter->ReadOff = start;
+		iter->ReadOffset = start;
 		iter->Alloc.length = 128;
 		iter->Alloc = (uint8 *)SysEx::TagAlloc(db, iter->Alloc.length);
 		iter->Buffer.length = bufferLength;
@@ -187,17 +187,17 @@ namespace Core
 			if (bufferIdx)
 			{
 				int read = bufferLength - bufferIdx;
-				if ((start + read) > sorter->WriteOff)
-					read = (int)(sorter->WriteOff - start);
+				if ((start + read) > sorter->WriteOffset)
+					read = (int)(sorter->WriteOffset - start);
 				rc = sorter->Temp1->Read(&iter->Buffer[bufferIdx], read, start);
 				_assert(rc != RC_IOERR_SHORT_READ);
 			}
 			if (rc == RC_OK)
 			{
-				iter->Eof = sorter->WriteOff;
+				iter->Eof = sorter->WriteOffset;
 				uint64 bytes2; // Size of PMA in bytes
 				rc = vdbeSorterIterVarint(db, iter, &bytes2);
-				iter->Eof = iter->ReadOff + bytes2;
+				iter->Eof = iter->ReadOffset + bytes2;
 				*bytes += bytes2;
 			}
 		}
@@ -399,7 +399,7 @@ namespace Core
 		else
 		{
 			p->BufEnd = p->BufStart = (start % pageSize);
-			p->WriteOff = start - p->BufStart;
+			p->WriteOffset = start - p->BufStart;
 			p->Buffer.length = pageSize;
 			p->File = file;
 		}
@@ -417,9 +417,9 @@ namespace Core
 			p->BufEnd += copy;
 			if (p->BufEnd == p->Buffer.length)
 			{
-				p->FWErr = p->File->Write(&p->Buffer[p->BufStart], p->BufEnd - p->BufStart, p->WriteOff + p->BufStart);
+				p->FWErr = p->File->Write(&p->Buffer[p->BufStart], p->BufEnd - p->BufStart, p->WriteOffset + p->BufStart);
 				p->BufStart = p->BufEnd = 0;
-				p->WriteOff += p->Buffer.length;
+				p->WriteOffset += p->Buffer.length;
 			}
 			_assert(p->BufEnd < p->Buffer.length);
 			remain -= copy;
@@ -429,8 +429,8 @@ namespace Core
 	__device__ static RC fileWriterFinish(Context *db, FileWriter *p, int64 *eof)
 	{
 		if (p->FWErr == 0 && SysEx_ALWAYS(p->Buffer) && p->BufEnd > p->BufStart)
-			p->FWErr = p->File->Write(&p->Buffer[p->BufStart], p->BufEnd - p->BufStart, p->WriteOff + p->BufStart);
-		*eof = (p->WriteOff + p->BufEnd);
+			p->FWErr = p->File->Write(&p->Buffer[p->BufStart], p->BufEnd - p->BufStart, p->WriteOffset + p->BufStart);
+		*eof = (p->WriteOffset + p->BufEnd);
 		SysEx::TagFree(db, p->Buffer);
 		RC rc = (RC)p->FWErr;
 		_memset(p, 0, sizeof(FileWriter));
@@ -460,12 +460,12 @@ namespace Core
 		{
 			rc = vdbeSorterOpenTempFile(db, &sorter->Temp1);
 			_assert(rc != RC_OK || sorter->Temp1);
-			_assert(sorter->WriteOff == 0);
+			_assert(sorter->WriteOffset == 0);
 			_assert(sorter->PMAs == 0);
 		}
 		if (rc == RC_OK)
 		{
-			fileWriterInit(db, sorter->Temp1, &writer, sorter->WriteOff);
+			fileWriterInit(db, sorter->Temp1, &writer, sorter->WriteOffset);
 			sorter->PMAs++;
 			fileWriterWriteVarint(&writer, sorter->InMemory);
 			SorterRecord *p;
@@ -478,7 +478,7 @@ namespace Core
 				SysEx::TagFree(db, p);
 			}
 			sorter->Record = p;
-			rc = fileWriterFinish(db, &writer, &sorter->WriteOff);
+			rc = fileWriterFinish(db, &writer, &sorter->WriteOffset);
 		}
 		return rc;
 	}
@@ -505,11 +505,11 @@ namespace Core
 		//   * The total memory allocated for the in-memory list is greater than (page-size * 10) and sqlite3HeapNearlyFull() returns true.
 		if (rc == RC_OK && sorter->MaxPmaSize > 0 && ((sorter->InMemory > sorter->MaxPmaSize) || (sorter->InMemory > sorter->MaxPmaSize && SysEx::HeapNearlyFull()))){
 #ifdef _DEBUG
-			int64 expect = sorter->WriteOff + ConvertEx::GetVarintLength(sorter->InMemory) + sorter->InMemory;
+			int64 expect = sorter->WriteOffset + ConvertEx::GetVarintLength(sorter->InMemory) + sorter->InMemory;
 #endif
 			rc = vdbeSorterListToPMA(db, cursor);
 			sorter->InMemory = 0;
-			_assert(rc != RC_OK || expect == sorter->WriteOff);
+			_assert(rc != RC_OK || expect == sorter->WriteOffset);
 		}
 		return rc;
 	}
@@ -524,10 +524,10 @@ namespace Core
 		for (i = 0; i < SORTER_MAX_MERGE_COUNT; i++)
 		{
 			VdbeSorterIter *iter = &sorter->Iters[i];
-			rc = vdbeSorterIterInit(db, sorter, sorter->ReadOff, iter, &bytes2);
-			sorter->ReadOff = iter->Eof;
-			_assert(rc != RC_OK || sorter->ReadOff <= sorter->WriteOff);
-			if (rc != RC_OK || sorter->ReadOff >= sorter->WriteOff) break;
+			rc = vdbeSorterIterInit(db, sorter, sorter->ReadOffset, iter, &bytes2);
+			sorter->ReadOffset = iter->Eof;
+			_assert(rc != RC_OK || sorter->ReadOffset <= sorter->WriteOffset);
+			if (rc != RC_OK || sorter->ReadOffset >= sorter->WriteOffset) break;
 		}
 		// Initialize the aTree[] array.
 		for (i = sorter->Trees.length - 1; rc == RC_OK && i > 0; i--)
@@ -614,8 +614,8 @@ namespace Core
 				sorter->PMAs = newIdx;
 				sorter->Temp1 = temp2;
 				temp2 = tmp;
-				sorter->WriteOff = write2;
-				sorter->ReadOff = 0;
+				sorter->WriteOffset = write2;
+				sorter->ReadOffset = 0;
 				write2 = 0;
 			}
 		} while (rc == RC_OK);

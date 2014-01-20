@@ -683,21 +683,21 @@ namespace Core {
 		char *memAsString = nullptr;
 		if (op == TK_STRING || op == TK_FLOAT || op == TK_INTEGER)
 		{
-			mem = sqlite3ValueNew(db);
+			mem = Mem_New(db);
 			if (!mem) goto no_mem;
 			if (ExprHasProperty(expr, EP_IntValue))
 				Vdbe::MemSetInt64(mem, (int64)expr->u.I * negInt);
 			else
 			{
-				memAsString = sqlite3MPrintf(db, "%s%s", neg, expr->u.Token);
+				memAsString = SysEx::Mprintf(db, "%s%s", neg, expr->u.Token);
 				if (!memAsString) goto no_mem;
 				Mem_SetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
 				if (op == TK_FLOAT) mem->Type = TYPE_FLOAT;
 			}
 			if ((op == TK_INTEGER || op == TK_FLOAT) && affinity == AFF_NONE)
-				sqlite3ValueApplyAffinity(mem, AFF_NUMERIC, TEXTENCODE_UTF8);
+				Mem_ApplyAffinity(mem, AFF_NUMERIC, TEXTENCODE_UTF8);
 			else
-				sqlite3ValueApplyAffinity(mem, affinity, TEXTENCODE_UTF8);
+				Mem_ApplyAffinity(mem, affinity, TEXTENCODE_UTF8);
 			if (mem->Flags & (MEM_Int | MEM_Real)) mem->Flags &= ~MEM_Str;
 			if (encode != TEXTENCODE_UTF8)
 				Vdbe::ChangeEncoding(mem, encode);
@@ -705,7 +705,7 @@ namespace Core {
 		else if (op == TK_UMINUS)
 		{
 			// This branch happens for multiple negative signs.  Ex: -(-5)
-			if (sqlite3ValueFromExpr(db, expr->Left, encode, affinity, &mem) == RC_OK)
+			if (Mem_FromExpr(db, expr->Left, encode, affinity, &mem) == RC_OK)
 			{
 				Vdbe::MemNumerify(mem);
 				if (mem->u.I == SMALLEST_INT64)
@@ -717,12 +717,12 @@ namespace Core {
 				else
 					mem->u.I = -mem->u.I;
 				mem->R = -mem->R;
-				sqlite3ValueApplyAffinity(mem, affinity, encode);
+				Mem_ApplyAffinity(mem, affinity, encode);
 			}
 		}
 		else if (op == TK_NULL)
 		{
-			mem = sqlite3ValueNew(db);
+			mem = Mem_New(db);
 			if (!mem) goto no_mem;
 		}
 #ifndef OMIT_BLOB_LITERAL
@@ -730,12 +730,12 @@ namespace Core {
 		{
 			_assert(expr->u.Token[0] == 'x' || expr->u.Token[0] == 'X');
 			_assert(expr->u.Token[1] == '\'');
-			mem = sqlite3ValueNew(db);
+			mem = Mem_New(db);
 			if (!mem) goto no_mem;
 			memAsString = &expr->u.Token[2];
 			int memAsStringLength = _strlen30(memAsString) - 1;
 			_assert(memAsString[memAsStringLength] == '\'');
-			Vdbe::MemSetStr(mem, sqlite3HexToBlob(db, memAsString, memAsStringLength), memAsStringLength / 2, 0, DESTRUCTOR_DYNAMIC);
+			Vdbe::MemSetStr(mem, (const char *)SysEx::HexToBlob(db, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
 		}
 #endif
 		if (mem)

@@ -57,7 +57,7 @@ namespace Core
 	{
 		// If this database is not shareable, or if the client is reading and has the read-uncommitted flag set, then no lock is required. 
 		// Return true immediately.
-		if (!btree->Sharable || (lockType == LOCK_READ && (btree->Ctx->Flags & Context::FLAG::FLAG_ReadUncommitted)))
+		if (!btree->Sharable || (lockType == LOCK_READ && (btree->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted)))
 			return true;
 
 		// If the client is reading  or writing an index and the schema is not loaded, then it is too difficult to actually check to see if
@@ -97,7 +97,7 @@ namespace Core
 		for (BtCursor *p = btree->Bt->Cursor; p; p = p->Next)
 			if (p->RootID == root &&
 				p->Btree != btree &&
-				(p->Btree->Ctx->Flags & Context::FLAG::FLAG_ReadUncommitted) == 0)
+				(p->Btree->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted) == 0)
 				return true;
 		return false;
 	}
@@ -108,7 +108,7 @@ namespace Core
 		_assert(p->HoldsMutex());
 		_assert(lock == LOCK_READ || lock == LOCK_WRITE);
 		_assert(p->Ctx != nullptr);
-		_assert(!(p->Ctx->Flags & Context::FLAG::FLAG_ReadUncommitted) || lock == LOCK_WRITE || table == 1);
+		_assert(!(p->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted) || lock == LOCK_WRITE || table == 1);
 
 		// If requesting a write-lock, then the Btree must have an open write transaction on this file. And, obviously, for this to be so there 
 		// must be an open write transaction on the file itself.
@@ -123,7 +123,7 @@ namespace Core
 		// If some other connection is holding an exclusive lock, the requested lock may not be obtained.
 		if (bt->Writer != p && (bt->BtsFlags & BTS_EXCLUSIVE) != 0)
 		{
-			Context::ConnectionBlocked(p->Ctx, bt->Writer->Ctx);
+			BContext::ConnectionBlocked(p->Ctx, bt->Writer->Ctx);
 			return RC_LOCKED_SHAREDCACHE;
 		}
 
@@ -139,7 +139,7 @@ namespace Core
 			_assert(lock == LOCK_READ || iter->Btree == p || iter->Lock == LOCK_READ);
 			if (iter->Btree != p && iter->Table == table && iter->Lock != lock)
 			{
-				Context::ConnectionBlocked(p->Ctx, iter->Btree->Ctx);
+				BContext::ConnectionBlocked(p->Ctx, iter->Btree->Ctx);
 				if (lock == LOCK_WRITE)
 				{
 					_assert(p == bt->Writer);
@@ -159,7 +159,7 @@ namespace Core
 
 		// A connection with the read-uncommitted flag set will never try to obtain a read-lock using this function. The only read-lock obtained
 		// by a connection in read-uncommitted mode is on the sqlite_master table, and that lock is obtained in BtreeBeginTrans().
-		_assert((p->Ctx->Flags & Context::FLAG::FLAG_ReadUncommitted) == 0 || lock == LOCK_WRITE);
+		_assert((p->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted) == 0 || lock == LOCK_WRITE);
 
 		// This function should only be called on a sharable b-tree after it has been determined that no other b-tree holds a conflicting lock.
 		_assert(p->Sharable);
@@ -1166,7 +1166,7 @@ ptrmap_exit:
 		return bt->Ctx->InvokeBusyHandler();
 	}
 
-	__device__ RC Btree::Open(VSystem *vfs, const char *filename, Context *ctx, Btree **btree, OPEN flags, VSystem::OPEN vfsFlags)
+	__device__ RC Btree::Open(VSystem *vfs, const char *filename, BContext *ctx, Btree **btree, OPEN flags, VSystem::OPEN vfsFlags)
 	{
 		// True if opening an ephemeral, temporary database
 		const bool tempDB = (filename == nullptr || filename[0] == 0);
@@ -1714,7 +1714,7 @@ btree_open_out:
 				rc = bt->Pager->SetPageSize(&bt->PageSize, pageSize - usableSize);
 				return rc;
 			}
-			if ((bt->Ctx->Flags & Context::FLAG::FLAG_RecoveryMode) == 0 && pages > pagesFile)
+			if ((bt->Ctx->Flags & BContext::FLAG::FLAG_RecoveryMode) == 0 && pages > pagesFile)
 			{
 				rc = SysEx_CORRUPT_BKPT;
 				goto page1_init_failed;
@@ -1828,7 +1828,7 @@ page1_init_failed:
 #ifndef OMIT_SHARED_CACHE
 		// If another database handle has already opened a write transaction on this shared-btree structure and a second write transaction is
 		// requested, return SQLITE_LOCKED.
-		Context *blockingCtx = nullptr;
+		BContext *blockingCtx = nullptr;
 #endif
 
 		// If the btree is already in a write-transaction, or it is already in a read-transaction and a read-transaction
@@ -1864,7 +1864,7 @@ page1_init_failed:
 
 		if (blockingCtx)
 		{
-			Context::ConnectionBlocked(Ctx, blockingCtx);
+			BContext::ConnectionBlocked(Ctx, blockingCtx);
 			rc = RC_LOCKED_SHAREDCACHE;
 			goto trans_begun;
 		}
@@ -1945,7 +1945,7 @@ trans_begun:
 		{
 			// This call makes sure that the pager has the correct number of open savepoints. If the second parameter is greater than 0 and
 			// the sub-journal is not already open, then it will be opened here.
-			rc = bt->Pager->OpenSavepoint(Ctx->Savepoints);
+			rc = bt->Pager->OpenSavepoint(Ctx->SavepointsLength);
 		}
 
 		btreeIntegrity(this);
@@ -2461,7 +2461,7 @@ set_child_ptrmaps_out:
 		_assert(InTrans == TRANS_WRITE);
 		_assert((bt->BtsFlags & BTS_READ_ONLY) == 0);
 		_assert(statements > 0);
-		_assert(statements > Ctx->Savepoints);
+		_assert(statements > Ctx->SavepointsLength);
 		_assert(bt->InTransaction == TRANS_WRITE);
 		// At the pager level, a statement transaction is a savepoint with an index greater than all savepoints created explicitly using
 		// SQL statements. It is illegal to open, release or rollback any such savepoints while the statement transaction savepoint is active.
@@ -4447,7 +4447,7 @@ freepage_out:
 				if (bt->BtsFlags & BTS_SECURE_DELETE)
 				{
 					int off = PTR_TO_INT(divs[i]) - PTR_TO_INT(parent->Data);
-					if ((off + (size_t)newPages[i]) > (size_t)bt->UsableSize)
+					if ((off + (int)newPages[i]) > (int)bt->UsableSize)
 					{
 						rc = SysEx_CORRUPT_BKPT;
 						_memset(oldPages, 0, (i + 1) * sizeof(MemPage *));
@@ -5451,7 +5451,7 @@ cleardatabasepage_out:
 		// This error is caught long before control reaches this point.
 		if (SysEx_NEVER(bt->Cursor))
 		{
-			Context::ConnectionBlocked(p->Ctx, bt->Cursor->Btree->Ctx);
+			BContext::ConnectionBlocked(p->Ctx, bt->Cursor->Btree->Ctx);
 			return RC_LOCKED_SHAREDCACHE;
 		}
 

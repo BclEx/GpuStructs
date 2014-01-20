@@ -41,6 +41,7 @@
 #include "50.SysEx.cu.h"
 #include "20.MutexEx.cu.h"
 #include "00.Bitvec.cu.h"
+#include "05.Hash.cu.h"
 #include "40.StatusEx.cu.h"
 #include "50.VSystem.cu.h"
 #include "60.MathEx.cu.h"

@@ -263,7 +263,7 @@ namespace Core
 			*rowid = p->Entry->V;
 			p->Entry = p->Entry->Right;
 			if (!p->Entry)
-				RowSet::Clear(p);
+				RowSet_Clear(p);
 			return true;
 		}
 		return false;

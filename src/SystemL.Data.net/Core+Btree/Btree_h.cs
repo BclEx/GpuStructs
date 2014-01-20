@@ -6,7 +6,7 @@ namespace Core
 {
     public class KeyInfo
     {
-        public Context Ctx;		// The database connection
+        public BContext Ctx;		// The database connection
         public byte Enc;			// Text encoding - one of the SQLITE_UTF* values
         public ushort Fields;      // Number of entries in aColl[]
         public byte[] SortOrders;  // Sort order for each column.  May be NULL
@@ -72,7 +72,7 @@ namespace Core
             public BtLock Next;            // Next in BtShared.pLock list
         }
 
-        public Context Ctx;     // The database connection holding this Btree
+        public BContext Ctx;     // The database connection holding this Btree
         public BtShared Bt;     // Sharable content of this Btree
         public TRANS InTrans;   // TRANS_NONE, TRANS_READ or TRANS_WRITE
         public bool Sharable;   // True if we can share pBt with another db
@@ -104,10 +104,10 @@ namespace Core
 
 #if !OMIT_SHARED_CACHE
         void Enter() { }
-        static void EnterAll(Context ctx) { }
+        static void EnterAll(BContext ctx) { }
 #else
         void Enter() { }
-        static void EnterAll(Context ctx) { }
+        static void EnterAll(BContext ctx) { }
 #endif
 
 #if !OMIT_SHARED_CACHE

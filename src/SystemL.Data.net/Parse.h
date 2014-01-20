@@ -1,3 +1,4 @@
+#define TK_UMINUS 0
 #define TK_SEMI                            1
 #define TK_EXPLAIN                         2
 #define TK_QUERY                           3

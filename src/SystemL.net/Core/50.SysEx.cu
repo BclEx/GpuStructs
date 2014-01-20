@@ -68,4 +68,20 @@ namespace Core
 			*(b++) = randomByte();
 		MutexEx::Leave(mutex);
 	}
+
+#ifndef OMIT_BLOB_LITERAL
+	__device__ void *SysEx::HexToBlob(void *tag, const char *z, size_t size)
+	{
+		char *b = (char *)TagAlloc(tag, size / 2 + 1);
+		size--;
+		if (b)
+		{
+			int bIdx = 0;
+			for (int i = 0; i < size; i += 2, bIdx++)
+				b[bIdx] = (_hextobyte(z[i]) << 4) | _hextobyte(z[i + 1]);
+			b[bIdx] = 0;
+		}
+		return b;
+	}
+#endif
 }

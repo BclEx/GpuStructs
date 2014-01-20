@@ -114,6 +114,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.net\Core\00.Bitvec.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\05.Hash.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\10.ConvertEx.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\20.MutexEx.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\30.RC.cu.h" />
@@ -130,6 +131,7 @@
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
     <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
+    <ClCompile Include="..\SystemL.net\Core\05.Hash.cu" />
     <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
     <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />
@@ -143,6 +145,7 @@
     <CudaCompile Include="Program.cu" />
     <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\05.Hash.cu" />
     <CudaCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
     <CudaCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />

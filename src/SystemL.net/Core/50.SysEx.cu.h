@@ -123,6 +123,28 @@ namespace Core
 		__device__ static RC Initialize();
 		__device__ static void Shutdown();
 		__device__ static void PutRandom(int length, void *buffer);
+#ifndef OMIT_BLOB_LITERAL
+		__device__ static void *HexToBlob(void *tag, const char *z, size_t size);
+#endif
+
+		//////////////////////
+		// MPRINTF
+#pragma region MPRINTF
+
+		inline __device__ static char *Mprintf(void *tag, const char *fmt) { _snprintf(nullptr, 0, fmt); return nullptr; }
+		template <typename T1> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1) { _snprintf(nullptr, 0, fmt, arg1); return nullptr; }
+		template <typename T1, typename T2> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2) { _snprintf(nullptr, 0, fmt, arg1, arg2); return nullptr; }
+		template <typename T1, typename T2, typename T3> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); return nullptr; }
+
+#pragma endregion
+
 	};
 
 #define SysEx_ALWAYS(X) (X)

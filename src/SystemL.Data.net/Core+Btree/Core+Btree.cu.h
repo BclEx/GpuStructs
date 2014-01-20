@@ -46,7 +46,7 @@ namespace Core {
 #pragma endregion
 }
 
-#include "Context.cu.h"
+#include "BContext.cu.h"
 #include "Btree.cu.h"
 
 namespace Core {

@@ -1,3 +1,4 @@
+// table.c
 #ifndef OMIT_GET_TABLE
 #include "Core+Syntax.cu.h"
 #include <stdlib.h>

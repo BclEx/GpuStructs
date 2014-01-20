@@ -13,7 +13,7 @@ namespace Core
 
 	struct KeyInfo
 	{
-		Context *Ctx;		// The database connection
+		BContext *Ctx;		// The database connection
 		uint8 Enc;			// Text encoding - one of the SQLITE_UTF* values
 		uint16 Fields;      // Number of entries in aColl[]
 		uint8 *SortOrders;  // Sort order for each column.  May be NULL
@@ -77,7 +77,7 @@ namespace Core
 			BtLock *Next;			// Next in BtShared.pLock list
 		};
 
-		Context *Ctx;			// The database connection holding this btree
+		BContext *Ctx;			// The database connection holding this btree
 		BtShared *Bt;			// Sharable content of this btree
 		TRANS InTrans;			// TRANS_NONE, TRANS_READ or TRANS_WRITE
 		bool Sharable;			// True if we can share pBt with another db
@@ -90,7 +90,7 @@ namespace Core
 		BtLock Lock;			// Object used to lock page 1
 #endif
 
-		__device__ static RC Open(VSystem *vfs, const char *filename, Context *ctx, Btree **btree, OPEN flags, VSystem::OPEN vfsFlags);
+		__device__ static RC Open(VSystem *vfs, const char *filename, BContext *ctx, Btree **btree, OPEN flags, VSystem::OPEN vfsFlags);
 		__device__ RC Close();
 		__device__ RC SetCacheSize(int maxPage);
 		__device__ RC SetSafetyLevel(int level, bool fullSync, bool ckptFullSync);
@@ -203,7 +203,7 @@ namespace Core
 
 #ifndef OMIT_SHARED_CACHE
 		__device__ inline void Enter() { }
-		//__device__ static void EnterAll(Context *);
+		//__device__ static void EnterAll(BContext *);
 #else
 #define Enter(X) 
 		//#define EnterAll(X)
@@ -214,7 +214,7 @@ namespace Core
 		__device__ inline void Leave() { }
 		//__device__ static void EnterCursor(BtCursor *);
 		//__device__ static void LeaveCursor(BtCursor *);
-		//__device__ static void LeaveAll(Context *);
+		//__device__ static void LeaveAll(BContext *);
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.
 		__device__ inline bool HoldsMutex() { return true; }

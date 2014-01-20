@@ -132,7 +132,7 @@ extern "C" const unsigned char _runtimeCtypeMap[256];
 #define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
-template <typename T> struct array_t { size_t length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, size_t b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
+template <typename T> struct array_t { int length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, int b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t2() { data = nullptr; length = 0; } inline array_t2(T *a) { data = a; length = 0; } inline array_t2(T *a, TLength b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
@@ -193,6 +193,13 @@ __device__ inline int _strlen30(const char *z)
 	if (z == nullptr) return 0;
 	while (*z2) { z2++; }
 	return 0x3fffffff & (int)(z2 - z);
+}
+
+// hextobyte
+__device__ inline unsigned char _hextobyte(char h)
+{
+	_assert((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'));
+	return (unsigned char)((h + 9*(1&(h>>6))) & 0xf);
 }
 
 #ifndef OMIT_FLOATING_POINT

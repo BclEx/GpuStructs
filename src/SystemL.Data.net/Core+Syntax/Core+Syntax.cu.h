@@ -1,4 +1,6 @@
 ﻿#include "../Core+Btree/Core+Btree.cu.h"
+#include "../Parse.h"
+#include "Context.cu.h"
 namespace Core
 {
 
@@ -137,45 +139,45 @@ namespace Core
 	{
 		struct Constraint
 		{
-			int Column;         // Column on left-hand side of constraint
-			INDEX_CONSTRAINT OP;// Constraint operator
-			bool Usable;		// True if this constraint is usable
-			int TermOffset;     // Used internally - xBestIndex should ignore
+			int Column;				// Column on left-hand side of constraint
+			INDEX_CONSTRAINT OP;	// Constraint operator
+			bool Usable;			// True if this constraint is usable
+			int TermOffset;			// Used internally - xBestIndex should ignore
 		};
 		struct Orderby
 		{
-			int Column;			// Column number
-			bool Desc;			// True for DESC.  False for ASC.
+			int Column;				// Column number
+			bool Desc;				// True for DESC.  False for ASC.
 		};
 		struct ConstraintUsage
 		{
-			int ArgvIndex;		// if >0, constraint is part of argv to xFilter
-			unsigned char Omit; // Do not code a test for this constraint
+			int ArgvIndex;			// if >0, constraint is part of argv to xFilter
+			unsigned char Omit;		// Do not code a test for this constraint
 		};
 		// INPUTS
 		array_t<Constraint> Constraints; // Table of WHERE clause constraints
-		array_t<Orderby> OrderBys; // The ORDER BY clause
+		array_t<Orderby> OrderBys;	// The ORDER BY clause
 		// OUTPUTS
 		array_t<ConstraintUsage> ConstraintUsages;
-		int IdxNum;                // Number used to identify the index
-		char *IdxStr;              // String, possibly obtained from sqlite3_malloc
-		int NeedToFreeIdxStr;      // Free idxStr using sqlite3_free() if true
-		int OrderByConsumed;       // True if output is already ordered
-		double EstimatedCost;      // Estimated cost of using this index
+		int IdxNum;					// Number used to identify the index
+		char *IdxStr;				// String, possibly obtained from sqlite3_malloc
+		int NeedToFreeIdxStr;		// Free idxStr using sqlite3_free() if true
+		int OrderByConsumed;		// True if output is already ordered
+		double EstimatedCost;		// Estimated cost of using this index
 	};
 
 	int sqlite3_create_module(Context *db, const char *name, const ITableModule *p, void *clientData, void (*destroy)(void *));
 
 	struct IVTable //was:sqlite3_vtab
 	{
-		const ITableModule *Module;		// The module for this virtual table
-		char *ErrMsg;					// Error message from sqlite3_mprintf()
+		const ITableModule *IModule;// The module for this virtual table
+		char *ErrMsg;				// Error message from sqlite3_mprintf()
 		// Virtual table implementations will typically add additional fields
 	};
 
 	struct IVTableCursor //was:sqlite3_vtab_cursor
 	{
-		IVTable *VTable;		// Virtual table of this cursor
+		IVTable *IVTable;			// Virtual table of this cursor
 		// Virtual table implementations will typically add additional fields
 	};
 
@@ -472,7 +474,6 @@ namespace Core
 
 #pragma endregion
 
-
 #pragma region Expr
 
 	enum EP : uint16
@@ -510,7 +511,7 @@ namespace Core
 		union
 		{
 			char *Token;			// Token value. Zero terminated and dequoted
-			int Value;				// Non-negative integer value if EP_IntValue
+			int I;				// Non-negative integer value if EP_IntValue
 		} u;
 
 		// If the EP_TokenOnly flag is set in the Expr.flags mask, then no space is allocated for the fields below this point. An attempt to
@@ -600,7 +601,7 @@ namespace Core
 
 	struct Module
 	{
-		const ITableModule *Module;     // Callback pointers
+		const ITableModule *IModule;    // Callback pointers
 		const char *Name;               // Name passed to create_module()
 		void *Aux;                      // pAux passed to create_module()
 		void (*Destroy)(void *);        // Module destructor function
@@ -628,7 +629,7 @@ namespace Core
 	{
 		Context *Db;				// Database connection associated with this table
 		Module *Module;				// Pointer to module implementation
-		IVTable *VTable;			// Pointer to vtab instance
+		IVTable *IVTable;			// Pointer to vtab instance
 		int Refs;					// Number of pointers to this structure
 		bool Constraint;			// True if constraints are supported
 		int Savepoint;				// Depth of the SAVEPOINT stack

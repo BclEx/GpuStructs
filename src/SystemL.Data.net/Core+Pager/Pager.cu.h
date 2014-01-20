@@ -106,7 +106,6 @@ namespace Core
 		int64 JournalOffset;        // Current write offset in the journal file
 		int64 JournalHeader;        // Byte offset to previous journal header
 		IBackup *Backup;			// Pointer to list of ongoing backup processes
-		//int _0;					// Number of elements in Savepoint[]
 		array_t<PagerSavepoint> Savepoints;	// Array of active savepoints
 		char DBFileVersion[16];		// Changes whenever database file changes
 		// End of the routinely-changing class members
@@ -120,7 +119,7 @@ namespace Core
 		char *Filename;				// Name of the database file
 		char *Journal;				// Name of the journal file
 		int (*BusyHandler)(void*);	// Function to call when busy
-		void *BusyHandlerArg;		// Context argument for xBusyHandler
+		void *BusyHandlerArg;		// BContext argument for xBusyHandler
 		int Stats[3];               // Total cache hits, misses and writes
 #ifdef TEST
 		int Reads;                  // Database pages read

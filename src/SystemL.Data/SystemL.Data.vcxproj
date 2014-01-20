@@ -25,13 +25,14 @@
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\BtreeInt.cu.h" />
-    <ClInclude Include="..\SystemL.Data.net\Core+Btree\Context.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Btree\BContext.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Core+Btree.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Core+Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Pager.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\PCache.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Pager\Wal.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Core+Syntax.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Syntax\Context.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Core+Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h" />
@@ -117,7 +118,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;OMIT_GET_TABLE;OMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;OMIT_INCRBLOB;OMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

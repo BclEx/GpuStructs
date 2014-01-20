@@ -60,7 +60,7 @@ namespace Core
 	typedef struct BtShared
 	{
 		Pager *Pager;			// The page cache
-		Context *Ctx;			// Database connection currently using this Btree
+		BContext *Ctx;			// Database connection currently using this Btree
 		BtCursor *Cursor;		// A list of all open cursors
 		MemPage *Page1;			// First page of the database
 		Btree::OPEN OpenFlags;	// Flags to sqlite3BtreeOpen()

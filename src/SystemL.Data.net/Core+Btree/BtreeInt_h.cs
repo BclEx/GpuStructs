@@ -98,7 +98,7 @@ namespace Core
             public BtShared() { AutoID = _autoID++; } // For C#
 
             internal Pager Pager;             // The page cache
-            internal Context Ctx;             // Database connection currently using this Btree
+            internal BContext Ctx;             // Database connection currently using this Btree
             internal BtCursor Cursor;         // A list of all open cursors
             internal MemPage Page1;           // First page of the database
             internal Btree.OPEN OpenFlags;    // Flags to sqlite3BtreeOpen()

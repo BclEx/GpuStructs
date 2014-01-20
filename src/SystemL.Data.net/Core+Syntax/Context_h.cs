@@ -1,7 +1,7 @@
 ﻿using System;
 namespace Core
 {
-    public class Context
+    public class Context : BContext
     {
         const int MAX_ATTACHED = 10;
 

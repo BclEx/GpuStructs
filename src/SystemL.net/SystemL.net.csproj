@@ -43,6 +43,7 @@
     <Compile Include="Core\40.StatusEx.cs" />
     <Compile Include="Core\45.VAlloc.cs" />
     <Compile Include="Core\60.MathEx.cs" />
+    <Compile Include="Core\05.Hash.cs" />
     <Compile Include="Core\cs.cs" />
     <Compile Include="Core\Text\00.StringBuilder.cs" />
     <Compile Include="Program.cs" />
@@ -63,11 +64,13 @@
     <None Include="Core\40.StatusEx.cu" />
     <Content Include="Core\50.SysEx.cu.h" />
     <Content Include="Core\60.MathEx.cu.h" />
+    <Content Include="Core\05.Hash.cu.h" />
     <Content Include="Core\Core+Types.cu.h" />
     <Content Include="Core\Core.cu.h" />
     <Content Include="Core\40.StatusEx.cu.h" />
     <None Include="Core\55.GpuVSystem.cu" />
     <None Include="Core\55.WinVSystem.cu" />
+    <None Include="Core\05.Hash.cu" />
     <None Include="Core\IO\20.MemoryVFile.cu" />
     <Content Include="Core\IO\30.VFile.cu.h" />
     <None Include="Core\50.VSystem.cu" />
