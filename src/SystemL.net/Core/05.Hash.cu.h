@@ -20,7 +20,7 @@ namespace Core
 		unsigned int TableSize;     // Number of buckets in the hash table
 		unsigned int Count;			// Number of entries in this table
 		HashElem *First;			// The first element of the array
-		struct _ht
+		struct HTable
 		{              
 			int Count;              // Number of entries with this hash
 			HashElem *Chain;        // Pointer to first entry with this hash
