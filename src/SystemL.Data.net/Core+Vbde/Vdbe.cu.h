@@ -74,7 +74,7 @@ namespace Core
 				VdbeFunc *VdbeFunc;		// Used when p4type is P4_VDBEFUNC
 				CollSeq *Coll;			// Used when p4type is P4_COLLSEQ
 				Mem *Mem;				// Used when p4type is P4_MEM
-				VTable *Vtab;			// Used when p4type is P4_VTAB
+				VTable *VTable;			// Used when p4type is P4_VTAB
 				KeyInfo *KeyInfo;		// Used when p4type is P4_KEYINFO
 				int *Is;				// Used when p4type is P4_INTARRAY
 				SubProgram *Program;	// Used when p4type is P4_SUBPROGRAM

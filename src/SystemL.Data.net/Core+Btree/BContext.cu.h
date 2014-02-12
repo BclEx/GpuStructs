@@ -21,7 +21,7 @@ namespace Core
 			Btree *Bt;					// The B*Tree structure for this database file
 			uint8 InTrans;				// 0: not writable.  1: Transaction.  2: Checkpoint
 			uint8 SafetyLevel;			// How aggressive at syncing data to disk
-			Schema *Schema;			// Pointer to database schema (possibly shared)
+			Schema *Schema;				// Pointer to database schema (possibly shared)
 		};
 
 		enum FLAG : uint32
@@ -50,16 +50,18 @@ namespace Core
 			FLAG_LoadExtension = 0x20000000,
 			FLAG_EnableTrigger = 0x40000000,
 		};
+		//__device__ FLAG inline operator|=(FLAG a, int b) { return (FLAG)(a | b); }
 
 		MutexEx Mutex;
-		array_t<DB> DBs;			// All backends / Number of backends currently in use
+		array_t<DB> DBs;				// All backends / Number of backends currently in use
 		FLAG Flags;
 
 		int ActiveVdbeCnt;
 
 		BusyHandlerType *BusyHandler;
-		Savepoint *Savepoints;       // List of active savepoints
-		int SavepointsLength;		// Number of non-transaction savepoints
+		DB StaticDBs[2];				// Static space for the 2 default backends
+		Savepoint *Savepoints;			// List of active savepoints
+		int SavepointsLength;			// Number of non-transaction savepoints
 
 		__device__ inline int InvokeBusyHandler()
 		{

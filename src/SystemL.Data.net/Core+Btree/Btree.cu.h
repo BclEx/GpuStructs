@@ -28,7 +28,6 @@ namespace Core
 	};
 	__device__ UNPACKED inline operator|=(UNPACKED a, int b) { return (UNPACKED)(a | b); }
 
-
 	struct UnpackedRecord
 	{
 		KeyInfo *KeyInfo;	// Collation and sort-order information
@@ -203,7 +202,7 @@ namespace Core
 
 #ifndef OMIT_SHARED_CACHE
 		__device__ inline void Enter() { }
-		//__device__ static void EnterAll(BContext *);
+		__device__ static void EnterAll(BContext *ctx) { }
 #else
 #define Enter(X) 
 		//#define EnterAll(X)
@@ -214,12 +213,12 @@ namespace Core
 		__device__ inline void Leave() { }
 		//__device__ static void EnterCursor(BtCursor *);
 		//__device__ static void LeaveCursor(BtCursor *);
-		//__device__ static void LeaveAll(BContext *);
+		__device__ static void LeaveAll(BContext *ctx) { }
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.
 		__device__ inline bool HoldsMutex() { return true; }
-		//__device__ int HoldsAllMutexes(sqlite3*);
-		//__device__ int sqlite3SchemaMutexHeld(sqlite3*,int,Schema*);
+		__device__ inline static bool HoldsAllMutexes(BContext *ctx) { return true; }
+		__device__ inline static bool SchemaMutexHeld(BContext *ctx, int db, Core::Schema *schema) { return true; }
 		//#endif
 #else
 #define Sharable(X) 0

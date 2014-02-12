@@ -3,6 +3,7 @@
 namespace Core
 {
 	struct VdbeOp;
+	struct VTableCursor;
 	struct VdbeSorter;
 	struct RowSet;
 

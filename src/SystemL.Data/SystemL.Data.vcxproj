@@ -43,6 +43,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
@@ -64,6 +65,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />

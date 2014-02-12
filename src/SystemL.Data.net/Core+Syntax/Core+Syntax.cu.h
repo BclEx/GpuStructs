@@ -1,10 +1,14 @@
-﻿#include "../Core+Btree/Core+Btree.cu.h"
-#include "../Parse.h"
+﻿#include "../Parse.h"
+#include "../Core+Btree/Core+Btree.cu.h"
 #include "Context.cu.h"
 namespace Core
 {
 
 #pragma region Limits
+
+#ifndef MAX_ATTACHED
+#define MAX_ATTACHED 10
+#endif
 
 #if MAX_ATTACHED > 30
 	typedef uint64 yDbMask;
@@ -16,6 +20,10 @@ namespace Core
 	typedef int16 yVars;
 #else
 	typedef int yVars;
+#endif
+
+#ifndef N_COLCACHE
+#define N_COLCACHE 10
 #endif
 
 #if _64BITSTATS
@@ -43,6 +51,7 @@ namespace Core
 		FUNC_LENGTH = 0x40,		// Built-in length() function
 		FUNC_TYPEOF = 0x80,		// Built-in typeof() function
 	};
+	__device__ FUNC inline operator|=(FUNC a, int b) { return (FUNC)(a | b); }
 
 	struct FuncDestructor
 	{
@@ -100,29 +109,29 @@ namespace Core
 	class ITableModule //was:sqlite3_module
 	{
 	public:
-		int iVersion;
-		__device__ virtual int Create(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ virtual int Connect(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ virtual int BestIndex(IVTable *vtab, IIndexInfo *);
-		__device__ virtual int Disconnect(IVTable *vtab);
-		__device__ virtual int Destroy(IVTable *vtab);
-		__device__ virtual int Open(IVTable *vtab, IVTableCursor **cursors);
-		__device__ virtual int Close(IVTableCursor*);
-		__device__ virtual int Filter(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
-		__device__ virtual int Next(IVTableCursor*);
-		__device__ virtual int Eof(IVTableCursor*);
-		__device__ virtual int Column(IVTableCursor *, FuncContext *, int);
-		__device__ virtual int Rowid(IVTableCursor *, int64 *rowid);
-		__device__ virtual int Update(IVTable *, int, Mem **, int64 *);
-		__device__ virtual int Begin(IVTable *vtab);
-		__device__ virtual int Sync(IVTable *vtab);
-		__device__ virtual int Commit(IVTable *vtab);
-		__device__ virtual int Rollback(IVTable *vtab);
-		__device__ virtual int FindFunction(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
-		__device__ virtual int Rename(IVTable *vtab, const char *new_);
-		__device__ virtual int Savepoint(IVTable *vtab, int);
-		__device__ virtual int Release(IVTable *vtab, int);
-		__device__ virtual int RollbackTo(IVTable *vtab, int);
+		int Version;
+		__device__ virtual RC Create(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		__device__ virtual RC Connect(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		__device__ virtual RC BestIndex(IVTable *vtab, IIndexInfo *);
+		__device__ virtual RC Disconnect(IVTable *vtab);
+		__device__ virtual RC Destroy(IVTable *vtab);
+		__device__ virtual RC Open(IVTable *vtab, IVTableCursor **cursors);
+		__device__ virtual RC Close(IVTableCursor*);
+		__device__ virtual RC Filter(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
+		__device__ virtual RC Next(IVTableCursor*);
+		__device__ virtual RC Eof(IVTableCursor*);
+		__device__ virtual RC Column(IVTableCursor *, FuncContext *, int);
+		__device__ virtual RC Rowid(IVTableCursor *, int64 *rowid);
+		__device__ virtual RC Update(IVTable *, int, Mem **, int64 *);
+		__device__ virtual RC Begin(IVTable *vtab);
+		__device__ virtual RC Sync(IVTable *vtab);
+		__device__ virtual RC Commit(IVTable *vtab);
+		__device__ virtual RC Rollback(IVTable *vtab);
+		__device__ virtual RC FindFunction(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
+		__device__ virtual RC Rename(IVTable *vtab, const char *new_);
+		__device__ virtual RC Savepoint(IVTable *vtab, int);
+		__device__ virtual RC Release(IVTable *vtab, int);
+		__device__ virtual RC RollbackTo(IVTable *vtab, int);
 	};
 
 	enum INDEX_CONSTRAINT : uint8
@@ -166,8 +175,6 @@ namespace Core
 		double EstimatedCost;		// Estimated cost of using this index
 	};
 
-	int sqlite3_create_module(Context *db, const char *name, const ITableModule *p, void *clientData, void (*destroy)(void *));
-
 	struct IVTable //was:sqlite3_vtab
 	{
 		const ITableModule *IModule;// The module for this virtual table
@@ -181,8 +188,29 @@ namespace Core
 		// Virtual table implementations will typically add additional fields
 	};
 
-	int sqlite3_declare_vtab(Context *, const char *sql);
-	int sqlite3_overload_function(Context *, const char *funcName, int args);
+	enum OE : uint8
+	{
+		OE_None = 0,   // There is no constraint to check
+		OE_Rollback = 1,   // Fail the operation and rollback the transaction
+		OE_Abort = 2,   // Back out changes but do no rollback transaction
+		OE_Fail = 3,   // Stop the operation but leave all prior changes
+		OE_Ignore = 4,   // Ignore the error. Do not do the INSERT or UPDATE
+		OE_Replace = 5,   // Delete existing record, then do INSERT or UPDATE
+		OE_Restrict = 6,   // OE_Abort for IMMEDIATE, OE_Rollback for DEFERRED
+		OE_SetNull = 7,   // Set the foreign key value to NULL
+		OE_SetDflt = 8,   // Set the foreign key value to its default
+		OE_Cascade = 9,   // Cascade the changes
+		OE_Default = 99,  // Do whatever the default action is
+	};
+
+	enum CONFLICT : uint8
+	{
+		CONFLICT_ROLLBACK = 1,
+		CONFLICT_IGNORE = 2,
+		CONFLICT_FAIL = 3,
+		CONFLICT_ABORT = 4,
+		CONFLICT_REPLACE = 5
+	};
 
 #pragma endregion
 
@@ -236,11 +264,12 @@ namespace Core
 		tRowcnt DLts;			// Est. number of distinct keys less than this sample
 	};
 
-	struct Token
-	{
-		const char *Z;     // Text of the token.  Not NULL-terminated!
-		unsigned int N;    // Number of characters in this token
-	};
+	typedef array_t<char> Token;
+	//struct Token
+	//{
+	//	const char *Z;     // Text of the token.  Not NULL-terminated!
+	//	unsigned int N;    // Number of characters in this token
+	//};
 
 	struct AggInfo
 	{
@@ -428,48 +457,73 @@ namespace Core
 
 	struct NameContext
 	{
-		Parse *Parse;       // The parser
-		SrcList *SrcList;   // One or more tables used to resolve names
-		ExprList *EList;    // Optional list of named expressions
-		AggInfo *AggInfo;   // Information about aggregates at this level
-		NameContext *Next;  // Next outer name context.  NULL for outermost
-		int Refs;            // Number of names resolved by this context
-		int Errs;            // Number of errors encountered while resolving names
-		NC NcFlags;          // Zero or more NC_* flags defined below
+		Parse *Parse;				// The parser
+		SrcList *SrcList;			// One or more tables used to resolve names
+		ExprList *EList;			// Optional list of named expressions
+		AggInfo *AggInfo;			// Information about aggregates at this level
+		NameContext *Next;			// Next outer name context.  NULL for outermost
+		int Refs;					// Number of names resolved by this context
+		int Errs;					// Number of errors encountered while resolving names
+		NC NcFlags;					// Zero or more NC_* flags defined below
 	};
 
 	enum SF : uint16
 	{
-		SF_Distinct = 0x0001,  // Output should be DISTINCT
-		SF_Resolved = 0x0002,  // Identifiers have been resolved
-		SF_Aggregate = 0x0004,  // Contains aggregate functions
+		SF_Distinct = 0x0001,		// Output should be DISTINCT
+		SF_Resolved = 0x0002,		// Identifiers have been resolved
+		SF_Aggregate = 0x0004,		// Contains aggregate functions
 		SF_UsesEphemeral = 0x0008,  // Uses the OpenEphemeral opcode
-		SF_Expanded = 0x0010,  // sqlite3SelectExpand() called on this
-		SF_HasTypeInfo = 0x0020,  // FROM subqueries have Table metadata
-		SF_UseSorter = 0x0040,  // Sort using a sorter
-		SF_Values = 0x0080,  // Synthesized from VALUES clause
-		SF_Materialize = 0x0100,  // Force materialization of views
-		SF_NestedFrom = 0x0200,  // Part of a parenthesized FROM clause
+		SF_Expanded = 0x0010,		// sqlite3SelectExpand() called on this
+		SF_HasTypeInfo = 0x0020,	// FROM subqueries have Table metadata
+		SF_UseSorter = 0x0040,		// Sort using a sorter
+		SF_Values = 0x0080,			// Synthesized from VALUES clause
+		SF_Materialize = 0x0100,	// Force materialization of views
+		SF_NestedFrom = 0x0200,		// Part of a parenthesized FROM clause
 	};
 
 	struct Select
 	{
-		ExprList *EList;      // The fields of the result
-		uint8 OP;               // One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
-		SF SelFlags;          // Various SF_* values
-		int iLimit, iOffset;   // Memory registers holding LIMIT & OFFSET counters
-		int addrOpenEphm[3];   // OP_OpenEphem opcodes related to this select
-		double nSelectRow;     // Estimated number of result rows
-		SrcList *pSrc;         // The FROM clause
-		Expr *pWhere;          // The WHERE clause
-		ExprList *pGroupBy;    // The GROUP BY clause
-		Expr *pHaving;         // The HAVING clause
-		ExprList *pOrderBy;    // The ORDER BY clause
-		Select *pPrior;        // Prior select in a compound select statement
-		Select *pNext;         // Next select to the left in a compound
-		Select *pRightmost;    // Right-most select in a compound select statement
-		Expr *pLimit;          // LIMIT expression. NULL means not used.
-		Expr *pOffset;         // OFFSET expression. NULL means not used.
+		ExprList *EList;			// The fields of the result
+		uint8 OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
+		SF SelFlags;				// Various SF_* values
+		int iLimit, iOffset;		// Memory registers holding LIMIT & OFFSET counters
+		int addrOpenEphm[3];		// OP_OpenEphem opcodes related to this select
+		double nSelectRow;			// Estimated number of result rows
+		SrcList *pSrc;				// The FROM clause
+		Expr *pWhere;				// The WHERE clause
+		ExprList *pGroupBy;			// The GROUP BY clause
+		Expr *pHaving;				// The HAVING clause
+		ExprList *pOrderBy;			// The ORDER BY clause
+		Select *pPrior;				// Prior select in a compound select statement
+		Select *pNext;				// Next select to the left in a compound
+		Select *pRightmost;			// Right-most select in a compound select statement
+		Expr *pLimit;				// LIMIT expression. NULL means not used.
+		Expr *pOffset;				// OFFSET expression. NULL means not used.
+	};
+
+	enum SRT : uint8
+	{
+		SRT_Union = 1,				// Store result as keys in an index
+		SRT_Except = 2,				// Remove result from a UNION index
+		SRT_Exists = 3,				// Store 1 if the result is not empty
+		SRT_Discard = 4,			// Do not save the results anywhere
+		// IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
+		SRT_Output = 5,  // Output each row of result
+		SRT_Mem = 6,  // Store result in a memory cell
+		SRT_Set = 7,  // Store results as keys in an index
+		SRT_Table = 8,  // Store result as data with an automatic rowid
+		SRT_EphemTab = 9,  // Create transient tab and store like SRT_Table
+		SRT_Coroutine = 10,  // Generate a single row of result
+	};
+#define IgnorableOrderby(x) ((x->Dest)<=SRT_Discard)
+
+	struct SelectDest
+	{
+		uint8 eDest;         // How to dispose of the results.  On of SRT_* above.
+		char affSdst;     // Affinity used when eDest==SRT_Set
+		int iSDParm;      // A parameter used by the eDest disposal method
+		int iSdst;        // Base register where results are written
+		int nSdst;        // Number of registers allocated
 	};
 
 #pragma endregion
@@ -595,11 +649,10 @@ namespace Core
 
 #pragma region Table
 
-	struct VTable;
 	struct Trigger;
 	struct Expr;
 
-	struct Module
+	struct TableModule
 	{
 		const ITableModule *IModule;    // Callback pointers
 		const char *Name;               // Name passed to create_module()
@@ -612,6 +665,7 @@ namespace Core
 		COLFLAG_PRIMKEY = 0x0001,		// Column is part of the primary key
 		COLFLAG_HIDDEN = 0x0002,		// A hidden column in a virtual table
 	};
+	__device__ COLFLAG inline operator|=(COLFLAG a, int b) { return (COLFLAG)(a | b); }
 
 	struct Column
 	{
@@ -625,15 +679,59 @@ namespace Core
 		COLFLAG ColFlags;			// Boolean properties.  See COLFLAG_ defines below
 	};
 
+	enum VTABLECONFIG : uint8
+	{
+		VTABLECONFIG_CONSTRAINT = 1,
+	};
+
 	struct VTable
 	{
-		Context *Db;				// Database connection associated with this table
-		Module *Module;				// Pointer to module implementation
+		Context *Ctx;				// Database connection associated with this table
+		TableModule *Module;		// Pointer to module implementation
 		IVTable *IVTable;			// Pointer to vtab instance
 		int Refs;					// Number of pointers to this structure
 		bool Constraint;			// True if constraints are supported
-		int Savepoint;				// Depth of the SAVEPOINT stack
-		struct VTable *Next;		// Next in linked list (see above)
+		int Savepoints;				// Depth of the SAVEPOINT stack
+		VTable *Next;				// Next in linked list (see above)
+
+#ifdef OMIT_VIRTUALTABLE
+		__device__ inline static void Clear(Context *ctx, Table *table) {}
+		__device__ inline static RC Sync(Context *ctx, char **error) { return RC_OK; }
+		__device__ static RC Rollback(Context *ctx);
+		__device__ static RC Commit(Context *ctx);
+#define VTable_InSync(ctx) 0
+		__device__ inline void Lock() {}
+		__device__ inline void Unlock() {}
+		__device__ inline static void UnlockList(Context *ctx) {}
+		__device__ inline static RC Savepoint(Context *ctx, int op, IPager::SAVEPOINT savepoint) { return RC_OK; }
+		__device__ inline static VTable *GetVTable(Context *ctx, Table *table) { return nullptr; }
+#else
+		__device__ static RC CreateModule(Context *ctx, const char *name, const ITableModule *imodule, void *aux, void (*destroy)(void *));
+		__device__ void Lock();
+		__device__ static VTable *GetVTable(Context *ctx, Table *table);
+		__device__ void Unlock();
+		__device__ static void Disconnect(Context *ctx, Table *table);
+		__device__ static void UnlockList(Context *ctx);
+		__device__ static void Clear(Context *ctx, Table *table);
+		__device__ static void BeginParse(Parse *parse, Token *name1, Token *name2, Token *moduleName, int ifNotExists);
+		__device__ static void FinishParse(Parse *parse, Token *end);
+		__device__ static void ArgInit(Parse *parse);
+		__device__ static void ArgExtend(Parse *parse, Token *token);
+		__device__ static RC CallConnect(Parse *parse, Table *table);
+		__device__ static RC CallCreate(Context *ctx, int dbidx, const char *tableName, char **error);
+		__device__ static RC DeclareVTable(Context *ctx, const char *createTable);
+		__device__ static RC CallDestroy(Context *ctx, int dbidx, const char *tableName);
+		__device__ static RC Sync(Context *ctx, char **error);
+		__device__ static RC Rollback(Context *ctx);
+		__device__ static RC Commit(Context *ctx);
+#define VTable_InSync(ctx) ((ctx)->VTrans.length>0 && (ctx)->VTrans==nullptr)
+		__device__ static RC Begin(Context *ctx, VTable *vtable);
+		__device__ static RC Savepoint(Context *ctx, int op, IPager::SAVEPOINT savepoint);
+		__device__ static FuncDef *OverloadFunction(Context *ctx, FuncDef *def, int argsLength, Expr *expr);
+		__device__ static void MakeWritable(Parse *parse, Table *table);
+		__device__ static CONFLICT OnConflict(Context *ctx);
+		__device__ static RC Config(Context *ctx, VTABLECONFIG op, void *arg1);
+#endif
 	};
 
 	enum TF : uint8
@@ -644,6 +742,7 @@ namespace Core
 		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
 		TF_Virtual = 0x10,    // Is a virtual table
 	};
+	__device__ TF inline operator|=(TF a, int b) { return (TF)(a | b); }
 
 	struct Index;
 	struct Select;
@@ -680,8 +779,8 @@ namespace Core
 	};
 
 #ifndef OMIT_VIRTUALTABLE
-#define IsVirtual(X)      (((X)->tabFlags & TF_Virtual)!=0)
-#define IsHiddenColumn(X) (((X)->colFlags & COLFLAG_HIDDEN)!=0)
+#define IsVirtual(X)      (((X)->TabFlags & TF_Virtual)!=0)
+#define IsHiddenColumn(X) (((X)->ColFlags & COLFLAG_HIDDEN)!=0)
 #else
 #define IsVirtual(X)      0
 #define IsHiddenColumn(X) 0
@@ -710,11 +809,195 @@ namespace Core
 #pragma region Rowset
 
 	struct RowSet;
-	__device__ RowSet *RowSet_Init(Context *db, void *space, unsigned int n);
+	__device__ RowSet *RowSet_Init(Context *ctx, void *space, unsigned int n);
 	__device__ void RowSet_Clear(RowSet *p);
 	__device__ void RowSet_Insert(RowSet *p, int64 rowid);
 	__device__ bool RowSet_Test(RowSet *rowSet, uint8 batch, int64 rowid);
 	__device__ bool RowSet_Next(RowSet *p, int64 *rowid);
+
+#pragma endregion
+
+#pragma region Parse
+
+	class Vdbe;
+	struct TableLock;
+	struct SubProgram;
+
+#ifdef OMIT_VIRTUALTABLE
+#define INDECLARE_VTABLE(x) false
+#else
+#define INDECLARE_VTABLE(x) (x->DeclareVTable)
+#endif
+
+	//enum OPFLAG
+	//{
+	//	OPFLAG_NCHANGE = 0x01,		// Set to update db->nChange
+	//	OPFLAG_LASTROWID = 0x02,    // Set to update db->lastRowid
+	//	OPFLAG_ISUPDATE = 0x04,		// This OP_Insert is an sql UPDATE
+	//	OPFLAG_APPEND = 0x08,		// This is likely to be an append
+	//	OPFLAG_USESEEKRESULT = 0x10,// Try to avoid a seek in BtreeInsert()
+	//	OPFLAG_CLEARCACHE = 0x20,   // Clear pseudo-table cache in OP_Column
+	//	OPFLAG_LENGTHARG = 0x40,    // OP_Column only used for length()
+	//	OPFLAG_TYPEOFARG = 0x80,    // OP_Column only used for typeof()
+	//	OPFLAG_BULKCSR = 0x01,		// OP_Open** used to open bulk cursor
+	//	OPFLAG_P2ISREG = 0x02,		// P2 to OP_Open** is a register number
+	//	OPFLAG_PERMUTE = 0x01,		// OP_Compare: use the permutation
+	//};
+
+	struct AutoincInfo
+	{
+		AutoincInfo *Next;		// Next info block in a list of them all
+		Table *Table;			// Table this info block refers to
+		int DB;					// Index in sqlite3.aDb[] of database holding pTab
+		int RegCtr;				// Memory register holding the rowid counter
+	};
+
+	struct TriggerPrg
+	{
+		Trigger *Trigger;		// Trigger this program was coded from
+		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
+		SubProgram *Program;	// Program implementing pTrigger/orconf
+		int Orconf;             // Default ON CONFLICT policy
+		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
+	};
+
+	struct Parse
+	{
+		struct yColCache
+		{
+			int Table;				// Table cursor number
+			int Column;				// Table column number
+			uint8 TempReg;			// iReg is a temp register that needs to be freed
+			int Level;				// Nesting level
+			int Reg;				// Reg with value of this column. 0 means none.
+			int Lru;				// Least recently used entry has the smallest value
+		};
+
+		Context *Ctx;				// The main database structure
+		char *ErrMsg;				// An error message
+		Core::Vdbe *Vdbe;			// An engine for executing database bytecode
+		RC RC;						// Return code from execution
+		uint8 ColNamesSet;			// TRUE after OP_ColumnName has been issued to pVdbe
+		uint8 CheckSchema;			// Causes schema cookie check after an error
+		uint8 Nested;				// Number of nested calls to the parser/code generator
+		//uint8 TempReg;			// Number of temporary registers in aTempReg[]
+		uint8 TempRegsInUse;		// Number of aTempReg[] currently checked out
+		//uint8 ColCaches;			// Number of entries in aColCache[]
+		uint8 ColCacheIdx;			// Next entry in aColCache[] to replace
+		uint8 IsMultiWrite;			// True if statement may modify/insert multiple rows
+		uint8 MayAbort;				// True if statement may throw an ABORT exception
+		array_t3<uint8, int, 8> TempReg; // Holding area for temporary registers
+		int RangeRegs;				// Size of the temporary register block
+		int RangeRegIdx;			// First register in temporary register block
+		int Errs;					// Number of errors seen
+		int Tabs;					// Number of previously allocated VDBE cursors
+		int Mems;					// Number of memory cells used so far
+		int Sets;					// Number of sets used so far
+		int Onces;					// Number of OP_Once instructions so far
+		int CkBase;					// Base register of data during check constraints
+		int CacheLevel;				// ColCache valid when aColCache[].iLevel<=iCacheLevel
+		int CacheCnt;				// Counter used to generate aColCache[].lru values
+		array_t3<uint8, yColCache, N_COLCACHE> ColCaches; // One for each column cache entry
+		yDbMask WriteMask;			// Start a write transaction on these databases
+		yDbMask CookieMask;			// Bitmask of schema verified databases
+		int CookieGoto;				// Address of OP_Goto to cookie verifier subroutine
+		int CookieValue[MAX_ATTACHED + 2];  // Values of cookies to verify
+		int RegRowid;				// Register holding rowid of CREATE TABLE entry
+		int RegRoot;				// Register holding root page number for new objects
+		int MaxArgs;				// Max args passed to user function by sub-program
+		Token ConstraintName;		// Name of the constraint currently being parsed
+#ifndef OMIT_SHARED_CACHE
+		// int TableLocks;			// Number of locks in aTableLock
+		array_t<TableLock> TableLocks; // Required table locks for shared-cache mode
+#endif
+		AutoincInfo *Ainc;			// Information about AUTOINCREMENT counters
+
+		// Information used while coding trigger programs.
+		Parse *Toplevel;			// Parse structure for main program (or NULL)
+		Table *TriggerTab;			// Table triggers are being coded for
+		double QueryLoops;			// Estimated number of iterations of a query
+		uint32 Oldmask;				// Mask of old.* columns referenced
+		uint32 Newmask;				// Mask of new.* columns referenced
+		uint8 TriggerOp;			// TK_UPDATE, TK_INSERT or TK_DELETE
+		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
+		uint8 DisableTriggers;		// True to disable triggers
+
+		// Above is constant between recursions.  Below is reset before and after each recursion
+		int VarsSeen;				// Number of '?' variables seen in the SQL so far
+		//int nzVar;				// Number of available slots in azVar[]
+		uint8 Explain;				// True if the EXPLAIN flag is found on the query
+#ifndef OMIT_VIRTUALTABLE
+		bool DeclareVTable;			// True if inside sqlite3_declare_vtab()
+		//int nVtabLock;			// Number of virtual tables to lock
+#endif
+		//int nAlias;				// Number of aliased result set columns
+		int nHeight;				// Expression tree height of current sub-select
+#ifndef OMIT_EXPLAIN
+		int iSelectId;				// ID of current select for EXPLAIN output
+		int iNextSelectId;			// Next available select ID for EXPLAIN output
+#endif
+		array_t<char *>Vars;		// Pointers to names of parameters
+		Core::Vdbe *Reprepare;		// VM being reprepared (sqlite3Reprepare())
+		array_t<int> Alias;			// Register used to hold aliased result
+		const char *Tail;			// All SQL text past the last semicolon parsed
+		Table *NewTable;			// A table being constructed by CREATE TABLE
+		Trigger *NewTrigger;		// Trigger under construct by a CREATE TRIGGER
+		const char *AuthContext;	// The 6th parameter to db->xAuth callbacks
+		Token NameToken;			// Token with unqualified schema object name
+		Token LastToken;			// The last token parsed
+#ifndef OMIT_VIRTUALTABLE
+		Token Arg;					// Complete text of a module argument
+		array_t<Table *> VTableLocks; // Pointer to virtual tables needing locking
+#endif
+		Table *ZombieTab;			// List of Table objects to delete after code gen
+		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
+
+#pragma region FromBuild_c
+
+		__device__ void BeginParse(bool explainFlag);
+#ifndef OMIT_SHARED_CACHE
+		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
+#endif
+		__device__ void FinishCoding();
+		__device__ void NestedParse(const char *format, void **args);
+		__device__ static Table *FindTable(Context *ctx, const char *name, const char *database);
+		__device__ Table *LocateTable(bool isView, const char *name, const char *database);
+		__device__ Table *LocateTableItem(bool isView,  SrcList_Item *p);
+		__device__ static Index *FindIndex(Context *ctx, const char *name, const char *database);
+		__device__ static void UnlinkAndDeleteIndex(Context *ctx, int db, const char *indexName);
+		__device__ static void CollapseDatabaseArray(Context *ctx);
+		__device__ static void ResetOneSchema(Context *ctx, int db);
+		__device__ static void ResetAllSchemasOfConnection(Context *ctx);
+		__device__ static void CommitInternalChanges(Context *ctx);
+		__device__ static void DeleteTable(Context *ctx, Table *table);
+		__device__ static void UnlinkAndDeleteTable(Context *ctx, int db, const char *tableName);
+		__device__ static char *NameFromToken(Context *ctx, Token *name);
+		__device__ void OpenMasterTable(int db);
+		__device__ static int FindDbName(Context *ctx, const char *name);
+		__device__ static int FindDb(Context *ctx, Token *name);
+		__device__ int TwoPartName(Token *name1, Token *name2, Token **unqual);
+		__device__ Core::RC CheckObjectName(const char *name);
+		__device__ void StartTable(Token *name1, Token *name2, bool isTemp, bool isView, bool isVirtual, bool noErr);
+		__device__ void AddColumn(Token *name);
+		__device__ void AddNotNull(uint8 onError);
+		__device__ static AFF AffinityType(const char *data);
+		__device__ void AddColumnType(Token *type);
+		__device__ void AddDefaultValue(ExprSpan *span);
+		__device__ void AddPrimaryKey(ExprList *list, uint8 onError, bool autoInc, int sortOrder);
+		__device__ void AddCheckConstraint(Expr *checkExpr);
+		__device__ void AddCollateType(Token *token);
+		__device__ CollSeq *LocateCollSeq(const char *name);
+		__device__ void ChangeCookie(int db);
+
+#pragma endregion
+
+	};
+
+	struct AuthContext
+	{
+		const char *AuthCtx;		// Put saved Parse.zAuthContext here
+		Parse *Parse;				// The Parse structure
+	};
 
 #pragma endregion
 

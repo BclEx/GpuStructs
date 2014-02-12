@@ -32,10 +32,10 @@ namespace Core {
 	{
 		int ShemaCookie;		// Database schema version number for this file
 		int Generation;			// Generation counter.  Incremented with each change
-		//Hash TableHash;		// All tables indexed by name
-		//Hash IndexHash;		// All (named) indices indexed by name
-		//Hash TriggerHash;		// All triggers indexed by name
-		//Hash FKeyHash;		// All foreign keys by referenced table name
+		Hash TableHash;		// All tables indexed by name
+		Hash IndexHash;		// All (named) indices indexed by name
+		Hash TriggerHash;		// All triggers indexed by name
+		Hash FKeyHash;		// All foreign keys by referenced table name
 		Table *SeqTable;		// The sqlite_sequence table used by AUTOINCREMENT
 		uint8 FileFormat;		// Schema format version for this file
 		uint8 Encode;			// Text encoding used by this database

@@ -28,13 +28,6 @@ namespace Core
 		Savepoint *Next;		// Parent savepoint (if any)
 	};
 
-	enum SAVEPOINT
-	{
-		SAVEPOINT_BEGIN = 0,
-		SAVEPOINT_RELEASE = 1,
-		SAVEPOINT_ROLLBACK = 2,
-	};
-
 #pragma endregion
 
 #pragma region Column Affinity

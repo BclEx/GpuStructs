@@ -63,6 +63,8 @@
     <Compile Include="Core+Syntax\Table.cs" />
     <Compile Include="Core+Syntax\VTable.cs" />
     <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
+    <None Include="Core+Syntax\Build.cu" />
+    <None Include="Core+Syntax\Prepare.cu" />
     <None Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
     <None Include="Core+Vbde\VdbeAux.cs" />
