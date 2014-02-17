@@ -101,8 +101,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu">
-      <Filter>Core+Syntax</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Build.cu">
+      <Filter>Core+Vbde</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

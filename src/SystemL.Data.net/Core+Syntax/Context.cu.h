@@ -34,7 +34,7 @@ namespace Core
 	public:
 		struct sqlite3InitInfo
 		{
-			int NewTnum;                // Rootpage of table being initialized
+			int NewTid;					// Rootpage of table being initialized
 			uint8 DB;                   // Which db file is being initialized
 			bool Busy;					// TRUE if currently initializing
 			uint8 OrphanTrigger;        // Last statement is orphaned TEMP trigger

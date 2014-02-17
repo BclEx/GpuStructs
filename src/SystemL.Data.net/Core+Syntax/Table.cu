@@ -13,7 +13,7 @@ namespace Core
 		int ResultsAlloc;		// Slots allocated for Results[]
 		int Rows;				// Number of rows in the result
 		int Columns;			// Number of columns in the result
-		RC RC;				// Return code from sqlite3_exec()
+		RC RC;					// Return code from sqlite3_exec()
 	} TabResult;
 
 	__device__ static bool sqlite3_get_table_cb(void *arg, int columns, char **argv, char **colv)

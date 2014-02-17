@@ -239,7 +239,7 @@ namespace Core
 		Schema *Schema;				// Schema containing this index
 		uint8 *SortOrders;			// for each column: True==DESC, False==ASC
 		char **CollNames;			// Array of collation sequence names for index
-		int TNum;					// DB Page containing root of this index
+		int Id;						// DB Page containing root of this index
 		uint8 OnError;				// OE_Abort, OE_Ignore, OE_Replace, or OE_None
 		unsigned AutoIndex:2;		// 1==UNIQUE, 2==PRIMARY KEY, 0==CREATE INDEX
 		unsigned Unordered:1;		// Use this index for == or IN queries only
@@ -337,7 +337,7 @@ namespace Core
 			char *Database;  // Name of database holding this table
 			char *Name;      // Name of the table
 			char *Alias;     // The "B" part of a "A AS B" phrase.  zName is the "A"
-			Table *Tab;      // An SQL table corresponding to zName
+			Table *Table;      // An SQL table corresponding to zName
 			Select *Select;  // A SELECT statement used in place of a table name
 			int AddrFillSub;  // Address of subroutine to manifest a subquery
 			int RegReturn;    // Register holding return address of addrFillSub
@@ -348,7 +348,7 @@ namespace Core
 #ifndef OMIT_EXPLAIN
 			uint8 SelectId;     // If pSelect!=0, the id of the sub-select in EQP
 #endif
-			int iCursor;      // The VDBE cursor number used to access this table
+			int Cursor;      // The VDBE cursor number used to access this table
 			Expr *On;        // The ON clause of a join
 			IdList *Using;   // The USING clause of a join
 			Bitmask ColUsed;  // Bit N (1<<N) set if column N of pTab is used
@@ -486,19 +486,19 @@ namespace Core
 		ExprList *EList;			// The fields of the result
 		uint8 OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
 		SF SelFlags;				// Various SF_* values
-		int iLimit, iOffset;		// Memory registers holding LIMIT & OFFSET counters
-		int addrOpenEphm[3];		// OP_OpenEphem opcodes related to this select
-		double nSelectRow;			// Estimated number of result rows
-		SrcList *pSrc;				// The FROM clause
-		Expr *pWhere;				// The WHERE clause
-		ExprList *pGroupBy;			// The GROUP BY clause
-		Expr *pHaving;				// The HAVING clause
-		ExprList *pOrderBy;			// The ORDER BY clause
-		Select *pPrior;				// Prior select in a compound select statement
-		Select *pNext;				// Next select to the left in a compound
-		Select *pRightmost;			// Right-most select in a compound select statement
-		Expr *pLimit;				// LIMIT expression. NULL means not used.
-		Expr *pOffset;				// OFFSET expression. NULL means not used.
+		int Limit, Offset;			// Memory registers holding LIMIT & OFFSET counters
+		int AddrOpenEphm[3];		// OP_OpenEphem opcodes related to this select
+		double SelectRows;			// Estimated number of result rows
+		SrcList *Src;				// The FROM clause
+		Expr *Where;				// The WHERE clause
+		ExprList *GroupBy;			// The GROUP BY clause
+		Expr *Having;				// The HAVING clause
+		ExprList *OrderBy;			// The ORDER BY clause
+		Select *Prior;				// Prior select in a compound select statement
+		Select *Next;				// Next select to the left in a compound
+		Select *Rightmost;			// Right-most select in a compound select statement
+		Expr *Limit;				// LIMIT expression. NULL means not used.
+		Expr *Offset;				// OFFSET expression. NULL means not used.
 	};
 
 	enum SRT : uint8
@@ -751,20 +751,20 @@ namespace Core
 
 	struct Table
 	{
-		char *Name;         // Name of the table or view
+		char *Name;				// Name of the table or view
 		array_t2<int16, Column> Cols;        // Information about each column
-		Index *Index;       // List of SQL indexes on this table.
-		Select *Select;     // NULL for tables.  Points to definition if a view.
-		FKey *FKeys;         // Linked list of all foreign keys in this table
-		char *ColAff;       // String defining the affinity of each column
+		Index *Index;			// List of SQL indexes on this table.
+		Select *Select;			// NULL for tables.  Points to definition if a view.
+		FKey *FKeys;			// Linked list of all foreign keys in this table
+		char *ColAff;			// String defining the affinity of each column
 #ifndef OMIT_CHECK
-		ExprList *Check;    // All CHECK constraints
+		ExprList *Check;		// All CHECK constraints
 #endif
-		tRowcnt RowEst;     // Estimated rows in table - from sqlite_stat1 table
-		int TNum;            // Root BTree node for this table (see note above)
-		int16 PKey;           // If not negative, use aCol[iPKey] as the primary key
+		tRowcnt RowEst;			// Estimated rows in table - from sqlite_stat1 table
+		int Id;				// Root BTree node for this table (see note above)
+		int16 PKey;				// If not negative, use aCol[iPKey] as the primary key
 		uint16 Refs;            // Number of pointers to this Table
-		TF TabFlags;         // Mask of TF_* values
+		TF TabFlags;			// Mask of TF_* values
 		uint8 KeyConf;          // What to do in case of uniqueness conflict on iPKey
 #ifndef OMIT_ALTERTABLE
 		int AddColOffset;		// Offset in CREATE TABLE stmt to add a new column
@@ -788,21 +788,22 @@ namespace Core
 
 	struct FKey
 	{
-		Table *pFrom;     /* Table containing the REFERENCES clause (aka: Child) */
-		FKey *pNextFrom;  /* Next foreign key in pFrom */
-		char *zTo;        /* Name of table that the key points to (aka: Parent) */
-		FKey *pNextTo;    /* Next foreign key on table named zTo */
-		FKey *pPrevTo;    /* Previous foreign key on table named zTo */
-		int nCol;         /* Number of columns in this key */
-		uint8 isDeferred;    /* True if constraint checking is deferred till COMMIT */
-		uint8 aAction[2];          /* ON DELETE and ON UPDATE actions, respectively */
-		Trigger *apTrigger[2];  /* Triggers for aAction[] actions */
-		struct sColMap {  /* Mapping of columns in pFrom to columns in zTo */
-			int iFrom;         /* Index of column in pFrom */
-			char *zCol;        /* Name of column in zTo.  If 0 use PRIMARY KEY */
-		} aCol[1];        /* One entry for each of nCol column s */
+		struct ColMap // Mapping of columns in pFrom to columns in zTo
+		{		
+			int From;			// Index of column in pFrom
+			char *Col;			// Name of column in zTo.  If 0 use PRIMARY KEY
+		};
+		Table *From;			// Table containing the REFERENCES clause (aka: Child)
+		FKey *NextFrom;			// Next foreign key in pFrom
+		char *To;				// Name of table that the key points to (aka: Parent)
+		FKey *NextTo;			// Next foreign key on table named zTo
+		FKey *PrevTo;			// Previous foreign key on table named zTo
+		//int Cols;				// Number of columns in this key
+		uint8 IsDeferred;		// True if constraint checking is deferred till COMMIT
+		uint8 Actions[2];       // ON DELETE and ON UPDATE actions, respectively
+		Trigger *Triggers[2];	// Triggers for aAction[] actions
+		array_t3<int, ColMap, 1> Cols; // One entry for each of nCol column s
 	};
-
 
 #pragma endregion
 
@@ -814,190 +815,6 @@ namespace Core
 	__device__ void RowSet_Insert(RowSet *p, int64 rowid);
 	__device__ bool RowSet_Test(RowSet *rowSet, uint8 batch, int64 rowid);
 	__device__ bool RowSet_Next(RowSet *p, int64 *rowid);
-
-#pragma endregion
-
-#pragma region Parse
-
-	class Vdbe;
-	struct TableLock;
-	struct SubProgram;
-
-#ifdef OMIT_VIRTUALTABLE
-#define INDECLARE_VTABLE(x) false
-#else
-#define INDECLARE_VTABLE(x) (x->DeclareVTable)
-#endif
-
-	//enum OPFLAG
-	//{
-	//	OPFLAG_NCHANGE = 0x01,		// Set to update db->nChange
-	//	OPFLAG_LASTROWID = 0x02,    // Set to update db->lastRowid
-	//	OPFLAG_ISUPDATE = 0x04,		// This OP_Insert is an sql UPDATE
-	//	OPFLAG_APPEND = 0x08,		// This is likely to be an append
-	//	OPFLAG_USESEEKRESULT = 0x10,// Try to avoid a seek in BtreeInsert()
-	//	OPFLAG_CLEARCACHE = 0x20,   // Clear pseudo-table cache in OP_Column
-	//	OPFLAG_LENGTHARG = 0x40,    // OP_Column only used for length()
-	//	OPFLAG_TYPEOFARG = 0x80,    // OP_Column only used for typeof()
-	//	OPFLAG_BULKCSR = 0x01,		// OP_Open** used to open bulk cursor
-	//	OPFLAG_P2ISREG = 0x02,		// P2 to OP_Open** is a register number
-	//	OPFLAG_PERMUTE = 0x01,		// OP_Compare: use the permutation
-	//};
-
-	struct AutoincInfo
-	{
-		AutoincInfo *Next;		// Next info block in a list of them all
-		Table *Table;			// Table this info block refers to
-		int DB;					// Index in sqlite3.aDb[] of database holding pTab
-		int RegCtr;				// Memory register holding the rowid counter
-	};
-
-	struct TriggerPrg
-	{
-		Trigger *Trigger;		// Trigger this program was coded from
-		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
-		SubProgram *Program;	// Program implementing pTrigger/orconf
-		int Orconf;             // Default ON CONFLICT policy
-		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
-	};
-
-	struct Parse
-	{
-		struct yColCache
-		{
-			int Table;				// Table cursor number
-			int Column;				// Table column number
-			uint8 TempReg;			// iReg is a temp register that needs to be freed
-			int Level;				// Nesting level
-			int Reg;				// Reg with value of this column. 0 means none.
-			int Lru;				// Least recently used entry has the smallest value
-		};
-
-		Context *Ctx;				// The main database structure
-		char *ErrMsg;				// An error message
-		Core::Vdbe *Vdbe;			// An engine for executing database bytecode
-		RC RC;						// Return code from execution
-		uint8 ColNamesSet;			// TRUE after OP_ColumnName has been issued to pVdbe
-		uint8 CheckSchema;			// Causes schema cookie check after an error
-		uint8 Nested;				// Number of nested calls to the parser/code generator
-		//uint8 TempReg;			// Number of temporary registers in aTempReg[]
-		uint8 TempRegsInUse;		// Number of aTempReg[] currently checked out
-		//uint8 ColCaches;			// Number of entries in aColCache[]
-		uint8 ColCacheIdx;			// Next entry in aColCache[] to replace
-		uint8 IsMultiWrite;			// True if statement may modify/insert multiple rows
-		uint8 MayAbort;				// True if statement may throw an ABORT exception
-		array_t3<uint8, int, 8> TempReg; // Holding area for temporary registers
-		int RangeRegs;				// Size of the temporary register block
-		int RangeRegIdx;			// First register in temporary register block
-		int Errs;					// Number of errors seen
-		int Tabs;					// Number of previously allocated VDBE cursors
-		int Mems;					// Number of memory cells used so far
-		int Sets;					// Number of sets used so far
-		int Onces;					// Number of OP_Once instructions so far
-		int CkBase;					// Base register of data during check constraints
-		int CacheLevel;				// ColCache valid when aColCache[].iLevel<=iCacheLevel
-		int CacheCnt;				// Counter used to generate aColCache[].lru values
-		array_t3<uint8, yColCache, N_COLCACHE> ColCaches; // One for each column cache entry
-		yDbMask WriteMask;			// Start a write transaction on these databases
-		yDbMask CookieMask;			// Bitmask of schema verified databases
-		int CookieGoto;				// Address of OP_Goto to cookie verifier subroutine
-		int CookieValue[MAX_ATTACHED + 2];  // Values of cookies to verify
-		int RegRowid;				// Register holding rowid of CREATE TABLE entry
-		int RegRoot;				// Register holding root page number for new objects
-		int MaxArgs;				// Max args passed to user function by sub-program
-		Token ConstraintName;		// Name of the constraint currently being parsed
-#ifndef OMIT_SHARED_CACHE
-		// int TableLocks;			// Number of locks in aTableLock
-		array_t<TableLock> TableLocks; // Required table locks for shared-cache mode
-#endif
-		AutoincInfo *Ainc;			// Information about AUTOINCREMENT counters
-
-		// Information used while coding trigger programs.
-		Parse *Toplevel;			// Parse structure for main program (or NULL)
-		Table *TriggerTab;			// Table triggers are being coded for
-		double QueryLoops;			// Estimated number of iterations of a query
-		uint32 Oldmask;				// Mask of old.* columns referenced
-		uint32 Newmask;				// Mask of new.* columns referenced
-		uint8 TriggerOp;			// TK_UPDATE, TK_INSERT or TK_DELETE
-		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
-		uint8 DisableTriggers;		// True to disable triggers
-
-		// Above is constant between recursions.  Below is reset before and after each recursion
-		int VarsSeen;				// Number of '?' variables seen in the SQL so far
-		//int nzVar;				// Number of available slots in azVar[]
-		uint8 Explain;				// True if the EXPLAIN flag is found on the query
-#ifndef OMIT_VIRTUALTABLE
-		bool DeclareVTable;			// True if inside sqlite3_declare_vtab()
-		//int nVtabLock;			// Number of virtual tables to lock
-#endif
-		//int nAlias;				// Number of aliased result set columns
-		int nHeight;				// Expression tree height of current sub-select
-#ifndef OMIT_EXPLAIN
-		int iSelectId;				// ID of current select for EXPLAIN output
-		int iNextSelectId;			// Next available select ID for EXPLAIN output
-#endif
-		array_t<char *>Vars;		// Pointers to names of parameters
-		Core::Vdbe *Reprepare;		// VM being reprepared (sqlite3Reprepare())
-		array_t<int> Alias;			// Register used to hold aliased result
-		const char *Tail;			// All SQL text past the last semicolon parsed
-		Table *NewTable;			// A table being constructed by CREATE TABLE
-		Trigger *NewTrigger;		// Trigger under construct by a CREATE TRIGGER
-		const char *AuthContext;	// The 6th parameter to db->xAuth callbacks
-		Token NameToken;			// Token with unqualified schema object name
-		Token LastToken;			// The last token parsed
-#ifndef OMIT_VIRTUALTABLE
-		Token Arg;					// Complete text of a module argument
-		array_t<Table *> VTableLocks; // Pointer to virtual tables needing locking
-#endif
-		Table *ZombieTab;			// List of Table objects to delete after code gen
-		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
-
-#pragma region FromBuild_c
-
-		__device__ void BeginParse(bool explainFlag);
-#ifndef OMIT_SHARED_CACHE
-		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
-#endif
-		__device__ void FinishCoding();
-		__device__ void NestedParse(const char *format, void **args);
-		__device__ static Table *FindTable(Context *ctx, const char *name, const char *database);
-		__device__ Table *LocateTable(bool isView, const char *name, const char *database);
-		__device__ Table *LocateTableItem(bool isView,  SrcList_Item *p);
-		__device__ static Index *FindIndex(Context *ctx, const char *name, const char *database);
-		__device__ static void UnlinkAndDeleteIndex(Context *ctx, int db, const char *indexName);
-		__device__ static void CollapseDatabaseArray(Context *ctx);
-		__device__ static void ResetOneSchema(Context *ctx, int db);
-		__device__ static void ResetAllSchemasOfConnection(Context *ctx);
-		__device__ static void CommitInternalChanges(Context *ctx);
-		__device__ static void DeleteTable(Context *ctx, Table *table);
-		__device__ static void UnlinkAndDeleteTable(Context *ctx, int db, const char *tableName);
-		__device__ static char *NameFromToken(Context *ctx, Token *name);
-		__device__ void OpenMasterTable(int db);
-		__device__ static int FindDbName(Context *ctx, const char *name);
-		__device__ static int FindDb(Context *ctx, Token *name);
-		__device__ int TwoPartName(Token *name1, Token *name2, Token **unqual);
-		__device__ Core::RC CheckObjectName(const char *name);
-		__device__ void StartTable(Token *name1, Token *name2, bool isTemp, bool isView, bool isVirtual, bool noErr);
-		__device__ void AddColumn(Token *name);
-		__device__ void AddNotNull(uint8 onError);
-		__device__ static AFF AffinityType(const char *data);
-		__device__ void AddColumnType(Token *type);
-		__device__ void AddDefaultValue(ExprSpan *span);
-		__device__ void AddPrimaryKey(ExprList *list, uint8 onError, bool autoInc, int sortOrder);
-		__device__ void AddCheckConstraint(Expr *checkExpr);
-		__device__ void AddCollateType(Token *token);
-		__device__ CollSeq *LocateCollSeq(const char *name);
-		__device__ void ChangeCookie(int db);
-
-#pragma endregion
-
-	};
-
-	struct AuthContext
-	{
-		const char *AuthCtx;		// Put saved Parse.zAuthContext here
-		Parse *Parse;				// The Parse structure
-	};
 
 #pragma endregion
 
