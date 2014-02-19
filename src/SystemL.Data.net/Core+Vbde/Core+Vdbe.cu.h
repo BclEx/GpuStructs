@@ -247,6 +247,19 @@ namespace Core
 		__device__ void ClearStatTables(int db, const char *type, const char *name);
 		__device__ void CodeDropTable(Table *table, int db, bool isView);
 		__device__ void DropTable(SrcList *name, bool isView, bool noErr);
+		__device__ void CreateForeignKey(ExprList *fromCol, Token *to, ExprList *toCol, int flags);
+		__device__ void DeferForeignKey(bool isDeferred);
+		__device__ void RefillIndex(Index *index, int memRootPage);
+
+
+
+
+
+
+
+
+
+
 
 #pragma endregion
 
