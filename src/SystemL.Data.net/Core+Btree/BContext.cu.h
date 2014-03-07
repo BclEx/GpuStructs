@@ -51,6 +51,7 @@ namespace Core
 			FLAG_EnableTrigger = 0x40000000,
 		};
 		//__device__ FLAG inline operator|=(FLAG a, int b) { return (FLAG)(a | b); }
+		//__device__ FLAG inline operator&=(FLAG a, int b) { return (FLAG)(a & b); }
 
 		MutexEx Mutex;
 		array_t<DB> DBs;				// All backends / Number of backends currently in use

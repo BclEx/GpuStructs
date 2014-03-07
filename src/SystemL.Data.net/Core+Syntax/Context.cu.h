@@ -29,6 +29,23 @@ namespace Core
 		MAGIC_ZOMBIE = 0x64cffc7f,  // Close with last statement close
 	};
 
+	struct LookasideSlot
+	{
+		LookasideSlot *Next;    // Next buffer in the list of free buffers
+	};
+	struct Lookaside
+	{
+		uint16 Size;            // Size of each buffer in bytes
+		bool Enabled;           // False to disable new lookaside allocations
+		bool Malloced;          // True if pStart obtained from sqlite3_malloc()
+		int Outs;               // Number of buffers currently checked out
+		int MaxOuts;            // Highwater mark for nOut
+		int Stats[3];			// 0: hits.  1: size misses.  2: full misses
+		LookasideSlot *Free;	// List of available buffers
+		void *Start;			// First byte of available memory space
+		void *End;				// First byte past end of available space
+	};
+
 	class Context : public BContext
 	{
 	public:
@@ -50,6 +67,12 @@ namespace Core
 		//Mem *Err;						// Most recent error message
 		//char *zErrMsg;                // Most recent error message (UTF-8 encoded)
 		//char *zErrMsg16;              // Most recent error message (UTF-16 encoded)
+		union
+		{
+			volatile int IsInterrupted; // True if sqlite3_interrupt has been called
+			double NotUsed1;            // Spacer
+		} u1;
+		Lookaside Lookaside;			// Lookaside malloc configuration
 
 		bool MallocFailed;				// True if we have seen a malloc failure
 		uint8 VTableOnConflict;         // Value to return for s3_vtab_on_conflict()
@@ -64,12 +87,6 @@ namespace Core
 		VTable *Disconnect;				// Disconnect these in next sqlite3_prepare()
 #endif
 		int *BytesFreed;				// If not NULL, increment this in DbFree()
-
-#pragma region FromBuild_c
-
-
-
-#pragma endregion
 
 		__device__ inline static RC ApiExit(Context *ctx, RC rc)
 		{

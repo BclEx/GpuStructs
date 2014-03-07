@@ -554,12 +554,19 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 #define _isalpha(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x02)
 #define _isdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x04)
 #define _isxdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x08)
+#define _isidchar(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x46)
 #define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
 template <typename T> struct array_t { int length; T *data; __device__ inline array_t() { data = nullptr; length = 0; } __device__ inline array_t(T *a) { data = a; length = 0; } __device__ inline array_t(T *a, int b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; __device__ inline array_t2() { data = nullptr; length = 0; } __device__ inline array_t2(T *a) { data = a; length = 0; } __device__ inline array_t2(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
+
+// skiputf8
+template <typename T> __device__ inline int _skiputf8(const T *z)
+{
+	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
+}
 
 // strcmp
 template <typename T> __device__ inline int _strcmp(const T *left, const T *right)
@@ -570,6 +577,7 @@ template <typename T> __device__ inline int _strcmp(const T *left, const T *righ
 	while (*a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b];
 }
+#define _fstrcmp(x, y) (__tolower(*(unsigned char *)(x))==__tolower(*(unsigned char *)(y))&&!_strcmp((x)+1,(y)+1))
 
 // strncmp
 template <typename T> __device__ inline int _strncmp(const T *left, const T *right, int n)
@@ -580,6 +588,7 @@ template <typename T> __device__ inline int _strncmp(const T *left, const T *rig
 	while (n-- > 0 && *a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
 	return (n < 0 ? 0 : _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b]);
 }
+#define _fstrncmp(x, y) (__tolower(*(unsigned char *)(x))==__tolower(*(unsigned char *)(y))&&!_strcmp((x)+1,(y)+1))
 
 // memcpy
 template <typename T> __device__ inline void _memcpy(T *dest, const T *src, size_t length)

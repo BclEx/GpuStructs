@@ -299,7 +299,7 @@ namespace Core
 
 #pragma endregion
 
-#pragma region Atof
+#pragma region AtoX
 
 	__device__ bool ConvertEx::Atof(const char *z, double *out, int length, TEXTENCODE encode)
 	{
@@ -429,7 +429,7 @@ do_atof_calc:
 #endif
 	}
 
-	__device__ static int compare2pow63(const char *z, int incr)
+	__device__ static int Compare2pow63(const char *z, int incr)
 	{
 		const char *pow63 = "922337203685477580"; // 012345678901234567
 		int c = 0;
@@ -495,11 +495,31 @@ do_atof_calc:
 		else if (i < 19 * incr) { _assert(u <= LARGEST_INT64); return false; } // Less than 19 digits, so we know that it fits in 64 bits
 		else // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
 		{
-			c = compare2pow63(z, incr);
+			c = Compare2pow63(z, incr);
 			if (c < 0) { _assert(u <= LARGEST_INT64); return false; } // zNum is less than 9223372036854775808 so it fits
 			else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows
 			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return !neg; } //(neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
 		}
+	}
+
+	__device__ bool ConvertEx::Atoi(const char *z, int *out)
+	{
+		int neg = 0;
+		if (z[0] == '-') { neg = 1; z++; }
+		else if (z[0] == '+') z++;
+		while (z[0] == '0') z++;
+		int64 v = 0;
+		int i, c;
+		for (i = 0; i < 11 && (c = z[i] - '0') >= 0 && c <= 9; i++) { v = v*10 + c; }
+		// The longest decimal representation of a 32 bit integer is 10 digits:
+		//             1234567890
+		//     2^31 -> 2147483648
+		ASSERTCOVERAGE(i == 10);
+		if (i > 10) return false;
+		ASSERTCOVERAGE( v-neg==2147483647 );
+		if (v - neg > 2147483647) return false;
+		*out = (int)(neg ? -v : v);
+		return true;
 	}
 
 #pragma endregion

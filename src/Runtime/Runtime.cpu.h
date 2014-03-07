@@ -129,6 +129,7 @@ extern "C" const unsigned char _runtimeCtypeMap[256];
 #define _isalpha(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x02)
 #define _isdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x04)
 #define _isxdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x08)
+#define _isidchar(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x46)
 #define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
 
 // array
@@ -136,6 +137,12 @@ template <typename T> struct array_t { int length; T *data; inline array_t() { d
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t2() { data = nullptr; length = 0; } inline array_t2(T *a) { data = a; length = 0; } inline array_t2(T *a, TLength b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 template <typename TLength, typename T, int size> struct array_t3 { TLength length; T data[size]; inline array_t3() { length = 0; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
+
+// skiputf8
+template <typename T> __device__ inline int _skiputf8(const T *z)
+{
+	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
+}
 
 // strcmp
 template <typename T> __device__ inline int _strcmp(const T *left, const T *right)

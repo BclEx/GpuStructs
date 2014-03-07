@@ -1,3 +1,4 @@
+#define TK_UMINUS 0
 #define TK_SEMI                            1
 #define TK_EXPLAIN                         2
 #define TK_QUERY                           3
@@ -138,20 +139,3 @@
 #define TK_INDEX                          138
 #define TK_ALTER                          139
 #define TK_ADD                            140
-#define TK_TO_TEXT                        141
-#define TK_TO_BLOB                        142
-#define TK_TO_NUMERIC                     143
-#define TK_TO_INT                         144
-#define TK_TO_REAL                        145
-#define TK_ISNOT                          146
-#define TK_END_OF_FILE                    147
-#define TK_ILLEGAL                        148
-#define TK_SPACE                          149
-#define TK_UNCLOSED_STRING                150
-#define TK_FUNCTION                       151
-#define TK_COLUMN                         152
-#define TK_AGG_FUNCTION                   153
-#define TK_AGG_COLUMN                     154
-#define TK_CONST_FUNC                     155
-#define TK_UMINUS                         156
-#define TK_UPLUS                          157

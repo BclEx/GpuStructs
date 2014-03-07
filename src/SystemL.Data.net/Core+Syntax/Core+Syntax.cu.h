@@ -1,4 +1,5 @@
 ﻿#include "../Parse.h"
+#include "../Opcodes.h"
 #include "../Core+Btree/Core+Btree.cu.h"
 #include "Context.cu.h"
 namespace Core
@@ -100,7 +101,7 @@ namespace Core
 
 #pragma endregion
 
-#pragma region Table
+#pragma region ITable
 
 	struct IVTable;
 	struct IVTableCursor;
@@ -315,7 +316,7 @@ namespace Core
 			char *Name;     // Name of the identifier
 			int Idx;        // Index in some Table.aCol[] of a column named zName
 		};
-		array_t<IdListItem> s;
+		array_t<IdListItem> Ids;
 	};
 
 	enum JT : uint8
@@ -333,126 +334,127 @@ namespace Core
 	{
 		struct SrcListItem
 		{
-			Schema *Schema;  // Schema to which this item is fixed
-			char *Database;  // Name of database holding this table
-			char *Name;      // Name of the table
-			char *Alias;     // The "B" part of a "A AS B" phrase.  zName is the "A"
-			Table *Table;      // An SQL table corresponding to zName
-			Select *Select;  // A SELECT statement used in place of a table name
-			int AddrFillSub;  // Address of subroutine to manifest a subquery
-			int RegReturn;    // Register holding return address of addrFillSub
-			JT Jointype;      // Type of join between this able and the previous
+			Schema *Schema;		// Schema to which this item is fixed
+			char *Database;		// Name of database holding this table
+			char *Name;			// Name of the table
+			char *Alias;		// The "B" part of a "A AS B" phrase.  zName is the "A"
+			Table *Table;		// An SQL table corresponding to zName
+			Select *Select;		// A SELECT statement used in place of a table name
+			int AddrFillSub;	// Address of subroutine to manifest a subquery
+			int RegReturn;		// Register holding return address of addrFillSub
+			JT Jointype;		// Type of join between this able and the previous
 			unsigned NotIndexed:1;    // True if there is a NOT INDEXED clause
 			unsigned IsCorrelated:1;  // True if sub-query is correlated
 			unsigned ViaCoroutine:1;  // Implemented as a co-routine
 #ifndef OMIT_EXPLAIN
 			uint8 SelectId;     // If pSelect!=0, the id of the sub-select in EQP
 #endif
-			int Cursor;      // The VDBE cursor number used to access this table
-			Expr *On;        // The ON clause of a join
-			IdList *Using;   // The USING clause of a join
-			Bitmask ColUsed;  // Bit N (1<<N) set if column N of pTab is used
-			char *IndexName;     // Identifier from "INDEXED BY <zIndex>" clause
-			Index *Index;    // Index structure corresponding to zIndex, if any
+			int Cursor;			// The VDBE cursor number used to access this table
+			Expr *On;			// The ON clause of a join
+			IdList *Using;		// The USING clause of a join
+			Bitmask ColUsed;	// Bit N (1<<N) set if column N of pTab is used
+			char *IndexName;    // Identifier from "INDEXED BY <zIndex>" clause
+			Index *Index;		// Index structure corresponding to zIndex, if any
 		};
-		int16 Srcs;        // Number of tables or subqueries in the FROM clause
-		int16 Allocs;      // Number of entries allocated in a[] below
-		SrcListItem a[1];             // One entry for each identifier on the list
+		int16 Srcs;				// Number of tables or subqueries in the FROM clause
+		int16 Allocs;			// Number of entries allocated in a[] below
+		SrcListItem Ids[1];		// One entry for each identifier on the list
 	};
 
 	enum WHERE : uint16
 	{
-		WHERE_ORDERBY_NORMAL = 0x0000, // No-op
-		WHERE_ORDERBY_MIN = 0x0001, // ORDER BY processing for min() func
-		WHERE_ORDERBY_MAX = 0x0002, // ORDER BY processing for max() func
+		WHERE_ORDERBY_NORMAL = 0x0000,	// No-op
+		WHERE_ORDERBY_MIN = 0x0001,		// ORDER BY processing for min() func
+		WHERE_ORDERBY_MAX = 0x0002,		// ORDER BY processing for max() func
 		WHERE_ONEPASS_DESIRED = 0x0004, // Want to do one-pass UPDATE/DELETE
-		WHERE_DUPLICATES_OK = 0x0008, // Ok to return a row more than once
+		WHERE_DUPLICATES_OK = 0x0008,	// Ok to return a row more than once
 		WHERE_OMIT_OPEN_CLOSE = 0x0010, // Table cursors are already open
-		WHERE_FORCE_TABLE = 0x0020, // Do not use an index-only search
-		WHERE_ONETABLE_ONLY = 0x0040, // Only code the 1st table in pTabList
-		WHERE_AND_ONLY = 0x0080, // Don't use indices for OR terms
+		WHERE_FORCE_TABLE = 0x0020,		// Do not use an index-only search
+		WHERE_ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
+		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
 
 	struct WherePlan
 	{
-		uint32 WsFlags;                   // WHERE_* flags that describe the strategy
-		uint16 Eqs;                       // Number of == constraints
-		uint16 OBSats;                    // Number of ORDER BY terms satisfied
-		double Rows;                   // Estimated number of rows (for EQP)
+		uint32 WsFlags;                 // WHERE_* flags that describe the strategy
+		uint16 Eqs;                     // Number of == constraints
+		uint16 OBSats;                  // Number of ORDER BY terms satisfied
+		double Rows;					// Estimated number of rows (for EQP)
 		union
 		{
-			Index *Index;                   // Index when WHERE_INDEXED is true
-			struct WhereTerm *Term;       // WHERE clause term for OR-search
-			IIndexInfo *VTableIndex;  // Virtual table index to use
+			Index *Index;               // Index when WHERE_INDEXED is true
+			struct WhereTerm *Term;     // WHERE clause term for OR-search
+			IIndexInfo *VTableIndex;	// Virtual table index to use
 		} u;
 	};
 
 	struct WhereLevel
 	{
-		WherePlan Plan;       // query plan for this element of the FROM clause
-		int iLeftJoin;        // Memory cell used to implement LEFT OUTER JOIN
-		int iTabCur;          // The VDBE cursor used to access the table
-		int iIdxCur;          // The VDBE cursor used to access pIdx
-		int addrBrk;          // Jump here to break out of the loop
-		int addrNxt;          // Jump here to start the next IN combination
-		int addrCont;         // Jump here to continue with the next loop cycle
-		int addrFirst;        // First instruction of interior of the loop
-		uint8 iFrom;             // Which entry in the FROM clause
-		uint8 op, p5;            // Opcode and P5 of the opcode that ends the loop
-		int p1, p2;           // Operands of the opcode used to ends the loop
+		WherePlan Plan;			// query plan for this element of the FROM clause
+		int LeftJoin;			// Memory cell used to implement LEFT OUTER JOIN
+		int TabCur;				// The VDBE cursor used to access the table
+		int IdxCur;				// The VDBE cursor used to access pIdx
+		int AddrBrk;			// Jump here to break out of the loop
+		int AddrNxt;			// Jump here to start the next IN combination
+		int AddrCont;			// Jump here to continue with the next loop cycle
+		int AddrFirst;			// First instruction of interior of the loop
+		uint8 From;				// Which entry in the FROM clause
+		uint8 OP, P5;           // Opcode and P5 of the opcode that ends the loop
+		int P1, P2;				// Operands of the opcode used to ends the loop
 		union
-		{               // Information that depends on plan.wsFlags
+		{
 			struct
 			{
-				int nIn;              // Number of entries in aInLoop[]
 				struct InLoop
 				{
-					int iCur;              // The VDBE cursor used by this IN operator
-					int addrInTop;         // Top of the IN loop
-					uint8 eEndLoopOp;         // IN Loop terminator. OP_Next or OP_Prev
-				} *aInLoop;           // Information about each nested IN operator
-			} in;                 // Used when plan.wsFlags&WHERE_IN_ABLE
-			Index *pCovidx;       // Possible covering index for WHERE_MULTI_OR
-		} u;
-		double OptCost;      // "Optimal" cost for this level
+					int Cur;			// The VDBE cursor used by this IN operator
+					int AddrInTop;		// Top of the IN loop
+					uint8 EndLoopOp;	// IN Loop terminator. OP_Next or OP_Prev
+				};
+				int InLoopsLength;		// Number of entries in aInLoop[]
+				InLoop *InLoops;		// Information about each nested IN operator
+			} in;						// Used when plan.wsFlags&WHERE_IN_ABLE
+			Index *Covidx;				// Possible covering index for WHERE_MULTI_OR
+		} u;							// Information that depends on plan.wsFlags
+		double OptCost;					// "Optimal" cost for this level
 		// The following field is really not part of the current level.  But we need a place to cache virtual table index information for each
 		// virtual table in the FROM clause and the WhereLevel structure is a convenient place since there is one WhereLevel for each FROM clause element.
-		IIndexInfo *IndexInfo;  // Index info for n-th source table
+		IIndexInfo *IndexInfo;			// Index info for n-th source table
 	};
 
 	enum WHERE_DISTINCT : uint8
 	{
-		WHERE_DISTINCT_NOOP = 0,  // DISTINCT keyword not used
-		WHERE_DISTINCT_UNIQUE = 1,  // No duplicates
-		WHERE_DISTINCT_ORDERED = 2,  // All duplicates are adjacent
-		WHERE_DISTINCT_UNORDERED = 3,  // Duplicates are scattered
+		WHERE_DISTINCT_NOOP = 0,		// DISTINCT keyword not used
+		WHERE_DISTINCT_UNIQUE = 1,		// No duplicates
+		WHERE_DISTINCT_ORDERED = 2,		// All duplicates are adjacent
+		WHERE_DISTINCT_UNORDERED = 3,	// Duplicates are scattered
 	};
 
 	struct WhereInfo
 	{
-		Parse *pParse;            // Parsing and code generating context
-		SrcList *pTabList;        // List of tables in the join
-		uint16 nOBSat;               // Number of ORDER BY terms satisfied by indices
+		Parse *pParse;				// Parsing and code generating context
+		SrcList *pTabList;			// List of tables in the join
+		uint16 nOBSat;              // Number of ORDER BY terms satisfied by indices
 		WHERE WctrlFlags;           // Flags originally passed to sqlite3WhereBegin()
-		uint8 okOnePass;             // Ok to use one-pass algorithm for UPDATE/DELETE
-		uint8 untestedTerms;         // Not all WHERE terms resolved by outer loop
-		WHERE_DISTINCT eDistinct;             // One of the WHERE_DISTINCT_* values below
-		int iTop;                 // The very beginning of the WHERE loop
-		int iContinue;            // Jump here to continue with next record
-		int iBreak;               // Jump here to break out of the loop
-		int nLevel;               // Number of nested loop
+		uint8 okOnePass;            // Ok to use one-pass algorithm for UPDATE/DELETE
+		uint8 untestedTerms;        // Not all WHERE terms resolved by outer loop
+		WHERE_DISTINCT eDistinct;   // One of the WHERE_DISTINCT_* values below
+		int iTop;					// The very beginning of the WHERE loop
+		int iContinue;				// Jump here to continue with next record
+		int iBreak;					// Jump here to break out of the loop
+		int Levels;					// Number of nested loop
 		WhereClause *WC;			// Decomposition of the WHERE clause
-		double SavedNQueryLoop;   // pParse->nQueryLoop outside the WHERE loop
-		double RowOuts;           // Estimated number of output rows
-		WhereLevel a[1];          // Information about each nest loop in WHERE
+		double SavedNQueryLoop;		// pParse->nQueryLoop outside the WHERE loop
+		double RowOuts;				// Estimated number of output rows
+		WhereLevel a[1];			// Information about each nest loop in WHERE
 	};
 
 	enum NC : uint8
 	{
-		NC_AllowAgg = 0x01,    // Aggregate functions are allowed here
-		NC_HasAgg = 0x02,    // One or more aggregate functions seen
-		NC_IsCheck = 0x04,    // True if resolving names in a CHECK constraint
-		NC_InAggFunc = 0x08,    // True if analyzing arguments to an agg func
+		NC_AllowAgg = 0x01,			// Aggregate functions are allowed here
+		NC_HasAgg = 0x02,			// One or more aggregate functions seen
+		NC_IsCheck = 0x04,			// True if resolving names in a CHECK constraint
+		NC_InAggFunc = 0x08,		// True if analyzing arguments to an agg func
 	};
 
 	struct NameContext
@@ -464,7 +466,7 @@ namespace Core
 		NameContext *Next;			// Next outer name context.  NULL for outermost
 		int Refs;					// Number of names resolved by this context
 		int Errs;					// Number of errors encountered while resolving names
-		NC NcFlags;					// Zero or more NC_* flags defined below
+		NC NCFlags;					// Zero or more NC_* flags defined below
 	};
 
 	enum SF : uint16
@@ -486,7 +488,7 @@ namespace Core
 		ExprList *EList;			// The fields of the result
 		uint8 OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
 		SF SelFlags;				// Various SF_* values
-		int Limit, Offset;			// Memory registers holding LIMIT & OFFSET counters
+		int LimitId, OffsetId;		// Memory registers holding LIMIT & OFFSET counters
 		int AddrOpenEphm[3];		// OP_OpenEphem opcodes related to this select
 		double SelectRows;			// Estimated number of result rows
 		SrcList *Src;				// The FROM clause
@@ -519,12 +521,32 @@ namespace Core
 
 	struct SelectDest
 	{
-		uint8 eDest;         // How to dispose of the results.  On of SRT_* above.
-		char affSdst;     // Affinity used when eDest==SRT_Set
-		int iSDParm;      // A parameter used by the eDest disposal method
-		int iSdst;        // Base register where results are written
-		int nSdst;        // Number of registers allocated
+		uint8 Dest;			// How to dispose of the results.  On of SRT_* above.
+		AFF AffSdst;		// Affinity used when eDest==SRT_Set
+		int SDParmId;		// A parameter used by the eDest disposal method
+		int SdstId;			// Base register where results are written
+		int Sdsts;			// Number of registers allocated
 	};
+
+#pragma endregion
+
+#pragma region Affinity
+
+	enum AFF : uint8
+	{
+		AFF_TEXT = 'a',
+		AFF_NONE = 'b',
+		AFF_NUMERIC = 'c',
+		AFF_INTEGER = 'd',
+		AFF_REAL = 'e',
+		AFF_MASK = 0x67, // The SQLITE_AFF_MASK values masks off the significant bits of an affinity value. 
+		// Additional bit values that can be ORed with an affinity without changing the affinity.
+		AFF_BIT_JUMPIFNULL = 0x08, // jumps if either operand is NULL
+		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
+		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
+	};
+
+#define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
 
 #pragma endregion
 
@@ -560,7 +582,7 @@ namespace Core
 	struct Expr
 	{
 		uint8 OP;					// Operation performed by this node
-		uint8 Affinity;				// The affinity of the column or 0 if not a column
+		AFF Affinity;				// The affinity of the column or 0 if not a column
 		EP Flags;					// Various flags.  EP_* See below
 		union
 		{
@@ -601,6 +623,42 @@ namespace Core
 		AggInfo *AggInfo;
 		// Table for TK_COLUMN expressions.
 		Table *Table;
+
+		__device__ AFF Affinity();
+		__device__ Expr *SkipCollate();
+		__device__ AFF CompareAffinity(AFF aff2);
+		__device__ bool ValidIndexAffinity(AFF indexAff);
+#if MAX_EXPR_DEPTH>0
+		__device__ int SelectExprHeight(Select *select);
+#endif
+		__device__ static Expr *Alloc(Context *ctx, int op, const Token *token, bool dequote);
+		__device__ static Expr *Alloc(Context *ctx, int op, const char *token);
+		__device__ static void AttachSubtrees(Context *ctx, Expr *root, Expr *left, Expr *right);
+		__device__ static Expr *And(Context *ctx, Expr *left, Expr *right);
+		__device__ static void Delete(Context *ctx, Expr *expr);
+		__device__ static Expr *Expr::ExprDup(Context *ctx, Expr *expr, int flags);
+		__device__ static ExprList *Expr::ExprListDup(Context *ctx, ExprList *list, int flags);
+#if !defined(OMIT_VIEW) || !defined(OMIT_TRIGGER) || !defined(OMIT_SUBQUERY)
+		__device__ static SrcList *SrcListDup(Context *ctx, SrcList *list, int flags);
+		__device__ static IdList *IdListDup(Context *ctx, IdList *list);
+#endif
+		__device__ static Select *SelectDup(Context *ctx, Select *select, int flags);
+		__device__ static ExprList *ExprListAppend(Context *ctx, ExprList *list, Expr *expr);
+		__device__ static void ExprListDelete(Context *ctx, ExprList *list);
+
+		__device__ bool IsConstant();
+		__device__ bool IsConstantNotJoin();
+		__device__ bool IsConstantOrFunction();
+		__device__ bool IsInteger(int *value);
+		__device__ bool CanBeNull();
+		__device__ static void CodeIsNullJump(Vdbe *v, const Expr *expr, int reg, int dest);
+		__device__ bool NeedsNoAffinityChange(AFF aff);
+		__device__ inline static bool IsRowid(const char *z)
+		{
+			return (!_strcmp(z, "_ROWID_") || !_strcmp(z, "ROWID") || !_strcmp(z, "OID"));
+		}
+
+
 	};
 
 #ifdef _DEBUG
@@ -622,20 +680,21 @@ namespace Core
 
 	struct ExprList
 	{
-		int Exprs;				// Number of expressions on the list
-		int ECursor;			// VDBE Cursor associated with this ExprList
-		// For each expression in the list
 		struct ExprListItem
 		{
-			Expr *Expr;            // The list of expressions
-			char *Name;            // Token associated with this expression
-			char *Span;            // Original text of the expression
-			uint8 SortOrder;           // 1 for DESC or 0 for ASC
-			unsigned Done:1;       // A flag to indicate when processing is finished
-			unsigned SpanIsTab:1; // zSpan holds DB.TABLE.COLUMN
-			uint16 OrderByCol;        // For ORDER BY, column number in result set
-			uint16 Alias;             // Index into Parse.aAlias[] for zName
-		} *a;					// Alloc a power of two greater or equal to nExpr
+			Expr *Expr;				// The list of expressions
+			char *Name;				// Token associated with this expression
+			char *Span;				// Original text of the expression
+			uint8 SortOrder;        // 1 for DESC or 0 for ASC
+			unsigned Done:1;		// A flag to indicate when processing is finished
+			unsigned SpanIsTab:1;	// zSpan holds DB.TABLE.COLUMN
+			uint16 OrderByCol;      // For ORDER BY, column number in result set
+			uint16 Alias;           // Index into Parse.aAlias[] for zName
+		};
+		int Exprs;					// Number of expressions on the list
+		int ECursor;				// VDBE Cursor associated with this ExprList
+		// For each expression in the list
+		ExprListItem *Ids;			// Alloc a power of two greater or equal to nExpr
 	};
 
 	struct ExprSpan
@@ -646,6 +705,311 @@ namespace Core
 	};
 
 #pragma endregion
+
+#pragma region Walker
+
+	enum WRC : uint8
+	{
+		WRC_Continue = 0,	// Continue down into children
+		WRC_Prune = 1,		// Omit children but continue walking siblings
+		WRC_Abort = 2,		// Abandon the tree walk
+	};
+
+	struct Walker
+	{
+		WRC (*ExprCallback)(Walker *w, Expr *expr);			// Callback for expressions
+		WRC (*SelectCallback)(Walker *w, Select *select);	// Callback for SELECTs
+		Parse *Parse;                   // Parser context.
+		int WalkerDepth;				// Number of subqueries
+		union
+		{
+			NameContext *NC;            // Naming context
+			int I;                      // Integer value
+			SrcList *SrcList;           // FROM clause
+			struct SrcCount *SrcCount;	// Counting column references
+		} u; // Extra data for callback
+		__device__ int Expr(Expr *expr);
+		__device__ int ExprList(ExprList *list);
+		__device__ int Select(Select *Select);
+		__device__ int SelectExpr(Core::Select *left);
+		__device__ int SelectFrom(Core::Select *left);
+	};
+
+#pragma region Parse
+
+	class Vdbe;
+	struct TableLock;
+	struct SubProgram;
+
+#ifdef OMIT_VIRTUALTABLE
+#define INDECLARE_VTABLE(x) false
+#else
+#define INDECLARE_VTABLE(x) (x->DeclareVTable)
+#endif
+
+	//enum OPFLAG
+	//{
+	//	OPFLAG_NCHANGE = 0x01,		// Set to update db->nChange
+	//	OPFLAG_LASTROWID = 0x02,    // Set to update db->lastRowid
+	//	OPFLAG_ISUPDATE = 0x04,		// This OP_Insert is an sql UPDATE
+	//	OPFLAG_APPEND = 0x08,		// This is likely to be an append
+	//	OPFLAG_USESEEKRESULT = 0x10,// Try to avoid a seek in BtreeInsert()
+	//	OPFLAG_CLEARCACHE = 0x20,   // Clear pseudo-table cache in OP_Column
+	//	OPFLAG_LENGTHARG = 0x40,    // OP_Column only used for length()
+	//	OPFLAG_TYPEOFARG = 0x80,    // OP_Column only used for typeof()
+	//	OPFLAG_BULKCSR = 0x01,		// OP_Open** used to open bulk cursor
+	//	OPFLAG_P2ISREG = 0x02,		// P2 to OP_Open** is a register number
+	//	OPFLAG_PERMUTE = 0x01,		// OP_Compare: use the permutation
+	//};
+
+	struct AutoincInfo
+	{
+		AutoincInfo *Next;		// Next info block in a list of them all
+		Table *Table;			// Table this info block refers to
+		int DB;					// Index in sqlite3.aDb[] of database holding pTab
+		int RegCtr;				// Memory register holding the rowid counter
+	};
+
+	struct TriggerPrg
+	{
+		Trigger *Trigger;		// Trigger this program was coded from
+		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
+		SubProgram *Program;	// Program implementing pTrigger/orconf
+		int Orconf;             // Default ON CONFLICT policy
+		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
+	};
+
+	enum IN_INDEX : uint8
+	{
+		IN_INDEX_ROWID = 1,
+		IN_INDEX_EPH = 2,
+		IN_INDEX_INDEX_ASC = 3,
+		IN_INDEX_INDEX_DESC = 4,
+	};
+
+#ifndef OMIT_TRIGGER
+#define Parse_Toplevel(p) p
+#else
+#define Parse_Toplevel(p) ((p)->Toplevel ? (p)->Toplevel : (p))
+#endif
+
+	struct Parse
+	{
+		struct yColCache
+		{
+			int Table;				// Table cursor number
+			int Column;				// Table column number
+			uint8 TempReg;			// iReg is a temp register that needs to be freed
+			int Level;				// Nesting level
+			int Reg;				// Reg with value of this column. 0 means none.
+			int Lru;				// Least recently used entry has the smallest value
+		};
+
+		Context *Ctx;				// The main database structure
+		char *ErrMsg;				// An error message
+		Vdbe *V;					// An engine for executing database bytecode
+		RC RC;						// Return code from execution
+		uint8 ColNamesSet;			// TRUE after OP_ColumnName has been issued to pVdbe
+		uint8 CheckSchema;			// Causes schema cookie check after an error
+		uint8 Nested;				// Number of nested calls to the parser/code generator
+		//uint8 TempReg;			// Number of temporary registers in aTempReg[]
+		uint8 TempRegsInUse;		// Number of aTempReg[] currently checked out
+		//uint8 ColCaches;			// Number of entries in aColCache[]
+		uint8 ColCacheIdx;			// Next entry in aColCache[] to replace
+		uint8 IsMultiWrite;			// True if statement may modify/insert multiple rows
+		uint8 MayAbort;				// True if statement may throw an ABORT exception
+		array_t3<uint8, int, 8> TempReg; // Holding area for temporary registers
+		int RangeRegs;				// Size of the temporary register block
+		int RangeRegIdx;			// First register in temporary register block
+		int Errs;					// Number of errors seen
+		int Tabs;					// Number of previously allocated VDBE cursors
+		int Mems;					// Number of memory cells used so far
+		int Sets;					// Number of sets used so far
+		int Onces;					// Number of OP_Once instructions so far
+		int CkBase;					// Base register of data during check constraints
+		int CacheLevel;				// ColCache valid when aColCache[].iLevel<=iCacheLevel
+		int CacheCnt;				// Counter used to generate aColCache[].lru values
+		array_t3<uint8, yColCache, N_COLCACHE> ColCaches; // One for each column cache entry
+		yDbMask WriteMask;			// Start a write transaction on these databases
+		yDbMask CookieMask;			// Bitmask of schema verified databases
+		int CookieGoto;				// Address of OP_Goto to cookie verifier subroutine
+		int CookieValue[MAX_ATTACHED + 2];  // Values of cookies to verify
+		int RegRowid;				// Register holding rowid of CREATE TABLE entry
+		int RegRoot;				// Register holding root page number for new objects
+		int MaxArgs;				// Max args passed to user function by sub-program
+		Token ConstraintName;		// Name of the constraint currently being parsed
+#ifndef OMIT_SHARED_CACHE
+		// int TableLocks;			// Number of locks in aTableLock
+		array_t<TableLock> TableLocks; // Required table locks for shared-cache mode
+#endif
+		AutoincInfo *Ainc;			// Information about AUTOINCREMENT counters
+
+		// Information used while coding trigger programs.
+		Parse *Toplevel;			// Parse structure for main program (or NULL)
+		Table *TriggerTab;			// Table triggers are being coded for
+		double QueryLoops;			// Estimated number of iterations of a query
+		uint32 Oldmask;				// Mask of old.* columns referenced
+		uint32 Newmask;				// Mask of new.* columns referenced
+		uint8 TriggerOp;			// TK_UPDATE, TK_INSERT or TK_DELETE
+		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
+		uint8 DisableTriggers;		// True to disable triggers
+
+		// Above is constant between recursions.  Below is reset before and after each recursion
+		int VarsSeen;				// Number of '?' variables seen in the SQL so far
+		//int nzVar;				// Number of available slots in azVar[]
+		uint8 Explain;				// True if the EXPLAIN flag is found on the query
+#ifndef OMIT_VIRTUALTABLE
+		bool DeclareVTable;			// True if inside sqlite3_declare_vtab()
+		//int nVtabLock;			// Number of virtual tables to lock
+#endif
+		//int nAlias;				// Number of aliased result set columns
+		int Height;					// Expression tree height of current sub-select
+#ifndef OMIT_EXPLAIN
+		int SelectId;				// ID of current select for EXPLAIN output
+		int NextSelectId;			// Next available select ID for EXPLAIN output
+#endif
+		array_t<char *>Vars;		// Pointers to names of parameters
+		Core::Vdbe *Reprepare;		// VM being reprepared (sqlite3Reprepare())
+		array_t<int> Alias;			// Register used to hold aliased result
+		const char *Tail;			// All SQL text past the last semicolon parsed
+		Table *NewTable;			// A table being constructed by CREATE TABLE
+		Trigger *NewTrigger;		// Trigger under construct by a CREATE TRIGGER
+		const char *AuthContext;	// The 6th parameter to db->xAuth callbacks
+		Token NameToken;			// Token with unqualified schema object name
+		Token LastToken;			// The last token parsed
+#ifndef OMIT_VIRTUALTABLE
+		Token Arg;					// Complete text of a module argument
+		array_t<Table *> VTableLocks; // Pointer to virtual tables needing locking
+#endif
+		Table *ZombieTab;			// List of Table objects to delete after code gen
+		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
+
+
+#pragma region From: Expr_c		
+		__device__ Expr *ExprAddCollateToken(Expr *expr, Token *collName);
+		__device__ Expr *ExprAddCollateString(Expr *expr, const char *z);
+		__device__ CollSeq *ExprCollSeq(Expr *expr);
+		__device__ CollSeq *BinaryCompareCollSeq(Expr *left, Expr *right);
+#if MAX_EXPR_DEPTH>0
+		__device__ RC ExprCheckHeight(int height);
+		__device__ void ExprSetHeight(Expr *expr);
+#endif
+		__device__ Expr *PExpr(int op, Expr *left, Expr *right, const Token *token);
+		__device__ Expr *ExprFunction(ExprList *list, Token *token);
+		__device__ void ExprAssignVarNumber(Expr *expr);
+		__device__ void ExprListSetName(ExprList *list, Token *name, bool dequote);
+		__device__ void ExprListSetSpan(ExprList *list, ExprSpan *span);
+		__device__ void ExprListCheckLength(ExprList *lList, const char *object);
+
+		__device__ int CodeOnce();
+#ifndef OMIT_SUBQUERY
+		__device__ IN_INDEX FindInIndex(Expr *expr, int *notFound);
+		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid)
+#endif
+
+#pragma endregion
+
+#pragma region From: Select_c
+		__device__ Vdbe *GetVdbe();
+#pragma endregion
+#pragma region From: Insert_c
+		__device__ void AutoincrementBegin();
+		__device__ void AutoincrementEnd();
+#pragma endregion
+#pragma region From: Tokenize_c
+		__device__ int GetToken(const unsigned char *z, int *tokenType);
+		__device__ int RunParser(const char *sql, char **errMsg);
+#pragma endregion
+#pragma region From: Prepair_c
+		__device__ Core::RC ReadSchema();
+		__device__ static int SchemaToIndex(Context *ctx, Schema *schema);
+#pragma endregion
+#pragma region From: Analyze_c
+#ifndef OMIT_ANALYZE
+		__device__ static void DeleteIndexSamples(Context *ctx, Index *index);
+#endif
+#pragma endregion
+
+
+#pragma region From: Build_c
+
+		__device__ void BeginParse(bool explainFlag);
+#ifndef OMIT_SHARED_CACHE
+		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
+#endif
+		__device__ void FinishCoding();
+		__device__ void NestedParse(const char *format, void **args);
+		__device__ static Table *FindTable(Context *ctx, const char *name, const char *database);
+		__device__ Table *LocateTable(bool isView, const char *name, const char *database);
+		__device__ Table *LocateTableItem(bool isView,  SrcList::SrcListItem *item);
+		__device__ static Index *FindIndex(Context *ctx, const char *name, const char *database);
+		__device__ static void UnlinkAndDeleteIndex(Context *ctx, int db, const char *indexName);
+		__device__ static void CollapseDatabaseArray(Context *ctx);
+		__device__ static void ResetOneSchema(Context *ctx, int db);
+		__device__ static void ResetAllSchemasOfConnection(Context *ctx);
+		__device__ static void CommitInternalChanges(Context *ctx);
+		__device__ static void DeleteTable(Context *ctx, Table *table);
+		__device__ static void UnlinkAndDeleteTable(Context *ctx, int db, const char *tableName);
+		__device__ static char *NameFromToken(Context *ctx, Token *name);
+		__device__ void OpenMasterTable(int db);
+		__device__ static int FindDbName(Context *ctx, const char *name);
+		__device__ static int FindDb(Context *ctx, Token *name);
+		__device__ int TwoPartName(Token *name1, Token *name2, Token **unqual);
+		__device__ Core::RC CheckObjectName(const char *name);
+		__device__ void StartTable(Token *name1, Token *name2, bool isTemp, bool isView, bool isVirtual, bool noErr);
+		__device__ void AddColumn(Token *name);
+		__device__ void AddNotNull(uint8 onError);
+		__device__ static AFF AffinityType(const char *data);
+		__device__ void AddColumnType(Token *type);
+		__device__ void AddDefaultValue(ExprSpan *span);
+		__device__ void AddPrimaryKey(ExprList *list, uint8 onError, bool autoInc, int sortOrder);
+		__device__ void AddCheckConstraint(Expr *checkExpr);
+		__device__ void AddCollateType(Token *token);
+		__device__ CollSeq *LocateCollSeq(const char *name);
+		__device__ void ChangeCookie(int db);
+		__device__ void EndTable(Token *cons, Token *end, Select *select);
+#ifndef OMIT_VIEW
+		__device__ void CreateView(Token *begin, Token *name1, Token *name2, Select *select, bool isTemp, bool noErr);
+#endif
+#if !defined(OMIT_VIEW) || !defined(OMIT_VIRTUALTABLE)
+		__device__ int ViewGetColumnNames(Table *table);
+#endif
+#ifndef OMIT_VIEW
+		__device__ static void ViewResetAll(Context *ctx, int db);
+#endif
+#ifndef OMIT_AUTOVACUUM
+		__device__ void Parse::RootPageMoved(Context *ctx, int db, int from, int to);
+#endif
+		__device__ void ClearStatTables(int db, const char *type, const char *name);
+		__device__ void CodeDropTable(Table *table, int db, bool isView);
+		__device__ void DropTable(SrcList *name, bool isView, bool noErr);
+		__device__ void CreateForeignKey(ExprList *fromCol, Token *to, ExprList *toCol, int flags);
+		__device__ void DeferForeignKey(bool isDeferred);
+		__device__ void RefillIndex(Index *index, int memRootPage);
+		__device__ Index *CreateIndex(Token *name1, Token *name2, SrcList *tableName, ExprList *list, OE onError, Token *start, Token *end, int sortOrder, bool ifNotExist);
+
+
+
+
+
+
+
+
+
+
+#pragma endregion
+
+	};
+
+	struct AuthContext
+	{
+		const char *AuthCtx;		// Put saved Parse.zAuthContext here
+		Parse *Parse;				// The Parse structure
+	};
+
+#pragma endregion
+
+
 
 #pragma region Table
 
@@ -675,7 +1039,7 @@ namespace Core
 		char *Type;					// Data type for this column
 		char *Coll;					// Collating sequence.  If NULL, use the default
 		uint8 NotNull;				// An OE_ code for handling a NOT NULL constraint
-		char Affinity;				// One of the SQLITE_AFF_... values
+		AFF Affinity;				// One of the SQLITE_AFF_... values
 		COLFLAG ColFlags;			// Boolean properties.  See COLFLAG_ defines below
 	};
 

@@ -20,8 +20,18 @@
 		__device__ static uint8 GetVarint4(const unsigned char *p, uint32 *v);
 		__device__ static int GetVarintLength(uint64 v);
 #pragma endregion
+#pragma region AtoX
 		__device__ static bool Atof(const char *z, double *out, int length, TEXTENCODE encode);
 		__device__ static bool Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode);
+		__device__ static bool Atoi(const char *z, int *out);
+		__device__ static inline int Atoi(const char *z)
+		{
+			int out = 0;
+			if (z) Atoi(z, &out);
+			return out;
+		}
+#pragma endregion
+
 		__device__ inline static uint16 Get2nz(const uint8 *p) { return ((( (int)((p[0]<<8) | p[1]) -1)&0xffff)+1); }
 		__device__ inline static uint16 Get2(const uint8 *p) { return (p[0]<<8) | p[1]; }
 		__device__ inline static void Put2(unsigned char *p, uint32 v)
