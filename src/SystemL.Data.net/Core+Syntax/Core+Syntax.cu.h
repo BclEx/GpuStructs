@@ -795,7 +795,7 @@ namespace Core
 
 	struct Parse
 	{
-		struct yColCache
+		struct ColCache
 		{
 			int Table;				// Table cursor number
 			int Column;				// Table column number
@@ -829,7 +829,7 @@ namespace Core
 		int CkBase;					// Base register of data during check constraints
 		int CacheLevel;				// ColCache valid when aColCache[].iLevel<=iCacheLevel
 		int CacheCnt;				// Counter used to generate aColCache[].lru values
-		array_t3<uint8, yColCache, N_COLCACHE> ColCaches; // One for each column cache entry
+		array_t3<uint8, ColCache, N_COLCACHE> ColCaches; // One for each column cache entry
 		yDbMask WriteMask;			// Start a write transaction on these databases
 		yDbMask CookieMask;			// Bitmask of schema verified databases
 		int CookieGoto;				// Address of OP_Goto to cookie verifier subroutine
@@ -904,10 +904,30 @@ namespace Core
 		__device__ int CodeOnce();
 #ifndef OMIT_SUBQUERY
 		__device__ IN_INDEX FindInIndex(Expr *expr, int *notFound);
-		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid)
+		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid);
+		__device__ void ExprCodeIN(Expr *expr, int destIfFalse, int destIfNull);
 #endif
+		__device__ void ExprCacheStore(int table, int column, int reg);
+		__device__ void ExprCacheRemove(int reg, int regs);
+		__device__ void ExprCachePush();
+		__device__ void ExprCachePop(int n);
+		__device__ void ExprCachePinRegister(int reg);
+		__device__ int ExprCodeGetColumn(Table *table, int column, int tableId, int reg, uint8 p5);
+		__device__ void ExprCacheClear();
+		__device__ void ExprCacheAffinityChange(int start, int count);
+		__device__ void ExprCodeMove(int from, int to, int regs);
+		__device__ int ExprCodeTarget(Expr *expr, int target);
+		__device__ int ExprCodeTemp(Expr *expr, int *reg);
+		__device__ int ExprCode(Expr *expr, int target);
+		__device__ int ExprCodeAndCache(Expr *expr, int target);
+		__device__ void ExprCodeConstants(Expr *expr);
+		__device__ int ExprCodeExprList(ExprList *list, int target, bool doHardCopy);
+		__device__ void ExprIfTrue(Expr *expr, int dest, int jumpIfNull);
+		__device__ void ExprIfFalse(Expr *expr, int dest, int jumpIfNull);
 
 #pragma endregion
+
+		//__device__ static void CodeGetColumnOfTable(Vdbe *v, Table *table, int tabCur, int column, int regOut);
 
 #pragma region From: Select_c
 		__device__ Vdbe *GetVdbe();
