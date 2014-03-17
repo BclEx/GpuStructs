@@ -46,6 +46,29 @@ namespace Core
 		void *End;				// First byte past end of available space
 	};
 
+#ifndef OMIT_BUILTIN_TEST
+#define CtxOptimizationDisabled(ctx, mask)  (((ctx)->OptFlags&(mask))!=0)
+#define CtxOptimizationEnabled(ctx, mask)   (((ctx)->OptFlags&(mask))==0)
+#else
+#define CtxOptimizationDisabled(ctx, mask)  0
+#define CtxOptimizationEnabled(ctx, mask)   1
+#endif
+
+	enum OPTFLAG : uint16
+	{
+		OPTFLAG_QueryFlattener = 0x0001,   // Query flattening
+		OPTFLAG_ColumnCache = 0x0002,   // Column cache
+		OPTFLAG_GroupByOrder = 0x0004,   // GROUPBY cover of ORDERBY
+		OPTFLAG_FactorOutConst = 0x0008,   // Constant factoring
+		OPTFLAG_IdxRealAsInt = 0x0010,   // Store REAL as INT in indices
+		OPTFLAG_DistinctOpt = 0x0020,   // DISTINCT using indexes
+		OPTFLAG_CoverIdxScan = 0x0040,   // Covering index scans
+		OPTFLAG_OrderByIdxJoin = 0x0080,   // ORDER BY of joins via index
+		OPTFLAG_SubqCoroutine = 0x0100,   // Evaluate subqueries as coroutines
+		OPTFLAG_Transitive = 0x0200,   // Transitive constraints
+		OPTFLAG_AllOpts = 0xffff,   // All optimizations
+	};
+
 	class Context : public BContext
 	{
 	public:
@@ -56,6 +79,8 @@ namespace Core
 			bool Busy;					// TRUE if currently initializing
 			uint8 OrphanTrigger;        // Last statement is orphaned TEMP trigger
 		};
+
+		OPTFLAG OptFlags;
 
 		VSystem *Vfs;					// OS Interface
 		//array_t<Vdbe> Vdbe;			// List of active virtual machines

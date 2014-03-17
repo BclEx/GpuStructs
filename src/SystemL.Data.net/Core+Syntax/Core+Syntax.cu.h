@@ -657,7 +657,12 @@ namespace Core
 		{
 			return (!_strcmp(z, "_ROWID_") || !_strcmp(z, "ROWID") || !_strcmp(z, "OID"));
 		}
-
+		__device__ static void CodeGetColumnOfTable(Vdbe *v, Core::Table *table, int tabCur, int column, int regOut);
+		__device__ static int Compare(Expr *a, Expr *b);
+		__device__ static int ListCompare(ExprList *a, ExprList *b);
+		__device__ int FunctionUsesThisSrc(SrcList *srcList);
+		__device__ static void AnalyzeAggregates(NameContext *nc, Expr *expr);
+		__device__ static void AnalyzeAggList(NameContext *nc, ExprList *list);
 
 	};
 
@@ -924,10 +929,13 @@ namespace Core
 		__device__ int ExprCodeExprList(ExprList *list, int target, bool doHardCopy);
 		__device__ void ExprIfTrue(Expr *expr, int dest, int jumpIfNull);
 		__device__ void ExprIfFalse(Expr *expr, int dest, int jumpIfNull);
+		__device__ int GetTempReg();
+		__device__ void ReleaseTempReg(int reg);
+		__device__ int GetTempRange(int regs);
+		__device__ void ReleaseTempRange(int reg, int regs);
+		__device__ void ClearTempRegCache();
 
 #pragma endregion
-
-		//__device__ static void CodeGetColumnOfTable(Vdbe *v, Table *table, int tabCur, int column, int regOut);
 
 #pragma region From: Select_c
 		__device__ Vdbe *GetVdbe();
@@ -1007,14 +1015,6 @@ namespace Core
 		__device__ void DeferForeignKey(bool isDeferred);
 		__device__ void RefillIndex(Index *index, int memRootPage);
 		__device__ Index *CreateIndex(Token *name1, Token *name2, SrcList *tableName, ExprList *list, OE onError, Token *start, Token *end, int sortOrder, bool ifNotExist);
-
-
-
-
-
-
-
-
 
 
 #pragma endregion

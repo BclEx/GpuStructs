@@ -24,6 +24,8 @@ namespace Core
 			Schema *Schema;				// Pointer to database schema (possibly shared)
 		};
 
+#define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
+
 		enum FLAG : uint32
 		{
 			FLAG_VdbeTrace = 0x00000100,
