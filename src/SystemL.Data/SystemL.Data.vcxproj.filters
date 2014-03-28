@@ -101,16 +101,22 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Build.cu">
-      <Filter>Core+Vbde</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Tokenize.cu">
-      <Filter>Core+Vbde</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Prepare.cu">
-      <Filter>Core+Vbde</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
   </ItemGroup>

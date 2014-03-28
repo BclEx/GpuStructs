@@ -112,7 +112,7 @@ namespace Core
 		__device__ int AddOp1(int, int);
 		__device__ int AddOp2(int, int, int);
 		__device__ int AddOp3(int, int, int, int);
-		__device__ int AddOp4(int, int, int, int, const char *zP4, int);
+		__device__ int AddOp4(int, int, int, int, const char *, int);
 		__device__ int AddOp4Int(int, int, int, int, int);
 		__device__ int AddOpList(int nOp, VdbeOpList const *aOp);
 		__device__ void AddParseSchemaOp(int, char *);

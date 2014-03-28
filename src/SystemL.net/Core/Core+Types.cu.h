@@ -29,9 +29,11 @@ typedef unsigned long long	uint64;
 #if defined(i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__)
 #define TYPE_BIGENDIAN 0
 #define TYPE_LITTLEENDIAN 1
+#define TEXTENCODE_UTF16NATIVE TEXTENCODE_UTF16LE
 #else
 #define TYPE_BIGENDIAN (*(char *)(&__one) == 0)
 #define TYPE_LITTLEENDIAN (*(char *)(&__one) == 1)
+#define TEXTENCODE_UTF16NATIVE (TYPE_BIGENDIAN ? TEXTENCODE_UTF16BE : TEXTENCODE_UTF16LE)
 #endif
 
 #endif // __CORE_TYPES_H__

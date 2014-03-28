@@ -69,7 +69,7 @@ namespace Core
 			PAGER_ERROR = 6,
 		};
 
-		VSystem *Vfs;			// OS functions to use for IO
+		VSystem *Vfs;				// OS functions to use for IO
 		bool ExclusiveMode;			// Boolean. True if locking_mode==EXCLUSIVE
 		IPager::JOURNALMODE JournalMode; // One of the PAGER_JOURNALMODE_* values
 		bool UseJournal;			// Use a rollback journal on this file
@@ -111,7 +111,7 @@ namespace Core
 		// End of the routinely-changing class members
 		uint16 ExtraBytes;          // Add this many bytes to each in-memory page
 		int16 ReserveBytes;         // Number of unused bytes at end of each page
-		VSystem::OPEN VfsFlags; // Flags for sqlite3_vfs.xOpen()
+		VSystem::OPEN VfsFlags;		// Flags for sqlite3_vfs.xOpen()
 		uint32 SectorSize;          // Assumed sector size during rollback
 		int PageSize;               // Number of bytes in a page
 		Pid MaxPid;					// Maximum allowed size of the database

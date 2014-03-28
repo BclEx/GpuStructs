@@ -47,9 +47,11 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Build.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Prepare.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Tokenize.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -72,9 +74,11 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Build.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Prepare.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Tokenize.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />

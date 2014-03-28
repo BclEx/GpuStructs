@@ -35,6 +35,16 @@ namespace Core
 	typedef uint64 Bitmask;
 #define BMS ((int)(sizeof(Bitmask)*8))
 
+#ifndef MAX_EXPR_DEPTH
+#define MAX_EXPR_DEPTH 1000
+#endif
+
+//#ifdef OMIT_TEMPDB
+//#define OMIT_TEMPDB 1
+//#else
+//#define OMIT_TEMPDB 0
+//#endif
+
 #pragma endregion 
 
 #pragma region Func
@@ -571,6 +581,8 @@ namespace Core
 		EP_TokenOnly = 0x4000,		// Expr struct is EXPR_TOKENONLYSIZE bytes only
 		EP_Static = 0x8000,			// Held in memory not obtained from malloc()
 	};
+	__device__ EP inline operator|=(EP a, int b) { return (EP)(a | b); }
+	__device__ EP inline operator&=(EP a, int b) { return (EP)(a & b); }
 
 	enum EP2 : uint8
 	{
@@ -602,7 +614,7 @@ namespace Core
 
 		// If the EP_Reduced flag is set in the Expr.flags mask, then no space is allocated for the fields below this point. An attempt to
 		// access them will result in a segfault or malfunction.
-#if MAX_EXPR_DEPTH>0
+#if MAX_EXPR_DEPTH > 0
 		int Height;					// Height of the tree headed by this node
 #endif
 		// TK_COLUMN: cursor number of table holding column
@@ -628,7 +640,7 @@ namespace Core
 		__device__ Expr *SkipCollate();
 		__device__ AFF CompareAffinity(AFF aff2);
 		__device__ bool ValidIndexAffinity(AFF indexAff);
-#if MAX_EXPR_DEPTH>0
+#if MAX_EXPR_DEPTH > 0
 		__device__ int SelectExprHeight(Select *select);
 #endif
 		__device__ static Expr *Alloc(Context *ctx, int op, const Token *token, bool dequote);
@@ -643,7 +655,6 @@ namespace Core
 		__device__ static IdList *IdListDup(Context *ctx, IdList *list);
 #endif
 		__device__ static Select *SelectDup(Context *ctx, Select *select, int flags);
-		__device__ static ExprList *ExprListAppend(Context *ctx, ExprList *list, Expr *expr);
 		__device__ static void ExprListDelete(Context *ctx, ExprList *list);
 
 		__device__ bool IsConstant();
@@ -658,6 +669,7 @@ namespace Core
 			return (!_strcmp(z, "_ROWID_") || !_strcmp(z, "ROWID") || !_strcmp(z, "OID"));
 		}
 		__device__ static void CodeGetColumnOfTable(Vdbe *v, Core::Table *table, int tabCur, int column, int regOut);
+		__device__ static void ExplainExpr(Vdbe *o, Expr *expr);
 		__device__ static int Compare(Expr *a, Expr *b);
 		__device__ static int ListCompare(ExprList *a, ExprList *b);
 		__device__ int FunctionUsesThisSrc(SrcList *srcList);
@@ -678,8 +690,8 @@ namespace Core
 #define ExprClearProperty(E,P)   (E)->Flags&=~(P)
 
 #define EXPR_FULLSIZE           sizeof(Expr)           // Full size
-#define EXPR_REDUCEDSIZE        offsetof(Expr,iTable)  // Common features
-#define EXPR_TOKENONLYSIZE      offsetof(Expr,Left)   // Fewer features
+#define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)  // Common features
+#define EXPR_TOKENONLYSIZE      offsetof(Expr, Left)   // Fewer features
 
 #define EXPRDUP_REDUCE         0x0001  // Used reduced-size Expr nodes
 
@@ -733,12 +745,30 @@ namespace Core
 			SrcList *SrcList;           // FROM clause
 			struct SrcCount *SrcCount;	// Counting column references
 		} u; // Extra data for callback
-		__device__ int Expr(Expr *expr);
-		__device__ int ExprList(ExprList *list);
-		__device__ int Select(Select *Select);
-		__device__ int SelectExpr(Core::Select *left);
-		__device__ int SelectFrom(Core::Select *left);
+
+		__device__ int WalkExpr(Expr *expr);
+		__device__ int WalkExprList(ExprList *list);
+		__device__ int WalkSelect(Select *Select);
+		__device__ int WalkSelectExpr(Core::Select *left);
+		__device__ int WalkSelectFrom(Core::Select *left);
 	};
+
+#pragma endregion
+
+#pragma region Callback
+
+	struct Callback
+	{
+		__device__ static CollSeq *GetCollSeq(Parse *parse, TEXTENCODE encode, CollSeq *coll, const char *name);
+		__device__ static RC CheckCollSeq(Parse *parse, CollSeq *coll);
+		__device__ static CollSeq *FindCollSeq(Context *ctx, TEXTENCODE encode, const char *name, bool create);
+		__device__ static void FuncDefInsert(FuncDefHash *hash, FuncDef *def);
+		__device__ static FuncDef *FindFunction(Context *ctx, const char *name, int nameLength, int args, TEXTENCODE encode, bool createFlag);
+		__device__ static void SchemaClear(void *p);
+		__device__ static Schema *SchemaGet(Context *ctx, Btree *bt);
+	};
+
+#pragma endregion
 
 #pragma region Parse
 
@@ -895,13 +925,14 @@ namespace Core
 		__device__ Expr *ExprAddCollateString(Expr *expr, const char *z);
 		__device__ CollSeq *ExprCollSeq(Expr *expr);
 		__device__ CollSeq *BinaryCompareCollSeq(Expr *left, Expr *right);
-#if MAX_EXPR_DEPTH>0
-		__device__ RC ExprCheckHeight(int height);
+#if MAX_EXPR_DEPTH > 0
+		__device__ Core::RC ExprCheckHeight(int height);
 		__device__ void ExprSetHeight(Expr *expr);
 #endif
 		__device__ Expr *PExpr(int op, Expr *left, Expr *right, const Token *token);
 		__device__ Expr *ExprFunction(ExprList *list, Token *token);
 		__device__ void ExprAssignVarNumber(Expr *expr);
+		__device__ ExprList *ExprListAppend(ExprList *list, Expr *expr);
 		__device__ void ExprListSetName(ExprList *list, Token *name, bool dequote);
 		__device__ void ExprListSetSpan(ExprList *list, ExprSpan *span);
 		__device__ void ExprListCheckLength(ExprList *lList, const char *object);
@@ -960,7 +991,6 @@ namespace Core
 
 
 #pragma region From: Build_c
-
 		__device__ void BeginParse(bool explainFlag);
 #ifndef OMIT_SHARED_CACHE
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
@@ -990,7 +1020,7 @@ namespace Core
 		__device__ static AFF AffinityType(const char *data);
 		__device__ void AddColumnType(Token *type);
 		__device__ void AddDefaultValue(ExprSpan *span);
-		__device__ void AddPrimaryKey(ExprList *list, uint8 onError, bool autoInc, int sortOrder);
+		__device__ void AddPrimaryKey(ExprList *list, OE onError, bool autoInc, int sortOrder);
 		__device__ void AddCheckConstraint(Expr *checkExpr);
 		__device__ void AddCollateType(Token *token);
 		__device__ CollSeq *LocateCollSeq(const char *name);
@@ -1028,8 +1058,6 @@ namespace Core
 	};
 
 #pragma endregion
-
-
 
 #pragma region Table
 
@@ -1199,6 +1227,19 @@ namespace Core
 	__device__ void RowSet_Insert(RowSet *p, int64 rowid);
 	__device__ bool RowSet_Test(RowSet *rowSet, uint8 batch, int64 rowid);
 	__device__ bool RowSet_Next(RowSet *p, int64 *rowid);
+
+#pragma endregion
+
+#pragma region Mem
+
+	struct Mem;
+	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
+	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
+	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);
+	__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
+	__device__ void Mem_Free(Mem *mem);
+	__device__ Mem *Mem_New(Context *db);
+	__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
 
 #pragma endregion
 

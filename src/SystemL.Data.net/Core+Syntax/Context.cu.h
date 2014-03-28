@@ -69,6 +69,8 @@ namespace Core
 		OPTFLAG_AllOpts = 0xffff,   // All optimizations
 	};
 
+	typedef array_t3<int, FuncDef, 23> FuncDefHash;
+
 	class Context : public BContext
 	{
 	public:
@@ -84,14 +86,17 @@ namespace Core
 
 		VSystem *Vfs;					// OS Interface
 		//array_t<Vdbe> Vdbe;			// List of active virtual machines
-		//CollSeq *DefaultColl;			// The default collating sequence (BINARY)
+		CollSeq *DefaultColl;			// The default collating sequence (BINARY)
 		int64 LastRowID;				// ROWID of most recent insert (see above)
 		//unsigned int OpenFlags;		// Flags passed to sqlite3_vfs.xOpen()
 		RC ErrCode;						// Most recent error code (RC_*)
 		int ErrMask;					// & result codes with this before returning
-		//Mem *Err;						// Most recent error message
-		//char *zErrMsg;                // Most recent error message (UTF-8 encoded)
-		//char *zErrMsg16;              // Most recent error message (UTF-16 encoded)
+		void(*CollNeeded)(void *, Context *, int textRep, const char *);
+		void(*CollNeeded16)(void *, Context *, int textRep, const void *);
+		void *CollNeededArg;
+		Mem *Err;						// Most recent error message
+		char *ErrMsg;                // Most recent error message (UTF-8 encoded)
+		char *ErrMsg16;              // Most recent error message (UTF-16 encoded)
 		union
 		{
 			volatile int IsInterrupted; // True if sqlite3_interrupt has been called
@@ -111,6 +116,8 @@ namespace Core
 		array_t<VTable *> VTrans;		// Virtual tables with open transactions / Allocated size of aVTrans
 		VTable *Disconnect;				// Disconnect these in next sqlite3_prepare()
 #endif
+		FuncDefHash Funcs; // Hash table of connection functions
+		Hash CollSeqs;					// All collating sequences
 		int *BytesFreed;				// If not NULL, increment this in DbFree()
 
 		__device__ inline static RC ApiExit(Context *ctx, RC rc)

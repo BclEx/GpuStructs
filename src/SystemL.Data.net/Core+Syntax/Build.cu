@@ -1,4 +1,5 @@
-#include "Core+Vdbe.cu.h"
+#include "Core+Syntax.cu.h"
+#include "..\Core+Vbde\Vdbe.cu.h"
 #include <stddef.h>
 
 namespace Core
@@ -393,7 +394,7 @@ namespace Core
 		SysEx::TagFree(ctx, table->ColAff);
 		Select::SelectDelete(db, table->Select);
 #ifndef OMIT_CHECK
-		Expr::ListDelete(db, table->Check);
+		Expr::ExprListDelete(db, table->Check);
 #endif
 #ifndef OMIT_VIRTUALTABLE
 		VTable::Clear(ctx, table);
@@ -410,7 +411,7 @@ namespace Core
 		_assert(db >= 0 && db < ctx->DBs.length);
 		_assert(tableName);
 		_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
-		ASSERTCOVERAGE(tablenName[0] == nullptr);  // Zero-length table names are allowed
+		ASSERTCOVERAGE(tableName[0] == nullptr);  // Zero-length table names are allowed
 		Context::DB *db2 = &ctx->DBs[db];
 		Table *table = (Table *)db2->Schema->TableHash.Insert(tableName, _strlen30(tableName), nullptr);
 		DeleteTable(ctx, table);
@@ -431,9 +432,9 @@ namespace Core
 	__device__ void Parse::OpenMasterTable(int db)
 	{
 		Vdbe *v = GetVdbe();
-		TableLock(this, db, MASTER_ROOT, 1, SCHEMA_TABLE(db));
+		TableLock(db, MASTER_ROOT, true, SCHEMA_TABLE(db));
 		v->AddOp3(OP_OpenWrite, 0, MASTER_ROOT, db);
-		v->ChangeP4(-1, (char *)5, P4_INT32);  // 5 column table
+		v->ChangeP4(-1, (char *)5, Vdbe::P4T_INT32);  // 5 column table
 		if (Tabs == 0)
 			Tabs = 1;
 	}
@@ -628,7 +629,7 @@ namespace Core
 			int fileFormat = ((ctx->Flags & Context::FLAG_LegacyFileFmt) != 0 ? 1 : MAX_FILE_FORMAT);
 			v->AddOp2(OP_Integer, fileFormat, reg3);
 			v->AddOp3(OP_SetCookie, db, BTREE_FILE_FORMAT, reg3);
-			v->AddOp2(OP_Integer, ENC(ctx), reg3);
+			v->AddOp2(OP_Integer, CTXENCODE(ctx), reg3);
 			v->AddOp3(OP_SetCookie, db, BTREE_TEXT_ENCODING, reg3);
 			v->JumpHere(j1);
 
@@ -675,7 +676,7 @@ begin_table_error:
 			return;
 		for (int i = 0; i < table->Cols.length; i++)
 		{
-			if (STRICMP(nameAsString, table->Cols[i].Name))
+			if (_strcmp(nameAsString, table->Cols[i].Name))
 			{
 				ErrorMsg("duplicate column name: %s", nameAsString);
 				SysEx::TagFree(ctx, nameAsString);
@@ -751,7 +752,7 @@ begin_table_error:
 		if (table)
 		{
 			Column *col = &(table->Cols[table->Cols.length - 1]);
-			if (!Expr::IsConstantOrFunction(span->Expr))
+			if (!span->Expr->IsConstantOrFunction())
 				ErrorMsg("default value of column [%s] is not constant", col->Name);
 			else
 			{
@@ -766,7 +767,7 @@ begin_table_error:
 		Expr::Delete(ctx, span->Expr);
 	}
 
-	__device__ void Parse::AddPrimaryKey(ExprList *list, uint8 onError, bool autoInc, int sortOrder)
+	__device__ void Parse::AddPrimaryKey(ExprList *list, OE onError, bool autoInc, int sortOrder)
 	{
 		Table *table = NewTable;
 		if (!table || INDECLARE_VTABLE(this))
@@ -785,15 +786,15 @@ begin_table_error:
 		}
 		else
 		{
-			for (int i = 0; i < list->Exprs.length; i++)
+			for (int i = 0; i < list->Exprs; i++)
 			{
 				for (col = 0; col < table->Cols.length; col++)
-					if (!_strcmp(list->a[i].Name, table->Cols[col].Name))
+					if (!_strcmp(list->Ids[i].Name, table->Cols[col].Name))
 						break;
 				if (col < table->Cols.length)
 					table->Cols[col].ColFlags |= COLFLAG_PRIMKEY;
 			}
-			if (list->Exprs.length > 1)
+			if (list->Exprs > 1)
 				col = -1;
 		}
 		char *type = nullptr;
@@ -819,7 +820,7 @@ begin_table_error:
 			list = nullptr;
 		}
 primary_key_exit:
-		Expr::ListDelete(Ctx, list);
+		Expr::ExprListDelete(Ctx, list);
 		return;
 	}
 
@@ -829,9 +830,9 @@ primary_key_exit:
 		Table *table = NewTable;
 		if (table && !INDECLARE_VTABLE(this))
 		{
-			table->Check = Expr::ListAppend(this, table->Check, checkExpr);
+			table->Check = ExprListAppend(table->Check, checkExpr);
 			if (ConstraintName.length)
-				Expr::ListSetName(this, table->Check, &ConstraintName, 1);
+				ExprListSetName(table->Check, &ConstraintName, 1);
 		}
 		else
 #endif
@@ -848,7 +849,7 @@ primary_key_exit:
 		char *collName = NameFromToken(ctx, token); // Dequoted name of collation sequence
 		if (!collName)
 			return;
-		if (LocateCollSeq(this, collName))
+		if (LocateCollSeq(collName))
 		{
 			table->Cols[col].Coll = collName;
 			// If the column is declared as "<name> PRIMARY KEY COLLATE <type>", then an index may have been created on this column before the
@@ -867,11 +868,11 @@ primary_key_exit:
 	__device__ CollSeq *Parse::LocateCollSeq(const char *name)
 	{
 		Context *ctx = Ctx;
-		uint8 enc = ENC(ctx);
+		TEXTENCODE encode = CTXENCODE(ctx);
 		bool initBusy = ctx->Init.Busy;
-		CollSeq *coll = FindCollSeq(ctx, enc, name, initBusy);
+		CollSeq *coll = Callback::FindCollSeq(ctx, encode, name, initBusy);
 		if (!initBusy && (!coll || !coll->Cmp))
-			coll = GetCollSeq(this, enc, coll, name);
+			coll = Callback::GetCollSeq(this, encode, coll, name);
 		return coll;
 	}
 
@@ -1000,15 +1001,15 @@ primary_key_exit:
 			_memset(&nc, 0, sizeof(nc));
 			_memset(&src, 0, sizeof(src));
 			src.Srcs = 1;
-			src.a[0].Name = table->Name;
-			src.a[0].Table = table;
-			src.a[0].Cursor = -1;
+			src.Ids[0].Name = table->Name;
+			src.Ids[0].Table = table;
+			src.Ids[0].Cursor = -1;
 			nc.Parse = this;
 			nc.SrcList = &src;
-			nc.NcFlags = NC_IsCheck;
+			nc.NCFlags = NC_IsCheck;
 			ExprList *list = table->Check; // List of all CHECK constraints
 			for (int i = 0; i < list->Exprs; i++)
-				if (ResolveExprNames(&nc, list->a[i].Expr))
+				if (Resolve::ExprNames(&nc, list->Ids[i].Expr))
 					return;
 		}
 #endif
@@ -1578,7 +1579,7 @@ exit_drop_table:
 		int bytes = sizeof(*fkey) + (cols-1)*sizeof(fkey->Cols[0]) + to->length + 1;
 		if (toCol)
 			for (i = 0; i < toCol->Exprs; i++)
-				bytes += _strlen30(toCol->a[i].Name) + 1;
+				bytes += _strlen30(toCol->Ids[i].Name) + 1;
 		fkey = (FKey *)SysEx::TagAlloc(ctx, bytes);
 		if (!fkey)
 			goto fk_end;
@@ -1600,7 +1601,7 @@ exit_drop_table:
 				int j;
 				for (j = 0; j < table->Cols.length; j++)
 				{
-					if (!_strcmp(table->Cols[j].Name, fromCol->a[i].Name))
+					if (!_strcmp(table->Cols[j].Name, fromCol->Ids[i].Name))
 					{
 						fkey->Cols[i].From = j;
 						break;
@@ -1617,9 +1618,9 @@ exit_drop_table:
 		{
 			for (i = 0; i < cols; i++)
 			{
-				int n = _strlen30(toCol->a[i].Name);
+				int n = _strlen30(toCol->Ids[i].Name);
 				fkey->Cols[i].Col = z;
-				_memcpy(z, toCol->a[i].Name, n);
+				_memcpy(z, toCol->Ids[i].Name, n);
 				z[n] = 0;
 				z += n+1;
 			}
@@ -1649,8 +1650,8 @@ exit_drop_table:
 fk_end:
 		SysEx::TagFree(ctx, fkey);
 #endif
-		Expr::ListDelete(ctx, fromCol);
-		Expr::ListDelete(ctx, toCol);
+		Expr::ExprListDelete(ctx, fromCol);
+		Expr::ExprListDelete(ctx, toCol);
 	}
 
 	__device__ void Parse::DeferForeignKey(bool isDeferred)
@@ -1687,13 +1688,14 @@ fk_end:
 			tid = index->Id;
 			v->AddOp2(OP_Clear, tid, db);
 		}
+		int indexIdx = Tabs++; // Btree cursor used for pIndex
 		KeyInfo *key = IndexKeyinfo(index); // KeyInfo for index
-		v->AddOp4(OP_OpenWrite, iIdx, tid, db, (char *)key, P4_KEYINFO_HANDOFF);
+		v->AddOp4(OP_OpenWrite, indexIdx, tid, db, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
 		v->ChangeP5(OPFLAG_BULKCSR | (memRootPage >= 0 ? OPFLAG_P2ISREG : 0));
 
 		// Open the sorter cursor if we are to use one.
 		int sorterIdx = Tabs++; // Cursor opened by OpenSorter (if in use)
-		v->AddOp4(OP_SorterOpen, sorterIdx, 0, 0, (char *)key, P4_KEYINFO);
+		v->AddOp4(OP_SorterOpen, sorterIdx, 0, 0, (char *)key, Vdbe::P4T_KEYINFO);
 
 		// Open the table. Loop through all rows of the table, inserting index records into the sorter.
 		int tableIdx = Tabs++; // Btree cursor used for pTab
@@ -1706,7 +1708,6 @@ fk_end:
 		v->AddOp2(OP_Next, tableIdx, addr1+1);
 		v->JumpHere(addr1);
 		addr1 = v->AddOp2(OP_SorterSort, sorterIdx, 0);
-		int indexIdx = Tabs++; // Btree cursor used for pIndex
 		int addr2; // Address to jump to for next iteration
 		if (indexIdx->OnError != OE_None)
 		{
@@ -1714,7 +1715,7 @@ fk_end:
 			v->AddOp2(OP_Goto, 0, j2);
 			addr2 = v->CurrentAddr();
 			v->AddOp3(OP_SorterCompare, sorterIdx, j2, regRecord);
-			HaltConstraint(SQLITE_CONSTRAINT_UNIQUE, OE_Abort, "indexed columns are not unique", P4_STATIC);
+			HaltConstraint(SQLITE_CONSTRAINT_UNIQUE, OE_Abort, "indexed columns are not unique", Vdbe::P4T_STATIC);
 		}
 		else
 			addr2 = sqlite3VdbeCurrentAddr(v);
@@ -1731,22 +1732,18 @@ fk_end:
 
 	__device__ Index *Parse::CreateIndex(Token *name1, Token *name2, SrcList *tableName, ExprList *list, OE onError, Token *start, Token *end, int sortOrder, bool ifNotExist)
 	{
-		Index *pRet = 0;     // Pointer to return
-
-		Index *pIndex = 0;   // The index to be created
-		int nName;           // Number of characters in zName
+		//Index *pRet = 0;     // Pointer to return
 		int i, j;
 
 		int sortOrderMask;   // 1 to honor DESC in index.  0 to ignore.
 		Context *ctx = Ctx;
 
 
-		Token *name = nullptr; // Unqualified name of the index to create
 		ExprList::ExprListItem *listItem; // For looping over pList
 		int nCol;
 		char *zExtra;
 
-		_assert(start == nullptr || end != nullptr); // pEnd must be non-NULL if pStart is
+		_assert(start || !end); // pEnd must be non-NULL if pStart is
 		_assert(Errs == 0); // Never called with prior errors
 		if (ctx->MallocFailed || INDECLARE_VTABLE(this))
 			goto exit_create_index;
@@ -1757,47 +1754,46 @@ fk_end:
 		int db; // Index of the database that is being written
 		Table *table = nullptr; // Table to be indexed
 		DbFixer fix; // For assigning database names to pTable
+		Token *nameAsToken = nullptr; // Unqualified name of the index to create
 		if (tableName)
 		{
 			// Use the two-part index name to determine the database to search for the table. 'Fix' the table name to this db
 			// before looking up the table.
 			_assert(name1 && name2);
-			db = TwoPartName(name1, name2, &name);
+			db = TwoPartName(name1, name2, &nameAsToken);
 			if (db < 0)
 				goto exit_create_index;
-			_assert(name && name->data);
+			_assert(nameAsToken && nameAsToken->data);
 #ifndef OMIT_TEMPDB
 			// If the index name was unqualified, check if the table is a temp table. If so, set the database to 1. Do not do this
 			// if initialising a database schema.
 			if (!ctx->Init.Busy)
 			{
-				table = SrcListLookup(tableName);
+				table = Delete::SrcListLookup(tableName);
 				if (name2->length == 0 && table && table->Schema == ctx->DBs[1].Schema)
 					db = 1;
 			}
 #endif
-			if (FixInit(&fix, this, db, "index", name) && FixSrcList(&fix, tableName))
-			{
-				// Because the parser constructs pTblName from a single identifier, sqlite3FixSrcList can never fail.
+			// Because the parser constructs pTblName from a single identifier, sqlite3FixSrcList can never fail.
+			if (Attach::FixInit(&fix, this, db, "index", nameAsToken) && Attach::FixSrcList(&fix, tableName))
 				_assert(0);
-			}
-			table = LocateTableItem(false, &tableName->a[0]);
-			_assert(ctx->MallocFailed == false || !table);
+			table = LocateTableItem(false, &tableName->Ids[0]);
+			_assert(!ctx->MallocFailed || !table);
 			if (!table)
 				goto exit_create_index;
 			_assert(ctx->DBs[db].Schema == table->Schema);
 		}
 		else
 		{
-			_assert(!name);
-			_assert(start == nullptr);
+			_assert(!nameAsToken);
+			_assert(!start);
 			table = NewTable;
 			if (!table)
 				goto exit_create_index;
 			db = SchemaToIndex(ctx, table->Schema);
 		}
 		Context::DB *dbobj = &ctx->DBs[db]; // The specific table containing the indexed database
-		_assert(table != nullptr);
+		_assert(table);
 		_assert(Errs == 0);
 		if (!_strncmp(table->Name, "sqlite_", 7) && _strncmp(&table->Name[7], "altertab_", 9) != 0)
 		{
@@ -1825,27 +1821,27 @@ fk_end:
 		// one of the index names collides with the name of a temporary table or index, then we will continue to process this index.
 		//
 		// If pName==0 it means that we are dealing with a primary key or UNIQUE constraint.  We have to invent our own name.
-		char *objName = nullptr; // Name of the index
-		if (name)
+		char *name = nullptr; // Name of the index
+		if (nameAsToken)
 		{
-			objName = NameFromToken(ctx, name);
-			if (!objName)
+			name = NameFromToken(ctx, nameAsToken);
+			if (!name)
 				goto exit_create_index;
-			_assert(name->data != nullptr);
-			if (CheckObjectName(objName) != RC_OK)
+			_assert(nameAsToken->data != nullptr);
+			if (CheckObjectName(name) != RC_OK)
 				goto exit_create_index;
 			if (!ctx->Init.Busy)
 			{
-				if (FindTable(ctx, objName, 0))
+				if (FindTable(ctx, name, 0))
 				{
-					ErrorMsg("there is already a table named %s", objName);
+					ErrorMsg("there is already a table named %s", name);
 					goto exit_create_index;
 				}
 			}
-			if (FindIndex(ctx, objName, dbobj->Name))
+			if (FindIndex(ctx, name, dbobj->Name))
 			{
 				if (!ifNotExist)
-					ErrorMsg("index %s already exists", objName);
+					ErrorMsg("index %s already exists", name);
 				else
 				{
 					_assert(!ctx->Init.Busy);
@@ -1859,8 +1855,8 @@ fk_end:
 			int n;
 			Index *loop;
 			for (loop = table->Index, n = 1; loop; loop = loop->Next, n++) { }
-			objName = SysEx::Mprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
-			if (!objName)
+			name = SysEx::Mprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
+			if (!name)
 				goto exit_create_index;
 		}
 
@@ -1868,10 +1864,10 @@ fk_end:
 #ifndef OMIT_AUTHORIZATION
 		{
 			const char *databaseName = dbobj->Name;
-			if (AuthCheck(this, SQLITE_INSERT, SCHEMA_TABLE(db), 0, databaseName))
+			if (Auth::AuthCheck(this, AUTH_INSERT, SCHEMA_TABLE(db), 0, databaseName))
 				goto exit_create_index;
-			i = (!OMIT_TEMPDB && db == 1 ? SQLITE_CREATE_TEMP_INDEX : SQLITE_CREATE_INDEX);
-			if (AuthCheck(this, i, objName, table->Name, databaseName))
+			i = (!OMIT_TEMPDB2 && db == 1 ? AUTH_CREATE_TEMP_INDEX : AUTH_CREATE_INDEX);
+			if (AuthCheck(this, i, name, table->Name, databaseName))
 				goto exit_create_index;
 		}
 #endif
@@ -1894,7 +1890,7 @@ fk_end:
 		int extras = 0;
 		for (i = 0; i < list->Exprs; i++)
 		{
-			Expr *expr = list->a[i].Expr;
+			Expr *expr = list->Ids[i].Expr;
 			if (expr)
 			{
 				CollSeq *coll = Expr::CollSeq(this, expr);
@@ -1903,48 +1899,38 @@ fk_end:
 			}
 		}
 
-		/* 
-		** Allocate the index structure. 
-		*/
-		nName = sqlite3Strlen30(zName);
-		nCol = pList->nExpr;
-		pIndex = sqlite3DbMallocZero(db, 
-			ROUND8(sizeof(Index)) +              /* Index structure  */
-			ROUND8(sizeof(tRowcnt)*(nCol+1)) +   /* Index.aiRowEst   */
-			sizeof(char *)*nCol +                /* Index.azColl     */
-			sizeof(int)*nCol +                   /* Index.aiColumn   */
-			sizeof(u8)*nCol +                    /* Index.aSortOrder */
-			nName + 1 +                          /* Index.zName      */
-			nExtra                               /* Collation sequence names */
-			);
-		if( db->mallocFailed ){
+		// Allocate the index structure. 
+		int nameLength = _strlen30(name); // Number of characters in zName
+		int cols = list->Exprs;
+		Index *index = (Index *)SysEx::TagAlloc(ctx, 
+			SysEx_ROUND8(sizeof(Index)) +			// Index structure
+			SysEx_ROUND8(sizeof(tRowcnt)*(cols+1)) +// Index.aiRowEst
+			sizeof(char *)*cols +					// Index.azColl
+			sizeof(int)*cols +						// Index.aiColumn
+			sizeof(uint8)*cols +                    // Index.aSortOrder
+			nameLength + 1 +                        // Index.zName
+			extraLength);								// Collation sequence names
+		if (ctx->MallocFailed)
 			goto exit_create_index;
-		}
-		zExtra = (char*)pIndex;
-		pIndex->aiRowEst = (tRowcnt*)&zExtra[ROUND8(sizeof(Index))];
-		pIndex->azColl = (char**)
-			((char*)pIndex->aiRowEst + ROUND8(sizeof(tRowcnt)*nCol+1));
-		assert( EIGHT_BYTE_ALIGNMENT(pIndex->aiRowEst) );
-		assert( EIGHT_BYTE_ALIGNMENT(pIndex->azColl) );
-		pIndex->aiColumn = (int *)(&pIndex->azColl[nCol]);
-		pIndex->aSortOrder = (u8 *)(&pIndex->aiColumn[nCol]);
-		pIndex->zName = (char *)(&pIndex->aSortOrder[nCol]);
-		zExtra = (char *)(&pIndex->zName[nName+1]);
-		memcpy(pIndex->zName, zName, nName+1);
-		pIndex->pTable = pTab;
-		pIndex->nColumn = pList->nExpr;
-		pIndex->onError = (u8)onError;
-		pIndex->autoIndex = (u8)(pName==0);
-		pIndex->pSchema = db->aDb[iDb].pSchema;
-		assert( sqlite3SchemaMutexHeld(db, iDb, 0) );
+		extra = (char *)index;
+		index->RowEsts = (tRowcnt *)&extra[SysEx_ROUND8(sizeof(Index))];
+		index->CollNames = (char **)((char *)index->RowEsts + SysEx_ROUND8(sizeof(tRowcnt)*cols+1));
+		_assert(SysEx_HASALIGNMENT8(index->RowEsts) );
+		_assert(SysEx_HASALIGNMENT8(index->CollNames) );
+		index->Columns = (int *)(&index->CollNames[cols]);
+		index->SortOrders = (uint8 *)(&index->Columns[cols]);
+		index->Name = (char *)(&index->SortOrders[cols]);
+		extra = (char *)(&pIndex->zName[nName+1]);
+		_memcpy(index->Name, name, nameLength+1);
+		index->Table = table;
+		index->nColumn = pList->nExpr;
+		index->onError = (u8)onError;
+		index->autoIndex = (u8)(pName==0);
+		index->pSchema = db->aDb[iDb].pSchema;
+		_assert(Btree::SchemaMutexHeld(db, iDb, 0) );
 
-		/* Check to see if we should honor DESC requests on index columns
-		*/
-		if( pDb->pSchema->file_format>=4 ){
-			sortOrderMask = -1;   /* Honor DESC */
-		}else{
-			sortOrderMask = 0;    /* Ignore DESC */
-		}
+		// Check to see if we should honor DESC requests on index columns
+		sortOrderMask = (pDb->Schema->FileFormat >= 4 ? -1 : 0); // Honor/Ignore DESC
 
 		/* Scan the names of the columns of the table to be indexed and
 		** load the column indices into the Index structure.  Report an error
@@ -2183,25 +2169,8 @@ exit_create_index:
 		return pRet;
 	}
 
-	/*
-	** Fill the Index.aiRowEst[] array with default information - information
-	** to be used when we have not run the ANALYZE command.
-	**
-	** aiRowEst[0] is suppose to contain the number of elements in the index.
-	** Since we do not know, guess 1 million.  aiRowEst[1] is an estimate of the
-	** number of rows in the table that match any particular value of the
-	** first column of the index.  aiRowEst[2] is an estimate of the number
-	** of rows that match any particular combiniation of the first 2 columns
-	** of the index.  And so forth.  It must always be the case that
-	*
-	**           aiRowEst[N]<=aiRowEst[N-1]
-	**           aiRowEst[N]>=1
-	**
-	** Apart from that, we have little to go on besides intuition as to
-	** how aiRowEst[] should be initialized.  The numbers generated here
-	** are based on typical values found in actual indices.
-	*/
-	void sqlite3DefaultRowEst(Index *pIdx){
+	__device__ void sqlite3DefaultRowEst(Index *idx)
+	{
 		tRowcnt *a = pIdx->aiRowEst;
 		int i;
 		tRowcnt n;

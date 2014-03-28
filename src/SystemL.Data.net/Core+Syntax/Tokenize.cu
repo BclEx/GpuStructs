@@ -1,5 +1,5 @@
 // tokenize.c
-#include "VdbeInt.cu.h"
+#include "Core+Syntax.cu.h"
 #include "../KeywordHash.h"
 
 namespace Core

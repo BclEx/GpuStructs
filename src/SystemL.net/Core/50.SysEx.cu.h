@@ -43,6 +43,11 @@ namespace Core
 	public:
 #pragma region Memory Allocation
 
+		typedef void (*Destructor_t)(void *);
+#define DESTRUCTOR_STATIC ((Destructor_t)0)
+#define DESTRUCTOR_TRANSIENT ((Destructor_t)-1)
+#define DESTRUCTOR_DYNAMIC ((Destructor_t)SysEx::AllocSize)
+
 		enum MEMTYPE : uint8
 		{
 			MEMTYPE_HEAP = 0x01,         // General heap allocations

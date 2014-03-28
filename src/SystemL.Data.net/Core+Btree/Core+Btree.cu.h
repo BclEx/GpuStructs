@@ -30,15 +30,15 @@ namespace Core {
 	struct Table;
 	struct Schema
 	{
-		int ShemaCookie;		// Database schema version number for this file
+		int SchemaCookie;		// Database schema version number for this file
 		int Generation;			// Generation counter.  Incremented with each change
-		Hash TableHash;		// All tables indexed by name
-		Hash IndexHash;		// All (named) indices indexed by name
+		Hash TableHash;			// All tables indexed by name
+		Hash IndexHash;			// All (named) indices indexed by name
 		Hash TriggerHash;		// All triggers indexed by name
-		Hash FKeyHash;		// All foreign keys by referenced table name
+		Hash FKeyHash;			// All foreign keys by referenced table name
 		Table *SeqTable;		// The sqlite_sequence table used by AUTOINCREMENT
 		uint8 FileFormat;		// Schema format version for this file
-		uint8 Encode;			// Text encoding used by this database
+		TEXTENCODE Encode;		// Text encoding used by this database
 		SCHEMA Flags;			// Flags associated with this schema
 		int CacheSize;			// Number of pages to use in the cache
 	};

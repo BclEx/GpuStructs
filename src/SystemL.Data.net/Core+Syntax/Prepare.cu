@@ -2,27 +2,17 @@
 
 namespace Core
 {
-
-	/*
-	** Fill the InitData structure with an error message that indicates
-	** that the database is corrupt.
-	*/
-	static void corruptSchema(
-		InitData *pData,     /* Initialization context */
-		const char *zObj,    /* Object being parsed at the point of error */
-		const char *zExtra   /* Error information */
-		){
-			sqlite3 *db = pData->db;
-			if( !db->mallocFailed && (db->flags & SQLITE_RecoveryMode)==0 ){
-				if( zObj==0 ) zObj = "?";
-				sqlite3SetString(pData->pzErrMsg, db,
-					"malformed database schema (%s)", zObj);
-				if( zExtra ){
-					*pData->pzErrMsg = sqlite3MAppendf(db, *pData->pzErrMsg, 
-						"%s - %s", *pData->pzErrMsg, zExtra);
-				}
-			}
-			pData->rc = db->mallocFailed ? SQLITE_NOMEM : SQLITE_CORRUPT_BKPT;
+	__device__ static void CorruptSchema(InitData *data, const char *obj, const char *extra)
+	{
+		Context *ctx = data->Ctx;
+		if (!ctx->MallocFailed && (ctx->Flags & Context::FLAG_RecoveryMode) == 0)
+		{
+			if (!obj) obj = "?";
+			sqlite3SetString(data->ErrMsg, ctx, "malformed database schema (%s)", obj);
+			if (extra)
+				*pData->pzErrMsg = sqlite3MAppendf(ctx, *data->ErrMsg, "%s - %s", *data->ErrMsg, extra);
+		}
+		data->RC = (ctx->MallocFailed ? RC_NOMEM : SysEx_CORRUPT_BKPT);
 	}
 
 	/*
