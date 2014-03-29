@@ -55,17 +55,17 @@ namespace Core
 	public:
 		enum AUTOVACUUM : uint8
 		{
-			AUTOVACUUM_NONE = 0,        // Do not do auto-vacuum
-			AUTOVACUUM_FULL = 1,        // Do full auto-vacuum
-			AUTOVACUUM_INCR = 2,        // Incremental vacuum
+			AUTOVACUUM_NONE = 0,	// Do not do auto-vacuum
+			AUTOVACUUM_FULL = 1,    // Do full auto-vacuum
+			AUTOVACUUM_INCR = 2,    // Incremental vacuum
 		};
 
 		enum OPEN : uint8
 		{
-			OPEN_OMIT_JOURNAL = 1,   // Do not create or use a rollback journal
-			OPEN_MEMORY = 2,         // This is an in-memory DB
-			OPEN_SINGLE = 4,         // The file contains at most 1 b-tree
-			OPEN_UNORDERED = 8,      // Use of a hash implementation is OK
+			OPEN_OMIT_JOURNAL = 1,	// Do not create or use a rollback journal
+			OPEN_MEMORY = 2,		// This is an in-memory DB
+			OPEN_SINGLE = 4,		// The file contains at most 1 b-tree
+			OPEN_UNORDERED = 8,		// Use of a hash implementation is OK
 		};
 
 		struct BtLock
@@ -76,17 +76,17 @@ namespace Core
 			BtLock *Next;			// Next in BtShared.pLock list
 		};
 
-		BContext *Ctx;			// The database connection holding this btree
-		BtShared *Bt;			// Sharable content of this btree
-		TRANS InTrans;			// TRANS_NONE, TRANS_READ or TRANS_WRITE
-		bool Sharable;			// True if we can share pBt with another db
-		bool Locked;			// True if db currently has pBt locked
-		int WantToLock;			// Number of nested calls to sqlite3BtreeEnter()
-		int Backups;			// Number of backup operations reading this btree
-		Btree *Next;			// List of other sharable Btrees from the same db
-		Btree *Prev;			// Back pointer of the same list
+		BContext *Ctx;				// The database connection holding this btree
+		BtShared *Bt;				// Sharable content of this btree
+		TRANS InTrans;				// TRANS_NONE, TRANS_READ or TRANS_WRITE
+		bool Sharable;				// True if we can share pBt with another db
+		bool Locked;				// True if db currently has pBt locked
+		int WantToLock;				// Number of nested calls to sqlite3BtreeEnter()
+		int Backups;				// Number of backup operations reading this btree
+		Btree *Next;				// List of other sharable Btrees from the same db
+		Btree *Prev;				// Back pointer of the same list
 #ifndef OMIT_SHARED_CACHE
-		BtLock Lock;			// Object used to lock page 1
+		BtLock Lock;				// Object used to lock page 1
 #endif
 
 		__device__ static RC Open(VSystem *vfs, const char *filename, BContext *ctx, Btree **btree, OPEN flags, VSystem::OPEN vfsFlags);
@@ -126,8 +126,8 @@ namespace Core
 
 		__device__ RC IncrVacuum();
 
-#define BTREE_INTKEY 1 // Table has only 64-bit signed integer keys
-#define BTREE_BLOBKEY 2 // Table has keys only - no data
+#define BTREE_INTKEY 1		// Table has only 64-bit signed integer keys
+#define BTREE_BLOBKEY 2		// Table has keys only - no data
 
 		__device__ RC DropTable(int tableID, int *movedID);
 		__device__ RC ClearTable(int tableID, int *changes);
@@ -201,7 +201,7 @@ namespace Core
 #endif
 
 #ifndef OMIT_SHARED_CACHE
-		__device__ inline void Enter() { }
+		__device__ inline static void Enter() { }
 		__device__ static void EnterAll(BContext *ctx) { }
 #else
 #define Enter(X) 
@@ -210,13 +210,13 @@ namespace Core
 
 #ifndef OMIT_SHARED_CACHE
 		//__device__ int Sharable();
-		__device__ inline void Leave() { }
+		__device__ inline static void Leave() { }
 		//__device__ static void EnterCursor(BtCursor *);
 		//__device__ static void LeaveCursor(BtCursor *);
 		__device__ static void LeaveAll(BContext *ctx) { }
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.
-		__device__ inline bool HoldsMutex() { return true; }
+		__device__ inline static bool HoldsMutex() { return true; }
 		__device__ inline static bool HoldsAllMutexes(BContext *ctx) { return true; }
 		__device__ inline static bool SchemaMutexHeld(BContext *ctx, int db, Core::Schema *schema) { return true; }
 		//#endif

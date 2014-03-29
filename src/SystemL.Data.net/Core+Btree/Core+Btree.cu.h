@@ -1,5 +1,6 @@
 ﻿#include "../Core+Pager/Core+Pager.cu.h"
-namespace Core {
+namespace Core
+{
 #pragma region CollSeq
 
 	struct CollSeq
@@ -13,7 +14,7 @@ namespace Core {
 
 #pragma endregion
 
-#pragma region ISchema
+#pragma region Schema
 
 	enum SCHEMA : uint8
 	{
@@ -49,7 +50,8 @@ namespace Core {
 #include "BContext.cu.h"
 #include "Btree.cu.h"
 
-namespace Core {
+namespace Core
+{
 #pragma region IVdbe
 
 	class IVdbe

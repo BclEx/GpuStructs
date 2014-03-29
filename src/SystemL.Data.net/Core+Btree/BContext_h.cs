@@ -4,6 +4,7 @@ namespace Core
     public class BContext
     {
         const int MAX_ATTACHED = 10;
+        public static TEXTENCODE CTXENCODE(BContext ctx) { return ctx.DBs[0].Schema.Encode; }
 
         public class BusyHandlerType
         {
@@ -52,18 +53,10 @@ namespace Core
         public MutexEx Mutex;
         public array_t<DB> DBs = new array_t<DB>(new DB[MAX_ATTACHED]); // All backends / Number of backends currently in use
         public FLAG Flags;
-        public long LastRowID; // ROWID of most recent insert (see above)
-        //public uint OpenFlags;	// Flags passed to sqlite3_vfs.xOpen()
-        public RC ErrCode;					// Most recent error code (RC_*)
-        public int ErrMask;				// & result codes with this before returning
-
-        public byte IsTransactionSavepoint;    // True if the outermost savepoint is a TS
-        //int Limits[SQLITE_N_LIMIT];	// Limits
         public int ActiveVdbeCnt;
-
         public BusyHandlerType BusyHandler;
-        public Savepoint Savepoint;        // List of active savepoints
-        public int Savepoints;                      // Number of non-transaction savepoints
+        public Savepoint Savepoints;            // List of active savepoints
+        public int SavepointsLength;            // Number of non-transaction savepoints
 
         public int InvokeBusyHandler()
         {

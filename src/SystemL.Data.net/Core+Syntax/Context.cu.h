@@ -21,11 +21,11 @@ namespace Core
 
 	enum MAGIC : uint32
 	{
-		MAGIC_OPEN = 0xa029a697,  // Database is open
+		MAGIC_OPEN = 0xa029a697,	// Database is open
 		MAGIC_CLOSED = 0x9f3c2d33,  // Database is closed
-		MAGIC_SICK = 0x4b771290,  // Error and awaiting close
-		MAGIC_BUSY = 0xf03b7906,  // Database currently in use
-		MAGIC_ERROR = 0xb5357930,  // An SQLITE_MISUSE error occurred
+		MAGIC_SICK = 0x4b771290,	// Error and awaiting close
+		MAGIC_BUSY = 0xf03b7906,	// Database currently in use
+		MAGIC_ERROR = 0xb5357930,	// An SQLITE_MISUSE error occurred
 		MAGIC_ZOMBIE = 0x64cffc7f,  // Close with last statement close
 	};
 
@@ -56,17 +56,17 @@ namespace Core
 
 	enum OPTFLAG : uint16
 	{
-		OPTFLAG_QueryFlattener = 0x0001,   // Query flattening
-		OPTFLAG_ColumnCache = 0x0002,   // Column cache
-		OPTFLAG_GroupByOrder = 0x0004,   // GROUPBY cover of ORDERBY
-		OPTFLAG_FactorOutConst = 0x0008,   // Constant factoring
-		OPTFLAG_IdxRealAsInt = 0x0010,   // Store REAL as INT in indices
-		OPTFLAG_DistinctOpt = 0x0020,   // DISTINCT using indexes
-		OPTFLAG_CoverIdxScan = 0x0040,   // Covering index scans
-		OPTFLAG_OrderByIdxJoin = 0x0080,   // ORDER BY of joins via index
-		OPTFLAG_SubqCoroutine = 0x0100,   // Evaluate subqueries as coroutines
-		OPTFLAG_Transitive = 0x0200,   // Transitive constraints
-		OPTFLAG_AllOpts = 0xffff,   // All optimizations
+		OPTFLAG_QueryFlattener = 0x0001,	// Query flattening
+		OPTFLAG_ColumnCache = 0x0002,		// Column cache
+		OPTFLAG_GroupByOrder = 0x0004,		// GROUPBY cover of ORDERBY
+		OPTFLAG_FactorOutConst = 0x0008,	// Constant factoring
+		OPTFLAG_IdxRealAsInt = 0x0010,		// Store REAL as INT in indices
+		OPTFLAG_DistinctOpt = 0x0020,		// DISTINCT using indexes
+		OPTFLAG_CoverIdxScan = 0x0040,		// Covering index scans
+		OPTFLAG_OrderByIdxJoin = 0x0080,	// ORDER BY of joins via index
+		OPTFLAG_SubqCoroutine = 0x0100,		// Evaluate subqueries as coroutines
+		OPTFLAG_Transitive = 0x0200,		// Transitive constraints
+		OPTFLAG_AllOpts = 0xffff,			// All optimizations
 	};
 
 	typedef array_t3<int, FuncDef, 23> FuncDefHash;
@@ -74,51 +74,50 @@ namespace Core
 	class Context : public BContext
 	{
 	public:
-		struct sqlite3InitInfo
+		struct InitInfo
 		{
-			int NewTid;					// Rootpage of table being initialized
-			uint8 DB;                   // Which db file is being initialized
-			bool Busy;					// TRUE if currently initializing
-			uint8 OrphanTrigger;        // Last statement is orphaned TEMP trigger
+			int NewTid;						// Rootpage of table being initialized
+			uint8 DB;						// Which db file is being initialized
+			bool Busy;						// TRUE if currently initializing
+			uint8 OrphanTrigger;			// Last statement is orphaned TEMP trigger
 		};
 
 		OPTFLAG OptFlags;
-
-		VSystem *Vfs;					// OS Interface
-		//array_t<Vdbe> Vdbe;			// List of active virtual machines
-		CollSeq *DefaultColl;			// The default collating sequence (BINARY)
-		int64 LastRowID;				// ROWID of most recent insert (see above)
-		//unsigned int OpenFlags;		// Flags passed to sqlite3_vfs.xOpen()
-		RC ErrCode;						// Most recent error code (RC_*)
-		int ErrMask;					// & result codes with this before returning
+		VSystem *Vfs;						// OS Interface
+		array_t<Vdbe> Vdbe;					// List of active virtual machines
+		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
+		int64 LastRowID;					// ROWID of most recent insert (see above)
+		unsigned int OpenFlags;				// Flags passed to sqlite3_vfs.xOpen()
+		RC ErrCode;							// Most recent error code (RC_*)
+		int ErrMask;						// & result codes with this before returning
 		void(*CollNeeded)(void *, Context *, int textRep, const char *);
 		void(*CollNeeded16)(void *, Context *, int textRep, const void *);
 		void *CollNeededArg;
-		Mem *Err;						// Most recent error message
-		char *ErrMsg;                // Most recent error message (UTF-8 encoded)
-		char *ErrMsg16;              // Most recent error message (UTF-16 encoded)
+		Mem *Err;							// Most recent error message
+		char *ErrMsg;						// Most recent error message (UTF-8 encoded)
+		char *ErrMsg16;						// Most recent error message (UTF-16 encoded)
 		union
 		{
-			volatile int IsInterrupted; // True if sqlite3_interrupt has been called
-			double NotUsed1;            // Spacer
+			volatile int IsInterrupted;		// True if sqlite3_interrupt has been called
+			double NotUsed1;				// Spacer
 		} u1;
-		Lookaside Lookaside;			// Lookaside malloc configuration
+		Lookaside Lookaside;				// Lookaside malloc configuration
 
-		bool MallocFailed;				// True if we have seen a malloc failure
-		uint8 VTableOnConflict;         // Value to return for s3_vtab_on_conflict()
-		uint8 IsTransactionSavepoint;   // True if the outermost savepoint is a TS
-		MAGIC Magic;					// Magic number for detect library misuse
-		int Limits[LIMIT_MAX_];			// Limits
-		sqlite3InitInfo Init;			// Information used during initialization
+		bool MallocFailed;					// True if we have seen a malloc failure
+		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
+		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
+		MAGIC Magic;						// Magic number for detect library misuse
+		int Limits[LIMIT_MAX_];				// Limits
+		InitInfo Init;						// Information used during initialization
 #ifndef OMIT_VIRTUALTABLE
-		Hash Modules;					// populated by sqlite3_create_module()
-		VTableContext *VTableCtx;       // Context for active vtab connect/create
-		array_t<VTable *> VTrans;		// Virtual tables with open transactions / Allocated size of aVTrans
-		VTable *Disconnect;				// Disconnect these in next sqlite3_prepare()
+		Hash Modules;						// populated by sqlite3_create_module()
+		VTableContext *VTableCtx;			// Context for active vtab connect/create
+		array_t<VTable *> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
+		VTable *Disconnect;					// Disconnect these in next sqlite3_prepare()
 #endif
-		FuncDefHash Funcs; // Hash table of connection functions
-		Hash CollSeqs;					// All collating sequences
-		int *BytesFreed;				// If not NULL, increment this in DbFree()
+		FuncDefHash Funcs;					// Hash table of connection functions
+		Hash CollSeqs;						// All collating sequences
+		int *BytesFreed;					// If not NULL, increment this in DbFree()
 
 		__device__ inline static RC ApiExit(Context *ctx, RC rc)
 		{

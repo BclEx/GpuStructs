@@ -118,7 +118,7 @@ namespace Core
             internal uint UsableSize;         // Number of usable bytes on each page
             internal int Transactions;        // Number of open transactions (read + write)
             internal Pid Pages;               // Number of pages in the database
-            internal ISchema Schema;           // Pointer to space allocated by sqlite3BtreeSchema()
+            internal Schema Schema;           // Pointer to space allocated by sqlite3BtreeSchema()
             internal Action<object> FreeSchema; // Destructor for BtShared.pSchema
             internal MutexEx Mutex;           // Non-recursive mutex required to access this object
             internal Bitvec HasContent;       // Set of pages moved to free-list this transaction

@@ -1,106 +1,123 @@
 ﻿using System;
+using FuncDefHash = Core.array_t3<int, Core.FuncDef, object>;
+
 namespace Core
 {
+    public enum LIMIT : byte
+    {
+        LIMIT_LENGTH = 0,
+        LIMIT_SQL_LENGTH = 1,
+        LIMIT_COLUMN = 2,
+        LIMIT_EXPR_DEPTH = 3,
+        LIMIT_COMPOUND_SELECT = 4,
+        LIMIT_VDBE_OP = 5,
+        LIMIT_FUNCTION_ARG = 6,
+        LIMIT_ATTACHED = 7,
+        LIMIT_LIKE_PATTERN_LENGTH = 8,
+        LIMIT_VARIABLE_NUMBER = 9,
+        LIMIT_TRIGGER_DEPTH = 10,
+        LIMIT_MAX_ = 11,
+    }
+
+    public enum MAGIC : uint
+    {
+        MAGIC_OPEN = 0xa029a697,	// Database is open
+        MAGIC_CLOSED = 0x9f3c2d33,  // Database is closed
+        MAGIC_SICK = 0x4b771290,	// Error and awaiting close
+        MAGIC_BUSY = 0xf03b7906,	// Database currently in use
+        MAGIC_ERROR = 0xb5357930,	// An SQLITE_MISUSE error occurred
+        MAGIC_ZOMBIE = 0x64cffc7f,  // Close with last statement close
+    }
+
+    public class LookasideSlot
+    {
+        public LookasideSlot Next;    // Next buffer in the list of free buffers
+    }
+    public struct Lookaside
+    {
+        ushort Size;            // Size of each buffer in bytes
+        bool Enabled;           // False to disable new lookaside allocations
+        bool Malloced;          // True if pStart obtained from sqlite3_malloc()
+        int Outs;               // Number of buffers currently checked out
+        int MaxOuts;            // Highwater mark for nOut
+        int[] Stats = new int[3];			// 0: hits.  1: size misses.  2: full misses
+        LookasideSlot Free;	// List of available buffers
+        object Start;			// First byte of available memory space
+        object End;				// First byte past end of available space
+    }
+
+    public static class ContextEx
+    {
+#if !OMIT_BUILTIN_TEST
+        public static bool CtxOptimizationDisabled(Context ctx, OPTFLAG mask) { return (((ctx).OptFlags & (mask)) != 0); }
+        public static bool CtxOptimizationEnabled(Context ctx, OPTFLAG mask) { return (((ctx).OptFlags & (mask)) == 0); }
+#else
+            public static bool CtxOptimizationDisabled(Context ctx, OPTFLAG mask) { return false; }
+            public static bool CtxOptimizationEnabled(Context ctx, OPTFLAG mask) { return true; }
+#endif
+    }
+
+    [Flags]
+    public enum OPTFLAG : ushort
+    {
+        OPTFLAG_QueryFlattener = 0x0001,	// Query flattening
+        OPTFLAG_ColumnCache = 0x0002,		// Column cache
+        OPTFLAG_GroupByOrder = 0x0004,		// GROUPBY cover of ORDERBY
+        OPTFLAG_FactorOutConst = 0x0008,	// Constant factoring
+        OPTFLAG_IdxRealAsInt = 0x0010,		// Store REAL as INT in indices
+        OPTFLAG_DistinctOpt = 0x0020,		// DISTINCT using indexes
+        OPTFLAG_CoverIdxScan = 0x0040,		// Covering index scans
+        OPTFLAG_OrderByIdxJoin = 0x0080,	// ORDER BY of joins via index
+        OPTFLAG_SubqCoroutine = 0x0100,		// Evaluate subqueries as coroutines
+        OPTFLAG_Transitive = 0x0200,		// Transitive constraints
+        OPTFLAG_AllOpts = 0xffff,			// All optimizations
+    }
+
     public class Context : BContext
     {
-        const int MAX_ATTACHED = 10;
-
-        public class BusyHandlerType
+        public struct InitInfo
         {
-            public Func<object, int, int> Func; // The busy callback
-            public object Arg;                  // First arg to busy callback
-            public int Busys;                   // Incremented with each busy call
+            public int NewTid;				// Rootpage of table being initialized
+            public byte DB;                 // Which db file is being initialized
+            public bool Busy;				// TRUE if currently initializing
+            public byte OrphanTrigger;      // Last statement is orphaned TEMP trigger
         }
 
-        public class DB
-        {
-            public string Name;					// Name of this database
-            public Btree Bt;					// The B*Tree structure for this database file
-            public byte InTrans;				// 0: not writable.  1: Transaction.  2: Checkpoint
-            public byte SafetyLevel;			// How aggressive at syncing data to disk
-            public ISchema Schema;			    // Pointer to database schema (possibly shared)
-        }
-
-        [Flags]
-        public enum FLAG : uint
-        {
-            VdbeTrace = 0x00000100,
-            InternChanges = 0x00000200,
-            FullColNames = 0x00000400,
-            ShortColNames = 0x00000800,
-            CountRows = 0x00001000,
-            NullCallback = 0x00002000,
-            SqlTrace = 0x00004000,
-            VdbeListing = 0x00008000,
-            WriteSchema = 0x00010000,
-            NoReadlock = 0x00020000,
-            IgnoreChecks = 0x00040000,
-            ReadUncommitted = 0x0080000,
-            LegacyFileFmt = 0x00100000,
-            FullFSync = 0x00200000,
-            CkptFullFSync = 0x00400000,
-            RecoveryMode = 0x00800000,
-            ReverseOrder = 0x01000000,
-            RecTriggers = 0x02000000,
-            ForeignKeys = 0x04000000,
-            AutoIndex = 0x08000000,
-            PreferBuiltin = 0x10000000,
-            LoadExtension = 0x20000000,
-            EnableTrigger = 0x40000000,
-        }
-
-        public MutexEx Mutex;
-        public array_t<DB> DBs = new array_t<DB>(new DB[MAX_ATTACHED]); // All backends / Number of backends currently in use
-        public FLAG Flags;
-        public long LastRowID; // ROWID of most recent insert (see above)
-        //public uint OpenFlags;	// Flags passed to sqlite3_vfs.xOpen()
+        public OPTFLAG OptFlags;
+        public VSystem Vfs;					// OS Interface
+        public array_t<Vdbe> Vdbe;			// List of active virtual machines
+        public CollSeq DefaultColl;		    // The default collating sequence (BINARY)
+        public long LastRowID;				// ROWID of most recent insert (see above)
+        public uint OpenFlags;		        // Flags passed to sqlite3_vfs.xOpen()
         public RC ErrCode;					// Most recent error code (RC_*)
-        public int ErrMask;				// & result codes with this before returning
+        public int ErrMask;					// & result codes with this before returning
+        //public void(*CollNeeded)(void *, Context *, int textRep, const char *);
+        //public void(*CollNeeded16)(void *, Context *, int textRep, const void *);
+        //public void *CollNeededArg;
+        public Mem Err;						// Most recent error message
+        public string ErrMsg;				// Most recent error message (UTF-8 encoded)
+        public string ErrMsg16;				// Most recent error message (UTF-16 encoded)
+        //union
+        //{
+        //    volatile int IsInterrupted;		// True if sqlite3_interrupt has been called
+        //    double NotUsed1;				// Spacer
+        //} u1;
+        public Lookaside Lookaside;			// Lookaside malloc configuration
 
-        public byte IsTransactionSavepoint;    // True if the outermost savepoint is a TS
-        //int Limits[SQLITE_N_LIMIT];	// Limits
-        public int ActiveVdbeCnt;
+        public bool MallocFailed;					// True if we have seen a malloc failure
+        public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
+        public byte IsTransactionSavepoint;		// True if the outermost savepoint is a TS
+        public MAGIC Magic;						// Magic number for detect library misuse
+        public int[] Limits = new int[(int)LIMIT.LIMIT_MAX_];				// Limits
+        public InitInfo Init;						// Information used during initialization
 #if !OMIT_VIRTUALTABLE
-		public Hash Modules;					// populated by sqlite3_create_module()
-		public VTableContext VTableCtx;       // Context for active vtab connect/create
+		public Hash Modules;						// populated by sqlite3_create_module()
+		public VTableContext VTableCtx;			// Context for active vtab connect/create
 		public array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
-		public VTable Disconnect;				// Disconnect these in next sqlite3_prepare()
+		public VTable Disconnect;					// Disconnect these in next sqlite3_prepare()
 #endif
-        public BusyHandlerType BusyHandler;
-        public Savepoint Savepoint;        // List of active savepoints
-        public int Savepoints;                      // Number of non-transaction savepoints
-
-        public int InvokeBusyHandler()
-        {
-            if (SysEx.NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
-                return 0;
-            var rc = BusyHandler.Func(BusyHandler.Arg, BusyHandler.Busys);
-            if (rc == 0)
-                BusyHandler.Busys = -1;
-            else
-                BusyHandler.Busys++;
-            return rc;
-        }
-
-        // HOOKS
-#if ENABLE_UNLOCK_NOTIFY
-        public void sqlite3ConnectionBlocked(sqlite3 *, sqlite3 );
-        internal void sqlite3ConnectionUnlocked(sqlite3 db);
-        internal void sqlite3ConnectionClosed(sqlite3 db);
-#else
-        public static void ConnectionBlocked(Context a, Context b) { }
-        //internal static void sqlite3ConnectionUnlocked(sqlite3 x) { }
-        //internal static void sqlite3ConnectionClosed(sqlite3 x) { }
-#endif
-
-        public bool TempInMemory()
-        {
-            return true;
-            //if (SQLITE_TEMP_STORE == 1) return (temp_store == 2);
-            //if (SQLITE_TEMP_STORE == 2) return (temp_store != 1);
-            //if (SQLITE_TEMP_STORE == 3) return true;
-            //if (SQLITE_TEMP_STORE < 1 || SQLITE_TEMP_STORE > 3) return false;
-            //return false;
-        }
+        public FuncDefHash Funcs;					// Hash table of connection functions
+        public Hash CollSeqs;						// All collating sequences
+        public int* BytesFreed;					// If not NULL, increment this in DbFree()
     }
 }

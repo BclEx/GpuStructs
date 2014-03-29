@@ -7,6 +7,7 @@ namespace Core
 	{
 	public:
 		static const int MAX_ATTACHED = 10;
+		#define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
 
 		struct BusyHandlerType
 		{
@@ -23,8 +24,6 @@ namespace Core
 			uint8 SafetyLevel;			// How aggressive at syncing data to disk
 			Schema *Schema;				// Pointer to database schema (possibly shared)
 		};
-
-#define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
 
 		enum FLAG : uint32
 		{
@@ -56,11 +55,8 @@ namespace Core
 		MutexEx Mutex;
 		array_t<DB> DBs;				// All backends / Number of backends currently in use
 		FLAG Flags;
-
 		int ActiveVdbeCnt;
-
 		BusyHandlerType *BusyHandler;
-		DB StaticDBs[2];				// Static space for the 2 default backends
 		Savepoint *Savepoints;			// List of active savepoints
 		int SavepointsLength;			// Number of non-transaction savepoints
 

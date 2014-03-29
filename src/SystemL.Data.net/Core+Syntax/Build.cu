@@ -1,6 +1,6 @@
 #include "Core+Syntax.cu.h"
 #include "..\Core+Vbde\Vdbe.cu.h"
-#include <stddef.h>
+//#include <stddef.h>
 
 namespace Core
 {

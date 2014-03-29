@@ -59,6 +59,7 @@
     </Content>
     <Compile Include="Core+Syntax\Context_h.cs" />
     <Compile Include="Core+Syntax\Core+Syntax_h.cs" />
+    <Compile Include="Core+Syntax\Expr.cs" />
     <Compile Include="Core+Syntax\Rowset.cs" />
     <Compile Include="Core+Syntax\Table.cs" />
     <Compile Include="Core+Syntax\VTable.cs" />
