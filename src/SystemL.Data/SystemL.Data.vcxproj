@@ -52,6 +52,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -79,6 +80,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />

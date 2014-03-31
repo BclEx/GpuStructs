@@ -52,6 +52,8 @@
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
     <Content Include="Core+Syntax\Context.cu.h" />
+    <Content Include="KeywordHash.h" />
+    <Content Include="Opcodes.h" />
     <Content Include="Parse1.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -64,13 +66,22 @@
     <Compile Include="Core+Syntax\Table.cs" />
     <Compile Include="Core+Syntax\VTable.cs" />
     <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
+    <None Include="Core+Syntax\Build.cu" />
+    <None Include="Core+Syntax\Callback.cu" />
+    <None Include="Core+Syntax\Command\Alter.cu" />
+    <None Include="Core+Syntax\Command\Analyze.cu" />
+    <None Include="Core+Syntax\Command\Attach.cu" />
+    <None Include="Core+Syntax\Command\Delete.cu" />
+    <None Include="Core+Syntax\Command\Insert.cu" />
+    <None Include="Core+Syntax\Command\Pragma.cu" />
+    <None Include="Core+Syntax\Command\Select.cu" />
+    <None Include="Core+Syntax\Command\Update.cu" />
+    <None Include="Core+Syntax\Command\Vacuum.cu" />
     <None Include="Core+Syntax\Expr.cu" />
-    <None Include="Core+Vbde\Build.cu" />
-    <None Include="Core+Vbde\Insert.cu" />
-    <None Include="Core+Vbde\Pragma.cu" />
-    <None Include="Core+Vbde\Prepare.cu" />
-    <None Include="Core+Vbde\Select.cu" />
-    <None Include="Core+Vbde\Tokenize.cu" />
+    <None Include="Core+Syntax\Prepare.cu" />
+    <None Include="Core+Syntax\Tokenize.cu" />
+    <None Include="Core+Syntax\Walker.cu" />
+    <None Include="Core+Syntax\Where.cu" />
     <None Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
     <None Include="Core+Vbde\VdbeAux.cs" />
@@ -109,6 +120,7 @@
     <None Include="Core+Pager\PCache.cu" />
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
+    <None Include="Opcodes.cu" />
     <None Include="Parse.out">
       <DependentUpon>Parse.yc</DependentUpon>
     </None>

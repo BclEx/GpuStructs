@@ -69,7 +69,7 @@ namespace Core
 		OPTFLAG_AllOpts = 0xffff,			// All optimizations
 	};
 
-	typedef array_t3<int, FuncDef, 23> FuncDefHash;
+	typedef array_t3<int, struct FuncDef, 23> FuncDefHash;
 
 	class Context : public BContext
 	{
@@ -84,7 +84,7 @@ namespace Core
 
 		OPTFLAG OptFlags;
 		VSystem *Vfs;						// OS Interface
-		array_t<Vdbe> Vdbe;					// List of active virtual machines
+		array_t<struct Vdbe> Vdbe;			// List of active virtual machines
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
 		int64 LastRowID;					// ROWID of most recent insert (see above)
 		unsigned int OpenFlags;				// Flags passed to sqlite3_vfs.xOpen()

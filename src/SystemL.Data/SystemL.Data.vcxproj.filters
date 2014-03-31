@@ -119,5 +119,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
