@@ -59,12 +59,27 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Parse.y</DependentUpon>
     </Content>
+    <Compile Include="Core+Syntax\Build.cs" />
+    <Compile Include="Core+Syntax\Callback.cs" />
+    <Compile Include="Core+Syntax\Command\Alter.cs" />
+    <Compile Include="Core+Syntax\Command\Analyze.cs" />
+    <Compile Include="Core+Syntax\Command\Attach.cs" />
+    <Compile Include="Core+Syntax\Command\Delete.cs" />
+    <Compile Include="Core+Syntax\Command\Insert.cs" />
+    <Compile Include="Core+Syntax\Command\Pragma.cs" />
+    <Compile Include="Core+Syntax\Command\Select.cs" />
+    <Compile Include="Core+Syntax\Command\Update.cs" />
+    <Compile Include="Core+Syntax\Command\Vacuum.cs" />
     <Compile Include="Core+Syntax\Context_h.cs" />
     <Compile Include="Core+Syntax\Core+Syntax_h.cs" />
     <Compile Include="Core+Syntax\Expr.cs" />
+    <Compile Include="Core+Syntax\Prepare.cs" />
     <Compile Include="Core+Syntax\Rowset.cs" />
     <Compile Include="Core+Syntax\Table.cs" />
+    <Compile Include="Core+Syntax\Tokenize.cs" />
     <Compile Include="Core+Syntax\VTable.cs" />
+    <Compile Include="Core+Syntax\Walker.cs" />
+    <Compile Include="Core+Syntax\Where.cs" />
     <Compile Include="Core+Vbde\Core+Vdbe_h.cs" />
     <None Include="Core+Syntax\Build.cu" />
     <None Include="Core+Syntax\Callback.cu" />
