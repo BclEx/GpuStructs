@@ -12,7 +12,7 @@ namespace Core
         public object User;				// First argument to xCmp()
         public Func<object, int, string, int, string, int> Cmp;
         public RefAction<object> Del;	// Destructor for pUser
-        public CollSeq memcopy() { return (this == null ? null : (CollSeq)MemberwiseClone()); }
+        public CollSeq memcpy() { return (this == null ? null : (CollSeq)MemberwiseClone()); }
     }
 
     #endregion

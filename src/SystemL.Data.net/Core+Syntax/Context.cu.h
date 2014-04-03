@@ -98,7 +98,7 @@ namespace Core
 		char *ErrMsg16;						// Most recent error message (UTF-16 encoded)
 		union
 		{
-			volatile int IsInterrupted;		// True if sqlite3_interrupt has been called
+			volatile bool IsInterrupted;	// True if sqlite3_interrupt has been called
 			double NotUsed1;				// Spacer
 		} u1;
 		Lookaside Lookaside;				// Lookaside malloc configuration

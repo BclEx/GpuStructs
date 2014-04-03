@@ -56,7 +56,7 @@ namespace Core
             Debug.Assert(MemdebugNoType(p, MEMTYPE.DB));
             return p.Length;
         }
-        public static void Free<T>(ref T p) where T : class { p = null; }
+        public static void Free<T>(ref T p) where T : class { }
         public static void TagFree<T>(object tag, ref T p) where T : class { p = null; }
         public static byte[] ScratchAlloc(int size) { return new byte[size]; }
         public static void ScratchFree(ref byte[] p) { p = null; }

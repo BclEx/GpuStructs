@@ -9,6 +9,8 @@ namespace Core
         UTF16 = 4, // Use native byte order
         ANY = 5, // sqlite3_create_function only
         UTF16_ALIGNED = 8, // sqlite3_create_collation only
+        //
+        UTF16NATIVE = UTF16LE,
     }
 
     public static class ConvertEx

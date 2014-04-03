@@ -91,17 +91,18 @@ namespace Core
         public uint OpenFlags;		        // Flags passed to sqlite3_vfs.xOpen()
         public RC ErrCode;					// Most recent error code (RC_*)
         public int ErrMask;					// & result codes with this before returning
-        //public void(*CollNeeded)(void *, Context *, int textRep, const char *);
-        //public void(*CollNeeded16)(void *, Context *, int textRep, const void *);
-        //public void *CollNeededArg;
+        public Action<object, Context, TEXTENCODE, string> CollNeeded;
+        public Action<object, Context, TEXTENCODE, string> CollNeeded16;
+        public object CollNeededArg;
         public Mem Err;						// Most recent error message
         public string ErrMsg;				// Most recent error message (UTF-8 encoded)
         public string ErrMsg16;				// Most recent error message (UTF-16 encoded)
-        //union
-        //{
-        //    volatile int IsInterrupted;		// True if sqlite3_interrupt has been called
-        //    double NotUsed1;				// Spacer
-        //} u1;
+        public struct _u1
+        {
+            public bool IsInterrupted;      // True if sqlite3_interrupt has been called
+            public double NotUsed1;         // Spacer
+        }
+        public _u1 u1;
         public Lookaside Lookaside;			// Lookaside malloc configuration
 
         public bool MallocFailed;					// True if we have seen a malloc failure
@@ -111,10 +112,10 @@ namespace Core
         public int[] Limits = new int[(int)LIMIT.LIMIT_MAX_];				// Limits
         public InitInfo Init;						// Information used during initialization
 #if !OMIT_VIRTUALTABLE
-		public Hash Modules;						// populated by sqlite3_create_module()
-		public VTableContext VTableCtx;			// Context for active vtab connect/create
-		public array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
-		public VTable Disconnect;					// Disconnect these in next sqlite3_prepare()
+        public Hash Modules;						// populated by sqlite3_create_module()
+        public VTableContext VTableCtx;			// Context for active vtab connect/create
+        public array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
+        public VTable Disconnect;					// Disconnect these in next sqlite3_prepare()
 #endif
         public FuncDefHash Funcs;					// Hash table of connection functions
         public Hash CollSeqs;						// All collating sequences

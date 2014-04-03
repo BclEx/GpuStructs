@@ -58,15 +58,16 @@ namespace Core
 
 	__device__ void VTable::Unlock()
 	{
-		_assert(Ctx);
+		Context *ctx = Ctx;
+		_assert(ctx);
 		_assert(Refs > 0);
-		_assert(Ctx->Magic == MAGIC_OPEN || Ctx->Magic == MAGIC_ZOMBIE);
+		_assert(ctx->Magic == MAGIC_OPEN || ctx->Magic == MAGIC_ZOMBIE);
 		Refs--;
 		if (Refs == 0)
 		{
 			if (IVTable)
 				((ITableModule *)IVTable->IModule)->Disconnect(this->IVTable);
-			SysEx::TagFree(Ctx, this);
+			SysEx::TagFree(ctx, this);
 		}
 	}
 

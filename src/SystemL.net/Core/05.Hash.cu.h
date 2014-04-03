@@ -27,6 +27,7 @@ namespace Core
 		} *Table; // the hash table
 
 		__device__ Hash();
+		__device__ void Init();
 		__device__ void *Insert(const char *key, int keyLength, void *data);
 		__device__ void *Find(const char *key, int keyLength);
 		__device__ void Clear();

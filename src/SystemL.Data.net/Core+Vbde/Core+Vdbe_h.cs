@@ -26,24 +26,24 @@ namespace Core
 
     public class FuncDef
     {
-        short Args;				// Number of arguments.  -1 means unlimited
-        byte PrefEnc;			// Preferred text encoding (SQLITE_UTF8, 16LE, 16BE)
-        FUNC Flags;			    // Some combination of SQLITE_FUNC_*
-        object UserData;			// User data parameter
-        FuncDef Next;	// Next function with same name */
-        Action<FuncContext, int, Mem[]> Func; // Regular function
-        Action<FuncContext, int, Mem[]> Step; // Aggregate step
-        Action<FuncContext> Finalize; // Aggregate finalizer
-        string Name;				// SQL name of the function.
-        FuncDef Hash;			// Next with a different name but the same hash
-        FuncDestructor Destructor; // Reference counted destructor function
+        public short Args;				// Number of arguments.  -1 means unlimited
+        public TEXTENCODE PrefEncode;	// Preferred text encoding (SQLITE_UTF8, 16LE, 16BE)
+        public FUNC Flags;			    // Some combination of SQLITE_FUNC_*
+        public object UserData;			// User data parameter
+        public FuncDef Next;	// Next function with same name */
+        public Action<FuncContext, int, Mem[]> Func; // Regular function
+        public Action<FuncContext, int, Mem[]> Step; // Aggregate step
+        public Action<FuncContext> Finalize; // Aggregate finalizer
+        public string Name;				// SQL name of the function.
+        public FuncDef Hash;			// Next with a different name but the same hash
+        public FuncDestructor Destructor; // Reference counted destructor function
     }
 
     public class FuncDestructor
     {
-        int Refs;
-        Action<object> Destroy;
-        object UserData;
+        public int Refs;
+        public Action<object> Destroy;
+        public object UserData;
     }
 
     //   FUNCTION(zName, nArg, iArg, bNC, xFunc)

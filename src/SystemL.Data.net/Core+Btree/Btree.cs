@@ -6167,13 +6167,13 @@ namespace Core
             return (Backups != 0);
         }
 
-        public ISchema Schema(int bytes, Action<object> free)
+        public Schema Schema(int bytes, Action<Schema> free)
         {
             BtShared bt = Bt;
             Enter();
             if (bt.Schema == null && bytes != 0)
             {
-                bt.Schema = new ISchema();
+                bt.Schema = new Schema();
                 bt.FreeSchema = free;
             }
             Leave();

@@ -31,6 +31,7 @@ typedef unsigned long long	uint64;
 #define TYPE_LITTLEENDIAN 1
 #define TEXTENCODE_UTF16NATIVE TEXTENCODE_UTF16LE
 #else
+static byte __one;
 #define TYPE_BIGENDIAN (*(char *)(&__one) == 0)
 #define TYPE_LITTLEENDIAN (*(char *)(&__one) == 1)
 #define TEXTENCODE_UTF16NATIVE (TYPE_BIGENDIAN ? TEXTENCODE_UTF16BE : TEXTENCODE_UTF16LE)

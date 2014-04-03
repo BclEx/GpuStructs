@@ -1,191 +1,169 @@
+#region OMIT_VIRTUALTABLE
+#if !OMIT_VIRTUALTABLE
 using System;
 using System.Diagnostics;
 using System.Text;
 
 namespace Core
 {
-    #region VTable
-#if !OMIT_VIRTUALTABLE
-        public class VtabCtx
-        {
-            public Table pTab;
-            public VTable pVTable;
-        }
+    public class VTableContext
+    {
+        public Table pTab;
+        public VTable pVTable;
+    }
 
-        static int createModule(sqlite3 db, string zName, sqlite3_module pModule, object pAux, smdxDestroy xDestroy     /* Module destructor function */)
+    public partial class VTable
+    {
+        public static RC CreateModule(Context ctx, string name, ITableModule module, object aux, Action<object> destroy)
         {
             int rc, nName;
             Module pMod;
 
-            sqlite3_mutex_enter(db.mutex);
-            nName = sqlite3Strlen30(zName);
+            sqlite3_mutex_enter(ctx.mutex);
+            nName = sqlite3Strlen30(name);
             pMod = new Module();//  (Module)sqlite3DbMallocRaw( db, sizeof( Module ) + nName + 1 );
             if (pMod != null)
             {
                 Module pDel;
                 string zCopy;// = (char )(&pMod[1]);
-                zCopy = zName;//memcpy(zCopy, zName, nName+1);
+                zCopy = name;//memcpy(zCopy, zName, nName+1);
                 pMod.zName = zCopy;
-                pMod.pModule = pModule;
-                pMod.pAux = pAux;
-                pMod.xDestroy = xDestroy;
-                pDel = (Module)sqlite3HashInsert(ref db.aModule, zCopy, nName, pMod);
+                pMod.pModule = module;
+                pMod.pAux = aux;
+                pMod.xDestroy = destroy;
+                pDel = (Module)sqlite3HashInsert(ref ctx.aModule, zCopy, nName, pMod);
                 if (pDel != null && pDel.xDestroy != null)
                 {
-                    sqlite3ResetInternalSchema(db, -1);
+                    sqlite3ResetInternalSchema(ctx, -1);
                     pDel.xDestroy(ref pDel.pAux);
                 }
-                sqlite3DbFree(db, ref pDel);
+                sqlite3DbFree(ctx, ref pDel);
                 //if( pDel==pMod ){
                 //  db.mallocFailed = 1;
                 //}
             }
-            else if (xDestroy != null)
+            else if (destroy != null)
             {
-                xDestroy(ref pAux);
+                destroy(ref aux);
             }
-            rc = sqlite3ApiExit(db, SQLITE_OK);
-            sqlite3_mutex_leave(db.mutex);
+            rc = sqlite3ApiExit(ctx, SQLITE_OK);
+            sqlite3_mutex_leave(ctx.mutex);
             return rc;
         }
 
-
-        static int sqlite3_create_module(
-          sqlite3 db,               /* Database in which module is registered */
-          string zName,             /* Name assigned to this module */
-          sqlite3_module pModule,   /* The definition of the module */
-          object pAux               /* Context pointer for xCreate/xConnect */
-        )
+        public void Lock()
         {
-            return createModule(db, zName, pModule, pAux, null);
+            Refs++;
         }
 
-        static int sqlite3_create_module_v2(
-          sqlite3 db,               /* Database in which module is registered */
-          string zName,             /* Name assigned to this module */
-          sqlite3_module pModule,   /* The definition of the module */
-          sqlite3_vtab pAux,        /* Context pointer for xCreate/xConnect */
-          smdxDestroy xDestroy      /* Module destructor function */
-        )
+        static VTable sqlite3GetVTable(Context ctx, Table table)
         {
-            return createModule(db, zName, pModule, pAux, xDestroy);
+            Debug.Assert(IsVirtual(table));
+            VTable vtable;
+            for (vtable = table.VTables; vtable != null && vtable.Ctx != ctx; vtable = vtable.Next) ;
+            return vtable;
         }
 
-        static void sqlite3VtabLock(VTable pVTab)
+        public void Unlock()
         {
-            pVTab.nRef++;
-        }
-
-
-        static VTable sqlite3GetVTable(sqlite3 db, Table pTab)
-        {
-            VTable pVtab;
-            Debug.Assert(IsVirtual(pTab));
-            for (pVtab = pTab.pVTable; pVtab != null && pVtab.db != db; pVtab = pVtab.pNext) ;
-            return pVtab;
-        }
-
-        static void sqlite3VtabUnlock(VTable pVTab)
-        {
-            sqlite3 db = pVTab.db;
-
-            Debug.Assert(db != null);
-            Debug.Assert(pVTab.nRef > 0);
-            Debug.Assert(sqlite3SafetyCheckOk(db));
-
-            pVTab.nRef--;
-            if (pVTab.nRef == 0)
+            Context ctx = Ctx;
+            Debug.Assert(ctx != null);
+            Debug.Assert(Refs > 0);
+            Debug.Assert(ctx.Magic == MAGIC.OPEN || ctx.Magic == MAGIC.ZOMBIE);
+            Refs--;
+            if (Refs == 0)
             {
-                object p = pVTab.pVtab;
-                if (p != null)
-                {
-                    ((sqlite3_vtab)p).pModule.xDisconnect(ref p);
-                }
-                sqlite3DbFree(db, ref pVTab);
+                if (IVTable)
+                    IVTable.Module.Disconnect(ref IVTable);
+                SysEx.TagFree(ctx, ref this);
             }
         }
 
-        static VTable vtabDisconnectAll(sqlite3 db, Table p)
+        static VTable VTableDisconnectAll(Context ctx, Table table)
         {
-            VTable pRet = null;
-            VTable pVTable = p.pVTable;
-            p.pVTable = null;
-
-            /* Assert that the mutex (if any) associated with the BtShared database 
-            ** that contains table p is held by the caller. See header comments 
-            ** above function sqlite3VtabUnlockList() for an explanation of why
-            ** this makes it safe to access the sqlite3.pDisconnect list of any
-            ** database connection that may have an entry in the p.pVTable list.
-            */
-            Debug.Assert(db == null || sqlite3SchemaMutexHeld(db, 0, p.pSchema));
-
-            while (pVTable != null)
+            // Assert that the mutex (if any) associated with the BtShared database that contains table p is held by the caller. See header comments 
+            // above function sqlite3VtabUnlockList() for an explanation of why this makes it safe to access the sqlite3.pDisconnect list of any
+            // database connection that may have an entry in the p->pVTable list.
+            Debug.Assert(ctx == null || Btree.SchemaMutexHeld(ctx, 0, table.Schema));
+            VTable r = null;
+            VTable vtable = table.VTable;
+            table.VTable = null;
+            while (vtable != null)
             {
-                sqlite3 db2 = pVTable.db;
-                VTable pNext = pVTable.pNext;
-                Debug.Assert(db2 != null);
-                if (db2 == db)
+                VTable next = vtable.Next;
+                Context ctx2 = vtable.Ctx;
+                Debug.Assert(ctx2 != null);
+                if (ctx2 == ctx)
                 {
-                    pRet = pVTable;
-                    p.pVTable = pRet;
-                    pRet.pNext = null;
+                    r = vtable;
+                    table.VTable = r;
+                    r.Next = null;
                 }
                 else
                 {
-                    pVTable.pNext = db2.pDisconnect;
-                    db2.pDisconnect = pVTable;
+                    vtable.Next = ctx2.Disconnect;
+                    ctx2.Disconnect = vtable;
                 }
-                pVTable = pNext;
+                vtable = next;
             }
+            Debug.Assert(ctx == null || r != null);
+            return r;
+        }
 
-            Debug.Assert(null == db || pRet != null);
-            return pRet;
+        public static void Disconnect(Context ctx, Table table)
+        {
+            Debug.Assert(IsVirtual(table));
+            Debug.Aassert(Btree.HoldsAllMutexes(ctx));
+            Debug.Aassert(MutexEx.Held(ctx.Mutex));
+            for (VTable pvtable = table.VTables; pvtable; pvtable = pvtable.Next)
+                if (pvtable.Ctx == ctx)
+                {
+                    VTable vtable = pvtable;
+                    vtable = vtable.Next;
+                    vtable.Unlock();
+                    break;
+                }
         }
 
 
-        static void sqlite3VtabUnlockList(sqlite3 db)
+        public static void UnlockList(Context ctx)
         {
-            VTable p = db.pDisconnect;
-            db.pDisconnect = null;
-
-            Debug.Assert(sqlite3BtreeHoldsAllMutexes(db));
-            Debug.Assert(sqlite3_mutex_held(db.mutex));
-
-            if (p != null)
+            Debug.Assert(Btree.HoldsAllMutexes(ctx));
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            VTable vtable = ctx.Disconnect;
+            ctx.Disconnect = null;
+            if (vtable != null)
             {
-                sqlite3ExpirePreparedStatements(db);
+                Vdbe.ExpirePreparedStatements(ctx);
                 do
                 {
-                    VTable pNext = p.pNext;
-                    sqlite3VtabUnlock(p);
-                    p = pNext;
-                } while (p != null);
+                    VTable next = vtable.Next;
+                    vtable.Unlock();
+                    vtable = next;
+                } while (vtable != null);
             }
         }
 
-        static void sqlite3VtabClear(sqlite3 db, Table p)
+        public static void Clear(Context ctx, Table table)
         {
-            if (null == db || db.pnBytesFreed == 0)
-                vtabDisconnectAll(null, p);
-            if (p.azModuleArg != null)
+            if (ctx == null || ctx.BytesFreed == 0)
+                VtableDisconnectAll(null, table);
+            if (table.ModuleArgs != null)
             {
-                int i;
-                for (i = 0; i < p.nModuleArg; i++)
-                {
-                    sqlite3DbFree(db, ref p.azModuleArg[i]);
-                }
-                sqlite3DbFree(db, ref p.azModuleArg);
+                for (int i = 0; i < table.ModuleArgs.Length; i++)
+                    SysEx.TagFree(ctx, ref table.ModuleArgs[i]);
+                SysEx.TagFree(ctx, ref table.ModuleArgs);
             }
         }
 
-        static void addModuleArgument(sqlite3 db, Table pTable, string zArg)
+        static void AddModuleArgument(Context ctx, Table table, string arg)
         {
-            int i = pTable.nModuleArg++;
+            int i = table.ModuleArgs.length++;
             //int nBytes = sizeof(char )*(1+pTable.nModuleArg);
             //string[] azModuleArg;
             //sqlite3DbRealloc( db, pTable.azModuleArg, nBytes );
-            if (pTable.azModuleArg == null || pTable.azModuleArg.Length < pTable.nModuleArg)
-                Array.Resize(ref pTable.azModuleArg, 3 + pTable.nModuleArg);
+            if (table.azModuleArg == null || table.azModuleArg.Length < table.nModuleArg)
+                Array.Resize(ref table.azModuleArg, 3 + table.nModuleArg);
             //if ( azModuleArg == null )
             //{
             //  int j;
@@ -199,7 +177,7 @@ namespace Core
             //}
             //else
             {
-                pTable.azModuleArg[i] = zArg;
+                table.azModuleArg[i] = arg;
                 //pTable.azModuleArg[i + 1] = null;
                 //azModuleArg[i+1] = 0;
             }
@@ -974,7 +952,8 @@ namespace Core
             sqlite3_mutex_leave(db.mutex);
             return rc;
         }
-
-#endif
-    #endregion
+    }
 }
+#endif
+#endregion
+

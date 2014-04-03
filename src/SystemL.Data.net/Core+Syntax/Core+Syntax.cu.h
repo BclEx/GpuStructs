@@ -53,14 +53,14 @@ namespace Core
 
 	enum FUNC : uint8
 	{
-		FUNC_LIKE = 0x01,		// Candidate for the LIKE optimization
-		FUNC_CASE = 0x02,		// Case-sensitive LIKE-type function
-		FUNC_EPHEM = 0x04,		// Ephemeral.  Delete with VDBE
-		FUNC_NEEDCOLL = 0x08,	// sqlite3GetFuncCollSeq() might be called
-		FUNC_COUNT = 0x10,		// Built-in count(*) aggregate
-		FUNC_COALESCE = 0x20,	// Built-in coalesce() or ifnull() function
-		FUNC_LENGTH = 0x40,		// Built-in length() function
-		FUNC_TYPEOF = 0x80,		// Built-in typeof() function
+		FUNC_LIKE = 0x01,			// Candidate for the LIKE optimization
+		FUNC_CASE = 0x02,			// Case-sensitive LIKE-type function
+		FUNC_EPHEM = 0x04,			// Ephemeral.  Delete with VDBE
+		FUNC_NEEDCOLL = 0x08,		// sqlite3GetFuncCollSeq() might be called
+		FUNC_COUNT = 0x10,			// Built-in count(*) aggregate
+		FUNC_COALESCE = 0x20,		// Built-in coalesce() or ifnull() function
+		FUNC_LENGTH = 0x40,			// Built-in length() function
+		FUNC_TYPEOF = 0x80,			// Built-in typeof() function
 	};
 	__device__ FUNC inline operator|=(FUNC a, int b) { return (FUNC)(a | b); }
 
@@ -73,16 +73,16 @@ namespace Core
 
 	struct FuncDef
 	{
-		int16 Args;				// Number of arguments.  -1 means unlimited
-		uint8 PrefEnc;			// Preferred text encoding (SQLITE_UTF8, 16LE, 16BE)
-		FUNC Flags;				// Some combination of SQLITE_FUNC_*
-		void *UserData;			// User data parameter
-		FuncDef *Next;	// Next function with same name */
+		int16 Args;					// Number of arguments.  -1 means unlimited
+		TEXTENCODE PrefEncode;		// Preferred text encoding (SQLITE_UTF8, 16LE, 16BE)
+		FUNC Flags;					// Some combination of SQLITE_FUNC_*
+		void *UserData;				// User data parameter
+		FuncDef *Next;				// Next function with same name */
 		void (*Func)(FuncContext *, int, Mem**); // Regular function
 		void (*Step)(FuncContext *, int, Mem**); // Aggregate step
 		void (*Finalize)(FuncContext *); // Aggregate finalizer
-		char *Name;				// SQL name of the function.
-		FuncDef *Hash;			// Next with a different name but the same hash
+		char *Name;					// SQL name of the function.
+		FuncDef *Hash;				// Next with a different name but the same hash
 		FuncDestructor *Destructor; // Reference counted destructor function
 	};
 

@@ -3,14 +3,14 @@
 
 namespace Core
 {
-	__device__ static void CallCollNeeded(Context *ctx, int enc, const char *name)
+	__device__ static void CallCollNeeded(Context *ctx, TEXTENCODE encode, const char *name)
 	{
 		_assert(!ctx->CollNeeded || !ctx->CollNeeded16);
 		if (ctx->CollNeeded)
 		{
 			char *external = SysEx::TagStrDup(ctx, name);
 			if (!external) return;
-			ctx->CollNeeded(ctx->CollNeededArg, ctx, enc, external);
+			ctx->CollNeeded(ctx->CollNeededArg, ctx, encode, external);
 			SysEx::TagFree(ctx, external);
 		}
 #ifndef OMIT_UTF16
@@ -32,7 +32,7 @@ namespace Core
 		char *z = coll->Name;
 		for (int i = 0; i < 3; i++)
 		{
-			CollSeq *coll2 = Callback::FindCollSeq(ctx, _SynthCollSeq_TextEncodes[i], z, 0);
+			CollSeq *coll2 = Callback::FindCollSeq(ctx, _SynthCollSeq_TextEncodes[i], z, false);
 			if (coll2->Cmp)
 			{
 				_memcpy(coll, coll2, sizeof(CollSeq));
@@ -48,12 +48,12 @@ namespace Core
 		Context *ctx = parse->Ctx;
 		CollSeq *p = coll;
 		if (!p)
-			p = FindCollSeq(ctx, encode, name, nullptr);
+			p = FindCollSeq(ctx, encode, name, false);
 		if (!p || !p->Cmp)
 		{
 			// No collation sequence of this type for this encoding is registered. Call the collation factory to see if it can supply us with one.
 			CallCollNeeded(ctx, encode, name);
-			p = FindCollSeq(ctx, encode, name, nullptr);
+			p = FindCollSeq(ctx, encode, name, false);
 		}
 		if (p && !p->Cmp && SynthCollSeq(ctx, p))
 			p = nullptr;
@@ -84,7 +84,7 @@ namespace Core
 			coll = (CollSeq *)SysEx::TagAlloc(ctx, 3*sizeof(*coll) + nameLength + 1);
 			if (coll)
 			{
-				coll[0].Name = (char*)&coll[3];
+				coll[0].Name = (char *)&coll[3];
 				coll[0].Encode = TEXTENCODE_UTF8;
 				coll[1].Name = (char *)&coll[3];
 				coll[1].Encode = TEXTENCODE_UTF16LE;
@@ -108,11 +108,10 @@ namespace Core
 
 	__device__ CollSeq *Callback::FindCollSeq(Context *ctx, TEXTENCODE encode, const char *name, bool create)
 	{
-		CollSeq *coll = (name ? FindCollSeqEntry(ctx, name, create) : ctx->DefaultColl);
+		CollSeq *colls = (name ? FindCollSeqEntry(ctx, name, create) : ctx->DefaultColl);
 		_assert(TEXTENCODE_UTF8 == 1 && TEXTENCODE_UTF16LE == 2 && TEXTENCODE_UTF16BE == 3);
 		_assert(encode >= TEXTENCODE_UTF8 && encode <= TEXTENCODE_UTF16BE);
-		if (coll) coll += encode-1;
-		return coll;
+		return (colls != nullptr ? &colls[encode-1] : nullptr);
 	}
 
 #define FUNC_PERFECT_MATCH 6  // The score for a perfect match
@@ -125,9 +124,9 @@ namespace Core
 		// Give a better score to a function with a specific number of arguments than to function that accepts any number of arguments.
 		int match = (p->Args == args ? 4 : 1);
 		// Bonus points if the text encoding matches
-		if (encode == p->PrefEnc)
+		if (encode == p->PrefEncode)
 			match += 2; // Exact encoding match
-		else if ((encode & p->PrefEnc & 2) != 0)
+		else if ((encode & p->PrefEncode & 2) != 0)
 			match += 1; // Both are UTF16, but with different byte orders
 		return match;
 	}
@@ -169,7 +168,7 @@ namespace Core
 		// First search for a match amongst the application-defined functions.
 		FuncDef *best = nullptr; // Best match found so far
 		int bestScore = 0; // Score of best match
-		FuncDef *p = FunctionSearch(&ctx->Funcs, h, name, nameLength); // Iterator variable
+		FuncDef *p = FunctionSearch(&ctx->Funcs, h, name, nameLength);
 		while (p)
 		{
 			int score = MatchQuality(p, args, encode);
@@ -208,19 +207,17 @@ namespace Core
 
 		// If the createFlag parameter is true and the search did not reveal an exact match for the name, number of arguments and encoding, then add a
 		// new entry to the hash table and return it.
-		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)SysEx::TagAlloc(ctx, sizeof(*best)+nameLength+1)) != 0)
+		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)SysEx::TagAlloc(ctx, sizeof(*best)+nameLength+1)) != nullptr)
 		{
 			best->Name = (char *)&best[1];
 			best->Args = (uint16)args;
-			best->PrefEnc = encode;
+			best->PrefEncode = encode;
 			_memcpy(best->Name, name, nameLength);
 			best->Name[nameLength] = 0;
 			FuncDefInsert(&ctx->Funcs, best);
 		}
 
-		if (best && (best->Step || best->Func || createFlag))
-			return best;
-		return nullptr;
+		return (best && (best->Step || best->Func || createFlag) ? best : nullptr);
 	}
 
 	__device__ void Callback::SchemaClear(void *p)
@@ -254,10 +251,10 @@ namespace Core
 			ctx->MallocFailed = true;
 		else if (!p->FileFormat)
 		{
-			new (p->TableHash) Hash();
-			new (p->IndexHash) Hash();
-			new (p->TriggerHash) Hash();
-			new (p->FKeyHash) Hash();
+			p->TableHash.Init();
+			p->IndexHash.Init();
+			p->TriggerHash.Init();
+			p->FKeyHash.Init();
 			p->Encode = TEXTENCODE_UTF8;
 		}
 		return p;

@@ -119,7 +119,7 @@ namespace Core
             internal int Transactions;        // Number of open transactions (read + write)
             internal Pid Pages;               // Number of pages in the database
             internal Schema Schema;           // Pointer to space allocated by sqlite3BtreeSchema()
-            internal Action<object> FreeSchema; // Destructor for BtShared.pSchema
+            internal Action<Schema> FreeSchema; // Destructor for BtShared.pSchema
             internal MutexEx Mutex;           // Non-recursive mutex required to access this object
             internal Bitvec HasContent;       // Set of pages moved to free-list this transaction
 #if !OMIT_SHARED_CACHE

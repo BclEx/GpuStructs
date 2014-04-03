@@ -5,6 +5,11 @@ namespace Core
 {
 	__device__ Hash::Hash()
 	{
+		Init();
+	}
+
+	__device__ void Hash::Init()
+	{
 		First = nullptr;
 		Count = 0;
 		TableSize = 0;
@@ -31,7 +36,7 @@ namespace Core
 		_assert(keyLength >= 0);
 		int h = 0;
 		while (keyLength > 0) { h = (h<<3) ^ h ^ __tolower(*key++); keyLength--; }
-		return h;
+		return (unsigned int)h;
 	}
 
 	__device__ static void InsertElement(Hash *hash, Hash::HTable *entry, HashElem *newElem)
@@ -161,7 +166,7 @@ namespace Core
 		if (elem)
 		{
 			void *oldData = elem->Data;
-			if (data == 0)
+			if (data == nullptr)
 				RemoveElementGivenHash(this, elem, h);
 			else
 			{
@@ -171,11 +176,11 @@ namespace Core
 			}
 			return oldData;
 		}
-		if (data == 0)
+		if (data == nullptr)
 			return nullptr;
 		HashElem *newElem = (HashElem *)SysEx::Alloc(sizeof(HashElem));
 		if (newElem == nullptr)
-			return data;
+			return nullptr;
 		newElem->Key = key;
 		newElem->KeyLength = keyLength;
 		newElem->Data = data;
