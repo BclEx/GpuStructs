@@ -302,30 +302,30 @@ enum TYPE : uint8
 
 #region Select
 
-	struct IdList
+	public class IdList
 	{
-		struct IdListItem
+		public class IdListItem
 		{
 			string Name;     // Name of the identifier
 			int Idx;        // Index in some Table.aCol[] of a column named zName
-		};
-		array_t<IdListItem> Ids;
+		}
+		public array_t<IdListItem> Ids;
 	}
 
-	enum JT : byte
+	public enum JT : byte
 	{
-		JT_INNER = 0x0001,    // Any kind of inner or cross join
-		JT_CROSS = 0x0002,    // Explicit use of the CROSS keyword
-		JT_NATURAL = 0x0004,    // True for a "natural" join
-		JT_LEFT = 0x0008,    // Left outer join
-		JT_RIGHT = 0x0010,    // Right outer join
-		JT_OUTER = 0x0020,    // The "OUTER" keyword is present
-		JT_ERROR = 0x0040,    // unknown or unsupported join type
+		INNER = 0x0001,    // Any kind of inner or cross join
+		CROSS = 0x0002,    // Explicit use of the CROSS keyword
+		NATURAL = 0x0004,    // True for a "natural" join
+		LEFT = 0x0008,    // Left outer join
+		RIGHT = 0x0010,    // Right outer join
+		OUTER = 0x0020,    // The "OUTER" keyword is present
+		ERROR = 0x0040,    // unknown or unsupported join type
 	}
 
-	struct SrcList
+	public class SrcList
 	{
-		struct SrcListItem
+		public class SrcListItem
 		{
 			Schema Schema;		// Schema to which this item is fixed
 			string Database;		// Name of database holding this table
@@ -348,58 +348,58 @@ enum TYPE : uint8
 			Bitmask ColUsed;	// Bit N (1<<N) set if column N of pTab is used
 			string IndexName;    // Identifier from "INDEXED BY <zIndex>" clause
 			Index Index;		// Index structure corresponding to zIndex, if any
-		};
+		}
 		short Srcs;				// Number of tables or subqueries in the FROM clause
 		short Allocs;			// Number of entries allocated in a[] below
 		SrcListItem[] Ids = new SrcListItem[1];		// One entry for each identifier on the list
+	}
+
+	public enum WHERE : ushort
+	{
+		ORDERBY_NORMAL = 0x0000,	// No-op
+		ORDERBY_MIN = 0x0001,		// ORDER BY processing for min() func
+		ORDERBY_MAX = 0x0002,		// ORDER BY processing for max() func
+		ONEPASS_DESIRED = 0x0004, // Want to do one-pass UPDATE/DELETE
+		DUPLICATES_OK = 0x0008,	// Ok to return a row more than once
+		OMIT_OPEN_CLOSE = 0x0010, // Table cursors are already open
+		FORCE_TABLE = 0x0020,		// Do not use an index-only search
+		ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
+		AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
 
-	enum WHERE : ushort
+	public struct WherePlan
 	{
-		WHERE_ORDERBY_NORMAL = 0x0000,	// No-op
-		WHERE_ORDERBY_MIN = 0x0001,		// ORDER BY processing for min() func
-		WHERE_ORDERBY_MAX = 0x0002,		// ORDER BY processing for max() func
-		WHERE_ONEPASS_DESIRED = 0x0004, // Want to do one-pass UPDATE/DELETE
-		WHERE_DUPLICATES_OK = 0x0008,	// Ok to return a row more than once
-		WHERE_OMIT_OPEN_CLOSE = 0x0010, // Table cursors are already open
-		WHERE_FORCE_TABLE = 0x0020,		// Do not use an index-only search
-		WHERE_ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
-		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
-	};
-
-	struct WherePlan
-	{
-		uint WsFlags;                 // WHERE_* flags that describe the strategy
-		ushort Eqs;                     // Number of == constraints
-		ushort OBSats;                  // Number of ORDER BY terms satisfied
-		double Rows;					// Estimated number of rows (for EQP)
-		struct _ut
+		public uint WsFlags;                 // WHERE_* flags that describe the strategy
+		public ushort Eqs;                     // Number of == constraints
+		public ushort OBSats;                  // Number of ORDER BY terms satisfied
+		public double Rows;					// Estimated number of rows (for EQP)
+		public struct _ut
 		{
-			Index Index;               // Index when WHERE_INDEXED is true
-			WhereTerm Term;     // WHERE clause term for OR-search
-			IIndexInfo VTableIndex;	// Virtual table index to use
+			public Index Index;               // Index when WHERE_INDEXED is true
+			public WhereTerm Term;     // WHERE clause term for OR-search
+			public IIndexInfo VTableIndex;	// Virtual table index to use
 		}
-        _ut u;
-	};
+        public _ut u;
+	}
 
-	struct WhereLevel
+	public struct WhereLevel
 	{
-		WherePlan Plan;			// query plan for this element of the FROM clause
-		int LeftJoin;			// Memory cell used to implement LEFT OUTER JOIN
-		int TabCur;				// The VDBE cursor used to access the table
-		int IdxCur;				// The VDBE cursor used to access pIdx
-		int AddrBrk;			// Jump here to break out of the loop
-		int AddrNxt;			// Jump here to start the next IN combination
-		int AddrCont;			// Jump here to continue with the next loop cycle
-		int AddrFirst;			// First instruction of interior of the loop
-		byte From;				// Which entry in the FROM clause
-		byte OP, P5;           // Opcode and P5 of the opcode that ends the loop
-		int P1, P2;				// Operands of the opcode used to ends the loop
-		union
+		public WherePlan Plan;			// query plan for this element of the FROM clause
+		public int LeftJoin;			// Memory cell used to implement LEFT OUTER JOIN
+		public int TabCur;				// The VDBE cursor used to access the table
+		public int IdxCur;				// The VDBE cursor used to access pIdx
+		public int AddrBrk;			// Jump here to break out of the loop
+		public int AddrNxt;			// Jump here to start the next IN combination
+		public int AddrCont;			// Jump here to continue with the next loop cycle
+		public int AddrFirst;			// First instruction of interior of the loop
+		public byte From;				// Which entry in the FROM clause
+		public byte OP, P5;           // Opcode and P5 of the opcode that ends the loop
+		public int P1, P2;				// Operands of the opcode used to ends the loop
+		public class _u
 		{
-			struct
+			public class _in
 			{
-				struct InLoop
+				public class InLoop
 				{
 					int Cur;			// The VDBE cursor used by this IN operator
 					int AddrInTop;		// Top of the IN loop
@@ -407,27 +407,29 @@ enum TYPE : uint8
 				}
 				int InLoopsLength;		// Number of entries in aInLoop[]
 				InLoop InLoops;		// Information about each nested IN operator
-			} in;						// Used when plan.wsFlags&WHERE_IN_ABLE
+			}
+            public _in in_;						// Used when plan.wsFlags&WHERE_IN_ABLE
 			Index Covidx;				// Possible covering index for WHERE_MULTI_OR
-		} u;							// Information that depends on plan.wsFlags
+		}
+public _u u;							// Information that depends on plan.wsFlags
 		double OptCost;					// "Optimal" cost for this level
 		// The following field is really not part of the current level.  But we need a place to cache virtual table index information for each
 		// virtual table in the FROM clause and the WhereLevel structure is a convenient place since there is one WhereLevel for each FROM clause element.
-		IIndexInfo *IndexInfo;			// Index info for n-th source table
+		IIndexInfo IndexInfo;			// Index info for n-th source table
 	}
 
-	enum WHERE_DISTINCT : uint8
+	public enum WHERE_DISTINCT : byte
 	{
-		WHERE_DISTINCT_NOOP = 0,		// DISTINCT keyword not used
-		WHERE_DISTINCT_UNIQUE = 1,		// No duplicates
-		WHERE_DISTINCT_ORDERED = 2,		// All duplicates are adjacent
-		WHERE_DISTINCT_UNORDERED = 3,	// Duplicates are scattered
+		DISTINCT_NOOP = 0,		// DISTINCT keyword not used
+		DISTINCT_UNIQUE = 1,		// No duplicates
+		DISTINCT_ORDERED = 2,		// All duplicates are adjacent
+		DISTINCT_UNORDERED = 3,	// Duplicates are scattered
 	}
 
-	struct WhereInfo
+	public struct WhereInfo
 	{
-		Parse *pParse;				// Parsing and code generating context
-		SrcList *pTabList;			// List of tables in the join
+		Parse pParse;				// Parsing and code generating context
+		SrcList TabList;			// List of tables in the join
 		uint16 nOBSat;              // Number of ORDER BY terms satisfied by indices
 		WHERE WctrlFlags;           // Flags originally passed to sqlite3WhereBegin()
 		uint8 okOnePass;            // Ok to use one-pass algorithm for UPDATE/DELETE

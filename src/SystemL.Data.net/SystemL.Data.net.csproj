@@ -51,6 +51,7 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Compile Include="Opcodes_h.cs" />
     <Content Include="Core+Syntax\Context.cu.h" />
     <Content Include="KeywordHash.h" />
     <Content Include="Opcodes.h" />
@@ -106,6 +107,7 @@
     <Compile Include="Core+Vbde\VdbeTrace.cs" />
     <Compile Include="Core+Vbde\Vdbe_h.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="Parse_h.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Core+Btree\Btree.cu.h" />

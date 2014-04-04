@@ -54,8 +54,7 @@ namespace Core
 		SrcList::SrcListItem *item;
 		if (SysEx_ALWAYS(src))
 			for (i = src->Srcs, item = src->Ids; i > 0; i--, item++)
-				if (WalkSelect(item->Select))
-					return WRC_Abort;
+				if (WalkSelect(item->Select)) return WRC_Abort;
 		return WRC_Continue;
 	} 
 

@@ -112,30 +112,30 @@ namespace Core
 
 	enum WHERE
 	{
-		WHERE_ROWID_EQ = 0x00001000,  // rowid=EXPR or rowid IN (...)
-		WHERE_ROWID_RANGE = 0x00002000,  // rowid<EXPR and/or rowid>EXPR
-		WHERE_COLUMN_EQ = 0x00010000,  // x=EXPR or x IN (...) or x IS NULL
-		WHERE_COLUMN_RANGE = 0x00020000,  // x<EXPR and/or x>EXPR
-		WHERE_COLUMN_IN = 0x00040000,  // x IN (...)
-		WHERE_COLUMN_NULL = 0x00080000,  // x IS NULL
-		WHERE_INDEXED = 0x000f0000,  // Anything that uses an index
-		WHERE_NOT_FULLSCAN = 0x100f3000,  // Does not do a full table scan
-		WHERE_IN_ABLE = 0x080f1000,  // Able to support an IN operator
-		WHERE_TOP_LIMIT = 0x00100000,  // x<EXPR or x<=EXPR constraint
-		WHERE_BTM_LIMIT = 0x00200000,  // x>EXPR or x>=EXPR constraint
-		WHERE_BOTH_LIMIT = 0x00300000,  // Both x>EXPR and x<EXPR
-		WHERE_IDX_ONLY = 0x00400000,  // Use index only - omit table
-		WHERE_ORDERED = 0x00800000,  // Output will appear in correct order
-		WHERE_REVERSE = 0x01000000,  // Scan in reverse order */
-		WHERE_UNIQUE = 0x02000000,  // Selects no more than one row
-		WHERE_ALL_UNIQUE = 0x04000000,  // This and all prior have one row
-		WHERE_OB_UNIQUE = 0x00004000,  // Values in ORDER BY columns are 
+		WHERE_ROWID_EQ = 0x00001000,		// rowid=EXPR or rowid IN (...)
+		WHERE_ROWID_RANGE = 0x00002000,		// rowid<EXPR and/or rowid>EXPR
+		WHERE_COLUMN_EQ = 0x00010000,		// x=EXPR or x IN (...) or x IS NULL
+		WHERE_COLUMN_RANGE = 0x00020000,	// x<EXPR and/or x>EXPR
+		WHERE_COLUMN_IN = 0x00040000,		// x IN (...)
+		WHERE_COLUMN_NULL = 0x00080000,		// x IS NULL
+		WHERE_INDEXED = 0x000f0000,			// Anything that uses an index
+		WHERE_NOT_FULLSCAN = 0x100f3000,	// Does not do a full table scan
+		WHERE_IN_ABLE = 0x080f1000,			// Able to support an IN operator
+		WHERE_TOP_LIMIT = 0x00100000,		// x<EXPR or x<=EXPR constraint
+		WHERE_BTM_LIMIT = 0x00200000,		// x>EXPR or x>=EXPR constraint
+		WHERE_BOTH_LIMIT = 0x00300000,		// Both x>EXPR and x<EXPR
+		WHERE_IDX_ONLY = 0x00400000,		// Use index only - omit table
+		WHERE_ORDERED = 0x00800000,			// Output will appear in correct order
+		WHERE_REVERSE = 0x01000000,			// Scan in reverse order */
+		WHERE_UNIQUE = 0x02000000,			// Selects no more than one row
+		WHERE_ALL_UNIQUE = 0x04000000,		// This and all prior have one row
+		WHERE_OB_UNIQUE = 0x00004000,		// Values in ORDER BY columns are 
 		// different for every output row
-		WHERE_VIRTUALTABLE = 0x08000000,  // Use virtual-table processing
-		WHERE_MULTI_OR = 0x10000000,  // OR using multiple indices
-		WHERE_TEMP_INDEX = 0x20000000,  // Uses an ephemeral index
-		WHERE_DISTINCT = 0x40000000,  // Correct order for DISTINCT
-		WHERE_COVER_SCAN = 0x80000000,  // Full scan of a covering index
+		WHERE_VIRTUALTABLE = 0x08000000,	// Use virtual-table processing
+		WHERE_MULTI_OR = 0x10000000,		// OR using multiple indices
+		WHERE_TEMP_INDEX = 0x20000000,		// Uses an ephemeral index
+		WHERE_DISTINCT = 0x40000000,		// Correct order for DISTINCT
+		WHERE_COVER_SCAN = 0x80000000,		// Full scan of a covering index
 	};
 
 	struct WhereBestIdx
@@ -290,17 +290,17 @@ namespace Core
 				mask |= ExprTableUsage(maskSet, list->Ids[i].Expr);
 		return mask;
 	}
-	__device__ static Bitmask exprSelectTableUsage(WhereMaskSet *maskSet, Select *s)
+	__device__ static Bitmask ExprSelectTableUsage(WhereMaskSet *maskSet, Select *s)
 	{
 		Bitmask mask = 0;
 		while (s)
 		{
-			SrcList *src = s->Src;
 			mask |= ExprListTableUsage(maskSet, s->EList);
 			mask |= ExprListTableUsage(maskSet, s->GroupBy);
 			mask |= ExprListTableUsage(maskSet, s->OrderBy);
 			mask |= ExprTableUsage(maskSet, s->Where);
 			mask |= ExprTableUsage(maskSet, s->Having);
+			SrcList *src = s->Src;
 			if (SysEx_ALWAYS(src != nullptr))
 			{
 				for (int i = 0; i < src->Srcs; i++)
@@ -353,7 +353,7 @@ namespace Core
 	__device__ static WO OperatorMask(int op)
 	{
 		_assert(AllowedOp(op));
-		uint16 c;
+		WO c;
 		if (op == TK_IN)
 			c = WO_IN;
 		else if (op == TK_ISNULL)
@@ -361,7 +361,7 @@ namespace Core
 		else
 		{
 			_assert((WO_EQ << (op - TK_EQ)) < 0x7fff);
-			c = (uint16)(WO_EQ << (op - TK_EQ));
+			c = (WO)(WO_EQ << (op - TK_EQ));
 		}
 		_assert(op != TK_ISNULL || c == WO_ISNULL);
 		_assert(op != TK_IN || c == WO_IN);
@@ -381,7 +381,7 @@ namespace Core
 		int equivId = 2; // Number of entries of aEquiv[] processed so far
 		int equivs[22]; // iCur,iColumn and up to 10 other equivalents
 
-		_assert(cur >= 0);
+		_assert(cursor >= 0);
 		equivs[0] = cursor;
 		equivs[1] = column;
 		WhereClause *origWC = wc;  // Original pWC value
