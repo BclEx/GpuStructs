@@ -13,6 +13,12 @@
     <Filter Include="Core+Syntax">
       <UniqueIdentifier>{1f9ce095-e008-42de-ba6a-22b00149cfb5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Core+Syntax\Command">
+      <UniqueIdentifier>{6cb83c07-6ccc-4e1d-9d8a-83b562198464}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core+System">
+      <UniqueIdentifier>{769c5559-f623-41ed-9571-711c29e35fc0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
@@ -121,6 +127,60 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu">
       <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Alter.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Analyze.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Attach.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Delete.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Insert.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Pragma.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Select.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Update.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Auth.cu">
+      <Filter>Core+System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Backup.cu">
+      <Filter>Core+System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu">
+      <Filter>Core+System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Shell.cu">
+      <Filter>Core+System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\TokenizeComplete.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Trigger.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu">
+      <Filter>Core+Syntax\Command</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

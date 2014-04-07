@@ -19,7 +19,7 @@ namespace Core
             public Btree Bt;					// The B*Tree structure for this database file
             public byte InTrans;				// 0: not writable.  1: Transaction.  2: Checkpoint
             public byte SafetyLevel;			// How aggressive at syncing data to disk
-            public ISchema Schema;			    // Pointer to database schema (possibly shared)
+            public Schema Schema;			    // Pointer to database schema (possibly shared)
         }
 
         [Flags]

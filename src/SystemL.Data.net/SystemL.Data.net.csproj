@@ -13,7 +13,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE</DefineConstants>
+    <DefineConstants>DEBUG;THREADSAFE;OMIT_WAL;EXPENSIVE_ASSERT;TEST;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;ENABLE_ATOMIC_WRITE;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
@@ -51,8 +51,19 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Compile Include="Core+Syntax\Command\Func.cs" />
+    <Compile Include="Core+Syntax\FKey.cs" />
+    <Compile Include="Core+Syntax\TokenizeComplete.cs" />
+    <Compile Include="Core+Syntax\Trigger_c.cs" />
+    <Compile Include="Core+Syntax\WalkerResolve.cs" />
+    <Compile Include="Core+System\Auth.cs" />
+    <Compile Include="Core+System\Backup.cs" />
+    <Compile Include="Core+System\CompileTime.cs" />
+    <Compile Include="KeywordHash_h.cs" />
     <Compile Include="Opcodes_h.cs" />
     <Content Include="Core+Syntax\Context.cu.h" />
+    <None Include="Core+System\Backup.cu" />
+    <None Include="Core+System\CompileTime.cu" />
     <Content Include="KeywordHash.h" />
     <Content Include="Opcodes.h" />
     <Content Include="Parse1.cs">
@@ -88,16 +99,24 @@
     <None Include="Core+Syntax\Command\Analyze.cu" />
     <None Include="Core+Syntax\Command\Attach.cu" />
     <None Include="Core+Syntax\Command\Delete.cu" />
+    <None Include="Core+Syntax\Command\Func.cu" />
     <None Include="Core+Syntax\Command\Insert.cu" />
     <None Include="Core+Syntax\Command\Pragma.cu" />
     <None Include="Core+Syntax\Command\Select.cu" />
     <None Include="Core+Syntax\Command\Update.cu" />
     <None Include="Core+Syntax\Command\Vacuum.cu" />
     <None Include="Core+Syntax\Expr.cu" />
+    <None Include="Core+Syntax\FKey.cu" />
     <None Include="Core+Syntax\Prepare.cu" />
     <None Include="Core+Syntax\Tokenize.cu" />
+    <None Include="Core+Syntax\Trigger.cu" />
     <None Include="Core+Syntax\Walker.cu" />
+    <None Include="Core+Syntax\WalkerResolve.cu" />
     <None Include="Core+Syntax\Where.cu" />
+    <None Include="Core+Syntax\TokenizeComplete.cu" />
+    <None Include="Core+System\Auth.cu" />
+    <Compile Include="Core+System\Shell.cs" />
+    <None Include="Core+System\Shell.cu" />
     <None Include="Core+Vbde\Vdbe.cs" />
     <None Include="Core+Vbde\VdbeApi.cs" />
     <None Include="Core+Vbde\VdbeAux.cs" />

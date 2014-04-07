@@ -714,7 +714,7 @@ p.zName, P4_STATIC );
       if ( pName != null && pName.z != null )
       {
         zName = pName.z.Substring( 0, pName.n );//sqlite3DbStrNDup(db, (char)pName.z, pName.n);
-        sqlite3Dequote( ref zName );
+        Parse.Dequote( ref zName );
       }
       else
       {
@@ -2613,7 +2613,7 @@ exit_drop_table:
       pFKey.aCol[0] = new FKey.sColMap();
       pFKey.zTo = pTo.z.Substring( 0, pTo.n );      //memcpy( z, pTo.z, pTo.n );
       //z[pTo.n] = 0;
-      sqlite3Dequote( ref pFKey.zTo );
+      Parse.Dequote( ref pFKey.zTo );
       //z += pTo.n + 1;
       pFKey.nCol = nCol;
       if ( pFromCol == null )

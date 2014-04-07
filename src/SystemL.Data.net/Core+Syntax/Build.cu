@@ -423,7 +423,7 @@ namespace Core
 		if (name)
 		{
 			char *nameAsString = SysEx::TagStrNDup(ctx, name->data, name->length);
-			sqlite3Dequote(nameAsString);
+			Parse::Dequote(nameAsString);
 			return nameAsString;
 		}
 		return nullptr;

@@ -6,14 +6,14 @@ namespace Core {
 #pragma region Trace
 #ifndef OMIT_TRACE
 
-	__device__ static int findNextHostParameter(const char *sql, int *tokens)
+	__device__ static int FindNextHostParameter(const char *sql, int *tokens)
 	{
 		int total = 0;
 		*tokens = 0;
 		while (sql[0])
 		{
 			int tokenType;
-			int n = sqlite3GetToken((uint8 *)sql, &tokenType);
+			int n = Parse::GetToken((uint8 *)sql, &tokenType);
 			_assert(n > 0 && tokenType != TK_ILLEGAL);
 			if (tokenType == TK_VARIABLE)
 			{
@@ -26,16 +26,16 @@ namespace Core {
 		return total;
 	}
 
-	__device__ char *sqlite3VdbeExpandSql(Vdbe *p, const char *rawSql)
+	__device__ char *Vdbe::ExpandSql(const char *rawSql)
 	{
+		Context *ctx = Ctx; // The database connection
 		char bBase[100]; // Initial working space
 		Text::StringBuilder b; // Accumulate the output here
-		Text::StringBuilder::Init(&b, bBase, sizeof(bBase), db->Limits[LIMIT_LENGTH]);
-		Context *db = p->Db; // The database connection
-		b.Db = db;
+		Text::StringBuilder::Init(&b, bBase, sizeof(bBase), ctx->Limits[LIMIT_LENGTH]);
+		b.Ctx = ctx;
 		int nextIndex = 1; // Index of next ? host parameter
 		int idx = 0; // Index of a host parameter
-		if (db->VdbeExecCnt > 1)
+		if (ctx->VdbeExecCnt > 1)
 			while (*rawSql)
 			{
 				const char *start = rawSql;
@@ -58,7 +58,7 @@ namespace Core {
 					if (tokenLength > 1)
 					{
 						_assert(_isdigit(rawSql[1]));
-						sqlite3GetInt32(&rawSql[1], &idx);
+						ConvertEx::Atoi(&rawSql[1], &idx);
 					}
 					else
 						idx = nextIndex;
@@ -69,35 +69,35 @@ namespace Core {
 					ASSERTCOVERAGE(rawSql[0] == ':');
 					ASSERTCOVERAGE(rawSql[0] == '$');
 					ASSERTCOVERAGE(rawSql[0] == '@');
-					idx = p->ParameterIndex(rawSql, tokenLength);
+					idx = ParameterIndex(rawSql, tokenLength);
 					_assert(idx > 0);
 				}
 				rawSql += tokenLength;
 				nextIndex = idx + 1;
-				_assert(idx > 0 && idx <= p->Vars.length);
-				Mem *var = &p->Vars[idx - 1]; // Value of a host parameter
+				_assert(idx > 0 && idx <= Vars.length);
+				Mem *var = &Vars.data[idx - 1]; // Value of a host parameter
 				if (var->Flags & MEM_Null) b.Append("NULL", 4);
-				else if (var->Flags & MEM_Int) sqlite3XPrintf(&b, "%lld", var->U.I);
+				else if (var->Flags & MEM_Int) sqlite3XPrintf(&b, "%lld", var->u.I);
 				else if (var->Flags & MEM_Real) sqlite3XPrintf(&b, "%!.15g", var->R);
 				else if (var->Flags & MEM_Str)
 				{
 #ifndef OMIT_UTF16
-					uint8 enc = ENC(db);
-					if (enc != SQLITE_UTF8)
+					TEXTENCODE encode = CTXENCODE(ctx);
+					if (encode != TEXTENCODE_UTF8)
 					{
 						Mem utf8;
 						_memset(&utf8, 0, sizeof(utf8));
-						utf8.Db = db;
-						Vdbe::MemSetStr(&utf8, var->z, var->n, enc, SQLITE_STATIC);
-						Vdbe::ChangeEncoding(&utf8, SQLITE_UTF8);
+						utf8.Ctx = ctx;
+						Vdbe::MemSetStr(&utf8, var->Z, var->N, encode, DESTRUCTOR_STATIC);
+						Vdbe::ChangeEncoding(&utf8, TEXTENCODE_UTF8);
 						sqlite3XPrintf(&b, "'%.*q'", utf8.N, utf8.Z);
 						Vdbe::MemRelease(&utf8);
 					}
 					else
 #endif
-						sqlite3XPrintf(&out, "'%.*q'", pVar->n, pVar->z);
+						sqlite3XPrintf(&b, "'%.*q'", var->N, var->Z);
 				}
-				else if (var->flags & MEM_Zero) sqlite3XPrintf(&b, "zeroblob(%d)", var->u.Zero);
+				else if (var->Flags & MEM_Zero) sqlite3XPrintf(&b, "zeroblob(%d)", var->u.Zero);
 				else
 				{
 					_assert(var->Flags & MEM_Blob);

@@ -1,8 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Text;
-using FuncDefHash = Core.array_t3<int, Core.FuncDef, object>;
-
 namespace Core
 {
     public class Callback

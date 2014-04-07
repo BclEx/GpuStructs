@@ -266,7 +266,7 @@ const int COLNAME_N = 1;     // Number of COLNAME_xxx symbols
         static RC sqlite3VdbeMemExpandBlob(Mem x) { return RC.OK; }
 #endif
 
-        public Context Db;              // The database connection that owns this statement
+        public Context Ctx;              // The database connection that owns this statement
         public array_t<VdbeOp> Ops;     // Space to hold the virtual machine's program
         public array_t<Mem> Mems;       // The memory locations
         public Mem[] Args;              // Arguments to currently executing user function
@@ -324,7 +324,7 @@ const int COLNAME_N = 1;     // Number of COLNAME_xxx symbols
         public Vdbe Copy() { return (Vdbe)MemberwiseClone(); }
         public void CopyTo(Vdbe ct)
         {
-            ct.Db = Db;
+            ct.Ctx = Ctx;
             ct.Ops = Ops; //ct.Ops.length = Ops.length;
             ct.Mems = Mems; //ct.Mems.length = Mems.length;
             ct.Args = Args; //ct.Args.length = Args.length;

@@ -109,7 +109,7 @@ namespace Core
 
 	struct Mem
 	{
-		Context *Db;			// The associated database connection
+		Context *Ctx;			// The associated database connection
 		char *Z;				// String or BLOB value
 		double R;				// Real value
 		union {

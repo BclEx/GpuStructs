@@ -43,16 +43,34 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Alter.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Analyze.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Attach.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Delete.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Insert.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Pragma.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Select.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Update.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\TokenizeComplete.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Trigger.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Auth.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Backup.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+System\Shell.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -71,16 +89,34 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Alter.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Analyze.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Attach.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Delete.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Insert.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Pragma.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Select.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Update.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\TokenizeComplete.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Trigger.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+System\Auth.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+System\Backup.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+System\Shell.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />
@@ -132,7 +168,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

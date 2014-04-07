@@ -4,47 +4,42 @@
 #include "Context.cu.h"
 namespace Core
 {
-
-#pragma region Limits
-
-#ifndef MAX_ATTACHED
-#define MAX_ATTACHED 10
-#endif
-
+#pragma region Limit Types
 #if MAX_ATTACHED > 30
 	typedef uint64 yDbMask;
 #else
 	typedef unsigned int yDbMask;
 #endif
-
 #if MAX_VARIABLE_NUMBER <= 32767
 	typedef int16 yVars;
 #else
 	typedef int yVars;
 #endif
-
-#ifndef N_COLCACHE
-#define N_COLCACHE 10
-#endif
-
 #if _64BITSTATS
 	typedef uint64 tRowcnt;    // 64-bit only if requested at compile-time
 #else
 	typedef uint32 tRowcnt;    // 32-bit is the default
 #endif
 	typedef uint64 Bitmask;
-#define BMS ((int)(sizeof(Bitmask)*8))
+#pragma endregion 
 
+#pragma region Limits
+
+#ifndef MAX_ATTACHED
+#define MAX_ATTACHED 10
+#endif
+#ifndef N_COLCACHE
+#define N_COLCACHE 10
+#endif
+#define BMS ((int)(sizeof(Bitmask)*8))
 #ifndef MAX_EXPR_DEPTH
 #define MAX_EXPR_DEPTH 1000
 #endif
-
-//#ifdef OMIT_TEMPDB
-//#define OMIT_TEMPDB 1
-//#else
-//#define OMIT_TEMPDB 0
-//#endif
-
+	//#ifdef OMIT_TEMPDB
+	//#define OMIT_TEMPDB 1
+	//#else
+	//#define OMIT_TEMPDB 0
+	//#endif
 #pragma endregion 
 
 #pragma region Func
@@ -86,37 +81,32 @@ namespace Core
 		FuncDestructor *Destructor; // Reference counted destructor function
 	};
 
-	//   FUNCTION(zName, nArg, iArg, bNC, xFunc)
-	//     Used to create a scalar function definition of a function zName implemented by C function xFunc that accepts nArg arguments. The
-	//     value passed as iArg is cast to a (void*) and made available as the user-data (sqlite3_user_data()) for the function. If 
-	//     argument bNC is true, then the SQLITE_FUNC_NEEDCOLL flag is set.
+	//   FUNCTION(name, args, arg, nc, func)
+	//     Used to create a scalar function definition of a function zName implemented by C function func that accepts nArg arguments. The
+	//     value passed as arg is cast to a (void*) and made available as the user-data (sqlite3_user_data()) for the function. If 
+	//     argument nc is true, then the SQLITE_FUNC_NEEDCOLL flag is set.
 	//
-	//   AGGREGATE(zName, nArg, iArg, bNC, xStep, xFinal)
-	//     Used to create an aggregate function definition implemented by the C functions xStep and xFinal. The first four parameters
+	//   AGGREGATE(name, args, arg, nc, step, final)
+	//     Used to create an aggregate function definition implemented by the C functions step and final. The first four parameters
 	//     are interpreted in the same way as the first 4 parameters to FUNCTION().
 	//
-	//   LIKEFUNC(zName, nArg, pArg, flags)
+	//   LIKEFUNC(name, args, arg, flags)
 	//     Used to create a scalar function definition of a function zName that accepts nArg arguments and is implemented by a call to C 
-	//     function likeFunc. Argument pArg is cast to a (void *) and made available as the function user-data (sqlite3_user_data()). The
+	//     function likeFunc. Argument arg is cast to a (void *) and made available as the function user-data (sqlite3_user_data()). The
 	//     FuncDef.flags variable is set to the value passed as the flags parameter.
-#define FUNCTION(zName, nArg, iArg, bNC, xFunc) {nArg, SQLITE_UTF8, (bNC*FUNC_NEEDCOLL), \
-	INT_TO_PTR(iArg), 0, xFunc, 0, 0, #zName, 0, 0}
-#define FUNCTION2(zName, nArg, iArg, bNC, xFunc, extraFlags) {nArg, SQLITE_UTF8, (bNC*FUNC_NEEDCOLL)|extraFlags, \
-	INT_TO_PTR(iArg), 0, xFunc, 0, 0, #zName, 0, 0}
-#define STR_FUNCTION(zName, nArg, pArg, bNC, xFunc) {nArg, SQLITE_UTF8, bNC*FUNC_NEEDCOLL, \
-	pArg, 0, xFunc, 0, 0, #zName, 0, 0}
-#define LIKEFUNC(zName, nArg, arg, flags) {nArg, TEXTENCODE_UTF8, flags, (void *)arg, 0, likeFunc, 0, 0, #zName, 0, 0}
-#define AGGREGATE(zName, nArg, arg, nc, xStep, xFinal) {nArg, TEXTENCODE_UTF8, nc*SQLITE_FUNC_NEEDCOLL, \
-	INT_TO_PTR(arg), 0, 0, xStep,xFinal,#zName,0,0}
+#define FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
+#define FUNCTION2(name, args, arg, nc, func, extraFlags) {args, TEXTENCODE_UTF8, (nc*FUNC_NEEDCOLL)|extraFlags, INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
+#define STR_FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, nc*FUNC_NEEDCOLL, arg, 0, func, 0, 0, #name, 0, 0}
+#define LIKEFUNC(name, args, arg, flags) {args, TEXTENCODE_UTF8, flags, (void *)arg, 0, likeFunc, 0, 0, #name, 0, 0}
+#define AGGREGATE(name, args, arg, nc, step, final) {args, TEXTENCODE_UTF8, nc*FUNC_NEEDCOLL, INT_TO_PTR(arg), 0, 0, step,final,#name,0,0}
 
 #pragma endregion
 
 #pragma region ITable
 
+	struct IIndexInfo;
 	struct IVTable;
 	struct IVTableCursor;
-	struct IIndexInfo;
-
 	class ITableModule //was:sqlite3_module
 	{
 	public:
@@ -227,9 +217,6 @@ namespace Core
 
 #pragma region NAME1
 
-	struct Expr;
-	struct ExprList;
-
 	enum TYPE : uint8
 	{
 		TYPE_INTEGER = 1,
@@ -275,13 +262,14 @@ namespace Core
 		tRowcnt DLts;			// Est. number of distinct keys less than this sample
 	};
 
-	typedef array_t<char> Token;
-	//struct Token
-	//{
-	//	const char *Z;     // Text of the token.  Not NULL-terminated!
-	//	unsigned int N;    // Number of characters in this token
-	//};
+	struct Token
+	{
+		const char *data;     // Text of the token.  Not NULL-terminated!
+		uint32 length;		// Number of characters in this token
+	};
 
+	struct Expr;
+	struct ExprList;
 	struct AggInfo
 	{
 		struct AggInfoColumn
@@ -313,11 +301,27 @@ namespace Core
 
 #pragma endregion
 
-#pragma region Select
+#pragma region Affinity
 
-	struct Parse;
-	struct Select;
-	struct WhereClause;
+	enum AFF : uint8
+	{
+		AFF_TEXT = 'a',
+		AFF_NONE = 'b',
+		AFF_NUMERIC = 'c',
+		AFF_INTEGER = 'd',
+		AFF_REAL = 'e',
+		AFF_MASK = 0x67, // The SQLITE_AFF_MASK values masks off the significant bits of an affinity value. 
+		// Additional bit values that can be ORed with an affinity without changing the affinity.
+		AFF_BIT_JUMPIFNULL = 0x08, // jumps if either operand is NULL
+		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
+		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
+	};
+
+#define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
+
+#pragma endregion
+
+#pragma region Select
 
 	struct IdList
 	{
@@ -340,6 +344,7 @@ namespace Core
 		JT_ERROR = 0x0040,    // unknown or unsupported join type
 	};
 
+	struct Select;
 	struct SrcList
 	{
 		struct SrcListItem
@@ -384,6 +389,7 @@ namespace Core
 		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
 
+	struct WhereTerm;
 	struct WherePlan
 	{
 		uint32 WsFlags;                 // WHERE_* flags that describe the strategy
@@ -393,7 +399,7 @@ namespace Core
 		union
 		{
 			Index *Index;               // Index when WHERE_INDEXED is true
-			struct WhereTerm *Term;     // WHERE clause term for OR-search
+			WhereTerm *Term;     // WHERE clause term for OR-search
 			IIndexInfo *VTableIndex;	// Virtual table index to use
 		} u;
 	};
@@ -440,6 +446,8 @@ namespace Core
 		WHERE_DISTINCT_UNORDERED = 3,	// Duplicates are scattered
 	};
 
+	struct Parse;
+	struct WhereClause;
 	struct WhereInfo
 	{
 		Parse *pParse;				// Parsing and code generating context
@@ -527,36 +535,16 @@ namespace Core
 		SRT_EphemTab = 9,  // Create transient tab and store like SRT_Table
 		SRT_Coroutine = 10,  // Generate a single row of result
 	};
-#define IgnorableOrderby(x) ((x->Dest)<=SRT_Discard)
 
+#define IgnorableOrderby(x) ((x->Dest)<=SRT_Discard)
 	struct SelectDest
 	{
-		uint8 Dest;			// How to dispose of the results.  On of SRT_* above.
+		SRT Dest;			// How to dispose of the results.  On of SRT_* above.
 		AFF AffSdst;		// Affinity used when eDest==SRT_Set
 		int SDParmId;		// A parameter used by the eDest disposal method
 		int SdstId;			// Base register where results are written
 		int Sdsts;			// Number of registers allocated
 	};
-
-#pragma endregion
-
-#pragma region Affinity
-
-	enum AFF : uint8
-	{
-		AFF_TEXT = 'a',
-		AFF_NONE = 'b',
-		AFF_NUMERIC = 'c',
-		AFF_INTEGER = 'd',
-		AFF_REAL = 'e',
-		AFF_MASK = 0x67, // The SQLITE_AFF_MASK values masks off the significant bits of an affinity value. 
-		// Additional bit values that can be ORed with an affinity without changing the affinity.
-		AFF_BIT_JUMPIFNULL = 0x08, // jumps if either operand is NULL
-		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
-		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
-	};
-
-#define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
 
 #pragma endregion
 
@@ -594,7 +582,7 @@ namespace Core
 	struct Expr
 	{
 		uint8 OP;					// Operation performed by this node
-		AFF Affinity;				// The affinity of the column or 0 if not a column
+		AFF Aff;					// The affinity of the column or 0 if not a column
 		EP Flags;					// Various flags.  EP_* See below
 		union
 		{
@@ -679,15 +667,15 @@ namespace Core
 	};
 
 #ifdef _DEBUG
-# define ExprSetIrreducible(X) (X)->Flags2 |= EP2_Irreducible
+#define ExprSetIrreducible(x) (x)->Flags2 |= EP2_Irreducible
 #else
-# define ExprSetIrreducible(X)
+#define ExprSetIrreducible(x)
 #endif
 
-#define ExprHasProperty(E,P)     (((E)->Flags&(P))==(P))
-#define ExprHasAnyProperty(E,P)  (((E)->Flags&(P))!=0)
-#define ExprSetProperty(E,P)     (E)->Flags|=(P)
-#define ExprClearProperty(E,P)   (E)->Flags&=~(P)
+#define ExprHasProperty(x,p)     (((E)->Flags&(P))==(P))
+#define ExprHasAnyProperty(x,p)  (((E)->Flags&(P))!=0)
+#define ExprSetProperty(x,p)     (E)->Flags|=(P)
+#define ExprClearProperty(x,p)   (E)->Flags&=~(P)
 
 #define EXPR_FULLSIZE           sizeof(Expr)           // Full size
 #define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)  // Common features
@@ -743,7 +731,7 @@ namespace Core
 			NameContext *NC;            // Naming context
 			int I;                      // Integer value
 			SrcList *SrcList;           // FROM clause
-			struct SrcCount *SrcCount;	// Counting column references
+			SrcCount *SrcCount;	// Counting column references
 		} u; // Extra data for callback
 
 		__device__ int WalkExpr(Expr *expr);
@@ -772,30 +760,11 @@ namespace Core
 
 #pragma region Parse
 
-	class Vdbe;
-	struct TableLock;
-	struct SubProgram;
-
 #ifdef OMIT_VIRTUALTABLE
 #define INDECLARE_VTABLE(x) false
 #else
 #define INDECLARE_VTABLE(x) (x->DeclareVTable)
 #endif
-
-	//enum OPFLAG
-	//{
-	//	OPFLAG_NCHANGE = 0x01,		// Set to update db->nChange
-	//	OPFLAG_LASTROWID = 0x02,    // Set to update db->lastRowid
-	//	OPFLAG_ISUPDATE = 0x04,		// This OP_Insert is an sql UPDATE
-	//	OPFLAG_APPEND = 0x08,		// This is likely to be an append
-	//	OPFLAG_USESEEKRESULT = 0x10,// Try to avoid a seek in BtreeInsert()
-	//	OPFLAG_CLEARCACHE = 0x20,   // Clear pseudo-table cache in OP_Column
-	//	OPFLAG_LENGTHARG = 0x40,    // OP_Column only used for length()
-	//	OPFLAG_TYPEOFARG = 0x80,    // OP_Column only used for typeof()
-	//	OPFLAG_BULKCSR = 0x01,		// OP_Open** used to open bulk cursor
-	//	OPFLAG_P2ISREG = 0x02,		// P2 to OP_Open** is a register number
-	//	OPFLAG_PERMUTE = 0x01,		// OP_Compare: use the permutation
-	//};
 
 	struct AutoincInfo
 	{
@@ -805,6 +774,7 @@ namespace Core
 		int RegCtr;				// Memory register holding the rowid counter
 	};
 
+	struct SubProgram;
 	struct TriggerPrg
 	{
 		Trigger *Trigger;		// Trigger this program was coded from
@@ -828,6 +798,7 @@ namespace Core
 #define Parse_Toplevel(p) ((p)->Toplevel ? (p)->Toplevel : (p))
 #endif
 
+	struct Vdbe;
 	struct Parse
 	{
 		struct ColCache
@@ -1233,6 +1204,51 @@ namespace Core
 #pragma region Mem
 
 	struct Mem;
+
+
+inline const void *Mem_Blob(Mem *p)
+{
+  if (p->Flags & (MEM_Blob|MEM_Str))
+  {
+    sqlite3VdbeMemExpandBlob(p);
+    p->Flags &= ~MEM_Str;
+    p->Flags |= MEM_Blob;
+    return (p->length ? p->data : 0);
+  }
+  else
+    return Mem_Text(p);
+}
+int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
+int sqlite3_value_bytes16(sqlite3_value *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
+double sqlite3_value_double(sqlite3_value *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
+int sqlite3_value_int(sqlite3_value *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
+sqlite_int64 sqlite3_value_int64(sqlite3_value *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
+const unsigned char *sqlite3_value_text(sqlite3_value *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, SQLITE_UTF8); }
+#ifndef OMIT_UTF16
+const void *sqlite3_value_text16(sqlite3_value* pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16NATIVE); }
+const void *sqlite3_value_text16be(sqlite3_value *pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16BE); }
+const void *sqlite3_value_text16le(sqlite3_value *pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16LE); }
+#endif
+int sqlite3_value_type(sqlite3_value* pVal){ return pVal->type; }
+
+
+
+
+	const void *sqlite3_value_blob(sqlite3_value*);
+int sqlite3_value_bytes(sqlite3_value*);
+int sqlite3_value_bytes16(sqlite3_value*);
+double sqlite3_value_double(sqlite3_value*);
+int sqlite3_value_int(sqlite3_value*);
+sqlite3_int64 sqlite3_value_int64(sqlite3_value*);
+const unsigned char *sqlite3_value_text(sqlite3_value*);
+const void *sqlite3_value_text16(sqlite3_value*);
+const void *sqlite3_value_text16le(sqlite3_value*);
+const void *sqlite3_value_text16be(sqlite3_value*);
+int sqlite3_value_type(sqlite3_value*);
+int sqlite3_value_numeric_type(sqlite3_value*);
+
+
+
 	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
 	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
 	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);

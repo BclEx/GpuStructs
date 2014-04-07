@@ -23,7 +23,14 @@ namespace Core
 
         internal const int VERSION_NUMBER = 3007016;
 
+        internal static void ASSERTCOVERAGE(bool p)
+        {
+            throw new NotImplementedException();
+        }
+
         #region Memory Allocation
+
+        public static Action<object> DESTRUCTOR_DYNAMIC;
 
         [Flags]
         public enum MEMTYPE : byte
@@ -197,5 +204,10 @@ namespace Core
         }
 
         #endregion
+
+        internal static string Mprintf(object tag, string format, params object[] args)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

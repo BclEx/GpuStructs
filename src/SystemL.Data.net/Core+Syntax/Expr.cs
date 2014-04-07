@@ -4,15 +4,10 @@ using System;
 using System.Diagnostics;
 using System.Text;
 
-using Bitmask = System.UInt64;
-using i64 = System.Int64;
-using u8 = System.Byte;
-using u32 = System.UInt32;
-using u16 = System.UInt16;
 
 using Pgno = System.UInt32;
 
-#if !SQLITE_MAX_VARIABLE_NUMBER
+#if !MAX_VARIABLE_NUMBER
 using ynVar = System.Int16;
 #else
 using ynVar = System.Int32; 
@@ -25,7 +20,7 @@ namespace Core
         public AFF Affinity()
         {
             int op = OP;
-            if (op == TK_SELECT)
+            if (op == TK.SELECT)
             {
                 Debug.Assert((pExpr.flags & EP_xIsSelect) != 0);
                 return sqlite3ExprAffinity(pExpr.x.pSelect.pEList.a[0].pExpr);
@@ -470,9 +465,9 @@ namespace Core
                         && ((c = pToken.z[0]) == '\'' || c == '"' || c == '[' || c == '`'))
                         {
 #if DEBUG_CLASS_EXPR || DEBUG_CLASS_ALL
-sqlite3Dequote(ref pNew.u._zToken);
+Parse.Dequote(ref pNew.u._zToken);
 #else
-                            sqlite3Dequote(ref pNew.u.zToken);
+                            Parse.Dequote(ref pNew.u.zToken);
 #endif
                             if (c == '"')
                                 pNew.flags |= EP_DblQuoted;

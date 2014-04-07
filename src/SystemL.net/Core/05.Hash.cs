@@ -26,7 +26,7 @@ namespace Core
             return (this == null ? null : (Hash)MemberwiseClone());
         }
 
-        public void Hash()
+        public Hash()
         {
             Init();
         }

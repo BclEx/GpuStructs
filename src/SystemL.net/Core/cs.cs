@@ -20,13 +20,13 @@ namespace Core
         public static implicit operator T[](array_t2<TLength, T> p) { return p.data; }
         public T this[int i] { get { return data[i]; } set { data[i] = value; } }
     };
-    public struct array_t3<TLength, T, N> where TLength : struct
+    public struct array_t3<TLength, T> where TLength : struct
     {
         public TLength length;
         public T[] data;
         public array_t3(T[] a) { data = a; length = default(TLength); }
         public array_t3(T[] a, TLength b) { data = a; length = b; }
-        public static implicit operator T[](array_t3<TLength, T, N> p) { return p.data; }
+        public static implicit operator T[](array_t3<TLength, T> p) { return p.data; }
         public T this[int i] { get { return data[i]; } set { data[i] = value; } }
     };
 

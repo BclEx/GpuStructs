@@ -1,32 +1,31 @@
 ﻿using System;
-using FuncDefHash = Core.array_t3<int, Core.FuncDef, object>;
 
 namespace Core
 {
     public enum LIMIT : byte
     {
-        LIMIT_LENGTH = 0,
-        LIMIT_SQL_LENGTH = 1,
-        LIMIT_COLUMN = 2,
-        LIMIT_EXPR_DEPTH = 3,
-        LIMIT_COMPOUND_SELECT = 4,
-        LIMIT_VDBE_OP = 5,
-        LIMIT_FUNCTION_ARG = 6,
-        LIMIT_ATTACHED = 7,
-        LIMIT_LIKE_PATTERN_LENGTH = 8,
-        LIMIT_VARIABLE_NUMBER = 9,
-        LIMIT_TRIGGER_DEPTH = 10,
-        LIMIT_MAX_ = 11,
+        LENGTH = 0,
+        SQL_LENGTH = 1,
+        COLUMN = 2,
+        EXPR_DEPTH = 3,
+        COMPOUND_SELECT = 4,
+        VDBE_OP = 5,
+        FUNCTION_ARG = 6,
+        ATTACHED = 7,
+        LIKE_PATTERN_LENGTH = 8,
+        VARIABLE_NUMBER = 9,
+        TRIGGER_DEPTH = 10,
+        MAX_ = 11,
     }
 
     public enum MAGIC : uint
     {
-        MAGIC_OPEN = 0xa029a697,	// Database is open
-        MAGIC_CLOSED = 0x9f3c2d33,  // Database is closed
-        MAGIC_SICK = 0x4b771290,	// Error and awaiting close
-        MAGIC_BUSY = 0xf03b7906,	// Database currently in use
-        MAGIC_ERROR = 0xb5357930,	// An SQLITE_MISUSE error occurred
-        MAGIC_ZOMBIE = 0x64cffc7f,  // Close with last statement close
+        OPEN = 0xa029a697,	// Database is open
+        CLOSED = 0x9f3c2d33,  // Database is closed
+        SICK = 0x4b771290,	// Error and awaiting close
+        BUSY = 0xf03b7906,	// Database currently in use
+        ERROR = 0xb5357930,	// An SQLITE_MISUSE error occurred
+        ZOMBIE = 0x64cffc7f,  // Close with last statement close
     }
 
     public class LookasideSlot
@@ -35,15 +34,15 @@ namespace Core
     }
     public struct Lookaside
     {
-        ushort Size;            // Size of each buffer in bytes
-        bool Enabled;           // False to disable new lookaside allocations
-        bool Malloced;          // True if pStart obtained from sqlite3_malloc()
-        int Outs;               // Number of buffers currently checked out
-        int MaxOuts;            // Highwater mark for nOut
-        int[] Stats = new int[3];			// 0: hits.  1: size misses.  2: full misses
-        LookasideSlot Free;	// List of available buffers
-        object Start;			// First byte of available memory space
-        object End;				// First byte past end of available space
+        public ushort Size;            // Size of each buffer in bytes
+        public bool Enabled;           // False to disable new lookaside allocations
+        public bool Malloced;          // True if pStart obtained from sqlite3_malloc()
+        public int Outs;               // Number of buffers currently checked out
+        public int MaxOuts;            // Highwater mark for nOut
+        public int[] Stats = new int[3];			// 0: hits.  1: size misses.  2: full misses
+        public LookasideSlot Free;	// List of available buffers
+        public int Start;			// First byte of available memory space
+        public int End;				// First byte past end of available space
     }
 
     public static class ContextEx
@@ -60,17 +59,22 @@ namespace Core
     [Flags]
     public enum OPTFLAG : ushort
     {
-        OPTFLAG_QueryFlattener = 0x0001,	// Query flattening
-        OPTFLAG_ColumnCache = 0x0002,		// Column cache
-        OPTFLAG_GroupByOrder = 0x0004,		// GROUPBY cover of ORDERBY
-        OPTFLAG_FactorOutConst = 0x0008,	// Constant factoring
-        OPTFLAG_IdxRealAsInt = 0x0010,		// Store REAL as INT in indices
-        OPTFLAG_DistinctOpt = 0x0020,		// DISTINCT using indexes
-        OPTFLAG_CoverIdxScan = 0x0040,		// Covering index scans
-        OPTFLAG_OrderByIdxJoin = 0x0080,	// ORDER BY of joins via index
-        OPTFLAG_SubqCoroutine = 0x0100,		// Evaluate subqueries as coroutines
-        OPTFLAG_Transitive = 0x0200,		// Transitive constraints
-        OPTFLAG_AllOpts = 0xffff,			// All optimizations
+        QueryFlattener = 0x0001,	// Query flattening
+        ColumnCache = 0x0002,		// Column cache
+        GroupByOrder = 0x0004,		// GROUPBY cover of ORDERBY
+        FactorOutConst = 0x0008,	// Constant factoring
+        IdxRealAsInt = 0x0010,		// Store REAL as INT in indices
+        DistinctOpt = 0x0020,		// DISTINCT using indexes
+        CoverIdxScan = 0x0040,		// Covering index scans
+        OrderByIdxJoin = 0x0080,	// ORDER BY of joins via index
+        SubqCoroutine = 0x0100,		// Evaluate subqueries as coroutines
+        Transitive = 0x0200,		// Transitive constraints
+        AllOpts = 0xffff,			// All optimizations
+    }
+
+    public class FuncDefHash
+    {
+        FuncDef[] data = new FuncDef[23]; // Hash table for functions
     }
 
     public class Context : BContext
@@ -109,7 +113,7 @@ namespace Core
         public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
         public byte IsTransactionSavepoint;		// True if the outermost savepoint is a TS
         public MAGIC Magic;						// Magic number for detect library misuse
-        public int[] Limits = new int[(int)LIMIT.LIMIT_MAX_];				// Limits
+        public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
         public InitInfo Init;						// Information used during initialization
 #if !OMIT_VIRTUALTABLE
         public Hash Modules;						// populated by sqlite3_create_module()

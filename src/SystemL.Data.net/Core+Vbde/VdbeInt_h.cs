@@ -125,7 +125,7 @@ namespace Core
 
     public class Mem
     {
-        public Context Db;              // The associated database connection
+        public Context Ctx;              // The associated database connection
         public string Z;                // String value
         public double R;                // Real value
         public struct u_t
@@ -168,7 +168,7 @@ namespace Core
 #endif
 )
         {
-            Db = db;
+            Ctx = db;
             Z = z;
             R = r;
             u.I = i;
@@ -187,7 +187,7 @@ namespace Core
             if (ct == null) ct = new Mem();
             ct.u = u;
             ct.R = R;
-            ct.Db = Db;
+            ct.Ctx = Ctx;
             ct.Z = Z;
             ct.N = N;
             ct.Flags = Flags;

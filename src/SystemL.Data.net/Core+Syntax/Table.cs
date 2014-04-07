@@ -1,11 +1,11 @@
+// table.c
+#region OMIT_GET_TABLE
+#if !OMIT_GET_TABLE
 using System;
 using System.Diagnostics;
 
 namespace Core
 {
-    #region Table
-#if !OMIT_GET_TABLE
-
     class TabResult
     {
         public string[] Results;
@@ -17,7 +17,7 @@ namespace Core
         public RC RC;
     };
 
-    public class Table
+    public partial class Table
     {
         public static bool sqlite3_get_table_cb(object arg, int columns, string[] argv, string[] colv)
         {
@@ -123,6 +123,7 @@ namespace Core
         {
         }
     }
-#endif
-    #endregion
 }
+#endif
+#endregion
+

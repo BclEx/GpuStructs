@@ -1,5 +1,6 @@
 // vdbe.h
 #include <stdio.h>
+struct FILE;
 
 namespace Core
 {

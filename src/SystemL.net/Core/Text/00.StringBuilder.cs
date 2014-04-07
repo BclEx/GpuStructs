@@ -3,13 +3,13 @@ namespace Core.Text
 {
     public class StringBuilder
     {
-        object Ctx;			// Optional database for lookaside.  Can be NULL
-        string Base;		// A base allocation.  Not from malloc.
-        System.Text.StringBuilder Text; // The string collected so far
-        int Size;			// Amount of space allocated in zText
-        int MaxSize;		// Maximum allowed string length
-        bool MallocFailed;  // Becomes true if any memory allocation fails
-        bool Overflowed;        // Becomes true if string size exceeds limits
+        public object Ctx;			// Optional database for lookaside.  Can be NULL
+        public string Base;		// A base allocation.  Not from malloc.
+        public System.Text.StringBuilder Text; // The string collected so far
+        public int Size;			// Amount of space allocated in zText
+        public int MaxSize;		// Maximum allowed string length
+        public bool MallocFailed;  // Becomes true if any memory allocation fails
+        public bool Overflowed;        // Becomes true if string size exceeds limits
 
         public void Append(string z, int length)
         {

@@ -230,28 +230,28 @@ namespace Core
 
 	__device__ static void memTracePrint(FILE *out, Mem *p)
 	{
-		if (p->Flags & MEM_Invalid) fprintf(out, " undefined");
-		else if (p->Flags & MEM_Null) fprintf(out, " NULL");
-		else if ((p->Flags & (MEM_Int|MEM_Str)) == (MEM_Int|MEM_Str)) fprintf(out, " si:%lld", p->u.I);
-		else if (p->Flags & MEM_Int) fprintf(out, " i:%lld", p->u.I);
+		if (p->Flags & MEM_Invalid) _fprintf(out, " undefined");
+		else if (p->Flags & MEM_Null) _fprintf(out, " NULL");
+		else if ((p->Flags & (MEM_Int|MEM_Str)) == (MEM_Int|MEM_Str)) _fprintf(out, " si:%lld", p->u.I);
+		else if (p->Flags & MEM_Int) _fprintf(out, " i:%lld", p->u.I);
 #ifndef OMIT_FLOATING_POINT
-		else if (p->Flags & MEM_Real) fprintf(out, " r:%g", p->R);
+		else if (p->Flags & MEM_Real) _fprintf(out, " r:%g", p->R);
 #endif
-		else if (p->Flags & MEM_RowSet) fprintf(out, " (rowset)");
+		else if (p->Flags & MEM_RowSet) _fprintf(out, " (rowset)");
 		else
 		{
 			char buf[200];
 			Vdbe::MemPrettyPrint(p, buf);
-			fprintf(out, " ");
-			fprintf(out, "%s", buf);
+			_fprintf(out, " ");
+			_fprintf(out, "%s", buf);
 		}
 	}
 
 	__device__ static void registerTrace(FILE *out, int reg, Mem *p)
 	{
-		fprintf(out, "REG[%d] = ", reg);
+		_fprintf(out, "REG[%d] = ", reg);
 		memTracePrint(out, p);
-		fprintf(out, "\n");
+		_fprintf(out, "\n");
 	}
 
 #define REGISTER_TRACE(R, M) if (p->Trace) registerTrace(p->Trace, R, M)

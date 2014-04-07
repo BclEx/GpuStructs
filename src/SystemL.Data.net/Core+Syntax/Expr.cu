@@ -32,9 +32,9 @@ namespace Core
 			if (j < 0)
 				return AFF_INTEGER;
 			_assert(expr->Table && j < expr->Table->Cols.length);
-			return expr->Table->Cols[j].Affinity;
+			return expr->Table->Cols[j].Aff;
 		}
-		return expr->Affinity;
+		return expr->Aff;
 	}
 
 	__device__ Expr *Parse::ExprAddCollateToken(Expr *expr, Token *collName)
@@ -56,8 +56,8 @@ namespace Core
 	{
 		_assert(z);
 		Token s;
-		s.data = (char *)z;
-		s.length = _strlen30(s);
+		s.data = z;
+		s.length = _strlen30(z);
 		return ExprAddCollateToken(expr, &s);
 	}
 

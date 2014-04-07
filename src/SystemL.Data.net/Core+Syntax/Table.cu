@@ -1,4 +1,5 @@
 // table.c
+#pragma region OMIT_GET_TABLE
 #ifndef OMIT_GET_TABLE
 #include "Core+Syntax.cu.h"
 #include <stdlib.h>
@@ -6,7 +7,7 @@
 
 namespace Core
 {
-	typedef struct TabResult
+	struct TabResult
 	{
 		array_t<char *> Results; // Accumulated output - length = nData = (nRow+1)*nColumn
 		char *ErrMsg;			// Error message text, if an error occurs
@@ -14,7 +15,7 @@ namespace Core
 		int Rows;				// Number of rows in the result
 		int Columns;			// Number of columns in the result
 		RC RC;					// Return code from sqlite3_exec()
-	} TabResult;
+	};
 
 	__device__ static bool sqlite3_get_table_cb(void *arg, int columns, char **argv, char **colv)
 	{
@@ -146,3 +147,4 @@ malloc_failed:
 }
 
 #endif
+#pragma endregion 

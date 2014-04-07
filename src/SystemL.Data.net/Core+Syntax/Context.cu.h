@@ -1,8 +1,5 @@
 namespace Core
 {
-	struct VTable;
-	struct VTableContext;
-
 	enum LIMIT : uint8
 	{
 		LIMIT_LENGTH = 0,
@@ -69,8 +66,13 @@ namespace Core
 		OPTFLAG_AllOpts = 0xffff,			// All optimizations
 	};
 
-	typedef array_t3<int, struct FuncDef, 23> FuncDefHash;
+	struct FuncDefHash
+	{
+		FuncDef *data[23]; // Hash table for functions
+	};
 
+	struct VTable;
+	struct VTableContext;
 	class Context : public BContext
 	{
 	public:

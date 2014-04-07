@@ -181,13 +181,13 @@ namespace Core
 			if (z[i] == '.')
 			{
 				i++;
-				while (_isdigit(z[i])) { i++; }
+				while (_isdigit(z[i])) i++;
 				*tokenType = TK_FLOAT;
 			}
 			if ((z[i] == 'e' || z[i] == 'E') && _isdigit(z[i+1] || ((z[i+1] == '+' || z[i+1] == '-') && _isdigit(z[i+2]))))
 			{
 				i += 2;
-				while (_isdigit(z[i])) { i++; }
+				while (_isdigit(z[i])) i++;
 				*tokenType = TK_FLOAT;
 			}
 #endif
@@ -261,7 +261,7 @@ namespace Core
 				if (z[i] != '\'' || i % 2)
 				{
 					*tokenType = TK_ILLEGAL;
-					while (z[i] && z[i] != '\'') { i++; }
+					while (z[i] && z[i] != '\'') i++;
 				}
 				if (z[i]) i++;
 				return i;
@@ -303,9 +303,9 @@ namespace Core
 		if (ctx->Lookaside.Start)
 			ctx->Lookaside.Enabled = true;
 		int errs = 0; // Number of errors encountered
-		int i = 0;
 		int tokenType;                  // type of the next token
-		int lastTokenParsed = -1;       // type of the previous token
+		int lastTokenParsed = 0;       // type of the previous token
+		int i = 0;
 		while (!ctx->MallocFailed && sql[i] != 0)
 		{
 			_assert(i >= 0);
@@ -372,7 +372,7 @@ abort_parse:
 		}
 		if (V && Errs > 0 && Nested == 0)
 		{
-			V->Delete();
+			Vdbe::Delete(V);
 			V = nullptr;
 		}
 #ifndef OMIT_SHARED_CACHE
@@ -393,10 +393,11 @@ abort_parse:
 			// will take responsibility for freeing the Table structure.
 			DeleteTable(ctx, NewTable);
 		}
-
+#if !OMIT_TRIGGER
 		DeleteTrigger(ctx, NewTrigger);
+#endif
 		for (i = Vars.length-1; i >= 0; i--)
-			SysEx::TagFree(ctx, Vars[i]);
+			SysEx::TagFree(ctx, Vars.data[i]);
 		SysEx::TagFree(ctx, Vars.data);
 		SysEx::TagFree(ctx, Alias.data);
 		while (Ainc)
@@ -414,5 +415,30 @@ abort_parse:
 		if (errs > 0 && RC == RC_OK)
 			RC = RC_ERROR;
 		return errs;
+	}
+
+	__device__ int Parse::Dequote(char *z)
+	{
+		if (!z) return -1;
+		char quote = z[0];
+		switch (quote)
+		{
+		case '\'': break;
+		case '"': break;
+		case '`': break;                // For MySQL compatibility
+		case '[': quote = ']'; break;  // For MS SqlServer compatibility
+		default: return -1;
+		}
+		int i, j;
+		for (i = 1, j = 0; SysEx_ALWAYS(z[i]); i++)
+			if (z[i] == quote)
+			{
+				if (z[i+1] == quote) { z[j++] = quote; i++; }
+				else break;
+			}
+			else
+				z[j++] = z[i];
+		z[j] = 0;
+		return j;
 	}
 }
