@@ -46,6 +46,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Alter.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Analyze.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Attach.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Date.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Delete.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Insert.cu" />
@@ -92,6 +93,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Alter.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Analyze.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Attach.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Date.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Delete.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Insert.cu" />

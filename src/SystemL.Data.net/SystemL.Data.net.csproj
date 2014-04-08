@@ -51,6 +51,7 @@
     <Compile Include="Core+Pager\PCache_h.cs" />
     <Compile Include="Core+Pager\Wal.cs" />
     <Compile Include="Core+Pager\Wal_h.cs" />
+    <Compile Include="Core+Syntax\Command\Date.cs" />
     <Compile Include="Core+Syntax\Command\Func.cs" />
     <Compile Include="Core+Syntax\FKey.cs" />
     <Compile Include="Core+Syntax\TokenizeComplete.cs" />
@@ -61,6 +62,7 @@
     <Compile Include="Core+System\CompileTime.cs" />
     <Compile Include="KeywordHash_h.cs" />
     <Compile Include="Opcodes_h.cs" />
+    <None Include="Core+Syntax\Command\Date.cu" />
     <Content Include="Core+Syntax\Context.cu.h" />
     <None Include="Core+System\Backup.cu" />
     <None Include="Core+System\CompileTime.cu" />

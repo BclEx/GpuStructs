@@ -740,7 +740,7 @@ namespace Core
     //#define Parse_Toplevel(p) ((p)->Toplevel ? (p)->Toplevel : (p))
     //#endif
 
-    public class Parse
+    public partial class Parse
     {
         public class ColCache
         {
