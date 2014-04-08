@@ -182,5 +182,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Func.cu">
       <Filter>Core+Syntax\Command</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Date.cu">
+      <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

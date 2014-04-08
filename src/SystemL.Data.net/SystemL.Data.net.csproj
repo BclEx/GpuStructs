@@ -55,7 +55,7 @@
     <Compile Include="Core+Syntax\Command\Func.cs" />
     <Compile Include="Core+Syntax\FKey.cs" />
     <Compile Include="Core+Syntax\TokenizeComplete.cs" />
-    <Compile Include="Core+Syntax\Trigger_c.cs" />
+    <Compile Include="Core+Syntax\Trigger.cs" />
     <Compile Include="Core+Syntax\WalkerResolve.cs" />
     <Compile Include="Core+System\Auth.cs" />
     <Compile Include="Core+System\Backup.cs" />

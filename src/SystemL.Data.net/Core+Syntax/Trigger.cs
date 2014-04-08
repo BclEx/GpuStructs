@@ -147,11 +147,11 @@ namespace Core
                 goto trigger_cleanup;
             }
 
-            /* Do not create a trigger on a system table */
-            if (table.zName.StartsWith("sqlite_", System.StringComparison.InvariantCultureIgnoreCase))
+            // Do not create a trigger on a system table
+            if (table.Name.StartsWith("sqlite_", StringComparison.InvariantCultureIgnoreCase))
             {
-                sqlite3ErrorMsg(parse, "cannot create trigger on system table");
-                parse.nErr++;
+                parse.ErrorMsg("cannot create trigger on system table");
+                parse.Errs++;
                 goto trigger_cleanup;
             }
 
