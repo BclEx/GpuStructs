@@ -221,7 +221,7 @@ namespace Core
             }
         }
 
-        static Pid PENDING_BYTE_PAGE(BtShared bt) { return Pager.MJ_PID(bt.Pager); }
+        public static Pid PENDING_BYTE_PAGE(BtShared bt) { return Pager.MJ_PID(bt.Pager); }
 
         static Pid PTRMAP_PAGENO(BtShared bt, Pid id) { return ptrmapPageno(bt, id); }
         static Pid PTRMAP_PTROFFSET(Pid ptrmapID, Pid id) { return (5 * (id - ptrmapID - 1)); }

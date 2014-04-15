@@ -16,9 +16,6 @@
     <Filter Include="Core+Syntax\Command">
       <UniqueIdentifier>{6cb83c07-6ccc-4e1d-9d8a-83b562198464}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core+System">
-      <UniqueIdentifier>{769c5559-f623-41ed-9571-711c29e35fc0}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.Data.net\Core+Btree\Btree.cu.h">
@@ -155,18 +152,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu">
       <Filter>Core+Syntax\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Auth.cu">
-      <Filter>Core+System</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Backup.cu">
-      <Filter>Core+System</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu">
-      <Filter>Core+System</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Shell.cu">
-      <Filter>Core+System</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
@@ -184,6 +169,14 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Date.cu">
       <Filter>Core+Syntax\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Shell.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Backup.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Auth.cu">
+      <Filter>Core+Syntax</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

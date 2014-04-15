@@ -38,6 +38,8 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vbde\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
+    <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Shell.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
@@ -54,6 +56,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Select.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Update.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Auth.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Backup.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
@@ -68,10 +72,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Auth.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Backup.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+System\Shell.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -85,6 +85,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeTrace.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+    <CudaCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Shell.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu" />
@@ -101,6 +103,8 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Select.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Update.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Auth.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Backup.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
@@ -115,10 +119,6 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Syntax\Where.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+System\Auth.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+System\Backup.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+System\CompileTime.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+System\Shell.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\Vdbe.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeApi.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vbde\VdbeAux.cu" />

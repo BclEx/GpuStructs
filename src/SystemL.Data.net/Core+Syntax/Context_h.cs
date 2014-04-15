@@ -111,18 +111,27 @@ namespace Core
 
         public bool MallocFailed;					// True if we have seen a malloc failure
         public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
-        public byte IsTransactionSavepoint;		// True if the outermost savepoint is a TS
-        public MAGIC Magic;						// Magic number for detect library misuse
+        public byte IsTransactionSavepoint;		    // True if the outermost savepoint is a TS
+        public MAGIC Magic;						    // Magic number for detect library misuse
         public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
         public InitInfo Init;						// Information used during initialization
+#if !OMIT_AUTHORIZATION
+        public Func<object, int, string, string, string, int, RC> Auth; // Access authorization function
+        public object AuthArg;						// 1st argument to the access auth function
+#endif
 #if !OMIT_VIRTUALTABLE
         public Hash Modules;						// populated by sqlite3_create_module()
-        public VTableContext VTableCtx;			// Context for active vtab connect/create
-        public array_t<VTable> VTrans;			// Virtual tables with open transactions / Allocated size of aVTrans
+        public VTableContext VTableCtx;			    // Context for active vtab connect/create
+        public array_t<VTable> VTrans;			    // Virtual tables with open transactions / Allocated size of aVTrans
         public VTable Disconnect;					// Disconnect these in next sqlite3_prepare()
 #endif
         public FuncDefHash Funcs;					// Hash table of connection functions
         public Hash CollSeqs;						// All collating sequences
-        public int* BytesFreed;					// If not NULL, increment this in DbFree()
+        public int* BytesFreed;					    // If not NULL, increment this in DbFree()
+
+        internal static void Error(object tag, RC rc, string format, params object[] args)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

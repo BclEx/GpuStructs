@@ -578,7 +578,7 @@ namespace Core
 
     public partial class Expr
     {
-        public byte OP;					// Operation performed by this node
+        public TK OP;					// Operation performed by this node
         public AFF Aff;				// The affinity of the column or 0 if not a column
         public EP Flags;					// Various flags.  EP_* See below
         public class _u
@@ -955,6 +955,56 @@ namespace Core
     #endregion
 
     #region Mem
+    #endregion
+
+    #region Backup
+    #endregion
+
+    #region Authorization
+
+    public enum ARC : byte
+    {
+        DENY = 1,   // Abort the SQL statement with an error
+        IGNORE = 2,   // Don't allow access, but don't generate an error
+    }
+
+    public enum AUTH : byte
+    {
+        CREATE_INDEX = 1,           // Index Name      Table Name
+        CREATE_TABLE = 2,           // Table Name      NULL
+        CREATE_TEMP_INDEX = 3,      // Index Name      Table Name
+        CREATE_TEMP_TABLE = 4,      // Table Name      NULL
+        CREATE_TEMP_TRIGGER = 5,    // Trigger Name    Table Name
+        CREATE_TEMP_VIEW = 6,       // View Name       NULL
+        CREATE_TRIGGER = 7,         // Trigger Name    Table Name
+        CREATE_VIEW = 8,            // View Name       NULL
+        DELETE = 9,                 // Table Name      NULL
+        DROP_INDEX = 10,            // Index Name      Table Name
+        DROP_TABLE = 11,            // Table Name      NULL
+        DROP_TEMP_INDEX = 12,       // Index Name      Table Name
+        DROP_TEMP_TABLE = 13,       // Table Name      NULL
+        DROP_TEMP_TRIGGER = 14,     // Trigger Name    Table Name
+        DROP_TEMP_VIEW = 15,        // View Name       NULL
+        DROP_TRIGGER = 16,          // Trigger Name    Table Name
+        DROP_VIEW = 17,             // View Name       NULL
+        INSERT = 18,                // Table Name      NULL
+        PRAGMA = 19,                // Pragma Name     1st arg or NULL
+        READ = 20,                  // Table Name      Column Name
+        SELECT = 21,                // NULL            NULL
+        TRANSACTION = 22,           // Operation       NULL
+        UPDATE = 23,                // Table Name      Column Name
+        ATTACH = 24,                // Filename        NULL
+        DETACH = 25,                // Database Name   NULL
+        ALTER_TABLE = 26,           // Database Name   Table Name
+        REINDEX = 27,               // Index Name      NULL
+        ANALYZE = 28,               // Table Name      NULL
+        CREATE_VTABLE = 29,         // Table Name      Module Name
+        DROP_VTABLE = 30,           // Table Name      Module Name
+        FUNCTION = 31,              // NULL            Function Name
+        SAVEPOINT = 32,             // Operation       Savepoint Name 
+        COPY = 0,                   // No longer used
+    }
+
     #endregion
 
     public partial class Sql

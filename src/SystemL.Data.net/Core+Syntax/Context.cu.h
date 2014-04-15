@@ -111,6 +111,10 @@ namespace Core
 		MAGIC Magic;						// Magic number for detect library misuse
 		int Limits[LIMIT_MAX_];				// Limits
 		InitInfo Init;						// Information used during initialization
+#ifndef OMIT_AUTHORIZATION
+		int (*Auth)(void*,int,const char*,const char*,const char*,const char*); // Access authorization function
+		void *AuthArg;						// 1st argument to the access auth function
+#endif
 #ifndef OMIT_VIRTUALTABLE
 		Hash Modules;						// populated by sqlite3_create_module()
 		VTableContext *VTableCtx;			// Context for active vtab connect/create
