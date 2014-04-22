@@ -423,7 +423,7 @@ namespace Core
                 p.Src.Backups--;
             if (p.IsAttached)
             {
-                pp = p.Src.get_Pager().BackupPtr();
+                IBackup pp = p.Src.get_Pager().BackupPtr();
                 while (pp != p)
                     pp = (pp).Next;
                 p.Src.get_Pager().Backup = p.Next;

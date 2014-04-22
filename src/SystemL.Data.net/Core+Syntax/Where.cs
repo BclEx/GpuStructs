@@ -234,7 +234,7 @@ namespace Core
 
         static int WhereClauseInsert(WhereClause wc, Expr p, TERM wtFlags)
         {
-            ASSERTCOVERAGE(wtFlags & TERM.VIRTUAL);  // EV: R-00211-15100
+            SysEx.ASSERTCOVERAGE((wtFlags & TERM.VIRTUAL) != 0);  // EV: R-00211-15100
             if (wc.Terms >= wc.Slots.length)
             {
                 Array.Resize(ref wc.Slots.data, wc.Slots.length * 2);
@@ -250,7 +250,7 @@ namespace Core
             return idx;
         }
 
-        static void WhereSplit(WhereClause wc, Expr expr, int op)
+        static void WhereSplit(WhereClause wc, Expr expr, TK op)
         {
             wc.OP = (byte)op;
             if (expr == null) return;
@@ -289,7 +289,7 @@ namespace Core
             }
             mask = ExprTableUsage(maskSet, p.Right);
             mask |= ExprTableUsage(maskSet, p.Left);
-            if (ExprHasProperty(p, EP_xIsSelect))
+            if (ExprHasProperty(p, EP.xIsSelect))
                 mask |= ExprSelectTableUsage(maskSet, p.x.Select);
             else
                 mask |= ExprListTableUsage(maskSet, p.x.List);

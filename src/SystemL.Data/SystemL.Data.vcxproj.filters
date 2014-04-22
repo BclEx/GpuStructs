@@ -107,9 +107,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Expr.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu">
-      <Filter>Core+Syntax</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Callback.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
@@ -176,6 +173,9 @@
       <Filter>Core+Syntax</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Auth.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\ParseBuild.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
   </ItemGroup>

@@ -5357,3 +5357,4 @@ whereBeginError:
 		whereInfoFree(db, pWInfo);
 		return;
 	}
+}

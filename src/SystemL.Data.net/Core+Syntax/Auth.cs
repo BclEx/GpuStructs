@@ -7,12 +7,12 @@ namespace Core
 {
     public partial class Auth
     {
-        public RC SetAauthorizer(Context ctx, Func<object, int, string, string, string, byte, ARC> auth, object arg)
+        public RC SetAuthorizer(Context ctx, Func<object, int, string, string, string, string, ARC> auth, object arg)
         {
             MutexEx.Enter(ctx.Mutex);
             ctx.Auth = auth;
             ctx.AuthArg = arg;
-            sqlite3ExpirePreparedStatements(ctx);
+            Vdbe.ExpirePreparedStatements(ctx);
             MutexEx.Leave(ctx.Mutex);
             return RC.OK;
         }
@@ -23,12 +23,12 @@ namespace Core
             parse.RC = RC.ERROR;
         }
 
-        public RC ReadColumn(Parse parse, string table, string column, int db)
+        public ARC ReadColumn(Parse parse, string table, string column, int db)
         {
             Context ctx = parse.Ctx; // Database handle
             string dbName = ctx.DBs[db].Name; // Name of attached database
-            RC rc = ctx.Auth(ctx.AuthArg, AUTH.READ, table, column, dbName, parse.AuthContext); // Auth callback return code
-            if (rc == RC.DENY)
+            ARC rc = ctx.Auth(ctx.AuthArg, (int)AUTH.READ, table, column, dbName, parse.AuthContext); // Auth callback return code
+            if (rc == ARC.DENY)
             {
                 if (ctx.DBs.length > 2 || db != 0)
                     parse.ErrorMsg("access to %s.%s.%s is prohibited", dbName, table, column);
@@ -36,14 +36,13 @@ namespace Core
                     parse.ErrorMsg("access to %s.%s is prohibited", table, column);
                 parse.RC = RC.AUTH;
             }
-            else if (rc != RC.IGNORE && rc != RC.OK)
+            else if (rc != ARC.IGNORE && rc != ARC.OK)
                 BadReturnCode(parse);
             return rc;
         }
 
         public void Read(Parse parse, Expr expr, Schema schema, SrcList tableList)
         {
-
             Context ctx = parse.Ctx;
             if (ctx.Auth == null) return;
             int db = sqlite3SchemaToIndex(ctx, schema);// The index of the database the expression refers to

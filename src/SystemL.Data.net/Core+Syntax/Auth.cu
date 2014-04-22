@@ -9,7 +9,7 @@ namespace Core
 		MutexEx::Enter(ctx->Mutex);
 		ctx->Auth = auth;
 		ctx->AuthArg = arg;
-		sqlite3ExpirePreparedStatements(ctx);
+		Vdbe::ExpirePreparedStatements(ctx);
 		MutexEx::Leave(ctx->Mutex);
 		return RC_OK;
 	}
@@ -20,7 +20,7 @@ namespace Core
 		parse->RC = RC_ERROR;
 	}
 
-	__device__ RC Auth::ReadColumn(Parse *parse, const char *table, const char *column, int db)
+	__device__ ARC Auth::ReadColumn(Parse *parse, const char *table, const char *column, int db)
 	{
 		Context *ctx = parse->Ctx; // Database handle
 		char *dbName = ctx->DBs[db].Name; // Name of attached database

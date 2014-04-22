@@ -1,3 +1,4 @@
+// alter.c
 #pragma region OMIT_ALTERTABLE
 #ifndef OMIT_ALTERTABLE
 #include "..\Core+Syntax.cu.h"
@@ -145,15 +146,15 @@ namespace Core { namespace Command
 			sqlite3FuncDefInsert(hash, &funcs[i]);
 	}
 
-	__device__ static char *WhereOrName(Context *ctx, char *where, char *constant)
+	__device__ static char *WhereOrName(Context *ctx, char *where_, char *constant)
 	{
 		char *newExpr;
-		if (!where)
+		if (!where_)
 			newExpr = SysEx::Mprintf(ctx, "name=%Q", constant);
 		else
 		{
-			newExpr = SysEx::Mprintf(ctx, "%s OR name=%Q", where, constant);
-			SysEx::TagFree(ctx, where);
+			newExpr = SysEx::Mprintf(ctx, "%s OR name=%Q", where_, constant);
+			SysEx::TagFree(ctx, where_);
 		}
 		return newExpr;
 	}
@@ -161,19 +162,19 @@ namespace Core { namespace Command
 #if !defined(OMIT_FOREIGN_KEY) && !defined(OMIT_TRIGGER)
 	__device__ static char *WhereForeignKeys(Parse *parse, Table *table)
 	{
-		char *where = nullptr;
+		char *where_ = nullptr;
 		for (FKey *p = sqlite3FkReferences(table); p; p = p->NextTo)
 		{
-			where = WhereOrName(parse->Ctx, where, p->From->Name);
+			where_ = WhereOrName(parse->Ctx, where_, p->From->Name);
 		}
-		return where;
+		return where_;
 	}
 #endif
 
 	__device__ static char *WhereTempTriggers(Parse *parse, Table *table)
 	{
 		Context *ctx = parse->Ctx;
-		char *where = nullptr;
+		char *where_ = nullptr;
 		const Schema *tempSchema = ctx->DBs[1].Schema; // Temp db schema
 		// If the table is not located in the temp-db (in which case NULL is returned, loop through the tables list of triggers. For each trigger
 		// that is not part of the temp-db schema, add a clause to the WHERE expression being built up in zWhere.
@@ -182,16 +183,16 @@ namespace Core { namespace Command
 			for (Trigger *trig = sqlite3TriggerList(parse, table); trig; trig = trig->Next)
 				if (trig->Schema == tempSchema)
 				{
-					where = WhereOrName(ctx, where, trig->Name);
+					where_ = WhereOrName(ctx, where_, trig->Name);
 				}
 		}
-		if (where)
+		if (where_)
 		{
-			char *newWhere = SysEx::Mprintf(ctx, "type='trigger' AND (%s)", where);
-			SysEx::TagFree(ctx, where);
-			where = newWhere;
+			char *newWhere = SysEx::Mprintf(ctx, "type='trigger' AND (%s)", where_);
+			SysEx::TagFree(ctx, where_);
+			where_ = newWhere;
 		}
-		return where;
+		return where_;
 	}
 
 	__device__ static void ReloadTableSchema(Parse *parse, Table *table, const char *name)
@@ -217,14 +218,14 @@ namespace Core { namespace Command
 		v->AddOp4(OP_DropTable, db, 0, 0, table->Name, 0);
 
 		// Reload the table, index and permanent trigger schemas.
-		char *where = SysEx::Mprintf(ctx, "tbl_name=%Q", name);
-		if (!where) return;
-		v->AddParseSchemaOp(db, where);
+		char *where_ = SysEx::Mprintf(ctx, "tbl_name=%Q", name);
+		if (!where_) return;
+		v->AddParseSchemaOp(db, where_);
 
 #ifndef OMIT_TRIGGER
 		// Now, if the table is not stored in the temp database, reload any temp triggers. Don't use IN(...) in case SQLITE_OMIT_SUBQUERY is defined. 
-		if ((where = WhereTempTriggers(parse, table)) != nullptr)
-			v->AddParseSchemaOp(1, where);
+		if ((where_ = WhereTempTriggers(parse, table)) != nullptr)
+			v->AddParseSchemaOp(1, where_);
 #endif
 	}
 
@@ -237,7 +238,6 @@ namespace Core { namespace Command
 		}
 		return false;
 	}
-
 
 	__device__ void Alter::RenameTable(Parse *parse, SrcList *src, Token *name)
 	{
@@ -278,7 +278,7 @@ namespace Core { namespace Command
 #endif
 
 #ifndef OMIT_AUTHORIZATION
-		// Invoke the authorization callback. */
+		// Invoke the authorization callback.
 		if (Auth::Check(parse, AUTH_ALTER_TABLE, dbName, table->Name, 0))
 			goto exit_rename_table;
 #endif
@@ -319,22 +319,21 @@ namespace Core { namespace Command
 		int tableNameLength = sqlite3Utf8CharLen(tableName, -1); // Number of UTF-8 characters in zTabName
 
 #ifndef OMIT_TRIGGER
-		char *where = nullptr; // Where clause to locate temp triggers
+		char *where_ = nullptr; // Where clause to locate temp triggers
 #endif
-
 
 #if !defined(OMIT_FOREIGN_KEY) && !defined(OMIT_TRIGGER)
 		if (ctx->Flags & Context::FLAG_ForeignKeys)
 		{
 			// If foreign-key support is enabled, rewrite the CREATE TABLE statements corresponding to all child tables of foreign key constraints
 			// for which the renamed table is the parent table.
-			if ((where = WhereForeignKeys(parse, table)) != nullptr)
+			if ((where_ = WhereForeignKeys(parse, table)) != nullptr)
 			{
 				parse->NestedParse(
 					"UPDATE \"%w\".%s SET "
 					"sql = sqlite_rename_parent(sql, %Q, %Q) "
-					"WHERE %s;", dbName, SCHEMA_TABLE(db), tableName, nameAsString, where);
-				SysEx::TagFree(ctx, where);
+					"WHERE %s;", dbName, SCHEMA_TABLE(db), tableName, nameAsString, where_);
+				SysEx::TagFree(ctx, where_);
 			}
 		}
 #endif
@@ -366,23 +365,21 @@ namespace Core { namespace Command
 #ifndef OMIT_AUTOINCREMENT
 		// If the sqlite_sequence table exists in this database, then update it with the new table name.
 		if (sqlite3FindTable(ctx, "sqlite_sequence", dbName))
-		{
 			parse->NestedParse(
-				"UPDATE \"%w\".sqlite_sequence set name = %Q WHERE name = %Q",
-				dbName, nameAsString, table->Name);
-		}
+			"UPDATE \"%w\".sqlite_sequence set name = %Q WHERE name = %Q",
+			dbName, nameAsString, table->Name);
 #endif
 
 #ifndef OMIT_TRIGGER
 		// If there are TEMP triggers on this table, modify the sqlite_temp_master table. Don't do this if the table being ALTERed is itself located in the temp database.
-		if ((where = WhereTempTriggers(parse, table)) != nullptr)
+		if ((where_ = WhereTempTriggers(parse, table)) != nullptr)
 		{
 			parse->NestedParse(
 				"UPDATE sqlite_temp_master SET "
 				"sql = sqlite_rename_trigger(sql, %Q), "
 				"tbl_name = %Q "
-				"WHERE %s;", nameAsString, nameAsString, where);
-			SysEx::TagFree(ctx, where);
+				"WHERE %s;", nameAsString, nameAsString, where_);
+			SysEx::TagFree(ctx, where_);
 		}
 #endif
 
@@ -494,13 +491,12 @@ exit_rename_table:
 		}
 
 		// Modify the CREATE TABLE statement.
-		char *colDefAsString = SysEx::TagStrNDup(ctx, (char *)colDef->datad, colDef->length); // Null-terminated column definition
+		char *colDefAsString = SysEx::TagStrNDup(ctx, (char *)colDef->data, colDef->length); // Null-terminated column definition
 		if (colDefAsString)
 		{
 			char *end = &colDefAsString[colDef->length-1];
+			while (end > colDefAsString && (*end == ';' || _isspace(*end))) *end-- = '\0';
 			Context::FLAG savedDbFlags = ctx->Flags;
-			while (end > colDefAsString && (*end == ';' || _isspace(*end)))
-				*end-- = '\0';
 			ctx->Flags |= Context::FLAG_PreferBuiltin;
 			parse->NestedParse( 
 				"UPDATE \"%w\".%s SET "
@@ -557,11 +553,11 @@ exit_rename_table:
 		if (!newTable) goto exit_begin_add_column;
 		parse->NewTable = newTable;
 		newTable->Refs = 1;
-		newTable->Cols = table->Cols;
-		_assert(newTable->Cols > 0);
-		int allocs = (((newTable->Cols-1)/8)*8)+8;
-		_assert(allocs >= newTable->Cols && allocs%8 == 0 && allocs - newtable->Cols < 8);
-		newTable->Cols = (Column *)SysEx::TagAlloc(ctx, sizeof(Column)*allocs, true);
+		newTable->Cols.length = table->Cols.length;
+		_assert(newTable->Cols.length > 0);
+		int allocs = (((newTable->Cols.length-1)/8)*8)+8;
+		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newtable->Cols.length < 8);
+		newTable->Cols.data = (Column *)SysEx::TagAlloc(ctx, sizeof(Column)*allocs, true);
 		newTable->Name = SysEx::Mprintf(ctx, "sqlite_altertab_%s", table->Name);
 		if (!newTable->Cols || !newTable->Name)
 		{

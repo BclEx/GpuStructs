@@ -3,7 +3,6 @@
 
 namespace Core
 {
-
 	const Token _IntTokens[] = {
 		{ "0", 1 },
 		{ "1", 1 }

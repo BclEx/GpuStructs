@@ -116,7 +116,7 @@ namespace Core
         public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
         public InitInfo Init;						// Information used during initialization
 #if !OMIT_AUTHORIZATION
-        public Func<object, int, string, string, string, int, RC> Auth; // Access authorization function
+        public Func<object, int, string, string, string, string, ARC> Auth; // Access authorization function
         public object AuthArg;						// 1st argument to the access auth function
 #endif
 #if !OMIT_VIRTUALTABLE

@@ -643,9 +643,9 @@ namespace Core
         public const int EXPRDUP_REDUCE = 0x0001;  // Used reduced-size Expr nodes
     }
 
-    public struct ExprList
+    public class ExprList
     {
-        public struct ExprListItem
+        public class ExprListItem
         {
             public Expr Expr;				// The list of expressions
             public char Name;				// Token associated with this expression
@@ -830,6 +830,11 @@ namespace Core
 #endif
         public Table ZombieTab;			// List of Table objects to delete after code gen
         public TriggerPrg TriggerPrg;		// Linked list of coded triggers
+
+        internal Vdbe GetVdbe()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public struct AuthContext
@@ -964,8 +969,9 @@ namespace Core
 
     public enum ARC : byte
     {
-        DENY = 1,   // Abort the SQL statement with an error
-        IGNORE = 2,   // Don't allow access, but don't generate an error
+        OK = 0,         // Successful result
+        DENY = 1,       // Abort the SQL statement with an error
+        IGNORE = 2,     // Don't allow access, but don't generate an error
     }
 
     public enum AUTH : byte

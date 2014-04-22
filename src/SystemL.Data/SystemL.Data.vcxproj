@@ -63,7 +63,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\VTable.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Build.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\ParseBuild.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\TokenizeComplete.cu" />

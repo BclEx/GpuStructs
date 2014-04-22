@@ -114,36 +114,35 @@ namespace Core
         #endregion
 
         #region Explain
-#if ENABLE_TREE_EXPLAIN
+#if false && ENABLE_TREE_EXPLAIN
 
-	__device__ void sqlite3ExplainBegin(Vdbe *vdbe)
+	public static void ExplainBegin(Vdbe vdbe)
 	{
-		if (vdbe)
+		if (vdbe != null)
 		{
-			SysEx::BeginBenignAlloc();
-			Explain *p = (Explain *)SysEx::Alloc(sizeof(Explain), true);
+			SysEx.BeginBenignAlloc();
+			Explain p = new Explain();
 			if (p)
 			{
-				p->Vdbe = vdbe;
-				SysEx::Free(vdbe->Explain);
-				vdbe->Explain = p;
-				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), MAX_LENGTH);
-				p->Str.UseMalloc = 2;
+				p.Vdbe = vdbe;
+				vdbe.Explain = p;
+				Text.StringBuilder.Init(p.Str, p.ZBase, sizeof(p.ZBase), MAX_LENGTH);
+				p.Str.UseMalloc = 2;
 			}
 			else
-				SysEx::EndBenignAlloc();
+				SysEx.EndBenignAlloc();
 		}
 	}
 
-	__device__ inline static int endsWithNL(Explain *p)
+	static int EndsWithNL(Explain p)
 	{
-		return (p && p->Str.zText && p->Str.nChar && p->Str.zText[p->Str.nChar-1]=='\n');
+		return (p != null && p.Str.zText && p.Str.nChar && p.Str.zText[p.Str.nChar-1]=='\n');
 	}
 
-	__device__ void sqlite3ExplainPrintf(Vdbe *pVdbe, const char *zFormat, ...)
+	public static void sqlite3ExplainPrintf(Vdbe vdbe, string format, params object[] args)
 	{
-		Explain *p;
-		if (vdbe && (p = vdbe->Explain) != nullptr)
+		Explain p;
+		if (vdbe != null && (p = vdbe.Explain) != null)
 		{
 			va_list ap;
 			if (p->Indents && endsWithNL(p))

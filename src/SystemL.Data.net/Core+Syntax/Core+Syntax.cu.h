@@ -1271,9 +1271,9 @@ int sqlite3_value_numeric_type(sqlite3_value*);
 
 	enum ARC : uint8
 	{
-		ARC_OK = 0,
-		ARC_DENY = 1,   // Abort the SQL statement with an error
-		ARC_IGNORE = 2,   // Don't allow access, but don't generate an error
+		ARC_OK = 0,			// Successful result
+		ARC_DENY = 1,		// Abort the SQL statement with an error
+		ARC_IGNORE = 2,		// Don't allow access, but don't generate an error
 	};
 
 	enum AUTH : uint8
@@ -1317,7 +1317,7 @@ int sqlite3_value_numeric_type(sqlite3_value*);
 	{
 		__device__ static RC SetAuthorizer(Context *ctx, ARC (*auth)(void*,int,const char*,const char*,const char*,const char*), void *args);
 		__device__ static void BadReturnCode(Parse *parse);
-		__device__ static RC ReadColumn(Parse *parse, const char *table, const char *column, int db);
+		__device__ static ARC ReadColumn(Parse *parse, const char *table, const char *column, int db);
 		__device__ static void Read(Parse *parse, Expr *expr, Schema *schema, SrcList *tableList);
 		__device__ static ARC Check(Parse *parse, int code, const char *arg1, const char *arg2, const char *arg3);
 		__device__ static void ContextPush(Parse *parse, AuthContext *actx, const char *context);
