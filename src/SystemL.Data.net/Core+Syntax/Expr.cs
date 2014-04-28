@@ -1,16 +1,12 @@
-#define SQLITE_MAX_EXPR_DEPTH
-
+#define MAX_EXPR_DEPTH
 using System;
 using System.Diagnostics;
 using System.Text;
-
-
-using Pgno = System.UInt32;
-
+using Pid = System.UInt32;
 #if !MAX_VARIABLE_NUMBER
-using ynVar = System.Int16;
+using yVars = System.Int16;
 #else
-using ynVar = System.Int32; 
+using yVars = System.Int32; 
 #endif
 
 namespace Core
@@ -669,11 +665,11 @@ Parse.Dequote(ref pNew.u._zToken);
             {
                 /* Wildcard of the form "?".  Assign the next variable number */
                 Debug.Assert(z[0] == '?');
-                pExpr.iColumn = (ynVar)(++pParse.nVar);
+                pExpr.iColumn = (yVars)(++pParse.nVar);
             }
             else
             {
-                ynVar x = 0;
+                yVars x = 0;
                 int n = sqlite3Strlen30(z);
                 if (z[0] == '?')
                 {
@@ -681,7 +677,7 @@ Parse.Dequote(ref pNew.u._zToken);
                     ** use it as the variable number */
                     i64 i = 0;
                     bool bOk = 0 == sqlite3Atoi64(z.Substring(1), ref i, n - 1, SQLITE_UTF8);
-                    pExpr.iColumn = x = (ynVar)i;
+                    pExpr.iColumn = x = (yVars)i;
                     testcase(i == 0);
                     testcase(i == 1);
                     testcase(i == db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER] - 1);
@@ -703,16 +699,16 @@ Parse.Dequote(ref pNew.u._zToken);
                     ** number as the prior appearance of the same name, or if the name
                     ** has never appeared before, reuse the same variable number
                     */
-                    ynVar i;
+                    yVars i;
                     for (i = 0; i < pParse.nzVar; i++)
                     {
                         if (pParse.azVar[i] != null && z.CompareTo(pParse.azVar[i]) == 0) //memcmp(pParse.azVar[i],z,n+1)==0 )
                         {
-                            pExpr.iColumn = x = (ynVar)(i + 1);
+                            pExpr.iColumn = x = (yVars)(i + 1);
                             break;
                         }
                     }
-                    if (x == 0) x = pExpr.iColumn = (ynVar)(++pParse.nVar);
+                    if (x == 0) x = pExpr.iColumn = (yVars)(++pParse.nVar);
                 }
                 if (x > 0)
                 {

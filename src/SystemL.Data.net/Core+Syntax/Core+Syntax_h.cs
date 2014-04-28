@@ -594,8 +594,8 @@ namespace Core
         public Expr Right;				// Right subnode
         public class _x
         {
-            ExprList List;			// Function arguments or in "<expr> IN (<expr-list)"
-            Select Select;			// Used for sub-selects and "<expr> IN (<select>)"
+            public ExprList List;			// Function arguments or in "<expr> IN (<expr-list)"
+            public Select Select;			// Used for sub-selects and "<expr> IN (<select>)"
         }
         public _x x;
 
@@ -648,7 +648,7 @@ namespace Core
         public class ExprListItem
         {
             public Expr Expr;				// The list of expressions
-            public char Name;				// Token associated with this expression
+            public string Name;				// Token associated with this expression
             public char Span;				// Original text of the expression
             public byte SortOrder;        // 1 for DESC or 0 for ASC
             public bool Done;		// A flag to indicate when processing is finished
@@ -659,7 +659,7 @@ namespace Core
         public int Exprs;					// Number of expressions on the list
         public int ECursor;				// VDBE Cursor associated with this ExprList
         // For each expression in the list
-        public ExprListItem Ids;			// Alloc a power of two greater or equal to nExpr
+        public ExprListItem[] Ids;			// Alloc a power of two greater or equal to nExpr
     }
 
     public class ExprSpan
