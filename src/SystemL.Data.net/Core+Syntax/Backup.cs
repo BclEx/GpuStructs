@@ -137,7 +137,7 @@ namespace Core
             Debug.Assert(p.Src.GetReserveNoMutex() >= 0);
             Debug.Assert(p.DestLocked);
             Debug.Assert(!IsFatalError(p.RC));
-            Debug.Assert(srcPg != PENDING_BYTE_PAGE(p.Src.Bt));
+            Debug.Assert(srcPg != Btree.PENDING_BYTE_PAGE(p.Src.Bt));
             Debug.Assert(srcData != null);
 
             // Catch the case where the destination is an in-memory database and the page sizes of the source and destination differ.
@@ -145,40 +145,40 @@ namespace Core
                 rc = RC.READONLY;
 
 #if HAS_CODEC
-              int srcReserve = p.Src.GetReserveNoMutex();
-  int destReserve = p.Dest.GetReserve();
+            int srcReserve = p.Src.GetReserveNoMutex();
+            int destReserve = p.Dest.GetReserve();
 
 
-  // Backup is not possible if the page size of the destination is changing and a codec is in use.
-  if ( srcPgsz != destPgsz && Pager.GetCodec(destPager) != null)
-    rc = RC.READONLY;
+            // Backup is not possible if the page size of the destination is changing and a codec is in use.
+            if (srcPgsz != destPgsz && Pager.GetCodec(destPager) != null)
+                rc = RC.READONLY;
 
-  // Backup is not possible if the number of bytes of reserve space differ between source and destination.  If there is a difference, try to
-  // fix the destination to agree with the source.  If that is not possible, then the backup cannot proceed.
-  if ( srcReserve != destReserve )
-  {
-    uint newPgsz = (uint)srcPgsz;
-    rc = destPager.SetPageSize(ref newPgsz, srcReserve);
-    if ( rc == RC.OK && newPgsz != srcPgsz)
-      rc = RC.READONLY;
-  }
+            // Backup is not possible if the number of bytes of reserve space differ between source and destination.  If there is a difference, try to
+            // fix the destination to agree with the source.  If that is not possible, then the backup cannot proceed.
+            if (srcReserve != destReserve)
+            {
+                uint newPgsz = (uint)srcPgsz;
+                rc = destPager.SetPageSize(ref newPgsz, srcReserve);
+                if (rc == RC.OK && newPgsz != srcPgsz)
+                    rc = RC.READONLY;
+            }
 #endif
 
-    		// This loop runs once for each destination page spanned by the source page. For each iteration, variable iOff is set to the byte offset
-		// of the destination page.
+            // This loop runs once for each destination page spanned by the source page. For each iteration, variable iOff is set to the byte offset
+            // of the destination page.
             for (long off = end - (long)srcPgsz; rc == RC.OK && off < end; off += destPgsz)
             {
                 IPage destPg = null;
                 uint dest = (uint)(off / destPgsz) + 1;
-                if (dest == PENDING_BYTE_PAGE(p.Dest.Bt))
+                if (dest == Btree.PENDING_BYTE_PAGE(p.Dest.Bt))
                     continue;
-                if ((rc = destPager.Acquire(dest, ref destPg, false) == RC.OK && (rc = Pager.Write(destPg)) == RC.OK)
+                if ((rc = destPager.Acquire(dest, ref destPg, false)) == RC.OK && (rc = Pager.Write(destPg)) == RC.OK)
                 {
                     byte[] destData = Pager.GetData(destPg);
 
-				// Copy the data from the source page into the destination page. Then clear the Btree layer MemPage.isInit flag. Both this module
-				// and the pager code use this trick (clearing the first byte of the page 'extra' space to invalidate the Btree layers
-				// cached parse of the page). MemPage.isInit is marked "MUST BE FIRST" for this purpose.
+                    // Copy the data from the source page into the destination page. Then clear the Btree layer MemPage.isInit flag. Both this module
+                    // and the pager code use this trick (clearing the first byte of the page 'extra' space to invalidate the Btree layers
+                    // cached parse of the page). MemPage.isInit is marked "MUST BE FIRST" for this purpose.
                     Buffer.BlockCopy(srcData, (int)(off % srcPgsz), destData, (int)(off % destPgsz), copy);
                     Pager.GetExtra(destPg).IsInit = false;
                 }
@@ -373,18 +373,18 @@ namespace Core
                         }
                         else
                         {
-						destPager.TruncateImage(destTruncate);
-						rc = destPager.CommitPhaseOne((null, false);
+                            destPager.TruncateImage(destTruncate);
+                            rc = destPager.CommitPhaseOne(null, false);
                         }
 
                         // Finish committing the transaction to the destination database.
-                        if (rc == RC.OK&& (rc = p.Dest.CommitPhaseTwo(false)) == RC.OK)
+                        if (rc == RC.OK && (rc = p.Dest.CommitPhaseTwo(false)) == RC.OK)
                             rc = RC.DONE;
                     }
                 }
 
                 // If bCloseTrans is true, then this function opened a read transaction on the source database. Close the read transaction here. There is
-			    // no need to check the return values of the btree methods here, as "committing" a read-only transaction cannot fail.
+                // no need to check the return values of the btree methods here, as "committing" a read-only transaction cannot fail.
                 if (closeTrans)
                 {
 #if !DEBUG || COVERAGE_TEST
@@ -405,7 +405,7 @@ namespace Core
                 MutexEx.Leave(p.DestCtx.Mutex);
             p.Src.Leave();
             MutexEx.Leave(p.SrcCtx.Mutex);
-                return rc;
+            return rc;
         }
 
         public static RC Finish(Backup p)

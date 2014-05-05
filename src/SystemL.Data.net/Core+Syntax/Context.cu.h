@@ -86,7 +86,7 @@ namespace Core
 
 		OPTFLAG OptFlags;
 		VSystem *Vfs;						// OS Interface
-		array_t<struct Vdbe> Vdbe;			// List of active virtual machines
+		array_t<Vdbe> Vdbe;					// List of active virtual machines
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
 		int64 LastRowID;					// ROWID of most recent insert (see above)
 		unsigned int OpenFlags;				// Flags passed to sqlite3_vfs.xOpen()
@@ -108,6 +108,7 @@ namespace Core
 		bool MallocFailed;					// True if we have seen a malloc failure
 		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
 		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
+		int NextPagesize;					// Pagesize after VACUUM if >0
 		MAGIC Magic;						// Magic number for detect library misuse
 		int Limits[LIMIT_MAX_];				// Limits
 		InitInfo Init;						// Information used during initialization
@@ -123,7 +124,18 @@ namespace Core
 #endif
 		FuncDefHash Funcs;					// Hash table of connection functions
 		Hash CollSeqs;						// All collating sequences
+
+		DB DbStatics[2];					// Static space for the 2 default backends
+		int Statements;						// Number of nested statement-transactions
+		int64 DeferredCons;					// Net deferred constraints this transaction.
 		int *BytesFreed;					// If not NULL, increment this in DbFree()
+#ifdef ENABLE_UNLOCK_NOTIFY
+		Context *BlockingConnection;			// Connection that caused SQLITE_LOCKED
+		Context *UnlockConnection;				// Connection to watch for unlock
+		void *UnlockArg;						// Argument to xUnlockNotify
+		void (*UnlockNotify)(void **, int);		// Unlock notify callback
+		Context *NextBlocked;					// Next in list of all blocked connections
+#endif
 
 		__device__ inline static RC ApiExit(Context *ctx, RC rc)
 		{
@@ -138,6 +150,7 @@ namespace Core
 			}
 			return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
 		}
+
 
 		//////////////////////
 		// ERROR

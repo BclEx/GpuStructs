@@ -56,7 +56,9 @@ namespace Core
         public int ActiveVdbeCnt;
         public BusyHandlerType BusyHandler;
         public Savepoint Savepoints;            // List of active savepoints
+        public int BusyTimeout;				    // Busy handler timeout, in msec
         public int SavepointsLength;            // Number of non-transaction savepoints
+        //public bool IsTransactionSavepoint;     // True if the outermost savepoint is a TS
 
         public int InvokeBusyHandler()
         {

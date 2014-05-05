@@ -44,8 +44,6 @@ namespace Core
 
 #pragma region Func
 
-	struct FuncContext;
-
 	enum FUNC : uint8
 	{
 		FUNC_LIKE = 0x01,			// Candidate for the LIKE optimization
@@ -66,6 +64,7 @@ namespace Core
 		void *UserData;
 	};
 
+	struct FuncContext;
 	struct FuncDef
 	{
 		int16 Args;					// Number of arguments.  -1 means unlimited
@@ -172,7 +171,7 @@ namespace Core
 		int IdxNum;					// Number used to identify the index
 		char *IdxStr;				// String, possibly obtained from sqlite3_malloc
 		int NeedToFreeIdxStr;		// Free idxStr using sqlite3_free() if true
-		int OrderByConsumed;		// True if output is already ordered
+		bool OrderByConsumed;		// True if output is already ordered
 		double EstimatedCost;		// Estimated cost of using this index
 	};
 
@@ -251,21 +250,21 @@ namespace Core
 	{
 		union
 		{
-			char *Z;			// Value if eType is SQLITE_TEXT or SQLITE_BLOB */
-			double R;			// Value if eType is SQLITE_FLOAT */
-			int64 I;			// Value if eType is SQLITE_INTEGER */
+			char *Z;				// Value if eType is SQLITE_TEXT or SQLITE_BLOB */
+			double R;				// Value if eType is SQLITE_FLOAT */
+			int64 I;				// Value if eType is SQLITE_INTEGER */
 		} u;
-		TYPE Type;				// SQLITE_NULL, SQLITE_INTEGER ... etc.
-		int Bytes;				// Size in byte of text or blob.
-		tRowcnt Eqs;			// Est. number of rows where the key equals this sample
-		tRowcnt Lts;			// Est. number of rows where key is less than this sample
-		tRowcnt DLts;			// Est. number of distinct keys less than this sample
+		TYPE Type;					// SQLITE_NULL, SQLITE_INTEGER ... etc.
+		int Bytes;					// Size in byte of text or blob.
+		tRowcnt Eqs;				// Est. number of rows where the key equals this sample
+		tRowcnt Lts;				// Est. number of rows where key is less than this sample
+		tRowcnt DLts;				// Est. number of distinct keys less than this sample
 	};
 
 	struct Token
 	{
-		const char *data;     // Text of the token.  Not NULL-terminated!
-		uint32 length;		// Number of characters in this token
+		const char *data;			// Text of the token.  Not NULL-terminated!
+		uint32 length;				// Number of characters in this token
 	};
 
 	struct Expr;
@@ -327,21 +326,21 @@ namespace Core
 	{
 		struct IdListItem
 		{
-			char *Name;     // Name of the identifier
-			int Idx;        // Index in some Table.aCol[] of a column named zName
+			char *Name;			// Name of the identifier
+			int Idx;			// Index in some Table.aCol[] of a column named zName
 		};
 		array_t<IdListItem> Ids;
 	};
 
 	enum JT : uint8
 	{
-		JT_INNER = 0x0001,    // Any kind of inner or cross join
-		JT_CROSS = 0x0002,    // Explicit use of the CROSS keyword
-		JT_NATURAL = 0x0004,    // True for a "natural" join
-		JT_LEFT = 0x0008,    // Left outer join
-		JT_RIGHT = 0x0010,    // Right outer join
-		JT_OUTER = 0x0020,    // The "OUTER" keyword is present
-		JT_ERROR = 0x0040,    // unknown or unsupported join type
+		JT_INNER = 0x0001,		// Any kind of inner or cross join
+		JT_CROSS = 0x0002,		// Explicit use of the CROSS keyword
+		JT_NATURAL = 0x0004,	// True for a "natural" join
+		JT_LEFT = 0x0008,		// Left outer join
+		JT_RIGHT = 0x0010,		// Right outer join
+		JT_OUTER = 0x0020,		// The "OUTER" keyword is present
+		JT_ERROR = 0x0040,		// unknown or unsupported join type
 	};
 
 	struct Select;
@@ -399,7 +398,7 @@ namespace Core
 		union
 		{
 			Index *Index;               // Index when WHERE_INDEXED is true
-			WhereTerm *Term;     // WHERE clause term for OR-search
+			WhereTerm *Term;			// WHERE clause term for OR-search
 			IIndexInfo *VTableIndex;	// Virtual table index to use
 		} u;
 	};
@@ -528,12 +527,12 @@ namespace Core
 		SRT_Exists = 3,				// Store 1 if the result is not empty
 		SRT_Discard = 4,			// Do not save the results anywhere
 		// IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
-		SRT_Output = 5,  // Output each row of result
-		SRT_Mem = 6,  // Store result in a memory cell
-		SRT_Set = 7,  // Store results as keys in an index
-		SRT_Table = 8,  // Store result as data with an automatic rowid
-		SRT_EphemTab = 9,  // Create transient tab and store like SRT_Table
-		SRT_Coroutine = 10,  // Generate a single row of result
+		SRT_Output = 5,				// Output each row of result
+		SRT_Mem = 6,				// Store result in a memory cell
+		SRT_Set = 7,				// Store results as keys in an index
+		SRT_Table = 8,				// Store result as data with an automatic rowid
+		SRT_EphemTab = 9,			// Create transient tab and store like SRT_Table
+		SRT_Coroutine = 10,			// Generate a single row of result
 	};
 
 #define IgnorableOrderby(x) ((x->Dest)<=SRT_Discard)
@@ -587,7 +586,7 @@ namespace Core
 		union
 		{
 			char *Token;			// Token value. Zero terminated and dequoted
-			int I;				// Non-negative integer value if EP_IntValue
+			int I;					// Non-negative integer value if EP_IntValue
 		} u;
 
 		// If the EP_TokenOnly flag is set in the Expr.flags mask, then no space is allocated for the fields below this point. An attempt to
@@ -677,9 +676,9 @@ namespace Core
 #define ExprSetProperty(x,p)     (E)->Flags|=(P)
 #define ExprClearProperty(x,p)   (E)->Flags&=~(P)
 
-#define EXPR_FULLSIZE           sizeof(Expr)           // Full size
-#define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)  // Common features
-#define EXPR_TOKENONLYSIZE      offsetof(Expr, Left)   // Fewer features
+#define EXPR_FULLSIZE           sizeof(Expr)				// Full size
+#define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)	// Common features
+#define EXPR_TOKENONLYSIZE      offsetof(Expr, Left)		// Fewer features
 
 #define EXPRDUP_REDUCE         0x0001  // Used reduced-size Expr nodes
 
@@ -823,7 +822,7 @@ namespace Core
 		//uint8 ColCaches;			// Number of entries in aColCache[]
 		uint8 ColCacheIdx;			// Next entry in aColCache[] to replace
 		uint8 IsMultiWrite;			// True if statement may modify/insert multiple rows
-		uint8 MayAbort;				// True if statement may throw an ABORT exception
+		bool MayAbort;				// True if statement may throw an ABORT exception
 		array_t3<uint8, int, 8> TempReg; // Holding area for temporary registers
 		int RangeRegs;				// Size of the temporary register block
 		int RangeRegIdx;			// First register in temporary register block
@@ -961,7 +960,7 @@ namespace Core
 #pragma endregion
 
 
-#pragma region From: Build_c
+#pragma region From: ParseBuild_c
 		__device__ void BeginParse(bool explainFlag);
 #ifndef OMIT_SHARED_CACHE
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
@@ -1007,7 +1006,7 @@ namespace Core
 		__device__ static void ViewResetAll(Context *ctx, int db);
 #endif
 #ifndef OMIT_AUTOVACUUM
-		__device__ void Parse::RootPageMoved(Context *ctx, int db, int from, int to);
+		__device__ void RootPageMoved(Context *ctx, int db, int from, int to);
 #endif
 		__device__ void ClearStatTables(int db, const char *type, const char *name);
 		__device__ void CodeDropTable(Table *table, int db, bool isView);
@@ -1016,8 +1015,32 @@ namespace Core
 		__device__ void DeferForeignKey(bool isDeferred);
 		__device__ void RefillIndex(Index *index, int memRootPage);
 		__device__ Index *CreateIndex(Token *name1, Token *name2, SrcList *tableName, ExprList *list, OE onError, Token *start, Token *end, int sortOrder, bool ifNotExist);
-
-
+		__device__ static void DefaultRowEst(Index *index);
+		__device__ void DropIndex(SrcList *name, bool ifExists);
+		__device__ static void *ArrayAllocate(Context *ctx, void *array_, int entrySize, int *entryLength, int *index);
+		__device__ static IdList *IdListAppend(Context *ctx, IdList *list, Token *token);
+		__device__ static void IdListDelete(Context *ctx, IdList *list);
+		__device__ static int IdListIndex(IdList *list, const char *name);
+		__device__ static SrcList *SrcListEnlarge(Context *ctx, SrcList *src, int extra, int start);
+		__device__ static SrcList *SrcListAppend(Context *ctx, SrcList *list, Token *table, Token *database);
+		__device__ void SrcListAssignCursors(SrcList *list);
+		__device__ static void SrcListDelete(Context *ctx, SrcList *list);
+		__device__ SrcList *SrcListAppendFromTerm(SrcList *list, Token *table, Token *database, Token *alias, Select *subquery, Expr *on, IdList *using_);
+		__device__ void SrcListIndexedBy(SrcList *list, Token *indexedBy);
+		__device__ static void SrcListShiftJoinType(SrcList *list);
+		__device__ void BeginTransaction(int type);
+		__device__ void CommitTransaction();
+		__device__ void RollbackTransaction();
+		__device__ void Savepoint(int op, Token *name);
+		__device__ int OpenTempDatabase();
+		__device__ void CodeVerifySchema(int db);
+		__device__ void CodeVerifyNamedSchema(const char *dbName);
+		__device__ void BeginWriteOperation(int setStatement, int db);
+		__device__ void MultiWrite();
+		__device__ void MayAbort();
+		__device__ void HaltConstraint(int errCode, int onError, char *p4, int p4type);
+		__device__ void Reindex(Token *name1, Token *name2);
+		__device__ KeyInfo *IndexKeyinfo(Index *index);
 #pragma endregion
 
 	};
@@ -1031,9 +1054,6 @@ namespace Core
 #pragma endregion
 
 #pragma region Table
-
-	struct Trigger;
-	struct Expr;
 
 	struct TableModule
 	{
@@ -1052,14 +1072,14 @@ namespace Core
 
 	struct Column
 	{
-		char *Name;					// Name of this column
-		Expr *Dflt;					// Default value of this column
-		char *DfltName;				// Original text of the default value
-		char *Type;					// Data type for this column
-		char *Coll;					// Collating sequence.  If NULL, use the default
-		uint8 NotNull;				// An OE_ code for handling a NOT NULL constraint
-		AFF Affinity;				// One of the SQLITE_AFF_... values
-		COLFLAG ColFlags;			// Boolean properties.  See COLFLAG_ defines below
+		char *Name;						// Name of this column
+		Expr *Dflt;						// Default value of this column
+		char *DfltName;					// Original text of the default value
+		char *Type;						// Data type for this column
+		char *Coll;						// Collating sequence.  If NULL, use the default
+		uint8 NotNull;					// An OE_ code for handling a NOT NULL constraint
+		AFF Affinity;					// One of the SQLITE_AFF_... values
+		COLFLAG ColFlags;				// Boolean properties.  See COLFLAG_ defines below
 	};
 
 	enum VTABLECONFIG : uint8
@@ -1119,11 +1139,11 @@ namespace Core
 
 	enum TF : uint8
 	{
-		TF_Readonly = 0x01,    // Read-only system table
-		TF_Ephemeral = 0x02,    // An ephemeral table
+		TF_Readonly = 0x01,			// Read-only system table
+		TF_Ephemeral = 0x02,		// An ephemeral table
 		TF_HasPrimaryKey = 0x04,    // Table has a primary key
 		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
-		TF_Virtual = 0x10,    // Is a virtual table
+		TF_Virtual = 0x10,			// Is a virtual table
 	};
 	__device__ TF inline operator|=(TF a, int b) { return (TF)(a | b); }
 
@@ -1131,34 +1151,34 @@ namespace Core
 	struct Select;
 	struct FKey;
 	struct ExprList;
-
+	struct Trigger;
 	struct Table
 	{
-		char *Name;				// Name of the table or view
-		array_t2<int16, Column> Cols;        // Information about each column
-		Index *Index;			// List of SQL indexes on this table.
-		Select *Select;			// NULL for tables.  Points to definition if a view.
-		FKey *FKeys;			// Linked list of all foreign keys in this table
-		char *ColAff;			// String defining the affinity of each column
+		char *Name;					// Name of the table or view
+		array_t2<int16, Column> Cols;   // Information about each column
+		Index *Index;				// List of SQL indexes on this table.
+		Select *Select;				// NULL for tables.  Points to definition if a view.
+		FKey *FKeys;				// Linked list of all foreign keys in this table
+		char *ColAff;				// String defining the affinity of each column
 #ifndef OMIT_CHECK
-		ExprList *Check;		// All CHECK constraints
+		ExprList *Check;			// All CHECK constraints
 #endif
-		tRowcnt RowEst;			// Estimated rows in table - from sqlite_stat1 table
-		int Id;				// Root BTree node for this table (see note above)
-		int16 PKey;				// If not negative, use aCol[iPKey] as the primary key
-		uint16 Refs;            // Number of pointers to this Table
-		TF TabFlags;			// Mask of TF_* values
-		uint8 KeyConf;          // What to do in case of uniqueness conflict on iPKey
+		tRowcnt RowEst;				// Estimated rows in table - from sqlite_stat1 table
+		int Id;						// Root BTree node for this table (see note above)
+		int16 PKey;					// If not negative, use aCol[iPKey] as the primary key
+		uint16 Refs;				// Number of pointers to this Table
+		TF TabFlags;				// Mask of TF_* values
+		uint8 KeyConf;				// What to do in case of uniqueness conflict on iPKey
 #ifndef OMIT_ALTERTABLE
-		int AddColOffset;		// Offset in CREATE TABLE stmt to add a new column
+		int AddColOffset;			// Offset in CREATE TABLE stmt to add a new column
 #endif
 #ifndef OMIT_VIRTUALTABLE
 		array_t<char *>ModuleArgs;  // Text of all module args. [0] is module name
-		VTable *VTables;		// List of VTable objects.
+		VTable *VTables;			// List of VTable objects.
 #endif
-		Trigger *Triggers;		// List of triggers stored in pSchema
-		Schema *Schema;			// Schema that contains this table
-		Table *NextZombie;		// Next on the Parse.pZombieTab list
+		Trigger *Triggers;			// List of triggers stored in pSchema
+		Schema *Schema;				// Schema that contains this table
+		Table *NextZombie;			// Next on the Parse.pZombieTab list
 	};
 
 #ifndef OMIT_VIRTUALTABLE
@@ -1171,7 +1191,7 @@ namespace Core
 
 	struct FKey
 	{
-		struct ColMap // Mapping of columns in pFrom to columns in zTo
+		struct ColMap			// Mapping of columns in pFrom to columns in zTo
 		{		
 			int From;			// Index of column in pFrom
 			char *Col;			// Name of column in zTo.  If 0 use PRIMARY KEY
@@ -1205,49 +1225,43 @@ namespace Core
 
 	struct Mem;
 
-
-inline const void *Mem_Blob(Mem *p)
-{
-  if (p->Flags & (MEM_Blob|MEM_Str))
-  {
-    sqlite3VdbeMemExpandBlob(p);
-    p->Flags &= ~MEM_Str;
-    p->Flags |= MEM_Blob;
-    return (p->length ? p->data : 0);
-  }
-  else
-    return Mem_Text(p);
-}
-int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
-int sqlite3_value_bytes16(sqlite3_value *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
-double sqlite3_value_double(sqlite3_value *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
-int sqlite3_value_int(sqlite3_value *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
-sqlite_int64 sqlite3_value_int64(sqlite3_value *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
-const unsigned char *sqlite3_value_text(sqlite3_value *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, SQLITE_UTF8); }
+	inline const void *Mem_Blob(Mem *p)
+	{
+		if (p->Flags & (MEM_Blob|MEM_Str))
+		{
+			sqlite3VdbeMemExpandBlob(p);
+			p->Flags &= ~MEM_Str;
+			p->Flags |= MEM_Blob;
+			return (p->length ? p->data : 0);
+		}
+		else
+			return Mem_Text(p);
+	}
+	int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
+	int sqlite3_value_bytes16(Mem *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
+	double sqlite3_value_double(Mem *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
+	int sqlite3_value_int(Mem *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
+	int64 sqlite3_value_int64(Mem *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
+	const unsigned char *sqlite3_value_text(Mem *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, TEXTENCODE_UTF8); }
 #ifndef OMIT_UTF16
-const void *sqlite3_value_text16(sqlite3_value* pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16NATIVE); }
-const void *sqlite3_value_text16be(sqlite3_value *pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16BE); }
-const void *sqlite3_value_text16le(sqlite3_value *pVal){ return sqlite3ValueText(pVal, SQLITE_UTF16LE); }
+	const void *sqlite3_value_text16(Mem* pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16NATIVE); }
+	const void *sqlite3_value_text16be(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16BE); }
+	const void *sqlite3_value_text16le(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16LE); }
 #endif
-int sqlite3_value_type(sqlite3_value* pVal){ return pVal->type; }
+	int sqlite3_value_type(Mem* pVal){ return pVal->type; }
 
-
-
-
-	const void *sqlite3_value_blob(sqlite3_value*);
-int sqlite3_value_bytes(sqlite3_value*);
-int sqlite3_value_bytes16(sqlite3_value*);
-double sqlite3_value_double(sqlite3_value*);
-int sqlite3_value_int(sqlite3_value*);
-sqlite3_int64 sqlite3_value_int64(sqlite3_value*);
-const unsigned char *sqlite3_value_text(sqlite3_value*);
-const void *sqlite3_value_text16(sqlite3_value*);
-const void *sqlite3_value_text16le(sqlite3_value*);
-const void *sqlite3_value_text16be(sqlite3_value*);
-int sqlite3_value_type(sqlite3_value*);
-int sqlite3_value_numeric_type(sqlite3_value*);
-
-
+	const void *sqlite3_value_blob(Mem*);
+	int sqlite3_value_bytes(Mem*);
+	int sqlite3_value_bytes16(Mem*);
+	double sqlite3_value_double(Mem*);
+	int sqlite3_value_int(Mem*);
+	int64 sqlite3_value_int64(Mem*);
+	const unsigned char *sqlite3_value_text(Mem*);
+	const void *sqlite3_value_text16(Mem*);
+	const void *sqlite3_value_text16le(Mem*);
+	const void *sqlite3_value_text16be(Mem*);
+	int sqlite3_value_type(Mem*);
+	int sqlite3_value_numeric_type(Mem*);
 
 	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
 	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
@@ -1260,12 +1274,12 @@ int sqlite3_value_numeric_type(sqlite3_value*);
 #pragma endregion
 
 #pragma region Backup
-	
+
 	struct Backup
 	{
 	};
 
-#pragma region
+#pragma endregion
 
 #pragma region Authorization
 
@@ -1325,7 +1339,6 @@ int sqlite3_value_numeric_type(sqlite3_value*);
 	};
 
 #pragma endregion
-
 
 	__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);
 }

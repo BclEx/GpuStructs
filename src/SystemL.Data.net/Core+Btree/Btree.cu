@@ -1,4 +1,4 @@
-// btree.c
+// btree.cBtreeOpen
 #include "Core+Btree.cu.h"
 #include "BtreeInt.cu.h"
 #include <stddef.h>

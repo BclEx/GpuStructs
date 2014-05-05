@@ -112,6 +112,7 @@ namespace Core
         public bool MallocFailed;					// True if we have seen a malloc failure
         public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
         public byte IsTransactionSavepoint;		    // True if the outermost savepoint is a TS
+        public int NextPagesize;					// Pagesize after VACUUM if >0
         public MAGIC Magic;						    // Magic number for detect library misuse
         public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
         public InitInfo Init;						// Information used during initialization
@@ -127,7 +128,17 @@ namespace Core
 #endif
         public FuncDefHash Funcs;					// Hash table of connection functions
         public Hash CollSeqs;						// All collating sequences
-        public int* BytesFreed;					    // If not NULL, increment this in DbFree()
+        public DB[] DBStatics = new[] { new DB(), new DB() }; // Static space for the 2 default backends
+        public int Statements;                      // Number of nested statement-transactions
+        public long DeferredCons;                   // Net deferred constraints this transaction.
+        public int BytesFreed;					    // If not NULL, increment this in DbFree()
+#if ENABLE_UNLOCK_NOTIFY
+        public Context BlockingConnection;          // Connection that caused SQLITE_LOCKED
+        public Context UnlockConnection;            // Connection to watch for unlock
+        public object UnlockArg;                    // Argument to xUnlockNotify
+        public Action<object[], int> UnlockNotify;  // Unlock notify callback
+        public Context NextBlocked;                 // Next in list of all blocked connections
+#endif
 
         internal static void Error(object tag, RC rc, string format, params object[] args)
         {

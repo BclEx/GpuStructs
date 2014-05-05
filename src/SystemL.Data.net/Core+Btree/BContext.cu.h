@@ -58,7 +58,9 @@ namespace Core
 		int ActiveVdbeCnt;
 		BusyHandlerType *BusyHandler;
 		Savepoint *Savepoints;			// List of active savepoints
+		int BusyTimeout;				// Busy handler timeout, in msec
 		int SavepointsLength;			// Number of non-transaction savepoints
+        //bool IsTransactionSavepoint;    // True if the outermost savepoint is a TS
 
 		__device__ inline int InvokeBusyHandler()
 		{

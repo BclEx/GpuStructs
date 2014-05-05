@@ -27,12 +27,12 @@ namespace Core
         Empty = 0x0004,             // The file is empty (length 0 bytes)
     }
 
-    public static class BtreeEx
+    public static class E
     {
         public static bool DbHasProperty(BContext D, int I, SCHEMA P) { return (((D).DBs[I].Schema.Flags & (P)) == (P)); }
         public static bool DbHasAnyProperty(BContext D, int I, SCHEMA P) { return (((D).DBs[I].Schema.Flags & (P)) != 0); }
-        public static bool DbSetProperty(BContext D, int I, SCHEMA P) { return (D).DBs[I].Schema.Flags |= (P); }
-        public static bool DbClearProperty(BContext D, int I, SCHEMA P) { return (D).DBs[I].Schema.Flags &= ~(P); }
+        public static SCHEMA DbSetProperty(BContext D, int I, SCHEMA P) { return (D).DBs[I].Schema.Flags |= (P); }
+        public static SCHEMA DbClearProperty(BContext D, int I, SCHEMA P) { return (D).DBs[I].Schema.Flags &= ~(P); }
     }
 
     public class Schema
