@@ -237,7 +237,7 @@ namespace Core
 		uint8 *SortOrders;			// for each column: True==DESC, False==ASC
 		char **CollNames;			// Array of collation sequence names for index
 		int Id;						// DB Page containing root of this index
-		uint8 OnError;				// OE_Abort, OE_Ignore, OE_Replace, or OE_None
+		OE OnError;					// OE_Abort, OE_Ignore, OE_Replace, or OE_None
 		unsigned AutoIndex:2;		// 1==UNIQUE, 2==PRIMARY KEY, 0==CREATE INDEX
 		unsigned Unordered:1;		// Use this index for == or IN queries only
 #ifdef ENABLE_STAT3		  
@@ -857,7 +857,7 @@ namespace Core
 		uint32 Newmask;				// Mask of new.* columns referenced
 		uint8 TriggerOP;			// TK_UPDATE, TK_INSERT or TK_DELETE
 		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
-		uint8 DisableTriggers;		// True to disable triggers
+		bool DisableTriggers;		// True to disable triggers
 
 		// Above is constant between recursions.  Below is reset before and after each recursion
 		int VarsSeen;				// Number of '?' variables seen in the SQL so far
@@ -960,7 +960,7 @@ namespace Core
 #pragma endregion
 
 
-#pragma region From: ParseBuild_c
+#pragma region From: Parse+Build_c
 		__device__ void BeginParse(bool explainFlag);
 #ifndef OMIT_SHARED_CACHE
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
@@ -1042,6 +1042,19 @@ namespace Core
 		__device__ void Reindex(Token *name1, Token *name2);
 		__device__ KeyInfo *IndexKeyinfo(Index *index);
 #pragma endregion
+
+#pragma region From: Parse+Complete_c
+		__device__ bool Complete(const char *sql);
+#ifndef OMIT_UTF16
+		__device__ bool Complete16(const void *sql);
+#endif
+#pragma endregion
+
+
+#pragma region From: Parse+FKey_c
+	__device__ int FKLocateIndex(Table *parent, FKey *fkey, Index **indexOut, int **colsOut);
+#pragma endregion
+
 
 	};
 
@@ -1224,44 +1237,44 @@ namespace Core
 #pragma region Mem
 
 	struct Mem;
-
-	inline const void *Mem_Blob(Mem *p)
-	{
-		if (p->Flags & (MEM_Blob|MEM_Str))
-		{
-			sqlite3VdbeMemExpandBlob(p);
-			p->Flags &= ~MEM_Str;
-			p->Flags |= MEM_Blob;
-			return (p->length ? p->data : 0);
-		}
-		else
-			return Mem_Text(p);
-	}
-	int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
-	int sqlite3_value_bytes16(Mem *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
-	double sqlite3_value_double(Mem *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
-	int sqlite3_value_int(Mem *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
-	int64 sqlite3_value_int64(Mem *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
-	const unsigned char *sqlite3_value_text(Mem *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, TEXTENCODE_UTF8); }
-#ifndef OMIT_UTF16
-	const void *sqlite3_value_text16(Mem* pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16NATIVE); }
-	const void *sqlite3_value_text16be(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16BE); }
-	const void *sqlite3_value_text16le(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16LE); }
-#endif
-	int sqlite3_value_type(Mem* pVal){ return pVal->type; }
-
-	const void *sqlite3_value_blob(Mem*);
-	int sqlite3_value_bytes(Mem*);
-	int sqlite3_value_bytes16(Mem*);
-	double sqlite3_value_double(Mem*);
-	int sqlite3_value_int(Mem*);
-	int64 sqlite3_value_int64(Mem*);
-	const unsigned char *sqlite3_value_text(Mem*);
-	const void *sqlite3_value_text16(Mem*);
-	const void *sqlite3_value_text16le(Mem*);
-	const void *sqlite3_value_text16be(Mem*);
-	int sqlite3_value_type(Mem*);
-	int sqlite3_value_numeric_type(Mem*);
+	//
+	//	inline const void *Mem_Blob(Mem *p)
+	//	{
+	//		if (p->Flags & (MEM_Blob|MEM_Str))
+	//		{
+	//			sqlite3VdbeMemExpandBlob(p);
+	//			p->Flags &= ~MEM_Str;
+	//			p->Flags |= MEM_Blob;
+	//			return (p->length ? p->data : 0);
+	//		}
+	//		else
+	//			return Mem_Text(p);
+	//	}
+	//	int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
+	//	int sqlite3_value_bytes16(Mem *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
+	//	double sqlite3_value_double(Mem *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
+	//	int sqlite3_value_int(Mem *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
+	//	int64 sqlite3_value_int64(Mem *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
+	//	const unsigned char *sqlite3_value_text(Mem *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, TEXTENCODE_UTF8); }
+	//#ifndef OMIT_UTF16
+	//	const void *sqlite3_value_text16(Mem* pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16NATIVE); }
+	//	const void *sqlite3_value_text16be(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16BE); }
+	//	const void *sqlite3_value_text16le(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16LE); }
+	//#endif
+	//	int sqlite3_value_type(Mem* pVal){ return pVal->type; }
+	//
+	//	const void *sqlite3_value_blob(Mem*);
+	//	int sqlite3_value_bytes(Mem*);
+	//	int sqlite3_value_bytes16(Mem*);
+	//	double sqlite3_value_double(Mem*);
+	//	int sqlite3_value_int(Mem*);
+	//	int64 sqlite3_value_int64(Mem*);
+	//	const unsigned char *sqlite3_value_text(Mem*);
+	//	const void *sqlite3_value_text16(Mem*);
+	//	const void *sqlite3_value_text16le(Mem*);
+	//	const void *sqlite3_value_text16be(Mem*);
+	//	int sqlite3_value_type(Mem*);
+	//	int sqlite3_value_numeric_type(Mem*);
 
 	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
 	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);

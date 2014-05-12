@@ -231,7 +231,7 @@ namespace Core
         public byte SortOrders;			// for each column: True==DESC, False==ASC
         public string[] CollNames;		// Array of collation sequence names for index
         public int Id;					// DB Page containing root of this index
-        public byte OnError;			// OE_Abort, OE_Ignore, OE_Replace, or OE_None
+        public OE OnError;			// OE_Abort, OE_Ignore, OE_Replace, or OE_None
         public byte AutoIndex;		    // 1==UNIQUE, 2==PRIMARY KEY, 0==CREATE INDEX
         public bool Unordered;		    // Use this index for == or IN queries only
 #if ENABLE_STAT3		  
@@ -802,7 +802,7 @@ namespace Core
         public uint Newmask;				// Mask of new.* columns referenced
         public byte TriggerOp;			    // TK_UPDATE, TK_INSERT or TK_DELETE
         public byte Orconf;				    // Default ON CONFLICT policy for trigger steps
-        public byte DisableTriggers;		// True to disable triggers
+        public bool DisableTriggers;		// True to disable triggers
 
         // Above is constant between recursions.  Below is reset before and after each recursion
         public int VarsSeen;				// Number of '?' variables seen in the SQL so far

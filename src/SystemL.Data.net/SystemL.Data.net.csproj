@@ -53,10 +53,10 @@
     <Compile Include="Core+Pager\Wal_h.cs" />
     <Compile Include="Core+Syntax\Command\Date.cs" />
     <Compile Include="Core+Syntax\Command\Func.cs" />
-    <Compile Include="Core+Syntax\ParseFKey.cs" />
-    <Compile Include="Core+Syntax\ParseComplete.cs" />
+    <Compile Include="Core+Syntax\Parse+FKey.cs" />
+    <Compile Include="Core+Syntax\Parse+Complete.cs" />
     <Compile Include="Core+Syntax\Trigger.cs" />
-    <Compile Include="Core+Syntax\WalkerResolve.cs" />
+    <Compile Include="Core+Syntax\Walker+Resolve.cs" />
     <Compile Include="Core+Syntax\Auth.cs" />
     <Compile Include="Core+Syntax\Backup.cs" />
     <Compile Include="CompileTime.cs" />
@@ -73,7 +73,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Parse.y</DependentUpon>
     </Content>
-    <Compile Include="Core+Syntax\ParseBuild.cs" />
+    <Compile Include="Core+Syntax\Parse+Build.cs" />
     <Compile Include="Core+Syntax\Callback.cs" />
     <Compile Include="Core+Syntax\Command\Alter.cs" />
     <Compile Include="Core+Syntax\Command\Analyze.cs" />
@@ -90,7 +90,7 @@
     <Compile Include="Core+Syntax\Prepare.cs" />
     <Compile Include="Core+Syntax\Rowset.cs" />
     <Compile Include="Core+Syntax\Table.cs" />
-    <Compile Include="Core+Syntax\ParseTokenize.cs" />
+    <Compile Include="Core+Syntax\Parse+Tokenize.cs" />
     <Compile Include="Core+Syntax\VTable.cs" />
     <Compile Include="Core+Syntax\Walker.cs" />
     <Compile Include="Core+Syntax\Where.cs" />
@@ -107,15 +107,15 @@
     <None Include="Core+Syntax\Command\Update.cu" />
     <None Include="Core+Syntax\Command\Vacuum.cu" />
     <None Include="Core+Syntax\Expr.cu" />
-    <None Include="Core+Syntax\ParseFKey.cu" />
-    <None Include="Core+Syntax\ParseBuild.cu" />
+    <None Include="Core+Syntax\Parse+Build.cu" />
+    <None Include="Core+Syntax\Parse+FKey.cu" />
     <None Include="Core+Syntax\Prepare.cu" />
-    <None Include="Core+Syntax\ParseTokenize.cu" />
+    <None Include="Core+Syntax\Parse+Tokenize.cu" />
     <None Include="Core+Syntax\Trigger.cu" />
+    <None Include="Core+Syntax\Walker+Resolve.cu" />
     <None Include="Core+Syntax\Walker.cu" />
-    <None Include="Core+Syntax\WalkerResolve.cu" />
     <None Include="Core+Syntax\Where.cu" />
-    <None Include="Core+Syntax\ParseComplete.cu" />
+    <None Include="Core+Syntax\Parse+Complete.cu" />
     <None Include="Core+Syntax\Auth.cu" />
     <Compile Include="Shell.cs" />
     <None Include="Shell.cu" />

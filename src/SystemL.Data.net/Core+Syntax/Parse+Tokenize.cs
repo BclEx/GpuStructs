@@ -18,11 +18,11 @@ namespace Core
                 case '\f':
                 case '\r':
                     {
-                        E.ASSERTCOVERAGE(z[offset + 0] == ' ');
-                        E.ASSERTCOVERAGE(z[offset + 0] == '\t');
-                        E.ASSERTCOVERAGE(z[offset + 0] == '\n');
-                        E.ASSERTCOVERAGE(z[offset + 0] == '\f');
-                        E.ASSERTCOVERAGE(z[offset + 0] == '\r');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == ' ');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\t');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\n');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\f');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\r');
                         for (i = 1; z.Length > offset + i && char.IsWhiteSpace(z[offset + i]); i++) { }
                         tokenType = TK.SPACE;
                         return i;
@@ -175,9 +175,9 @@ namespace Core
                 case '"':
                     {
                         int delim = z[offset + 0];
-                        E.ASSERTCOVERAGE(delim == '`');
-                        E.ASSERTCOVERAGE(delim == '\'');
-                        E.ASSERTCOVERAGE(delim == '"');
+                        SysEx.ASSERTCOVERAGE(delim == '`');
+                        SysEx.ASSERTCOVERAGE(delim == '\'');
+                        SysEx.ASSERTCOVERAGE(delim == '"');
                         for (i = 1; (offset + i) < z.Length && (c = z[offset + i]) != '\0'; i++)
                         {
                             if (c == delim)
@@ -232,16 +232,16 @@ namespace Core
                 case '8':
                 case '9':
                     {
-                        E.ASSERTCOVERAGE(z[offset] == '0');
-                        E.ASSERTCOVERAGE(z[offset] == '1');
-                        E.ASSERTCOVERAGE(z[offset] == '2');
-                        E.ASSERTCOVERAGE(z[offset] == '3');
-                        E.ASSERTCOVERAGE(z[offset] == '4');
-                        E.ASSERTCOVERAGE(z[offset] == '5');
-                        E.ASSERTCOVERAGE(z[offset] == '6');
-                        E.ASSERTCOVERAGE(z[offset] == '7');
-                        E.ASSERTCOVERAGE(z[offset] == '8');
-                        E.ASSERTCOVERAGE(z[offset] == '9');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '0');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '1');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '2');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '3');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '4');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '5');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '6');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '7');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '8');
+                        SysEx.ASSERTCOVERAGE(z[offset] == '9');
                         tokenType = TK.INTEGER;
                         for (i = 0; z.Length > offset + i && char.IsDigit(z[offset + i]); i++) { }
 #if !OMIT_FLOATING_POINT
@@ -297,9 +297,9 @@ namespace Core
                 case ':':
                     {
                         int n = 0;
-                        E.ASSERTCOVERAGE(z[offset + 0] == '$');
-                        E.ASSERTCOVERAGE(z[offset + 0] == '@');
-                        E.ASSERTCOVERAGE(z[offset + 0] == ':');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '$');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '@');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == ':');
                         tokenType = TK.VARIABLE;
                         for (i = 1; z.Length > offset + i && (c = z[offset + i]) != '\0'; i++)
                         {
@@ -335,8 +335,8 @@ namespace Core
                 case 'x':
                 case 'X':
                     {
-                        E.ASSERTCOVERAGE(z[offset + 0] == 'x');
-                        E.ASSERTCOVERAGE(z[offset + 0] == 'X');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == 'x');
+                        SysEx.ASSERTCOVERAGE(z[offset + 0] == 'X');
                         if (z.Length > offset + 1 && z[offset + 1] == '\'')
                         {
                             tokenType = TK.BLOB;
@@ -486,7 +486,7 @@ namespace Core
 #if !OMIT_VIRTUALTABLE
             VTableLocks.data = null;
 #endif
-            if (!INDECLARE_VTABLE(this))
+            if (!E.INDECLARE_VTABLE(this))
             {
                 // If the pParse.declareVtab flag is set, do not delete any table structure built up in pParse.pNewTable. The calling code (see vtab.c)
                 // will take responsibility for freeing the Table structure.

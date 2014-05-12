@@ -113,9 +113,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Prepare.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Tokenize.cu">
-      <Filter>Core+Syntax</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
@@ -149,15 +146,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Command\Vacuum.cu">
       <Filter>Core+Syntax\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\WalkerResolve.cu">
-      <Filter>Core+Syntax</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\FKey.cu">
-      <Filter>Core+Syntax</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\TokenizeComplete.cu">
-      <Filter>Core+Syntax</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Trigger.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
@@ -175,7 +163,19 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Auth.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\ParseBuild.cu">
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Parse+Build.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Walker+Resolve.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Parse+Complete.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Parse+FKey.cu">
+      <Filter>Core+Syntax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Syntax\Parse+Tokenize.cu">
       <Filter>Core+Syntax</Filter>
     </ClCompile>
   </ItemGroup>
