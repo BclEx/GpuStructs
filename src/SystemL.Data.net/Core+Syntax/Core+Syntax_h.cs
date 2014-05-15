@@ -953,9 +953,8 @@ namespace Core
         public string To;				    // Name of table that the key points to (aka: Parent)
         public FKey NextTo;			        // Next foreign key on table named zTo
         public FKey PrevTo;			        // Previous foreign key on table named zTo
-        //int Cols;				            // Number of columns in this key
         public bool IsDeferred;		        // True if constraint checking is deferred till COMMIT
-        public byte[] Actions = new byte[2];    // ON DELETE and ON UPDATE actions, respectively
+        public OE[] Actions = new OE[2];    // ON DELETE and ON UPDATE actions, respectively
         public Trigger[] Triggers = new Trigger[2];	// Triggers for aAction[] actions
         public array_t3<int, ColMap> Cols = new array_t3<yVars, ColMap>(new ColMap[1]); // One entry for each of nCol column s
     }

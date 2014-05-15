@@ -1050,11 +1050,19 @@ namespace Core
 #endif
 #pragma endregion
 
-
 #pragma region From: Parse+FKey_c
-	__device__ int FKLocateIndex(Table *parent, FKey *fkey, Index **indexOut, int **colsOut);
-#pragma endregion
 
+#ifndef OMIT_TRIGGER
+		__device__ int FKLocateIndex(Table *parent, FKey *fkey, Index **indexOut, int **colsOut);
+		__device__ static FKey *FKReferences(Table *table);
+		__device__ void FKDropTable(SrcList *name, Table *table);
+		__device__ void FKCheck(Table *table, int regOld, int regNew);
+		__device__ uint32 FKOldmask(Table *table);
+		__device__ bool FKRequired(Table *table, int *changes, int chngRowid);
+		__device__ void FKActions(Table *table, ExprList *changes, int regOld);
+#endif
+		__device__ static void FKDelete(Context *ctx, Table *table);
+#pragma endregion
 
 	};
 
@@ -1214,9 +1222,8 @@ namespace Core
 		char *To;				// Name of table that the key points to (aka: Parent)
 		FKey *NextTo;			// Next foreign key on table named zTo
 		FKey *PrevTo;			// Previous foreign key on table named zTo
-		//int Cols;				// Number of columns in this key
 		bool IsDeferred;		// True if constraint checking is deferred till COMMIT
-		uint8 Actions[2];       // ON DELETE and ON UPDATE actions, respectively
+		OE Actions[2];       // ON DELETE and ON UPDATE actions, respectively
 		Trigger *Triggers[2];	// Triggers for aAction[] actions
 		array_t3<int, ColMap, 1> Cols; // One entry for each of nCol column s
 	};

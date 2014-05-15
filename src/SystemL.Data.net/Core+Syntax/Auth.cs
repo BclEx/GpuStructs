@@ -23,7 +23,7 @@ namespace Core
             parse.RC = RC.ERROR;
         }
 
-        public ARC ReadColumn(Parse parse, string table, string column, int db)
+        public static ARC ReadColumn(Parse parse, string table, string column, int db)
         {
             Context ctx = parse.Ctx; // Database handle
             string dbName = ctx.DBs[db].Name; // Name of attached database
@@ -41,11 +41,11 @@ namespace Core
             return rc;
         }
 
-        public void Read(Parse parse, Expr expr, Schema schema, SrcList tableList)
+        public static void Read(Parse parse, Expr expr, Schema schema, SrcList tableList)
         {
             Context ctx = parse.Ctx;
             if (ctx.Auth == null) return;
-            int db = sqlite3SchemaToIndex(ctx, schema);// The index of the database the expression refers to
+            int db = SchemaToIndex(ctx, schema);// The index of the database the expression refers to
             if (db < 0)
                 return; // An attempt to read a column out of a subquery or other temporary table.
 
@@ -80,28 +80,28 @@ namespace Core
             else
                 colName = "ROWID";
             Debug.Assert(db >= 0 && db < ctx.DBs.length);
-            if (ReadColumn(parse, table.Name, colName, db) == RC.IGNORE)
+            if (ReadColumn(parse, table.Name, colName, db) == ARC.IGNORE)
                 expr.OP = TK.NULL;
         }
 
-        public RC Check(Parse parse, int code, string arg1, string arg2, string arg3)
+        public static ARC Check(Parse parse, int code, string arg1, string arg2, string arg3)
         {
             Context ctx = parse.Ctx;
             // Don't do any authorization checks if the database is initialising or if the parser is being invoked from within sqlite3_declare_vtab.
-            if (ctx.Init.Busy || INDECLARE_VTABLE)
-                return RC.OK;
+            if (ctx.Init.Busy || E.INDECLARE_VTABLE(parse))
+                return ARC.OK;
 
             if (ctx.Auth == null)
-                return RC.OK;
-            RC rc = ctx.Auth(ctx.AuthArg, code, arg1, arg2, arg3, parse.AuthContext);
-            if (rc == RC.DENY)
+                return ARC.OK;
+            ARC rc = ctx.Auth(ctx.AuthArg, code, arg1, arg2, arg3, parse.AuthContext);
+            if (rc == ARC.DENY)
             {
                 parse.ErrorMsg("not authorized");
                 parse.RC = RC.AUTH;
             }
-            else if (rc != RC.OK && rc != RC.IGNORE)
+            else if (rc != ARC.OK && rc != ARC.IGNORE)
             {
-                rc = RC.DENY;
+                rc = ARC.DENY;
                 BadReturnCode(parse);
             }
             return rc;

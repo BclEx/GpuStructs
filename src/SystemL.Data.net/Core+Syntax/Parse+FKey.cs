@@ -209,7 +209,7 @@ namespace Core
             v.AddOp1(OP.Close, curId);
         }
 
-        static void fkScanChildren(Parse parse, SrcList src, Table table, Index index, FKey fkey, int[] cols, int regDataId, int incr)
+        static void FKScanChildren(Parse parse, SrcList src, Table table, Index index, FKey fkey, int[] cols, int regDataId, int incr)
         {
             Context ctx = parse.Ctx; // Database handle
             Vdbe v = parse.GetVdbe();
@@ -298,7 +298,7 @@ namespace Core
                 v.JumpHere(fkIfZero);
         }
 
-        public static FKey FkReferences(Table table)
+        public static FKey FKReferences(Table table)
         {
             int nameLength = table.Name.Length;
             return table.Schema.FKeyHash.Find(table.Name, nameLength, (FKey)null);
@@ -317,598 +317,454 @@ namespace Core
             }
         }
 
-        static void sqlite3FkDropTable(Parse pParse, SrcList pName, Table pTab)
+        public void FKDropTable(SrcList name, Table table)
         {
-            sqlite3 db = pParse.db;
-            if ((db.flags & SQLITE_ForeignKeys) != 0 && !IsVirtual(pTab) && null == pTab.pSelect)
+            Context ctx = Ctx;
+            if ((ctx.Flags & Context.FLAG.ForeignKeys) != 0 && !IsVirtual(table) && table.Select == null)
             {
-                int iSkip = 0;
-                Vdbe v = sqlite3GetVdbe(pParse);
+                int skipId = 0;
+                Vdbe v = GetVdbe();
 
-                Debug.Assert(v != null);                  /* VDBE has already been allocated */
-                if (sqlite3FkReferences(pTab) == null)
+                Debug.Assert(v != null); // VDBE has already been allocated
+                if (FKReferences(table) == null)
                 {
-                    /* Search for a deferred foreign key constraint for which this table
-                    ** is the child table. If one cannot be found, return without 
-                    ** generating any VDBE code. If one can be found, then jump over
-                    ** the entire DELETE if there are no outstanding deferred constraints
-                    ** when this statement is run.  */
+                    // Search for a deferred foreign key constraint for which this table is the child table. If one cannot be found, return without 
+                    // generating any VDBE code. If one can be found, then jump over the entire DELETE if there are no outstanding deferred constraints
+                    // when this statement is run.
                     FKey p;
-                    for (p = pTab.pFKey; p != null; p = p.pNextFrom)
-                    {
-                        if (p.isDeferred != 0)
-                            break;
-                    }
-                    if (null == p)
-                        return;
-                    iSkip = sqlite3VdbeMakeLabel(v);
-                    sqlite3VdbeAddOp2(v, OP_FkIfZero, 1, iSkip);
+                    for (p = table.FKeys; p != null; p = p.NextFrom)
+                        if (p.IsDeferred) break;
+                    if (p == null) return;
+                    skipId = v.MakeLabel();
+                    v.AddOp2(OP.FkIfZero, 1, skipId);
                 }
 
-                pParse.disableTriggers = 1;
-                sqlite3DeleteFrom(pParse, sqlite3SrcListDup(db, pName, 0), null);
-                pParse.disableTriggers = 0;
+                DisableTriggers = true;
+                DeleteFrom(this, SrcListDup(ctx, name, 0), null);
+                DisableTriggers = false;
 
-                /* If the DELETE has generated immediate foreign key constraint 
-                ** violations, halt the VDBE and return an error at this point, before
-                ** any modifications to the schema are made. This is because statement
-                ** transactions are not able to rollback schema changes.  */
-                sqlite3VdbeAddOp2(v, OP_FkIfZero, 0, sqlite3VdbeCurrentAddr(v) + 2);
-                sqlite3HaltConstraint(
-                    pParse, OE_Abort, "foreign key constraint failed", P4_STATIC
-                );
+                // If the DELETE has generated immediate foreign key constraint violations, halt the VDBE and return an error at this point, before
+                // any modifications to the schema are made. This is because statement transactions are not able to rollback schema changes.
+                v.AddOp2(OP.FkIfZero, 0, v.CurrentAddr() + 2);
+                HaltConstraint(this, OE.Abort, "foreign key constraint failed", Vdbe.P4T.STATIC);
 
-                if (iSkip != 0)
-                {
-                    sqlite3VdbeResolveLabel(v, iSkip);
-                }
+                if (skipId != 0)
+                    v.ResolveLabel(skipId);
             }
         }
 
-        static void sqlite3FkCheck(
-          Parse pParse,                   /* Parse context */
-          Table pTab,                     /* Row is being deleted from this table */
-          int regOld,                     /* Previous row data is stored here */
-          int regNew                      /* New row data is stored here */
-        )
+        public void FKCheck(Table table, int regOld, int regNew)
         {
-            sqlite3 db = pParse.db;        /* Database handle */
-            FKey pFKey;                    /* Used to iterate through FKs */
-            int iDb;                       /* Index of database containing pTab */
-            string zDb;                    /* Name of database containing pTab */
-            int isIgnoreErrors = pParse.disableTriggers;
+            Context ctx = Ctx; // Database handle
+            bool isIgnoreErrors = DisableTriggers;
 
-            /* Exactly one of regOld and regNew should be non-zero. */
+            // Exactly one of regOld and regNew should be non-zero.
             Debug.Assert((regOld == 0) != (regNew == 0));
 
-            /* If foreign-keys are disabled, this function is a no-op. */
-            if ((db.flags & SQLITE_ForeignKeys) == 0)
-                return;
+            // If foreign-keys are disabled, this function is a no-op.
+            if ((ctx.Flags & Context.FLAG.ForeignKeys) == 0) return;
 
-            iDb = sqlite3SchemaToIndex(db, pTab.pSchema);
-            zDb = db.aDb[iDb].zName;
+            int db = SchemaToIndex(ctx, table.Schema); // Index of database containing pTab
+            string dbName = ctx.DBs[db].Name; // Name of database containing pTab
 
-            /* Loop through all the foreign key constraints for which pTab is the
-            ** child table (the table that the foreign key definition is part of).  */
-            for (pFKey = pTab.pFKey; pFKey != null; pFKey = pFKey.pNextFrom)
+            // Loop through all the foreign key constraints for which pTab is the child table (the table that the foreign key definition is part of).
+            FKey fkey; // Used to iterate through FKs
+            for (fkey = table.FKeys; fkey != null; fkey = fkey.NextFrom)
             {
-                Table pTo;                   /* Parent table of foreign key pFKey */
-                Index pIdx = null;           /* Index on key columns in pTo */
-                int[] aiFree = null;
-                int[] aiCol;
-                int iCol;
-                int i;
-                int isIgnore = 0;
-
-                /* Find the parent table of this foreign key. Also find a unique index 
-                ** on the parent key columns in the parent table. If either of these 
-                ** schema items cannot be located, set an error in pParse and return 
-                ** early.  */
-                if (pParse.disableTriggers != 0)
+                bool isIgnore = false;
+                // Find the parent table of this foreign key. Also find a unique index on the parent key columns in the parent table. If either of these 
+                // schema items cannot be located, set an error in pParse and return early.
+                Table to = (DisableTriggers ? FindTable(ctx, fkey.To, dbName) : LocateTable(false, fkey.To, dbName)); // Parent table of foreign key pFKey
+                Index index = null; // Index on key columns in pTo
+                int[] frees = null;
+                if (to == null || LocateFkeyIndex(to, fkey, out index, out frees) != 0)
                 {
-                    pTo = sqlite3FindTable(db, pFKey.zTo, zDb);
-                }
-                else
-                {
-                    pTo = sqlite3LocateTable(pParse, 0, pFKey.zTo, zDb);
-                }
-                if (null == pTo || locateFkeyIndex(pParse, pTo, pFKey, out pIdx, out aiFree) != 0)
-                {
-                    if (0 == isIgnoreErrors /* || db.mallocFailed */)
-                        return;
+                    Debug.Assert(!isIgnoreErrors || (regOld != 0 && regNew == 0));
+                    if (!isIgnoreErrors || ctx.MallocFailed) return;
+                    if (to == null)
+                    {
+                        // If isIgnoreErrors is true, then a table is being dropped. In this se SQLite runs a "DELETE FROM xxx" on the table being dropped
+                        // before actually dropping it in order to check FK constraints. If the parent table of an FK constraint on the current table is
+                        // missing, behave as if it is empty. i.e. decrement the FK counter for each row of the current table with non-NULL keys.
+                        Vdbe v = GetVdbe();
+                        int jumpId = v.CurrentAddr() + fkey.Cols.length + 1;
+                        for (int i = 0; i < fkey.Cols.length; i++)
+                        {
+                            int regId = fkey.Cols[i].From + regOld + 1;
+                            v.AddOp2(OP.IsNull, regId, jumpId);
+                        }
+                        v.AddOp2(OP.FkCounter, fkey.IsDeferred, -1);
+                    }
                     continue;
                 }
-                Debug.Assert(pFKey.nCol == 1 || (aiFree != null && pIdx != null));
+                Debug.Assert(fkey.Cols.length == 1 || (frees != null && index != null));
 
-                if (aiFree != null)
-                {
-                    aiCol = aiFree;
-                }
+                int[] cols;
+                if (frees != null)
+                    cols = frees;
                 else
                 {
-                    iCol = pFKey.aCol[0].iFrom;
-                    aiCol = new int[1];
-                    aiCol[0] = iCol;
+                    int col = fkey.Cols[0].From;
+                    cols = new int[1];
+                    cols[0] = col;
                 }
-                for (i = 0; i < pFKey.nCol; i++)
+                for (int i = 0; i < fkey.Cols.length; i++)
                 {
-                    if (aiCol[i] == pTab.iPKey)
+                    if (cols[i] == table.PKey)
+                        cols[i] = -1;
+#if !OMIT_AUTHORIZATION
+                    // Request permission to read the parent key columns. If the authorization callback returns SQLITE_IGNORE, behave as if any
+                    // values read from the parent table are NULL.
+                    if (ctx.Auth != null)
                     {
-                        aiCol[i] = -1;
-                    }
-#if !SQLITE_OMIT_AUTHORIZATION
-                    /* Request permission to read the parent key columns. If the 
-      ** authorization callback returns SQLITE_IGNORE, behave as if any
-      ** values read from the parent table are NULL. */
-                    if (db.xAuth)
-                    {
-                        int rcauth;
-                        char* zCol = pTo.aCol[pIdx ? pIdx.aiColumn[i] : pTo.iPKey].zName;
-                        rcauth = sqlite3AuthReadCol(pParse, pTo.zName, zCol, iDb);
-                        isIgnore = (rcauth == SQLITE_IGNORE);
+                        string colName = to.Cols[index != null ? index.Columns[i] : to.PKey].Name;
+                        ARC rcauth = Auth.ReadColumn(this, to.Name, colName, db);
+                        isIgnore = (rcauth == ARC.IGNORE);
                     }
 #endif
                 }
 
-                /* Take a shared-cache advisory read-lock on the parent table. Allocate 
-                ** a cursor to use to search the unique index on the parent key columns 
-                ** in the parent table.  */
-                sqlite3TableLock(pParse, iDb, pTo.tnum, 0, pTo.zName);
-                pParse.nTab++;
+                // Take a shared-cache advisory read-lock on the parent table. Allocate a cursor to use to search the unique index on the parent key columns 
+                // in the parent table.
+                TableLock(db, to.Id, false, to.Name);
+                Tabs++;
 
-                if (regOld != 0)
-                {
-                    /* A row is being removed from the child table. Search for the parent.
-                    ** If the parent does not exist, removing the child row resolves an 
-                    ** outstanding foreign key constraint violation. */
-                    fkLookupParent(pParse, iDb, pTo, pIdx, pFKey, aiCol, regOld, -1, isIgnore);
-                }
-                if (regNew != 0)
-                {
-                    /* A row is being added to the child table. If a parent row cannot
-                    ** be found, adding the child row has violated the FK constraint. */
-                    fkLookupParent(pParse, iDb, pTo, pIdx, pFKey, aiCol, regNew, +1, isIgnore);
-                }
+                if (regOld != 0) // A row is being removed from the child table. Search for the parent. If the parent does not exist, removing the child row resolves an outstanding foreign key constraint violation.
+                    FKLookupParent(this, db, to, index, fkey, cols, regOld, -1, isIgnore);
+                if (regNew != 0) // A row is being added to the child table. If a parent row cannot be found, adding the child row has violated the FK constraint. 
+                    FKLookupParent(this, db, to, index, fkey, cols, regNew, +1, isIgnore);
 
-                sqlite3DbFree(db, ref aiFree);
+                SysEx.TagFree(ctx, ref frees);
             }
 
-            /* Loop through all the foreign key constraints that refer to this table */
-            for (pFKey = sqlite3FkReferences(pTab); pFKey != null; pFKey = pFKey.pNextTo)
+            // Loop through all the foreign key constraints that refer to this table
+            for (fkey = FKReferences(table); fkey != null; fkey = fkey.NextTo)
             {
-                Index pIdx = null;              /* Foreign key index for pFKey */
-                SrcList pSrc;
-                int[] aiCol = null;
-
-                if (0 == pFKey.isDeferred && null == pParse.pToplevel && 0 == pParse.isMultiWrite)
+                if (!fkey.IsDeferred && Toplevel == null && !IsMultiWrite)
                 {
                     Debug.Assert(regOld == 0 && regNew != 0);
-                    /* Inserting a single row into a parent table cannot cause an immediate
-                    ** foreign key violation. So do nothing in this case.  */
+                    // Inserting a single row into a parent table cannot cause an immediate foreign key violation. So do nothing in this case.
                     continue;
                 }
 
-                if (locateFkeyIndex(pParse, pTab, pFKey, out pIdx, out aiCol) != 0)
+                Index index = null; // Foreign key index for pFKey
+                int[] cols = null;
+                if (LocateFkeyIndex(table, fkey, out index, out cols) != 0)
                 {
-                    if (0 == isIgnoreErrors /*|| db.mallocFailed */)
-                        return;
+                    if (isIgnoreErrors || ctx.MallocFailed) return;
                     continue;
                 }
-                Debug.Assert(aiCol != null || pFKey.nCol == 1);
+                Debug.Assert(cols != null || fkey.Cols.length == 1);
 
-                /* Create a SrcList structure containing a single table (the table 
-                ** the foreign key that refers to this table is attached to). This
-                ** is required for the sqlite3WhereXXX() interface.  */
-                pSrc = sqlite3SrcListAppend(db, 0, null, null);
-                if (pSrc != null)
+                // Create a SrcList structure containing a single table (the table the foreign key that refers to this table is attached to). This
+                // is required for the sqlite3WhereXXX() interface.
+                SrcList src = SrcListAppend(ctx, null, null, null);
+                if (src != null)
                 {
-                    SrcList_item pItem = pSrc.a[0];
-                    pItem.pTab = pFKey.pFrom;
-                    pItem.zName = pFKey.pFrom.zName;
-                    pItem.pTab.nRef++;
-                    pItem.iCursor = pParse.nTab++;
+                    SrcList.SrcListItem item = src.Ids[0];
+                    item.Table = fkey.From;
+                    item.Name = fkey.From.Name;
+                    item.Table.Refs++;
+                    item.Cursor = Tabs++;
 
                     if (regNew != 0)
-                    {
-                        fkScanChildren(pParse, pSrc, pTab, pIdx, pFKey, aiCol, regNew, -1);
-                    }
+                        FKScanChildren(this, src, table, index, fkey, cols, regNew, -1);
                     if (regOld != 0)
                     {
-                        /* If there is a RESTRICT action configured for the current operation
-                        ** on the parent table of this FK, then throw an exception 
-                        ** immediately if the FK constraint is violated, even if this is a
-                        ** deferred trigger. That's what RESTRICT means. To defer checking
-                        ** the constraint, the FK should specify NO ACTION (represented
-                        ** using OE_None). NO ACTION is the default.  */
-                        fkScanChildren(pParse, pSrc, pTab, pIdx, pFKey, aiCol, regOld, 1);
+                        // If there is a RESTRICT action configured for the current operation on the parent table of this FK, then throw an exception 
+                        // immediately if the FK constraint is violated, even if this is a deferred trigger. That's what RESTRICT means. To defer checking
+                        // the constraint, the FK should specify NO ACTION (represented using OE_None). NO ACTION is the default.
+                        FKScanChildren(this, src, table, index, fkey, cols, regOld, 1);
                     }
-                    pItem.zName = null;
-                    sqlite3SrcListDelete(db, ref pSrc);
+                    item.Name = null;
+                    SrcListDelete(ctx, ref src);
                 }
-                sqlite3DbFree(db, ref aiCol);
+                SysEx.TagFree(ctx, ref cols);
             }
         }
 
-        //#define COLUMN_MASK(x) (((x)>31) ? 0xffffffff : ((u32)1<<(x)))
-        static uint COLUMN_MASK(int x)
-        {
-            return ((x) > 31) ? 0xffffffff : ((u32)1 << (x));
-        }
+        static uint COLUMN_MASK(int x) { return ((x) > 31) ? 0xffffffff : ((uint)1 << (x)); } //: #define COLUMN_MASK(x) (((x)>31) ? 0xffffffff : ((uint32)1<<(x)))
 
-        /*
-        ** This function is called before generating code to update or delete a 
-        ** row contained in table pTab.
-        */
-        static u32 sqlite3FkOldmask(
-          Parse pParse,                  /* Parse context */
-          Table pTab                     /* Table being modified */
-        )
+        public uint FKOldmask(Table table)
         {
-            u32 mask = 0;
-            if ((pParse.db.flags & SQLITE_ForeignKeys) != 0)
+            uint mask = 0;
+            if ((Ctx.Flags & Context.FLAG.ForeignKeys) != 0)
             {
                 FKey p;
                 int i;
-                for (p = pTab.pFKey; p != null; p = p.pNextFrom)
+                for (p = table.FKeys; p != null; p = p.NextFrom)
+                    for (i = 0; i < p.Cols.length; i++) mask |= COLUMN_MASK(p.Cols[i].From);
+                for (p = FKReferences(table); p != null; p = p.NextTo)
                 {
-                    for (i = 0; i < p.nCol; i++)
-                        mask |= COLUMN_MASK(p.aCol[i].iFrom);
-                }
-                for (p = sqlite3FkReferences(pTab); p != null; p = p.pNextTo)
-                {
-                    Index pIdx;
-                    int[] iDummy;
-                    locateFkeyIndex(pParse, pTab, p, out pIdx, out iDummy);
-                    if (pIdx != null)
-                    {
-                        for (i = 0; i < pIdx.nColumn; i++)
-                            mask |= COLUMN_MASK(pIdx.aiColumn[i]);
-                    }
+                    Index index;
+                    int[] dummy;
+                    LocateFkeyIndex(table, p, out index, out dummy);
+                    if (index != null)
+                        for (i = 0; i < index.Columns.length; i++) mask |= COLUMN_MASK(index.Columns[i]);
                 }
             }
             return mask;
         }
 
-        static int sqlite3FkRequired(
-          Parse pParse,                  /* Parse context */
-          Table pTab,                    /* Table being modified */
-          int[] aChange,                 /* Non-NULL for UPDATE operations */
-          int chngRowid                  /* True for UPDATE that affects rowid */
-        )
+        public bool FKRequired(Table table, int[] changes, int chngRowid)
         {
-            if ((pParse.db.flags & SQLITE_ForeignKeys) != 0)
+            if ((Ctx.Flags & Context.FLAG.ForeignKeys) != 0)
             {
-                if (null == aChange)
+                if (changes == null)  // A DELETE operation. Foreign key processing is required if the table in question is either the child or parent table for any foreign key constraint.
+                    return (FKReferences(table) != null || table.FKeys != null);
+                else // This is an UPDATE. Foreign key processing is only required if operation modifies one or more child or parent key columns.
                 {
-                    /* A DELETE operation. Foreign key processing is required if the 
-                    ** table in question is either the child or parent table for any 
-                    ** foreign key constraint.  */
-                    return (sqlite3FkReferences(pTab) != null || pTab.pFKey != null) ? 1 : 0;
-                }
-                else
-                {
-                    /* This is an UPDATE. Foreign key processing is only required if the
-                    ** operation modifies one or more child or parent key columns. */
                     int i;
                     FKey p;
-
-                    /* Check if any child key columns are being modified. */
-                    for (p = pTab.pFKey; p != null; p = p.pNextFrom)
+                    // Check if any child key columns are being modified.
+                    for (p = table.FKeys; p != null; p = p.NextFrom)
                     {
-                        for (i = 0; i < p.nCol; i++)
+                        for (i = 0; i < p.Cols.length; i++)
                         {
-                            int iChildKey = p.aCol[i].iFrom;
-                            if (aChange[iChildKey] >= 0)
-                                return 1;
-                            if (iChildKey == pTab.iPKey && chngRowid != 0)
-                                return 1;
+                            int childKeyId = p.Cols[i].From;
+                            if (changes[childKeyId] >= 0) return true;
+                            if (childKeyId == table.PKey && chngRowid != 0) return true;
                         }
                     }
 
-                    /* Check if any parent key columns are being modified. */
-                    for (p = sqlite3FkReferences(pTab); p != null; p = p.pNextTo)
-                    {
-                        for (i = 0; i < p.nCol; i++)
+                    // Check if any parent key columns are being modified.
+                    for (p = FKReferences(table); p != null; p = p.NextTo)
+                        for (i = 0; i < p.Cols.length; i++)
                         {
-                            string zKey = p.aCol[i].zCol;
-                            int iKey;
-                            for (iKey = 0; iKey < pTab.nCol; iKey++)
+                            string keyName = p.Cols[i].Col;
+                            for (int key = 0; key < table.Cols.length; key++)
                             {
-                                Column pCol = pTab.aCol[iKey];
-                                if ((!String.IsNullOrEmpty(zKey) ? pCol.zName.Equals(zKey, StringComparison.InvariantCultureIgnoreCase) : pCol.isPrimKey != 0))
+                                Column col = table.Cols[key];
+                                if (!string.IsNullOrEmpty(keyName) ? string.Equals(col.Name, keyName, StringComparison.InvariantCultureIgnoreCase) : (col.ColFlags & COLFLAG.PRIMKEY) != 0)
                                 {
-                                    if (aChange[iKey] >= 0)
-                                        return 1;
-                                    if (iKey == pTab.iPKey && chngRowid != 0)
-                                        return 1;
+                                    if (changes[key] >= 0) return true;
+                                    if (key == table.PKey && chngRowid != 0) return true;
                                 }
                             }
                         }
-                    }
                 }
             }
-            return 0;
+            return false;
         }
 
-        static Trigger fkActionTrigger(
-          Parse pParse,                  /* Parse context */
-          Table pTab,                    /* Table being updated or deleted from */
-          FKey pFKey,                    /* Foreign key to get action for */
-          ExprList pChanges              /* Change-list for UPDATE, NULL for DELETE */
-        )
+        static Trigger FKActionTrigger(Parse parse, Table table, FKey fkey, ExprList changes)
         {
-            sqlite3 db = pParse.db;        /* Database handle */
-            int action;                    /* One of OE_None, OE_Cascade etc. */
-            Trigger pTrigger;              /* Trigger definition to return */
-            int iAction = (pChanges != null) ? 1 : 0;   /* 1 for UPDATE, 0 for DELETE */
+            Context ctx = parse.Ctx; // Database handle
+            int actionId = (changes != null ? 1 : 0);  // 1 for UPDATE, 0 for DELETE
+            OE action = fkey.Actions[actionId]; // One of OE_None, OE_Cascade etc.
+            Trigger trigger = fkey.Triggers[actionId]; // Trigger definition to return
 
-            action = pFKey.aAction[iAction];
-            pTrigger = pFKey.apTrigger[iAction];
-
-            if (action != OE_None && null == pTrigger)
+            if (action != OE.None && trigger == null)
             {
-                u8 enableLookaside;           /* Copy of db.lookaside.bEnabled */
-                string zFrom;                 /* Name of child table */
-                int nFrom;                    /* Length in bytes of zFrom */
-                Index pIdx = null;            /* Parent key index for this FK */
-                int[] aiCol = null;           /* child table cols . parent key cols */
-                TriggerStep pStep = null;     /* First (only) step of trigger program */
-                Expr pWhere = null;           /* WHERE clause of trigger step */
-                ExprList pList = null;        /* Changes list if ON UPDATE CASCADE */
-                Select pSelect = null;        /* If RESTRICT, "SELECT RAISE(...)" */
-                int i;                        /* Iterator variable */
-                Expr pWhen = null;            /* WHEN clause for the trigger */
 
-                if (locateFkeyIndex(pParse, pTab, pFKey, out pIdx, out aiCol) != 0)
-                    return null;
-                Debug.Assert(aiCol != null || pFKey.nCol == 1);
+                Index index = null; // Parent key index for this FK
+                int[] cols = null; // child table cols . parent key cols
+                if (LocateFkeyIndex(parse, table, fkey, out index, out cols) != 0) return null;
+                Debug.Assert(cols != null || fkey.Cols.length == 1);
 
-                for (i = 0; i < pFKey.nCol; i++)
+                Expr where_ = null; // WHERE clause of trigger step
+                Expr when = null; // WHEN clause for the trigger
+                ExprList list = null; // Changes list if ON UPDATE CASCADE
+                for (int i = 0; i < fkey.Cols.length; i++)
                 {
-                    Token tOld = new Token("old", 3);  /* Literal "old" token */
-                    Token tNew = new Token("new", 3);  /* Literal "new" token */
-                    Token tFromCol = new Token();        /* Name of column in child table */
-                    Token tToCol = new Token();          /* Name of column in parent table */
-                    int iFromCol;               /* Idx of column in child table */
-                    Expr pEq;                  /* tFromCol = OLD.tToCol */
+                    Token oldToken = new Token("old", 3); // Literal "old" token
+                    Token newToken = new Token("new", 3); // Literal "new" token
 
-                    iFromCol = aiCol != null ? aiCol[i] : pFKey.aCol[0].iFrom;
-                    Debug.Assert(iFromCol >= 0);
-                    tToCol.z = pIdx != null ? pTab.aCol[pIdx.aiColumn[i]].zName : "oid";
-                    tFromCol.z = pFKey.pFrom.aCol[iFromCol].zName;
+                    int fromColId = (cols != null ? cols[i] : fkey.Cols[0].From); // Idx of column in child table
+                    Debug.Assert(fromColId >= 0);
+                    Token fromCol = new Token(); // Name of column in child table
+                    Token toCol = new Token(); // Name of column in parent table
+                    toCol.data = (index != null ? table.Cols[index.Columns[i]].Name : "oid");
+                    fromCol.data = fkey.From.Cols[fromColId].Name;
+                    toCol.length = (uint)toCol.data.Length;
+                    fromCol.length = (uint)fromCol.data.Length;
 
-                    tToCol.n = sqlite3Strlen30(tToCol.z);
-                    tFromCol.n = sqlite3Strlen30(tFromCol.z);
+                    // Create the expression "OLD.zToCol = zFromCol". It is important that the "OLD.zToCol" term is on the LHS of the = operator, so
+                    // that the affinity and collation sequence associated with the parent table are used for the comparison.
+                    Expr eq = Expr.PExpr(parse, TK.EQ,
+                        Expr.PExpr(parse, TK.DOT,
+                            Expr.PExpr(parse, TK.ID, null, null, oldToken),
+                            Expr.PExpr(parse, TK.ID, null, null, toCol)
+                            , 0),
+                        Expr.PExpr(parse, TK_ID, null, null, fromCol)
+                        , 0); // tFromCol = OLD.tToCol
+                    where_ = Expr.And(ctx, where_, eq);
 
-                    /* Create the expression "OLD.zToCol = zFromCol". It is important
-                    ** that the "OLD.zToCol" term is on the LHS of the = operator, so
-                    ** that the affinity and collation sequence associated with the
-                    ** parent table are used for the comparison. */
-                    pEq = sqlite3PExpr(pParse, TK_EQ,
-                        sqlite3PExpr(pParse, TK_DOT,
-                          sqlite3PExpr(pParse, TK_ID, null, null, tOld),
-                          sqlite3PExpr(pParse, TK_ID, null, null, tToCol)
-                        , 0),
-                        sqlite3PExpr(pParse, TK_ID, null, null, tFromCol)
-                    , 0);
-                    pWhere = sqlite3ExprAnd(db, pWhere, pEq);
-
-                    /* For ON UPDATE, construct the next term of the WHEN clause.
-                    ** The final WHEN clause will be like this:
-                    **
-                    **    WHEN NOT(old.col1 IS new.col1 AND ... AND old.colN IS new.colN)
-                    */
-                    if (pChanges != null)
+                    // For ON UPDATE, construct the next term of the WHEN clause. The final WHEN clause will be like this:
+                    //
+                    //    WHEN NOT(old.col1 IS new.col1 AND ... AND old.colN IS new.colN)
+                    if (changes != null)
                     {
-                        pEq = sqlite3PExpr(pParse, TK_IS,
-                            sqlite3PExpr(pParse, TK_DOT,
-                              sqlite3PExpr(pParse, TK_ID, null, null, tOld),
-                              sqlite3PExpr(pParse, TK_ID, null, null, tToCol),
-                              0),
-                            sqlite3PExpr(pParse, TK_DOT,
-                              sqlite3PExpr(pParse, TK_ID, null, null, tNew),
-                              sqlite3PExpr(pParse, TK_ID, null, null, tToCol),
-                              0),
+                        eq = Expr.PExpr(parse, TK.IS,
+                            Expr.PExpr(parse, TK.DOT,
+                            Expr.PExpr(parse, TK.ID, null, null, oldToken),
+                            Expr.PExpr(parse, TK.ID, null, null, toCol),
+                            0),
+                            Expr.PExpr(parse, TK.DOT,
+                            Expr.PExpr(parse, TK.ID, null, null, newToken),
+                            Expr.PExpr(parse, TK.ID, null, null, toCol),
+                            0),
                             0);
-                        pWhen = sqlite3ExprAnd(db, pWhen, pEq);
+                        when = Expr.And(ctx, when, eq);
                     }
 
-                    if (action != OE_Restrict && (action != OE_Cascade || pChanges != null))
+                    if (action != OE.Restrict && (action != OE.Cascade || changes != null))
                     {
-                        Expr pNew;
-                        if (action == OE_Cascade)
+                        Expr newExpr;
+                        if (action == OE.Cascade)
+                            newExpr = Expr.PExpr(parse, TK.DOT,
+                                Expr.PExpr(parse, TK.ID, null, null, newToken),
+                                Expr.PExpr(parse, TK.ID, null, null, toCol)
+                                , 0);
+                        else if (action == OE.SetDflt)
                         {
-                            pNew = sqlite3PExpr(pParse, TK_DOT,
-                              sqlite3PExpr(pParse, TK_ID, null, null, tNew),
-                              sqlite3PExpr(pParse, TK_ID, null, null, tToCol)
-                            , 0);
-                        }
-                        else if (action == OE_SetDflt)
-                        {
-                            Expr pDflt = pFKey.pFrom.aCol[iFromCol].pDflt;
-                            if (pDflt != null)
-                            {
-                                pNew = sqlite3ExprDup(db, pDflt, 0);
-                            }
+                            Expr dfltExpr = fkey.From.Cols[fromColId].Dflt;
+                            if (dfltExpr != null)
+                                newExpr = Expr.Dup(ctx, dfltExpr, 0);
                             else
-                            {
-                                pNew = sqlite3PExpr(pParse, TK_NULL, 0, 0, 0);
-                            }
+                                newExpr = Expr.PExpr(parse, TK.NULL, 0, 0, 0);
                         }
                         else
-                        {
-                            pNew = sqlite3PExpr(pParse, TK_NULL, 0, 0, 0);
-                        }
-                        pList = sqlite3ExprListAppend(pParse, pList, pNew);
-                        sqlite3ExprListSetName(pParse, pList, tFromCol, 0);
+                            newExpr = Expr.PExpr(parse, TK.NULL, 0, 0, 0);
+                        list = Expr.ListAppend(parse, list, newExpr);
+                        Expr.ListSetName(parse, list, fromCol, 0);
                     }
                 }
-                sqlite3DbFree(db, ref aiCol);
+                SysEx.TagFree(ctx, ref cols);
 
-                zFrom = pFKey.pFrom.zName;
-                nFrom = sqlite3Strlen30(zFrom);
+                string fromName = fkey.From.Name; // Name of child table
+                int fromNameLength = fromName.Length; // Length in bytes of zFrom
 
-                if (action == OE_Restrict)
+                Select select = null; // If RESTRICT, "SELECT RAISE(...)"
+                if (action == OE.Restrict)
                 {
-                    Token tFrom = new Token();
-                    Expr pRaise;
-
-                    tFrom.z = zFrom;
-                    tFrom.n = nFrom;
-                    pRaise = sqlite3Expr(db, TK_RAISE, "foreign key constraint failed");
-                    if (pRaise != null)
-                    {
-                        pRaise.affinity = (char)OE_Abort;
-                    }
-                    pSelect = sqlite3SelectNew(pParse,
-                        sqlite3ExprListAppend(pParse, 0, pRaise),
-                        sqlite3SrcListAppend(db, 0, tFrom, null),
-                        pWhere,
-                        null, null, null, 0, null, null
-                    );
-                    pWhere = null;
+                    Token from = new Token();
+                    from.data = fromName;
+                    from.length = fromNameLength;
+                    Expr raise = Expr.Expr(ctx, TK_RAISE, "foreign key constraint failed");
+                    if (raise != null)
+                        raise.Affinity = OE.Abort;
+                    select = Select.New(parse,
+                        Expr.ListAppend(parse, 0, raise),
+                        SrcListAppend(ctx, 0, from, null),
+                        where_,
+                        null, null, null, 0, null, null);
+                    where_ = null;
                 }
 
-                /* Disable lookaside memory allocation */
-                enableLookaside = db.lookaside.bEnabled;
-                db.lookaside.bEnabled = 0;
+                // Disable lookaside memory allocation
+                bool enableLookaside = ctx.Lookaside.Enabled; // Copy of ctx->lookaside.bEnabled
+                ctx.Lookaside.Enabled = false;
 
-                pTrigger = new Trigger();
-                //(Trigger*)sqlite3DbMallocZero( db,
-                //     sizeof( Trigger ) +         /* struct Trigger */
-                //     sizeof( TriggerStep ) +     /* Single step in trigger program */
-                //     nFrom + 1                 /* Space for pStep.target.z */
-                // );
-                //if ( pTrigger )
+                trigger = new Trigger();
+                //: trigger = (Trigger *)SysEx::TagAlloc(ctx, 
+                //:    sizeof(Trigger) + // Trigger
+                //:    sizeof(TriggerStep) + // Single step in trigger program
+                //:    fromNameLength + 1 // Space for pStep->target.z
+                //:    , true);
+                TriggerStep step = null; // First (only) step of trigger program                
+                if (trigger != null)
                 {
+                    step = trigger.StepList = new TriggerStep(); //: (TriggerStep)trigger[1];
+                    step.target.data = fromName; //: (char *)&step[1];
+                    step.target.length = fromNameLength;
+                    //: _memcpy((const char *)step->Target.data, fromName, fromNameLength);
 
-                    pStep = pTrigger.step_list = new TriggerStep();// = (TriggerStep)pTrigger[1];
-                    //pStep.target.z = pStep[1];
-                    pStep.target.n = nFrom;
-                    pStep.target.z = zFrom;// memcpy( (char*)pStep.target.z, zFrom, nFrom );
-
-                    pStep.pWhere = sqlite3ExprDup(db, pWhere, EXPRDUP_REDUCE);
-                    pStep.pExprList = sqlite3ExprListDup(db, pList, EXPRDUP_REDUCE);
-                    pStep.pSelect = sqlite3SelectDup(db, pSelect, EXPRDUP_REDUCE);
-                    if (pWhen != null)
+                    step.Where = Expr.Dup(ctx, where_, EXPRDUP_REDUCE);
+                    step.ExprList = Expr.ListDup(ctx, list, EXPRDUP_REDUCE);
+                    step.Select = Select.Dup(ctx, select, EXPRDUP_REDUCE);
+                    if (when != null)
                     {
-                        pWhen = sqlite3PExpr(pParse, TK_NOT, pWhen, 0, 0);
-                        pTrigger.pWhen = sqlite3ExprDup(db, pWhen, EXPRDUP_REDUCE);
+                        when = Expr.PExpr(parse, TK_NOT, when, 0, 0);
+                        trigger.When = Expr.Dup(ctx, when, EXPRDUP_REDUCE);
                     }
                 }
 
-                /* Re-enable the lookaside buffer, if it was disabled earlier. */
-                db.lookaside.bEnabled = enableLookaside;
+                // Re-enable the lookaside buffer, if it was disabled earlier.
+                ctx.Lookaside.Enabled = enableLookaside;
 
-                sqlite3ExprDelete(db, ref pWhere);
-                sqlite3ExprDelete(db, ref pWhen);
-                sqlite3ExprListDelete(db, ref pList);
-                sqlite3SelectDelete(db, ref pSelect);
-                //if ( db.mallocFailed == 1 )
-                //{
-                //  fkTriggerDelete( db, pTrigger );
-                //  return 0;
-                //}
+                Expr.Delete(ctx, ref where_);
+                Expr.Delete(ctx, ref when);
+                Expr.ListDelete(ctx, ref list);
+                Select.Delete(ctx, ref select);
+                if (ctx.MallocFailed)
+                {
+                    FKTriggerDelete(ctx, trigger);
+                    return null;
+                }
 
                 switch (action)
                 {
                     case OE_Restrict:
-                        pStep.op = TK_SELECT;
+                        step.OP = TK.SELECT;
                         break;
                     case OE_Cascade:
-                        if (null == pChanges)
+                        if (changes == null)
                         {
-                            pStep.op = TK_DELETE;
+                            step.OP = TK.DELETE;
                             break;
                         }
                         goto default;
                     default:
-                        pStep.op = TK_UPDATE;
+                        step.OP = TK_UPDATE;
                         break;
                 }
-                pStep.pTrig = pTrigger;
-                pTrigger.pSchema = pTab.pSchema;
-                pTrigger.pTabSchema = pTab.pSchema;
-                pFKey.apTrigger[iAction] = pTrigger;
-                pTrigger.op = (byte)(pChanges != null ? TK_UPDATE : TK_DELETE);
+                step.Trigger = trigger;
+                trigger.Schema = table.Schema;
+                trigger.TabSchema = table.Schema;
+                fkey.Triggers[actionId] = trigger;
+                trigger.OP = (TK)(changes != null ? TK_UPDATE : TK_DELETE);
             }
 
-            return pTrigger;
+            return trigger;
         }
 
-        /*
-        ** This function is called when deleting or updating a row to implement
-        ** any required CASCADE, SET NULL or SET DEFAULT actions.
-        */
-        static void sqlite3FkActions(
-          Parse pParse,                  /* Parse context */
-          Table pTab,                    /* Table being updated or deleted from */
-          ExprList pChanges,             /* Change-list for UPDATE, NULL for DELETE */
-          int regOld                     /* Address of array containing old row */
-        )
+        public void FKActions(Table table, ExprList changes, int regOld)
         {
-            /* If foreign-key support is enabled, iterate through all FKs that 
-            ** refer to table pTab. If there is an action a6ssociated with the FK 
-            ** for this operation (either update or delete), invoke the associated 
-            ** trigger sub-program.  */
-            if ((pParse.db.flags & SQLITE_ForeignKeys) != 0)
-            {
-                FKey pFKey;                  /* Iterator variable */
-                for (pFKey = sqlite3FkReferences(pTab); pFKey != null; pFKey = pFKey.pNextTo)
+            // If foreign-key support is enabled, iterate through all FKs that refer to table table. If there is an action associated with the FK 
+            // for this operation (either update or delete), invoke the associated trigger sub-program.
+            if ((Ctx.Flags & Context.FLAG.ForeignKeys) != 0)
+                for (FKey fkey = FKReferences(table); fkey != null; fkey = fkey.NextTo)
                 {
-                    Trigger pAction = fkActionTrigger(pParse, pTab, pFKey, pChanges);
-                    if (pAction != null)
-                    {
-                        sqlite3CodeRowTriggerDirect(pParse, pAction, pTab, regOld, OE_Abort, 0);
-                    }
+                    Trigger action = fkActionTrigger(table, fkey, changes);
+                    if (action != null)
+                        CodeRowTriggerDirect(this, action, table, regOld, OE.Abort, 0);
                 }
-            }
         }
 
-#endif //* ifndef SQLITE_OMIT_TRIGGER */
-
-
-        static void sqlite3FkDelete(sqlite3 db, Table pTab)
-        {
-            FKey pFKey;                    /* Iterator variable */
-            FKey pNext;                    /* Copy of pFKey.pNextFrom */
-
-            Debug.Assert(db == null || sqlite3SchemaMutexHeld(db, 0, pTab.pSchema));
-            for (pFKey = pTab.pFKey; pFKey != null; pFKey = pNext)
-            {
-
-                /* Remove the FK from the fkeyHash hash table. */
-                //if ( null == db || db.pnBytesFreed == 0 )
-                {
-                    if (pFKey.pPrevTo != null)
-                    {
-                        pFKey.pPrevTo.pNextTo = pFKey.pNextTo;
-                    }
-                    else
-                    {
-                        FKey p = pFKey.pNextTo;
-                        string z = (p != null ? pFKey.pNextTo.zTo : pFKey.zTo);
-                        sqlite3HashInsert(ref pTab.pSchema.fkeyHash, z, sqlite3Strlen30(z), p);
-                    }
-                    if (pFKey.pNextTo != null)
-                    {
-                        pFKey.pNextTo.pPrevTo = pFKey.pPrevTo;
-                    }
-                }
-
-                /* EV: R-30323-21917 Each foreign key constraint in SQLite is
-                ** classified as either immediate or deferred.
-                */
-                Debug.Assert(pFKey.isDeferred == 0 || pFKey.isDeferred == 1);
-
-                /* Delete any triggers created to implement actions for this FK. */
-#if !SQLITE_OMIT_TRIGGER
-                fkTriggerDelete(db, pFKey.apTrigger[0]);
-                fkTriggerDelete(db, pFKey.apTrigger[1]);
 #endif
 
-                pNext = pFKey.pNextFrom;
-                sqlite3DbFree(db, ref pFKey);
+        public static void FKDelete(Context ctx, Table table)
+        {
+            Debug.Assert(ctx == null || Btree.SchemaMutexHeld(ctx, 0, table.Schema));
+            FKey next; // Copy of pFKey.pNextFrom
+            for (FKey fkey = table.FKeys; fkey != null; fkey = next)
+            {
+                // Remove the FK from the fkeyHash hash table.
+                //: if (!ctx || ctx->BytesFreed == 0)
+                {
+                    if (fkey.PrevTo != null)
+                        fkey.PrevTo.NextTo = fkey.NextTo;
+                    else
+                    {
+                        FKey p = fkey.NextTo;
+                        string z = (p != null ? fkey.NextTo.To : fkey.To);
+                        table.Schema.FKeyHash.Insert(z, z.Length, p);
+                    }
+                    if (fkey.NextTo != null)
+                        fkey.NextTo.PrevTo = fkey.PrevTo;
+                }
+
+                // EV: R-30323-21917 Each foreign key constraint in SQLite is classified as either immediate or deferred.
+                Debug.Assert(fkey->IsDeferred == false || fkey->IsDeferred == true);
+
+                // Delete any triggers created to implement actions for this FK.
+#if !OMIT_TRIGGER
+                FKTriggerDelete(ctx, fkey.Triggers[0]);
+                FKTriggerDelete(ctx, fkey.Triggers[1]);
+#endif
+                next = fkey.NextFrom;
+                SysEx.TagFree(ctx, ref fkey);
             }
         }
     }
