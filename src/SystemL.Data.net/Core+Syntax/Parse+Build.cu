@@ -485,7 +485,7 @@ namespace Core
 		else
 		{
 			_assert(ctx->Init.DB == 0 || ctx->Init.Busy);
-			db = ctx->Init.DB;
+			db = (int)ctx->Init.DB;
 			*unqual = name1;
 		}
 		return db;

@@ -29,17 +29,15 @@ namespace Core
         {
             Schema tmpSchema = parse.Ctx.DBs[1].Schema;
             Trigger list = null; // List of triggers to return
-
-            if (parse.DisableTriggers != 0)
+            if (parse.DisableTriggers)
                 return null;
-
             if (tmpSchema != table.Schema)
             {
                 Debug.Assert(Btree.SchemaMutexHeld(parse.Ctx, 0, tmpSchema));
                 for (HashElem p = tmpSchema.TriggerHash.First; p != null; p = p.Next)
                 {
                     Trigger trig = (Trigger)p.Data;
-                    if (trig.TableSchema == table.Schema && trig.Table.Equals(table.Name, StringComparison.InvariantCultureIgnoreCase))
+                    if (trig.TabSchema == table.Schema && trig.Table.Equals(table.Name, StringComparison.InvariantCultureIgnoreCase))
                     {
                         trig.Next = (list != null ? list : table.Trigger);
                         list = trig;
@@ -52,18 +50,17 @@ namespace Core
 
         public static void BeginTrigger(Parse parse, Token name1, Token name2, TK trTm, TK op, IdList columns, SrcList tableName, Expr when, bool isTemp, int noErr)
         {
-            Trigger trigger = null;      // The new trigger
-            Table table;                   // Table that the trigger fires off of
-            string name = null;          // Name of the trigger
-            Context ctx = parse.Ctx;       // The database connection
-            Token name = null;           // The unqualified db name
+            Trigger trigger = null; // The new trigger
+            Table table; // Table that the trigger fires off of
+            Context ctx = parse.Ctx; // The database connection
+            Token name = null; // The unqualified db name
             DbFixer fix = new DbFixer(); // State vector for the DB fixer
-            int iTabDb;                   // Index of the database holding pTab
+            int tabDB; // Index of the database holding pTab
 
             Debug.Assert(name1 != null);   // pName1.z might be NULL, but not pName1 itself
             Debug.Assert(name2 != null);
             Debug.Assert(op == TK.INSERT || op == TK.UPDATE || op == TK.DELETE);
-            Debug.Assert(op > 0 && op < 0xff);
+            Debug.Assert(op > 0 && op < (TK)0xff);
 
             int db; // The database to store the trigger in
             if (isTemp)
@@ -80,11 +77,11 @@ namespace Core
             else
             {
                 // Figure out the db that the the trigger will be created in
-                db = Parse.TwoPartName(parse, name1, name2, ref name);
+                db = parse.TwoPartName(name1, name2, ref name);
                 if (db < 0)
                     goto trigger_cleanup;
             }
-            if (tableName == null)
+            if (tableName == null || ctx.MallocFailed)
                 goto trigger_cleanup;
 
             // A long-standing parser bug is that this syntax was allowed:
@@ -93,20 +90,19 @@ namespace Core
             // To maintain backwards compatibility, ignore the database name on pTableName if we are reparsing our of SQLITE_MASTER.
             if (ctx.Init.Busy && db != 1)
             {
-                //SysEx.TagFree(ctx, tableName.Ids[0].Database);
+                SysEx.TagFree(ctx, ref tableName.Ids[0].Database);
                 tableName.Ids[0].Database = null;
             }
 
             // If the trigger name was unqualified, and the table is a temp table, then set iDb to 1 to create the trigger in the temporary database.
             // If sqlite3SrcListLookup() returns 0, indicating the table does not exist, the error is caught by the block below.
-            if (tableName == null)
-                goto trigger_cleanup;
+            //? if (tableName == null) goto trigger_cleanup;
             table = sqlite3SrcListLookup(parse, tableName);
             if (ctx.Init.Busy == null && name2.length == 0 && table != null && table.Schema == ctx.DBs[1].Schema)
                 db = 1;
 
             // Ensure the table name matches database name and that the table exists
-            //if (ctx.MallocFailed) goto trigger_cleanup;
+            if (ctx.MallocFailed) goto trigger_cleanup;
             Debug.Assert(tableName.Srcs == 1);
             if (sqlite3FixInit(fix, parse, db, "trigger", name) != 0 && sqlite3FixSrcList(fix, tableName) != 0)
                 goto trigger_cleanup;
@@ -131,11 +127,11 @@ namespace Core
             }
 
             // Check that the trigger name is not reserved and that no trigger of the specified name exists
-            name = sqlite3NameFromToken(db, name);
-            if (name == null || RC.OK != sqlite3CheckObjectName(parse, name))
+            string nameAsString = sqlite3NameFromToken(ctx, name);
+            if (nameAsString == null || RC.OK != sqlite3CheckObjectName(parse, nameAsString))
                 goto trigger_cleanup;
             Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
-            if (ctx.DBs[db].Schema.TriggerHash.First(name, name.Length, (Trigger)null) != null)
+            if (ctx.DBs[db].Schema.TriggerHash.Find(nameAsString, nameAsString.Length, (Trigger)null) != null)
             {
                 if (noErr == 0)
                     parse.ErrorMsg(ctx, "trigger %T already exists", name);
@@ -155,1066 +151,625 @@ namespace Core
                 goto trigger_cleanup;
             }
 
-            /* INSTEAD of triggers are only for views and views only support INSTEAD
-            ** of triggers.
-            */
-            if (table.pSelect != null && trTm != TK_INSTEAD)
+            // INSTEAD of triggers are only for views and views only support INSTEAD of triggers.
+            if (table.Select != null && trTm != TK.INSTEAD)
             {
-                sqlite3ErrorMsg(parse, "cannot create %s trigger on view: %S",
-                (trTm == TK_BEFORE) ? "BEFORE" : "AFTER", tableName, 0);
+                parse.ErrorMsg("cannot create %s trigger on view: %S", (trTm == TK.BEFORE ? "BEFORE" : "AFTER"), tableName, 0);
                 goto trigger_cleanup;
             }
-            if (table.pSelect == null && trTm == TK_INSTEAD)
+            if (table.Select == null && trTm == TK.INSTEAD)
             {
-                sqlite3ErrorMsg(parse, "cannot create INSTEAD OF" +
-                " trigger on table: %S", tableName, 0);
+                parse.ErrorMsg("cannot create INSTEAD OF trigger on table: %S", tableName, 0);
                 goto trigger_cleanup;
             }
-            iTabDb = sqlite3SchemaToIndex(db, table.pSchema);
+            tabDB = sqlite3SchemaToIndex(db, table.Schema);
 
-#if !SQLITE_OMIT_AUTHORIZATION
+#if !OMIT_AUTHORIZATION
             {
-                int code = SQLITE_CREATE_TRIGGER;
-                string zDb = db.aDb[iTabDb].zName;
-                string zDbTrig = isTemp ? db.aDb[1].zName : zDb;
-                if (iTabDb == 1 || isTemp) code = SQLITE_CREATE_TEMP_TRIGGER;
-                if (sqlite3AuthCheck(parse, code, name, table.zName, zDbTrig))
-                {
+                int code = AUTH.CREATE_TRIGGER;
+                string dbName = ctx.DBs[tabDb].Name;
+                string dbTrigName = (isTemp ? ctx.DBs[1].Name : dbName);
+                if (tabDB == 1 || isTemp) code = SQLITE_CREATE_TEMP_TRIGGER;
+                if (Auth.Check(parse, code, nameAsString, table.Name, dbTrigName) || Auth.Check(parse, AUTH.INSERT, SCHEMA_TABLE(tabDb), 0, dbName))
                     goto trigger_cleanup;
-                }
-                if (sqlite3AuthCheck(parse, SQLITE_INSERT, SCHEMA_TABLE(iTabDb), 0, zDb))
-                {
-                    goto trigger_cleanup;
-                }
             }
 #endif
 
-            /* INSTEAD OF triggers can only appear on views and BEFORE triggers
-** cannot appear on views.  So we might as well translate every
-** INSTEAD OF trigger into a BEFORE trigger.  It simplifies code
-** elsewhere.
-*/
-            if (trTm == TK_INSTEAD)
-            {
-                trTm = TK_BEFORE;
-            }
+            // INSTEAD OF triggers can only appear on views and BEFORE triggers cannot appear on views.  So we might as well translate every
+            // INSTEAD OF trigger into a BEFORE trigger.  It simplifies code elsewhere.
+            if (trTm == TK.INSTEAD)
+                trTm = TK.BEFORE;
 
-            /* Build the Trigger object */
-            trigger = new Trigger();// (Trigger*)sqlite3DbMallocZero( db, sizeof(Trigger ))
-            if (trigger == null)
-                goto trigger_cleanup;
-            trigger.zName = name;
-            trigger.table = tableName.a[0].zName;// sqlite3DbStrDup( db, pTableName.a[0].zName );
-            trigger.pSchema = db.aDb[db].pSchema;
-            trigger.pTabSchema = table.pSchema;
-            trigger.op = (u8)op;
-            trigger.tr_tm = trTm == TK_BEFORE ? TRIGGER_BEFORE : TRIGGER_AFTER;
-            trigger.pWhen = sqlite3ExprDup(db, when, EXPRDUP_REDUCE);
-            trigger.pColumns = sqlite3IdListDup(db, columns);
-            Debug.Assert(parse.pNewTrigger == null);
-            parse.pNewTrigger = trigger;
+            // Build the Trigger object
+            trigger = new Trigger(); //: (Trigger *)SysEx::TagAlloc(db, sizeof(Trigger), true);
+            if (trigger == null) goto trigger_cleanup;
+            trigger.Name = name;
+            trigger.Table = tableName.Ids[0].Name; //: SysEx::TagStrDup(ctx, tableName->Ids[0].Name);
+            trigger.Schema = ctx.DBs[db].Schema;
+            trigger.TabSchema = table.Schema;
+            trigger.OP = (byte)op;
+            trigger.TR_TM = (trTm == TK.BEFORE ? TRIGGER.BEFORE : TRIGGER.AFTER);
+            trigger.When = Expr.Dup(db, when, EXPRDUP.REDUCE);
+            trigger.Columns = IdListDup(ctx, columns);
+            Debug.Assert(parse.NewTrigger == null);
+            parse.NewTrigger = trigger;
 
         trigger_cleanup:
-            sqlite3DbFree(db, ref name);
-            sqlite3SrcListDelete(db, ref tableName);
-            sqlite3IdListDelete(db, ref columns);
-            sqlite3ExprDelete(db, ref when);
-            if (parse.pNewTrigger == null)
-            {
-                sqlite3DeleteTrigger(db, ref trigger);
-            }
+            SysEx.TagFree(ctx, ref name);
+            SrcListDelete(ctx, ref tableName);
+            IdListDelete(ctx, ref columns);
+            ExprDelete(ctx, ref when);
+            if (parse.NewTrigger == null)
+                DeleteTrigger(ctx, ref trigger);
             else
-            {
-                Debug.Assert(parse.pNewTrigger == trigger);
-            }
+                Debug.Assert(parse.NewTrigger == trigger);
         }
 
-        /*
-        ** This routine is called after all of the trigger actions have been parsed
-        ** in order to complete the process of building the trigger.
-        */
-        static void sqlite3FinishTrigger(
-        Parse pParse,          /* Parser context */
-        TriggerStep pStepList, /* The triggered program */
-        Token pAll             /* Token that describes the complete CREATE TRIGGER */
-        )
+        static void sqlite3FinishTrigger(Parse parse, TriggerStep stepList, Token all)
         {
-            Trigger pTrig = pParse.pNewTrigger; /* Trigger being finished */
-            string zName;                       /* Name of trigger */
+            Trigger trig = parse.NewTrigger; // Trigger being finished
+            Context ctx = parse.Ctx; // The database
+            DbFixer sFix = new DbFixer(); // Fixer object
+            Token nameToken = new Token(); // Trigger name for error reporting
 
-            sqlite3 db = pParse.db;             /* The database */
-            DbFixer sFix = new DbFixer();       /* Fixer object */
-            int iDb;                            /* Database containing the trigger */
-            Token nameToken = new Token();      /* Trigger name for error reporting */
-
-            pParse.pNewTrigger = null;
-            if (NEVER(pParse.nErr != 0) || pTrig == null)
+            parse.NewTrigger = null;
+            if (SysEx.NEVER(parse.Errs != 0) || trig == null)
                 goto triggerfinish_cleanup;
-            zName = pTrig.zName;
-            iDb = sqlite3SchemaToIndex(pParse.db, pTrig.pSchema);
-            pTrig.step_list = pStepList;
-            while (pStepList != null)
+            string name = trig.Name; // Name of trigger
+            int db = sqlite3SchemaToIndex(parse.Ctx, trig.Schema); // Database containing the trigger
+            trig.StepList = stepList;
+            while (stepList != null)
             {
-                pStepList.pTrig = pTrig;
-                pStepList = pStepList.pNext;
+                stepList.Trig = trig;
+                stepList = stepList.pNext;
             }
-            nameToken.z = pTrig.zName;
-            nameToken.n = sqlite3Strlen30(nameToken.z);
-            if (sqlite3FixInit(sFix, pParse, iDb, "trigger", nameToken) != 0
-            && sqlite3FixTriggerStep(sFix, pTrig.step_list) != 0)
-            {
+            nameToken.data = trig.Name;
+            nameToken.length = nameToken.data.Length;
+            if (sqlite3FixInit(sFix, parse, db, "trigger", nameToken) != 0 && sqlite3FixTriggerStep(sFix, trig.step_list) != 0)
                 goto triggerfinish_cleanup;
+
+            // if we are not initializing, build the sqlite_master entry
+            if (ctx.Init.Busy)
+            {
+                // Make an entry in the sqlite_master table
+                Vdbe v = parse.GetVdbe();
+                if (v == null) goto triggerfinish_cleanup;
+                parse.BeginWriteOperation(0, db);
+                string z = all.data.Substring(0, all.length); //: SysEx::TagStrNDup(ctx, (char *)all->data, all->length);
+                parse.NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx.DBs[db].Name, SCHEMA_TABLE(db), name, trig.Table, z);
+                SysEx.TagFree(ctx, ref z);
+                parse.ChangeCookie(db);
+                v.AddParseSchemaOp(db, SysEx.Mprintf(ctx, "type='trigger' AND name='%q'", name));
             }
 
-            /* if we are not initializing,
-            ** build the sqlite_master entry
-            */
-            if (0 == db.init.busy)
+            if (!ctx.Init.Busy)
             {
-                Vdbe v;
-                string z;
-
-                /* Make an entry in the sqlite_master table */
-                v = sqlite3GetVdbe(pParse);
-                if (v == null)
-                    goto triggerfinish_cleanup;
-                sqlite3BeginWriteOperation(pParse, 0, iDb);
-                z = pAll.z.Substring(0, pAll.n);//sqlite3DbStrNDup( db, (char*)pAll.z, pAll.n );
-                sqlite3NestedParse(pParse,
-                "INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')",
-                db.aDb[iDb].zName, SCHEMA_TABLE(iDb), zName,
-                pTrig.table, z);
-                sqlite3DbFree(db, ref z);
-                sqlite3ChangeCookie(pParse, iDb);
-                sqlite3VdbeAddParseSchemaOp(v, iDb,
-                    sqlite3MPrintf(db, "type='trigger' AND name='%q'", zName));
-            }
-
-            if (db.init.busy != 0)
-            {
-                Trigger pLink = pTrig;
-                Hash pHash = db.aDb[iDb].pSchema.trigHash;
-                Debug.Assert(sqlite3SchemaMutexHeld(db, iDb, null));
-                pTrig = sqlite3HashInsert(ref pHash, zName, sqlite3Strlen30(zName), pTrig);
-                if (pTrig != null)
+                Trigger link = trig;
+                Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
+                trig = ctx.DBs[db].Schema.TriggerHash.Insert(name, name.Length, trig);
+                if (trig != null)
+                    ctx.MallocFailed = true;
+                else if (link.Schema == link.TabSchema)
                 {
-                    //db.mallocFailed = 1;
-                }
-                else if (pLink.pSchema == pLink.pTabSchema)
-                {
-                    Table pTab;
-                    int n = sqlite3Strlen30(pLink.table);
-                    pTab = sqlite3HashFind(pLink.pTabSchema.tblHash, pLink.table, n, (Table)null);
-                    Debug.Assert(pTab != null);
-                    pLink.pNext = pTab.pTrigger;
-                    pTab.pTrigger = pLink;
+                    int tableLength = link.Table.Length;
+                    Table table = (Table)link.TabSchema.TableHash.Find(link.Table, tableLength, (Table)null);
+                    Debug.Assert(table != null);
+                    link.Next = table.Trigger;
+                    table.Trigger = link;
                 }
             }
 
         triggerfinish_cleanup:
-            sqlite3DeleteTrigger(db, ref pTrig);
-            Debug.Assert(pParse.pNewTrigger == null);
-            sqlite3DeleteTriggerStep(db, ref pStepList);
+            DeleteTrigger(ctx, ref trig);
+            Debug.Assert(parse.NewTrigger == null);
+            DeleteTriggerStep(ctx, ref stepList);
         }
 
-        /*
-        ** Turn a SELECT statement (that the pSelect parameter points to) into
-        ** a trigger step.  Return a pointer to a TriggerStep structure.
-        **
-        ** The parser calls this routine when it finds a SELECT statement in
-        ** body of a TRIGGER.
-        */
-        static TriggerStep sqlite3TriggerSelectStep(sqlite3 db, Select pSelect)
+        public static TriggerStep TriggerSelectStep(Context ctx, Select select)
         {
-            TriggerStep pTriggerStep = new TriggerStep();// sqlite3DbMallocZero( db, sizeof(TriggerStep ))
-            if (pTriggerStep == null)
+            TriggerStep triggerStep = new TriggerStep(); //: SysEx::TagAlloc(ctx, sizeof(TriggerStep), true);
+            if (triggerStep == null)
             {
-                sqlite3SelectDelete(db, ref pSelect);
+                SelectDelete(ctx, ref select);
                 return null;
             }
-
-            pTriggerStep.op = TK_SELECT;
-            pTriggerStep.pSelect = pSelect;
-            pTriggerStep.orconf = OE_Default;
-            return pTriggerStep;
+            triggerStep.OP = TK.SELECT;
+            triggerStep.Select spSelect;
+            triggerStep.orconf = OE.Default;
+            return triggerStep;
         }
 
-        /*
-        ** Allocate space to hold a new trigger step.  The allocated space
-        ** holds both the TriggerStep object and the TriggerStep.target.z string.
-        **
-        ** If an OOM error occurs, NULL is returned and db.mallocFailed is set.
-        */
-        static TriggerStep triggerStepAllocate(
-        sqlite3 db,                /* Database connection */
-        u8 op,                     /* Trigger opcode */
-        Token pName                /* The target name */
-        )
+        static TriggerStep TriggerStepAllocate(Context ctx, byte op, Token name)
         {
-            TriggerStep pTriggerStep;
-
-            pTriggerStep = new TriggerStep();// sqlite3DbMallocZero( db, sizeof( TriggerStep ) + pName.n );
-            //if ( pTriggerStep != null )
-            //{
-            string z;// = (char*)&pTriggerStep[1];
-            z = pName.z;// memcpy( z, pName.z, pName.n );
-            pTriggerStep.target.z = z;
-            pTriggerStep.target.n = pName.n;
-            pTriggerStep.op = op;
-            //}
-            return pTriggerStep;
+            TriggerStep triggerStep = new TriggerStep(); //: SysEx::TagAlloc(ctx, sizeof(TriggerStep) + name->length, true);
+            if (triggerStep != null)
+            {
+                string z = name.data;
+                triggerStep.target.data = z;
+                triggerStep.target.length = name.length;
+                triggerStep.OP = op;
+            }
+            return triggerStep;
         }
 
-        /*
-        ** Build a trigger step out of an INSERT statement.  Return a pointer
-        ** to the new trigger step.
-        **
-        ** The parser calls this routine when it sees an INSERT inside the
-        ** body of a trigger.
-        */
         // OVERLOADS, so I don't need to rewrite parse.c
-        static TriggerStep sqlite3TriggerInsertStep(sqlite3 db, Token pTableName, IdList pColumn, int null_4, int null_5, u8 orconf)
+        public static TriggerStep TriggerInsertStep(Context ctx, Token tableName, IdList column, int null_4, int null_5, OE orconf) { return TriggerInsertStep(ctx, tableName, column, null, null, orconf); }
+        public static TriggerStep TriggerInsertStep(Context ctx, Token tableName, IdList column, ExprList list, int null_5, OE orconf) { return TriggerInsertStep(ctx, tableName, column, list, null, orconf); }
+        public static TriggerStep TriggerInsertStep(Context ctx, Token tableName, IdList column, int null_4, Select select, OE orconf) { return TriggerInsertStep(ctx, tableName, column, null, select, orconf); }
+        public static TriggerStep TriggerInsertStep(Context ctx, Token tableName, IdList column, ExprList list, Select select, OE orconf)
         {
-            return sqlite3TriggerInsertStep(db, pTableName, pColumn, null, null, orconf);
-        }
-        static TriggerStep sqlite3TriggerInsertStep(sqlite3 db, Token pTableName, IdList pColumn, ExprList pEList, int null_5, u8 orconf)
-        {
-            return sqlite3TriggerInsertStep(db, pTableName, pColumn, pEList, null, orconf);
-        }
-        static TriggerStep sqlite3TriggerInsertStep(sqlite3 db, Token pTableName, IdList pColumn, int null_4, Select pSelect, u8 orconf)
-        {
-            return sqlite3TriggerInsertStep(db, pTableName, pColumn, null, pSelect, orconf);
-        }
-        static TriggerStep sqlite3TriggerInsertStep(
-        sqlite3 db,        /* The database connection */
-        Token pTableName,  /* Name of the table into which we insert */
-        IdList pColumn,    /* List of columns in pTableName to insert into */
-        ExprList pEList,   /* The VALUE clause: a list of values to be inserted */
-        Select pSelect,    /* A SELECT statement that supplies values */
-        u8 orconf          /* The conflict algorithm (OE_Abort, OE_Replace, etc.) */
-        )
-        {
-            TriggerStep pTriggerStep;
-
-            Debug.Assert(pEList == null || pSelect == null);
-            Debug.Assert(pEList != null || pSelect != null /*|| db.mallocFailed != 0 */ );
-
-            pTriggerStep = triggerStepAllocate(db, TK_INSERT, pTableName);
-            //if ( pTriggerStep != null )
-            //{
-            pTriggerStep.pSelect = sqlite3SelectDup(db, pSelect, EXPRDUP_REDUCE);
-            pTriggerStep.pIdList = pColumn;
-            pTriggerStep.pExprList = sqlite3ExprListDup(db, pEList, EXPRDUP_REDUCE);
-            pTriggerStep.orconf = orconf;
-            //}
-            //else
-            //{
-            //  sqlite3IdListDelete( db, ref pColumn );
-            //}
-            sqlite3ExprListDelete(db, ref pEList);
-            sqlite3SelectDelete(db, ref pSelect);
-
-            return pTriggerStep;
-        }
-
-        /*
-        ** Construct a trigger step that implements an UPDATE statement and return
-        ** a pointer to that trigger step.  The parser calls this routine when it
-        ** sees an UPDATE statement inside the body of a CREATE TRIGGER.
-        */
-        static TriggerStep sqlite3TriggerUpdateStep(
-        sqlite3 db,         /* The database connection */
-        Token pTableName,   /* Name of the table to be updated */
-        ExprList pEList,    /* The SET clause: list of column and new values */
-        Expr pWhere,        /* The WHERE clause */
-        u8 orconf           /* The conflict algorithm. (OE_Abort, OE_Ignore, etc) */
-        )
-        {
-            TriggerStep pTriggerStep;
-
-            pTriggerStep = triggerStepAllocate(db, TK_UPDATE, pTableName);
-            //if ( pTriggerStep != null )
-            //{
-            pTriggerStep.pExprList = sqlite3ExprListDup(db, pEList, EXPRDUP_REDUCE);
-            pTriggerStep.pWhere = sqlite3ExprDup(db, pWhere, EXPRDUP_REDUCE);
-            pTriggerStep.orconf = orconf;
-            //}
-            sqlite3ExprListDelete(db, ref pEList);
-            sqlite3ExprDelete(db, ref pWhere);
-            return pTriggerStep;
-        }
-
-        /*
-        ** Construct a trigger step that implements a DELETE statement and return
-        ** a pointer to that trigger step.  The parser calls this routine when it
-        ** sees a DELETE statement inside the body of a CREATE TRIGGER.
-        */
-        static TriggerStep sqlite3TriggerDeleteStep(
-        sqlite3 db,            /* Database connection */
-        Token pTableName,      /* The table from which rows are deleted */
-        Expr pWhere            /* The WHERE clause */
-        )
-        {
-            TriggerStep pTriggerStep;
-
-            pTriggerStep = triggerStepAllocate(db, TK_DELETE, pTableName);
-            //if ( pTriggerStep != null )
-            //{
-            pTriggerStep.pWhere = sqlite3ExprDup(db, pWhere, EXPRDUP_REDUCE);
-            pTriggerStep.orconf = OE_Default;
-            //}
-            sqlite3ExprDelete(db, ref pWhere);
-            return pTriggerStep;
-        }
-
-
-
-        /*
-        ** Recursively delete a Trigger structure
-        */
-        static void sqlite3DeleteTrigger(sqlite3 db, ref Trigger pTrigger)
-        {
-            if (pTrigger == null)
-                return;
-            sqlite3DeleteTriggerStep(db, ref pTrigger.step_list);
-            sqlite3DbFree(db, ref pTrigger.zName);
-            sqlite3DbFree(db, ref pTrigger.table);
-            sqlite3ExprDelete(db, ref pTrigger.pWhen);
-            sqlite3IdListDelete(db, ref pTrigger.pColumns);
-            pTrigger = null;
-            sqlite3DbFree(db, ref pTrigger);
-        }
-
-        /*
-        ** This function is called to drop a trigger from the database schema.
-        **
-        ** This may be called directly from the parser and therefore identifies
-        ** the trigger by name.  The sqlite3DropTriggerPtr() routine does the
-        ** same job as this routine except it takes a pointer to the trigger
-        ** instead of the trigger name.
-        **/
-        static void sqlite3DropTrigger(Parse pParse, SrcList pName, int noErr)
-        {
-            Trigger pTrigger = null;
-            int i;
-            string zDb;
-            string zName;
-            int nName;
-            sqlite3 db = pParse.db;
-
-            //      if ( db.mallocFailed != 0 ) goto drop_trigger_cleanup;
-            if (SQLITE_OK != sqlite3ReadSchema(pParse))
+            Debug.Assert(list == null || select == null);
+            Debug.Assert(list != null || select != null || ctx.MallocFailed);
+            TriggerStep triggerStep = TriggerStepAllocate(ctx, TK.INSERT, tableName);
+            if (triggerStep != null)
             {
+                triggerStep.Select = SelectDup(ctx, select, EXPRDUP_REDUCE);
+                triggerStep.IdList = column;
+                triggerStep.ExprList = ExprListDup(ctx, list, EXPRDUP_REDUCE);
+                triggerStep.Orconf = orconf;
+            }
+            else
+                IdListDelete(ctx, ref column);
+            ExprListDelete(ctx, ref list);
+            SelectDelete(ctx, ref select);
+            return triggerStep;
+        }
+
+        public static TriggerStep TriggerUpdateStep(Context ctx, Token tableName, ExprList list, Expr where, OE orconf)
+        {
+            TriggerStep triggerStep = triggerStepAllocate(ctx, TK_UPDATE, tableName);
+            if (triggerStep != null)
+            {
+                triggerStep.ExprList = ExprListDup(ctx, list, EXPRDUP_REDUCE);
+                triggerStep.Where = ExprDup(ctx, where, EXPRDUP_REDUCE);
+                triggerStep.Orconf = orconf;
+            }
+            ExprListDelete(ctx, ref list);
+            ExprDelete(ctx, ref where);
+            return triggerStep;
+        }
+
+        public static TriggerStep TriggerDeleteStep(Context ctx, Token tableName, Expr where_)
+        {
+            TriggerStep triggerStep = TriggerStepAllocate(ctx, TK_DELETE, tableName);
+            if (triggerStep != null)
+            {
+                triggerStep.Where = sqlite3ExprDup(ctx, where_, EXPRDUP_REDUCE);
+                triggerStep.Orconf = OE_Default;
+            }
+            ExprDelete(ctx, ref where_);
+            return triggerStep;
+        }
+
+        public static void DeleteTrigger(Context ctx, ref Trigger trigger)
+        {
+            if (trigger == null) return;
+            DeleteTriggerStep(ctx, ref trigger.StepList);
+            SysEx.TagFree(ctx, ref trigger.Name);
+            SysEx.TagFree(ctx, ref trigger.Table);
+            ExprDelete(ctx, ref trigger.When);
+            IdListDelete(ctx, ref trigger.Columns);
+            SysEx.TagFree(ctx, ref trigger);
+            trigger = null;
+        }
+
+        public static void DropTrigger(Parse parse, SrcList name, int noErr)
+        {
+            Context ctx = parse.db;
+            if (ctx.MallocFailed || parse.ReadSchema(parse) != RC.OK)
                 goto drop_trigger_cleanup;
-            }
 
-            Debug.Assert(pName.nSrc == 1);
-            zDb = pName.a[0].zDatabase;
-            zName = pName.a[0].zName;
-            nName = sqlite3Strlen30(zName);
-            Debug.Assert(zDb != null || sqlite3BtreeHoldsAllMutexes(db));
-            for (i = OMIT_TEMPDB; i < db.nDb; i++)
+            Debug.Assert(name.nSrc == 1);
+            string dbName = name.Ids[0].Database;
+            string nameAsString = name.Ids[0].Name;
+            int nameLength = nameAsString.Length;
+            Debug.Assert(dbName != null || Btree.BtreeHoldsAllMutexes(ctx));
+            Trigger trigger = null;
+            for (int i = OMIT_TEMPDB; i < ctx.nDb; i++)
             {
-                int j = (i < 2) ? i ^ 1 : i;  /* Search TEMP before MAIN */
-                if (zDb != null && !db.aDb[j].zName.Equals(zDb, StringComparison.InvariantCultureIgnoreCase))
-                    continue;
-                Debug.Assert(sqlite3SchemaMutexHeld(db, j, null));
-                pTrigger = sqlite3HashFind((db.aDb[j].pSchema.trigHash), zName, nName, (Trigger)null);
-                if (pTrigger != null)
-                    break;
+                int j = (i < 2 ? i ^ 1 : i); // Search TEMP before MAIN
+                if (dbName != null && !string.Equals(ctx.DBs[j].Name, dbName, StringComparison.InvariantCultureIgnoreCase)) continue;
+                Debug.Assert(Btree.SchemaMutexHeld(ctx, j, null));
+                trigger = ctx.DBs[j].Schema.TriggerHash.Find(nameAsString, nameLength, (Trigger)null);
+                if (trigger != null) break;
             }
-            if (pTrigger == null)
+            if (trigger == null)
             {
                 if (noErr == 0)
-                {
-                    sqlite3ErrorMsg(pParse, "no such trigger: %S", pName, 0);
-                }
+                    parse.ErrorMsg("no such trigger: %S", name, 0);
                 else
-                {
-                    sqlite3CodeVerifyNamedSchema(pParse, zDb);
-                }
-                pParse.checkSchema = 1;
+                    parse.CodeVerifyNamedSchema(dbName);
+                parse.CheckSchema = true;
                 goto drop_trigger_cleanup;
             }
-            sqlite3DropTriggerPtr(pParse, pTrigger);
+            DropTriggerPtr(parse, trigger);
 
         drop_trigger_cleanup:
-            sqlite3SrcListDelete(db, ref pName);
+            SrcListDelete(ctx, ref name);
         }
 
-        /*
-        ** Return a pointer to the Table structure for the table that a trigger
-        ** is set on.
-        */
-        static Table tableOfTrigger(Trigger pTrigger)
+        static Table TableOfTrigger(Trigger trigger)
         {
-            int n = sqlite3Strlen30(pTrigger.table);
-            return sqlite3HashFind(pTrigger.pTabSchema.tblHash, pTrigger.table, n, (Table)null);
+            int tableLength = trigger.Table.Length;
+            return trigger.TabSchema.TableHash.Find(trigger.table, tableLength, (Table)null);
         }
 
-
-        /*
-        ** Drop a trigger given a pointer to that trigger.
-        */
-        static void sqlite3DropTriggerPtr(Parse pParse, Trigger pTrigger)
+        VdbeOpList[] _dropTrigger = new VdbeOpList[]  {
+            new VdbeOpList( OP_Rewind,     0, ADDR(9),  0),
+            new VdbeOpList( OP_String8,    0, 1,        0), /* 1 */
+            new VdbeOpList( OP_Column,     0, 1,        2),
+            new VdbeOpList( OP_Ne,         2, ADDR(8),  1),
+            new VdbeOpList( OP_String8,    0, 1,        0), /* 4: "trigger" */
+            new VdbeOpList( OP_Column,     0, 0,        2),
+            new VdbeOpList( OP_Ne,         2, ADDR(8),  1),
+            new VdbeOpList( OP_Delete,     0, 0,        0),
+            new VdbeOpList( OP_Next,       0, ADDR(1),  0), /* 8 */
+        };
+        public static void DropTriggerPtr(Parse parse, Trigger trigger)
         {
-            Table pTable;
-            Vdbe v;
-            sqlite3 db = pParse.db;
-            int iDb;
-
-            iDb = sqlite3SchemaToIndex(pParse.db, pTrigger.pSchema);
-            Debug.Assert(iDb >= 0 && iDb < db.nDb);
-            pTable = tableOfTrigger(pTrigger);
-            Debug.Assert(pTable != null);
-            Debug.Assert(pTable.pSchema == pTrigger.pSchema || iDb == 1);
-#if !SQLITE_OMIT_AUTHORIZATION
+            Context ctx = parse.Ctx;
+            int db = ctx.SchemaToIndex(trigger.Schema);
+            Debug.Assert(db >= 0 && db < ctx.DBs.length);
+            Table table = tableOfTrigger(trigger);
+            Debug.Assert(table != null);
+            Debug.Assert(table.Schema == trigger.Schema || db == 1);
+#if !OMIT_AUTHORIZATION
             {
-                int code = SQLITE_DROP_TRIGGER;
-                string zDb = db.aDb[iDb].zName;
-                string zTab = SCHEMA_TABLE(iDb);
-                if (iDb == 1) code = SQLITE_DROP_TEMP_TRIGGER;
-                if (sqlite3AuthCheck(pParse, code, pTrigger.name, pTable.zName, zDb) ||
-                sqlite3AuthCheck(pParse, SQLITE_DELETE, zTab, 0, zDb))
-                {
+                int code = AUTH.DROP_TRIGGER;
+                string dbName = ctx.Dbs[db].Name;
+                string tableName = SCHEMA_TABLE(db);
+                if (db == 1) code = AUTH.DROP_TEMP_TRIGGER;
+                if (Auth.Check(parse, code, trigger.Name, table.Name, dbName) || Auth.Check(parse, AUTH.DELETE, tableName, 0, dbName))
                     return;
-                }
             }
 #endif
 
-            /* Generate code to destroy the database record of the trigger.
-*/
-            Debug.Assert(pTable != null);
-            if ((v = sqlite3GetVdbe(pParse)) != null)
+            // Generate code to destroy the database record of the trigger.
+            Debug.Assert(table != null);
+            Vdbe v = parse.GetVdbe();
+            if (v != null)
             {
-                int _base;
-                VdbeOpList[] dropTrigger = new VdbeOpList[]  {
-new VdbeOpList( OP_Rewind,     0, ADDR(9),  0),
-new VdbeOpList( OP_String8,    0, 1,        0), /* 1 */
-new VdbeOpList( OP_Column,     0, 1,        2),
-new VdbeOpList( OP_Ne,         2, ADDR(8),  1),
-new VdbeOpList( OP_String8,    0, 1,        0), /* 4: "trigger" */
-new VdbeOpList( OP_Column,     0, 0,        2),
-new VdbeOpList( OP_Ne,         2, ADDR(8),  1),
-new VdbeOpList( OP_Delete,     0, 0,        0),
-new VdbeOpList( OP_Next,       0, ADDR(1),  0), /* 8 */
-};
-
-                sqlite3BeginWriteOperation(pParse, 0, iDb);
-                sqlite3OpenMasterTable(pParse, iDb);
-                _base = sqlite3VdbeAddOpList(v, dropTrigger.Length, dropTrigger);
-                sqlite3VdbeChangeP4(v, _base + 1, pTrigger.zName, P4_TRANSIENT);
-                sqlite3VdbeChangeP4(v, _base + 4, "trigger", P4_STATIC);
-                sqlite3ChangeCookie(pParse, iDb);
-                sqlite3VdbeAddOp2(v, OP_Close, 0, 0);
-                sqlite3VdbeAddOp4(v, OP_DropTrigger, iDb, 0, 0, pTrigger.zName, 0);
-                if (pParse.nMem < 3)
-                {
-                    pParse.nMem = 3;
-                }
+                parse.BeginWriteOperation(0, db);
+                parse.OpenMasterTable(db);
+                int base_ = v.AddOpList(v, _dropTrigger.Length, _dropTrigger);
+                v->ChangeP4(base_ + 1, trigger.Name, Vdbe.P4T.TRANSIENT);
+                v->ChangeP4(base_ + 4, "trigger", Vdbe.P4T.STATIC);
+                parse->ChangeCookie(db);
+                v.AddOp2(O._Close, 0, 0);
+                v.AddOp4(OP.DropTrigger, db, 0, 0, trigger.Name, 0);
+                if (parse.Mems < 3)
+                    parse.Mems = 3;
             }
         }
 
-        /*
-        ** Remove a trigger from the hash tables of the sqlite* pointer.
-        */
-        static void sqlite3UnlinkAndDeleteTrigger(sqlite3 db, int iDb, string zName)
+        public static void UnlinkAndDeleteTrigger(Context ctx, int db, string name)
         {
-            Trigger pTrigger;
-            Hash pHash;
-
-            Debug.Assert(sqlite3SchemaMutexHeld(db, iDb, null));
-            pHash = (db.aDb[iDb].pSchema.trigHash);
-            pTrigger = sqlite3HashInsert(ref pHash, zName, sqlite3Strlen30(zName), (Trigger)null);
-            if (ALWAYS(pTrigger != null))
+            Debug.Assert(sqlite3SchemaMutexHeld(ctx, db, null));
+            Trigger trigger = ctx.DBs[db].Schema.TriggerHash.Insert(name, name.Length, (Trigger)null);
+            if (SysEx_ALWAYS(trigger != null))
             {
-                if (pTrigger.pSchema == pTrigger.pTabSchema)
+                if (trigger.Schema == trigger.TabSchema)
                 {
-                    Table pTab = tableOfTrigger(pTrigger);
-                    //Trigger** pp;
-                    //for ( pp = &pTab.pTrigger ; *pp != pTrigger ; pp = &( (*pp).pNext ) ) ;
-                    //*pp = (*pp).pNext;
-                    if (pTab.pTrigger == pTrigger)
-                    {
-                        pTab.pTrigger = pTrigger.pNext;
-                    }
+                    Table table = TableOfTrigger(trigger);
+                    //: Trigger** pp;
+                    //: for (pp = &table->Trigger; *pp != trigger; pp = &((*pp)->Next)) ;
+                    //: *pp = (*pp)->Next;
+                    if (table.Trigger == trigger)
+                        table.Trigger = trigger.Next;
                     else
                     {
-                        Trigger cc = pTab.pTrigger;
+                        Trigger cc = table.Trigger;
                         while (cc != null)
                         {
-                            if (cc.pNext == pTrigger)
+                            if (cc.Next == trigger)
                             {
-                                cc.pNext = cc.pNext.pNext;
+                                cc.Next = cc.Next.Next;
                                 break;
                             }
-                            cc = cc.pNext;
+                            cc = cc.Next;
                         }
                         Debug.Assert(cc != null);
                     }
                 }
-                sqlite3DeleteTrigger(db, ref pTrigger);
-                db.flags |= SQLITE_InternChanges;
+                DeleteTrigger(ctx, ref trigger);
+                ctx.Flags |= Context.FLAG.InternChanges;
             }
         }
 
-        /*
-        ** pEList is the SET clause of an UPDATE statement.  Each entry
-        ** in pEList is of the format <id>=<expr>.  If any of the entries
-        ** in pEList have an <id> which matches an identifier in pIdList,
-        ** then return TRUE.  If pIdList==NULL, then it is considered a
-        ** wildcard that matches anything.  Likewise if pEList==NULL then
-        ** it matches anything so always return true.  Return false only
-        ** if there is no match.
-        */
-        static int checkColumnOverlap(IdList pIdList, ExprList pEList)
+        static bool CheckColumnOverlap(IdList idList, ExprList eList)
         {
             int e;
-            if (pIdList == null || NEVER(pEList == null))
-                return 1;
-            for (e = 0; e < pEList.nExpr; e++)
+            if (idList == null || SysEx.NEVER(eList == null))
+                return true;
+            for (e = 0; e < eList.Exprs; e++)
             {
-                if (sqlite3IdListIndex(pIdList, pEList.a[e].zName) >= 0)
-                    return 1;
+                if (IdListIndex(idList, eList.Ids[e].Name) >= 0)
+                    return true;
             }
-            return 0;
+            return false;
         }
 
-        /*
-        ** Return a list of all triggers on table pTab if there exists at least
-        ** one trigger that must be fired when an operation of type 'op' is
-        ** performed on the table, and, if that operation is an UPDATE, if at
-        ** least one of the columns in pChanges is being modified.
-        */
-        static Trigger sqlite3TriggersExist(
-        Parse pParse,          /* Parse context */
-        Table pTab,            /* The table the contains the triggers */
-        int op,                /* one of TK_DELETE, TK_INSERT, TK_UPDATE */
-        ExprList pChanges,     /* Columns that change in an UPDATE statement */
-        out int pMask          /* OUT: Mask of TRIGGER_BEFORE|TRIGGER_AFTER */
-        )
+        public static Trigger TriggersExist(Parse parse, Table table, TK op, ExprList changes, out int maskOut)
         {
             int mask = 0;
-            Trigger pList = null;
-            Trigger p;
-
-            if ((pParse.db.flags & SQLITE_EnableTrigger) != 0)
-            {
-                pList = sqlite3TriggerList(pParse, pTab);
-            }
-            Debug.Assert(pList == null || IsVirtual(pTab) == false);
-            for (p = pList; p != null; p = p.pNext)
-            {
-                if (p.op == op && checkColumnOverlap(p.pColumns, pChanges) != 0)
-                {
+            Trigger list = null;
+            if ((parse.Ctx.Flags & Context.FLAG.EnableTrigger) != 0)
+                list = TriggerList(parse, table);
+            Debug.Assert(list == null || !IsVirtual(table));
+            for (Trigger p = list; p != null; p = p.Next)
+                if (p.OP == op && CheckColumnOverlap(p.Columns, changes))
                     mask |= p.tr_tm;
+            maskOut = mask;
+            return (mask != 0 ? list : null);
+        }
+
+        static SrcList targetSrcList(Parse parse, TriggerStep step)
+        {
+            Context ctx = parse.Ctx;
+            SrcList src = sqlite3SrcListAppend(parse.db, 0, step.target, 0); // SrcList to be returned
+            if (src != null)
+            {
+                Debug.Assert(src.Srcs > 0);
+                Debug.Assert(src.Ids != null);
+                int db = Btree.SchemaToIndex(ctx, step.Trig.Schema); // Index of the database to use
+                if (db == 0 || db >= 2)
+                {
+                    Debug.Assert(db < ctx.DBs.length);
+                    src.Ids[src.Srcs - 1].Database = ctx.DBs[db].Name; //: SysEx::TagStrDup(ctx, ctx->DBs[db].Name);
                 }
             }
-            //if ( pMask != 0 )
-            {
-                pMask = mask;
-            }
-            return (mask != 0 ? pList : null);
+            return src;
         }
 
-
-        /*
-        ** Convert the pStep.target token into a SrcList and return a pointer
-        ** to that SrcList.
-        **
-        ** This routine adds a specific database name, if needed, to the target when
-        ** forming the SrcList.  This prevents a trigger in one database from
-        ** referring to a target in another database.  An exception is when the
-        ** trigger is in TEMP in which case it can refer to any other database it
-        ** wants.
-        */
-        static SrcList targetSrcList(
-        Parse pParse,       /* The parsing context */
-        TriggerStep pStep   /* The trigger containing the target token */
-        )
+        static int CodeTriggerProgram(Parse parse, TriggerStep stepList, int orconf)
         {
-            int iDb;             /* Index of the database to use */
-            SrcList pSrc;        /* SrcList to be returned */
+            Vdbe v = parse.Vdbe;
+            Context ctx = parse.Ctx;
 
-            pSrc = sqlite3SrcListAppend(pParse.db, 0, pStep.target, 0);
-            //if ( pSrc != null )
-            //{
-            Debug.Assert(pSrc.nSrc > 0);
-            Debug.Assert(pSrc.a != null);
-            iDb = sqlite3SchemaToIndex(pParse.db, pStep.pTrig.pSchema);
-            if (iDb == 0 || iDb >= 2)
-            {
-                sqlite3 db = pParse.db;
-                Debug.Assert(iDb < pParse.db.nDb);
-                pSrc.a[pSrc.nSrc - 1].zDatabase = db.aDb[iDb].zName;// sqlite3DbStrDup( db, db.aDb[iDb].zName );
-            }
-            //}
-            return pSrc;
-        }
-
-        /*
-        ** Generate VDBE code for the statements inside the body of a single 
-        ** trigger.
-        */
-        static int codeTriggerProgram(
-        Parse pParse,            /* The parser context */
-        TriggerStep pStepList,   /* List of statements inside the trigger body */
-        int orconf               /* Conflict algorithm. (OE_Abort, etc) */
-        )
-        {
-            TriggerStep pStep;
-            Vdbe v = pParse.pVdbe;
-            sqlite3 db = pParse.db;
-
-            Debug.Assert(pParse.pTriggerTab != null && pParse.pToplevel != null);
-            Debug.Assert(pStepList != null);
+            Debug.Assert(parse.TriggerTab != null && parse.Toplevel != null);
+            Debug.Assert(stepList != null);
             Debug.Assert(v != null);
-            for (pStep = pStepList; pStep != null; pStep = pStep.pNext)
+            for (TriggerStep step = stepList; step != null; step = step.pNext)
             {
-                /* Figure out the ON CONFLICT policy that will be used for this step
-                ** of the trigger program. If the statement that caused this trigger
-                ** to fire had an explicit ON CONFLICT, then use it. Otherwise, use
-                ** the ON CONFLICT policy that was specified as part of the trigger
-                ** step statement. Example:
-                **
-                **   CREATE TRIGGER AFTER INSERT ON t1 BEGIN;
-                **     INSERT OR REPLACE INTO t2 VALUES(new.a, new.b);
-                **   END;
-                **
-                **   INSERT INTO t1 ... ;            -- insert into t2 uses REPLACE policy
-                **   INSERT OR IGNORE INTO t1 ... ;  -- insert into t2 uses IGNORE policy
-                */
-                pParse.eOrconf = (orconf == OE_Default) ? pStep.orconf : (u8)orconf;
-
-                switch (pStep.op)
+                // Figure out the ON CONFLICT policy that will be used for this step of the trigger program. If the statement that caused this trigger
+                // to fire had an explicit ON CONFLICT, then use it. Otherwise, use the ON CONFLICT policy that was specified as part of the trigger
+                // step statement. Example:
+                //
+                //   CREATE TRIGGER AFTER INSERT ON t1 BEGIN;
+                //     INSERT OR REPLACE INTO t2 VALUES(new.a, new.b);
+                //   END;
+                //
+                //   INSERT INTO t1 ... ;            -- insert into t2 uses REPLACE policy
+                //   INSERT OR IGNORE INTO t1 ... ;  -- insert into t2 uses IGNORE policy
+                parse.Orconf = (orconf == OE.Default ? step.orconf : (OE)orconf);
+                switch (step.OP)
                 {
-                    case TK_UPDATE:
-                        {
-                            sqlite3Update(pParse,
-                              targetSrcList(pParse, pStep),
-                              sqlite3ExprListDup(db, pStep.pExprList, 0),
-                              sqlite3ExprDup(db, pStep.pWhere, 0),
-                              pParse.eOrconf
-                            );
-                            break;
-                        }
-                    case TK_INSERT:
-                        {
-                            sqlite3Insert(pParse,
-                              targetSrcList(pParse, pStep),
-                              sqlite3ExprListDup(db, pStep.pExprList, 0),
-                              sqlite3SelectDup(db, pStep.pSelect, 0),
-                              sqlite3IdListDup(db, pStep.pIdList),
-                              pParse.eOrconf
-                            );
-                            break;
-                        }
+                    case TK.UPDATE:
+                        Update(parse,
+                          targetSrcList(parse, step),
+                          ExprListDup(ctx, step.ExprList, 0),
+                          ExprDup(ctx, step.Where, 0),
+                          parse.eOrconf);
+                        break;
+                    case TK.INSERT:
+                        Insert(parse,
+                          targetSrcList(parse, step),
+                          ExprListDup(ctx, step.ExprList, 0),
+                          SelectDup(ctx, step.Select, 0),
+                          IdListDup(ctx, step.IdList),
+                          parse.eOrconf);
+                        break;
                     case TK_DELETE:
-                        {
-                            sqlite3DeleteFrom(pParse,
-                              targetSrcList(pParse, pStep),
-                              sqlite3ExprDup(db, pStep.pWhere, 0)
-                            );
-                            break;
-                        }
+                        DeleteFrom(parse,
+                          targetSrcList(parse, step),
+                          ExprDup(ctx, step.Where, 0));
+                        break;
                     default:
-                        Debug.Assert(pStep.op == TK_SELECT);
-                        {
-                            SelectDest sDest = new SelectDest();
-                            Select pSelect = sqlite3SelectDup(db, pStep.pSelect, 0);
-                            sqlite3SelectDestInit(sDest, SRT_Discard, 0);
-                            sqlite3Select(pParse, pSelect, ref sDest);
-                            sqlite3SelectDelete(db, ref pSelect);
-                            break;
-                        }
+                        Debug.Assert(step.OP == TK.SELECT);
+                        SelectDest sDest = new SelectDest();
+                        Select select = SelectDup(ctx, step.Select, 0);
+                        SelectDestInit(sDest, SRT_Discard, 0);
+                        Select(parse, select, ref sDest);
+                        SelectDelete(ctx, ref select);
+                        break;
                 }
-                if (pStep.op != TK_SELECT)
-                {
-                    sqlite3VdbeAddOp0(v, OP_ResetCount);
-                }
+                if (step.OP != TK.SELECT)
+                    v.AddOp0(OP.ResetCount);
             }
 
             return 0;
         }
 
-#if SQLITE_DEBUG
-    /*
-** This function is used to add VdbeComment() annotations to a VDBE
-** program. It is not used in production code, only for debugging.
-*/
-    static string onErrorText( int onError )
-    {
-      switch ( onError )
-      {
-        case OE_Abort:
-          return "abort";
-        case OE_Rollback:
-          return "rollback";
-        case OE_Fail:
-          return "fail";
-        case OE_Replace:
-          return "replace";
-        case OE_Ignore:
-          return "ignore";
-        case OE_Default:
-          return "default";
-      }
-      return "n/a";
-    }
+#if DEBUG
+        static string OnErrorText(int onError)
+        {
+            switch (onError)
+            {
+                case OE_Abort: return "abort";
+                case OE_Rollback: return "rollback";
+                case OE_Fail: return "fail";
+                case OE_Replace: return "replace";
+                case OE_Ignore: return "ignore";
+                case OE_Default: return "default";
+            }
+            return "n/a";
+        }
 #endif
 
-        /*
-** Parse context structure pFrom has just been used to create a sub-vdbe
-** (trigger program). If an error has occurred, transfer error information
-** from pFrom to pTo.
-*/
-        static void transferParseError(Parse pTo, Parse pFrom)
+        static void TransferParseError(Parse to, Parse from)
         {
-            Debug.Assert(String.IsNullOrEmpty(pFrom.zErrMsg) || pFrom.nErr != 0);
-            Debug.Assert(String.IsNullOrEmpty(pTo.zErrMsg) || pTo.nErr != 0);
-            if (pTo.nErr == 0)
+            Debug.Assert(string.IsNullOrEmpty(from.ErrMsg) || from.Errs != 0);
+            Debug.Assert(string.IsNullOrEmpty(to.ErrMsg) || to.Errs != 0);
+            if (to.Errs == 0)
             {
-                pTo.zErrMsg = pFrom.zErrMsg;
-                pTo.nErr = pFrom.nErr;
+                to.ErrMsg = from.ErrMsg;
+                to.Errs = from.Errs;
             }
             else
-            {
-                sqlite3DbFree(pFrom.db, ref pFrom.zErrMsg);
-            }
+                SysEx.TagFree(from.Ctx, ref from.ErrMsg);
         }
 
-        /*
-        ** Create and populate a new TriggerPrg object with a sub-program 
-        ** implementing trigger pTrigger with ON CONFLICT policy orconf.
-        */
-        static TriggerPrg codeRowTrigger(
-          Parse pParse,        /* Current parse context */
-          Trigger pTrigger,    /* Trigger to code */
-          Table pTab,          /* The table pTrigger is attached to */
-          int orconf           /* ON CONFLICT policy to code trigger program with */
-        )
+        static TriggerPrg CodeRowTrigger(Parse parse, Trigger trigger, Table table, OE orconf)
         {
-            Parse pTop = sqlite3ParseToplevel(pParse);
-            sqlite3 db = pParse.db;     /* Database handle */
-            TriggerPrg pPrg;            /* Value to return */
-            Expr pWhen = null;          /* Duplicate of trigger WHEN expression */
-            Vdbe v;                     /* Temporary VM */
-            NameContext sNC;            /* Name context for sub-vdbe */
-            SubProgram pProgram = null; /* Sub-vdbe for trigger program */
-            Parse pSubParse;            /* Parse context for sub-vdbe */
-            int iEndTrigger = 0;        /* Label to jump to if WHEN is false */
+            Parse top = ParseToplevel(parse);
+            Context ctx = parse.Ctx; // Database handle
 
-            Debug.Assert(pTrigger.zName == null || pTab == tableOfTrigger(pTrigger));
-            Debug.Assert(pTop.pVdbe != null);
+            Debug.Assert(trigger.Name == null || table == TableOfTrigger(trigger));
+            Debug.Assert(top.Vdbe != null);
 
-            /* Allocate the TriggerPrg and SubProgram objects. To ensure that they
-            ** are freed if an error occurs, link them into the Parse.pTriggerPrg 
-            ** list of the top-level Parse object sooner rather than later.  */
-            pPrg = new TriggerPrg();// sqlite3DbMallocZero( db, sizeof( TriggerPrg ) );
-            //if ( null == pPrg ) return 0;
-            pPrg.pNext = pTop.pTriggerPrg;
-            pTop.pTriggerPrg = pPrg;
-            pPrg.pProgram = pProgram = new SubProgram();// sqlite3DbMallocZero( db, sizeof( SubProgram ) );
-            //if( null==pProgram ) return 0;
-            sqlite3VdbeLinkSubProgram(pTop.pVdbe, pProgram);
-            pPrg.pTrigger = pTrigger;
-            pPrg.orconf = orconf;
-            pPrg.aColmask[0] = 0xffffffff;
-            pPrg.aColmask[1] = 0xffffffff;
+            // Allocate the TriggerPrg and SubProgram objects. To ensure that they are freed if an error occurs, link them into the Parse.pTriggerPrg 
+            // list of the top-level Parse object sooner rather than later.
+            TriggerPrg prg = new TriggerPrg(); // Value to return //: SysEx::TagAlloc(ctx, sizeof(TriggerPrg), true);
+            if (prg == null) return null;
+            prg.Next = top.TriggerPrg;
+            top.TriggerPrg = prg;
+            SubProgram program; // Sub-vdbe for trigger program
+            prg.Program = program = new SubProgram();// sqlite3DbMallocZero( db, sizeof( SubProgram ) );
+            if (program == null) return null;
+            top.Vdbe.LinkSubProgram(program);
+            prg.Trigger = trigger;
+            prg.Orconf = orconf;
+            prg.Colmasks[0] = 0xffffffff;
+            prg.Colmasks[1] = 0xffffffff;
 
 
-            /* Allocate and populate a new Parse context to use for coding the 
-            ** trigger sub-program.  */
-            pSubParse = new Parse();// sqlite3StackAllocZero( db, sizeof( Parse ) );
-            //if ( null == pSubParse ) return null;
-            sNC = new NameContext();// memset( &sNC, 0, sizeof( sNC ) );
-            sNC.pParse = pSubParse;
-            pSubParse.db = db;
-            pSubParse.pTriggerTab = pTab;
-            pSubParse.pToplevel = pTop;
-            pSubParse.zAuthContext = pTrigger.zName;
-            pSubParse.eTriggerOp = pTrigger.op;
-            pSubParse.nQueryLoop = pParse.nQueryLoop;
+            // Allocate and populate a new Parse context to use for coding the trigger sub-program.
+            Parse subParse = new Parse(); // Parse context for sub-vdbe //: SysEx::ScratchAlloc(ctx, sizeof(Parse), true);
+            if (subParse == null) return null;
+            NameContext sNC = new NameContext(); // Name context for sub-vdbe
+            sNC.Parse = subParse;
+            subParse.Ctx = ctx;
+            subParse.TriggerTab = table;
+            subParse.Toplevel = top;
+            subParse.AuthContext = trigger.Name;
+            subParse.TriggerOp = trigger.OP;
+            subParse.QueryLoop = parse.QueryLoop;
 
-            v = sqlite3GetVdbe(pSubParse);
+            int endTrigger = 0; // Label to jump to if WHEN is false
+            Vdbe v = subParse.GetVdbe(); // Temporary VM
             if (v != null)
             {
-#if SQLITE_DEBUG
-        VdbeComment( v, "Start: %s.%s (%s %s%s%s ON %s)",
-          pTrigger.zName != null ? pTrigger.zName : "", onErrorText( orconf ),
-          ( pTrigger.tr_tm == TRIGGER_BEFORE ? "BEFORE" : "AFTER" ),
-            ( pTrigger.op == TK_UPDATE ? "UPDATE" : "" ),
-            ( pTrigger.op == TK_INSERT ? "INSERT" : "" ),
-            ( pTrigger.op == TK_DELETE ? "DELETE" : "" ),
-          pTab.zName
-        );
+#if DEBUG
+                v.VdbeComment("Start: %s.%s (%s %s%s%s ON %s)",
+                    (trigger.Name != null ? trigger.zName : ""), OnErrorText(orconf),
+                    (trigger.tr_tm == TRIGGER_BEFORE ? "BEFORE" : "AFTER"),
+                    (trigger.OP == TK.UPDATE ? "UPDATE" : ""),
+                    (trigger.OP == TK.INSERT ? "INSERT" : ""),
+                    (trigger.OP == TK.DELETE ? "DELETE" : ""),
+                    table.Name);
 #endif
-#if !SQLITE_OMIT_TRACE
-                sqlite3VdbeChangeP4(v, -1,
-                  sqlite3MPrintf(db, "-- TRIGGER %s", pTrigger.zName), P4_DYNAMIC
-                );
+#if !OMIT_TRACE
+                v.ChangeP4(-1, SysEx.Mprintf(ctx, "-- TRIGGER %s", trigger.Name), Vdbe.P4T.DYNAMIC);
 #endif
 
-                /* If one was specified, code the WHEN clause. If it evaluates to false
-    ** (or NULL) the sub-vdbe is immediately halted by jumping to the 
-    ** OP_Halt inserted at the end of the program.  */
-                if (pTrigger.pWhen != null)
+                // If one was specified, code the WHEN clause. If it evaluates to false (or NULL) the sub-vdbe is immediately halted by jumping to the 
+                // OP_Halt inserted at the end of the program.
+                if (trigger.When != null)
                 {
-                    pWhen = sqlite3ExprDup(db, pTrigger.pWhen, 0);
-                    if (SQLITE_OK == sqlite3ResolveExprNames(sNC, ref pWhen)
-                        //&& db.mallocFailed==0 
-                    )
+                    Expr when = sqlite3ExprDup(ctx, trigger.pWhen, 0); // Duplicate of trigger WHEN expression
+                    if (ResolveExprNames(sNC, ref when) == RC.OK && !ctx.MallocFailed)
                     {
-                        iEndTrigger = sqlite3VdbeMakeLabel(v);
-                        sqlite3ExprIfFalse(pSubParse, pWhen, iEndTrigger, SQLITE_JUMPIFNULL);
+                        endTrigger = v.MakeLabel();
+                        ExprIfFalse(subParse, when, endTrigger, SQLITE_JUMPIFNULL);
                     }
-                    sqlite3ExprDelete(db, ref pWhen);
+                    ExprDelete(ctx, ref when);
                 }
 
-                /* Code the trigger program into the sub-vdbe. */
-                codeTriggerProgram(pSubParse, pTrigger.step_list, orconf);
+                // Code the trigger program into the sub-vdbe.
+                CodeTriggerProgram(subParse, trigger.StepList, orconf);
 
-                /* Insert an OP_Halt at the end of the sub-program. */
-                if (iEndTrigger != 0)
-                {
-                    sqlite3VdbeResolveLabel(v, iEndTrigger);
-                }
-                sqlite3VdbeAddOp0(v, OP_Halt);
-#if SQLITE_DEBUG
-        VdbeComment( v, "End: %s.%s", pTrigger.zName, onErrorText( orconf ) );
+                // Insert an OP_Halt at the end of the sub-program.
+                if (endTrigger != 0)
+                    v.ResolveLabel(endTrigger);
+                v.AddOp0(OP.Halt);
+#if DEBUG
+                v.VdbeComment("End: %s.%s", trigger.Name, OnErrorText(orconf));
 #endif
-                transferParseError(pParse, pSubParse);
-                //if( db.mallocFailed==0 ){
-                pProgram.aOp = sqlite3VdbeTakeOpArray(v, ref pProgram.nOp, ref pTop.nMaxArg);
-                //}
-                pProgram.nMem = pSubParse.nMem;
-                pProgram.nCsr = pSubParse.nTab;
-                pProgram.token = pTrigger.GetHashCode();
-                pPrg.aColmask[0] = pSubParse.oldmask;
-                pPrg.aColmask[1] = pSubParse.newmask;
-                sqlite3VdbeDelete(ref v);
+                TransferParseError(parse, subParse);
+                if (!db.MallocFailed)
+                    program.OPs = v.TakeOpArray(ref program.OPs.length, ref top.MaxArgs);
+                program.Mem = subParse.Mems;
+                program.Csrs = subParse.Tabs;
+                program.Token = trigger.GetHashCode();
+                prg.Colmasks[0] = subParse.Oldmask;
+                prg.Colmasks[1] = subParse.Newmask;
+                Vdbe.Delete(ref v);
             }
 
-            Debug.Assert(null == pSubParse.pAinc && null == pSubParse.pZombieTab);
-            Debug.Assert(null == pSubParse.pTriggerPrg && 0 == pSubParse.nMaxArg);
-            //sqlite3StackFree(db, pSubParse);
+            Debug.Assert(subParse.Ainc == null && subParse.ZombieTab == null);
+            Debug.Assert(subParse.TriggerPrg == null && subParse.MaxArgs == 0);
+            SysEx.ScratchFree(ctx, subParse);
 
-            return pPrg;
+            return prg;
         }
 
-        /*
-        ** Return a pointer to a TriggerPrg object containing the sub-program for
-        ** trigger pTrigger with default ON CONFLICT algorithm orconf. If no such
-        ** TriggerPrg object exists, a new object is allocated and populated before
-        ** being returned.
-        */
-        static TriggerPrg getRowTrigger(
-          Parse pParse,        /* Current parse context */
-          Trigger pTrigger,    /* Trigger to code */
-          Table pTab,          /* The table trigger pTrigger is attached to */
-          int orconf           /* ON CONFLICT algorithm. */
-        )
+        static TriggerPrg GetRowTrigger(Parse parse, Trigger trigger, Table table, int orconf)
         {
-            Parse pRoot = sqlite3ParseToplevel(pParse);
-            TriggerPrg pPrg;
+            Parse root = ParseToplevel(parse);
+            Debug.Assert(trigger.Name == null || table == TableOfTrigger(trigger));
 
-            Debug.Assert(pTrigger.zName == null || pTab == tableOfTrigger(pTrigger));
-
-            /* It may be that this trigger has already been coded (or is in the
-            ** process of being coded). If this is the case, then an entry with
-            ** a matching TriggerPrg.pTrigger field will be present somewhere
-            ** in the Parse.pTriggerPrg list. Search for such an entry.  */
-            for (pPrg = pRoot.pTriggerPrg;
-                pPrg != null && (pPrg.pTrigger != pTrigger || pPrg.orconf != orconf);
-                pPrg = pPrg.pNext
-            )
-                ;
-
-            /* If an existing TriggerPrg could not be located, create a new one. */
-            if (null == pPrg)
-            {
-                pPrg = codeRowTrigger(pParse, pTrigger, pTab, orconf);
-            }
-
-            return pPrg;
+            // It may be that this trigger has already been coded (or is in the process of being coded). If this is the case, then an entry with
+            // a matching TriggerPrg.pTrigger field will be present somewhere in the Parse.pTriggerPrg list. Search for such an entry.
+            TriggerPrg prg;
+            for (prg = root.pTriggerPrg; prg != null && (prg.Trigger != trigger || prg.orconf != orconf); prg = prg.Next) ;
+            // If an existing TriggerPrg could not be located, create a new one.
+            if (prg == null)
+                prg = CodeRowTrigger(parse, trigger, table, orconf);
+            return prg;
         }
 
-        /*
-        ** Generate code for the trigger program associated with trigger p on 
-        ** table pTab. The reg, orconf and ignoreJump parameters passed to this
-        ** function are the same as those described in the header function for
-        ** sqlite3CodeRowTrigger()
-        */
-        static void sqlite3CodeRowTriggerDirect(
-          Parse pParse,        /* Parse context */
-          Trigger p,           /* Trigger to code */
-          Table pTab,          /* The table to code triggers from */
-          int reg,             /* Reg array containing OLD.* and NEW.* values */
-          int orconf,          /* ON CONFLICT policy */
-          int ignoreJump       /* Instruction to jump to for RAISE(IGNORE) */
-        )
+        static void sqlite3CodeRowTriggerDirect(Parse parse, Trigger p, Table table, int reg, int orconf, int ignoreJump)
         {
-            Vdbe v = sqlite3GetVdbe(pParse); /* Main VM */
-            TriggerPrg pPrg;
-            pPrg = getRowTrigger(pParse, p, pTab, orconf);
-            Debug.Assert(pPrg != null || pParse.nErr != 0);//|| pParse.db.mallocFailed );
+            Vdbe v = parse.GetVdbe(); // Main VM
+            TriggerPrg prg = GetRowTrigger(parse, p, table, orconf);
+            Debug.Assert(prg != null || parse.Errs != 0 || parse.Ctx.MallocFailed);
 
-            /* Code the OP_Program opcode in the parent VDBE. P4 of the OP_Program 
-            ** is a pointer to the sub-vdbe containing the trigger program.  */
-            if (pPrg != null)
+            // Code the OP_Program opcode in the parent VDBE. P4 of the OP_Program is a pointer to the sub-vdbe containing the trigger program.
+            if (prg != null)
             {
-                bool bRecursive = (!String.IsNullOrEmpty(p.zName) && 0 == (pParse.db.flags & SQLITE_RecTriggers));
-                sqlite3VdbeAddOp3(v, OP_Program, reg, ignoreJump, ++pParse.nMem);
-                sqlite3VdbeChangeP4(v, -1, pPrg.pProgram, P4_SUBPROGRAM);
-#if SQLITE_DEBUG
-        VdbeComment
-            ( v, "Call: %s.%s", ( !String.IsNullOrEmpty( p.zName ) ? p.zName : "fkey" ), onErrorText( orconf ) );
+                bool recursive = (!string.IsNullOrEmpty(p.Name) && (parse.Ctx.Flags & Context.FLAG.RecTriggers) == 0);
+                v.AddOp3(OP.Program, reg, ignoreJump, ++parse.Mems);
+                v.ChangeP4(-1, prg.pProgram, Vdbe.P4T.SUBPROGRAM);
+#if DEBUG
+                v.VdbeComment("Call: %s.%s", (!string.IsNullOrEmpty(p.Name) ? p.Name : "fkey"), OnErrorText(orconf));
 #endif
-
-                /* Set the P5 operand of the OP_Program instruction to non-zero if
-    ** recursive invocation of this trigger program is disallowed. Recursive
-    ** invocation is disallowed if (a) the sub-program is really a trigger,
-    ** not a foreign key action, and (b) the flag to enable recursive triggers
-    ** is clear.  */
-                sqlite3VdbeChangeP5(v, (u8)(bRecursive ? 1 : 0));
+                // Set the P5 operand of the OP_Program instruction to non-zero if recursive invocation of this trigger program is disallowed. Recursive
+                // invocation is disallowed if (a) the sub-program is really a trigger, not a foreign key action, and (b) the flag to enable recursive triggers is clear.
+                v.ChangeP5((int)(recursive ? 1 : 0));
             }
         }
 
-        /*
-        ** This is called to code the required FOR EACH ROW triggers for an operation
-        ** on table pTab. The operation to code triggers for (INSERT, UPDATE or DELETE)
-        ** is given by the op paramater. The tr_tm parameter determines whether the
-        ** BEFORE or AFTER triggers are coded. If the operation is an UPDATE, then
-        ** parameter pChanges is passed the list of columns being modified.
-        **
-        ** If there are no triggers that fire at the specified time for the specified
-        ** operation on pTab, this function is a no-op.
-        **
-        ** The reg argument is the address of the first in an array of registers 
-        ** that contain the values substituted for the new.* and old.* references
-        ** in the trigger program. If N is the number of columns in table pTab
-        ** (a copy of pTab.nCol), then registers are populated as follows:
-        **
-        **   Register       Contains
-        **   ------------------------------------------------------
-        **   reg+0          OLD.rowid
-        **   reg+1          OLD.* value of left-most column of pTab
-        **   ...            ...
-        **   reg+N          OLD.* value of right-most column of pTab
-        **   reg+N+1        NEW.rowid
-        **   reg+N+2        OLD.* value of left-most column of pTab
-        **   ...            ...
-        **   reg+N+N+1      NEW.* value of right-most column of pTab
-        **
-        ** For ON DELETE triggers, the registers containing the NEW.* values will
-        ** never be accessed by the trigger program, so they are not allocated or 
-        ** populated by the caller (there is no data to populate them with anyway). 
-        ** Similarly, for ON INSERT triggers the values stored in the OLD.* registers
-        ** are never accessed, and so are not allocated by the caller. So, for an
-        ** ON INSERT trigger, the value passed to this function as parameter reg
-        ** is not a readable register, although registers (reg+N) through 
-        ** (reg+N+N+1) are.
-        **
-        ** Parameter orconf is the default conflict resolution algorithm for the
-        ** trigger program to use (REPLACE, IGNORE etc.). Parameter ignoreJump
-        ** is the instruction that control should jump to if a trigger program
-        ** raises an IGNORE exception.
-        */
-        static void sqlite3CodeRowTrigger(
-        Parse pParse,        /* Parse context */
-        Trigger pTrigger,    /* List of triggers on table pTab */
-        int op,              /* One of TK_UPDATE, TK_INSERT, TK_DELETE */
-        ExprList pChanges,   /* Changes list for any UPDATE OF triggers */
-        int tr_tm,           /* One of TRIGGER_BEFORE, TRIGGER_AFTER */
-        Table pTab,          /* The table to code triggers from */
-        int reg,             /* The first in an array of registers (see above) */
-        int orconf,          /* ON CONFLICT policy */
-        int ignoreJump       /* Instruction to jump to for RAISE(IGNORE) */
-        )
+        static void sqlite3CodeRowTrigger(Parse parse, Trigger trigger, int op, ExprList changes, int tr_tm, Table table, int reg, int orconf, int ignoreJump)
         {
-            Trigger p;         /* Used to iterate through pTrigger list */
-
-            Debug.Assert(op == TK_UPDATE || op == TK_INSERT || op == TK_DELETE);
+            Debug.Assert(op == TK.UPDATE || op == TK.INSERT || op == TK.DELETE);
             Debug.Assert(tr_tm == TRIGGER_BEFORE || tr_tm == TRIGGER_AFTER);
-            Debug.Assert((op == TK_UPDATE) == (pChanges != null));
+            Debug.Assert((op == TK.UPDATE) == (changes != null));
 
-            for (p = pTrigger; p != null; p = p.pNext)
+            for (Trigger p = trigger; p != null; p = p.Next)
             {
+                // Sanity checking:  The schema for the trigger and for the table are always defined.  The trigger must be in the same schema as the table or else it must be a TEMP trigger.
+                Debug.Assert(p.Schema != null);
+                Debug.Assert(p.TabSchema != null);
+                Debug.Assert(p.Schema == p.TabSchema || p.Schema == parse.Ctx.DBs[1].Schema);
 
-                /* Sanity checking:  The schema for the trigger and for the table are
-                ** always defined.  The trigger must be in the same schema as the table
-                ** or else it must be a TEMP trigger. */
-                Debug.Assert(p.pSchema != null);
-                Debug.Assert(p.pTabSchema != null);
-                Debug.Assert(p.pSchema == p.pTabSchema
-                     || p.pSchema == pParse.db.aDb[1].pSchema);
-
-                /* Determine whether we should code this trigger */
-                if (p.op == op
-                 && p.tr_tm == tr_tm
-                 && checkColumnOverlap(p.pColumns, pChanges) != 0
-                )
-                {
-                    sqlite3CodeRowTriggerDirect(pParse, p, pTab, reg, orconf, ignoreJump);
-                }
+                // Determine whether we should code this trigger
+                if (p.OP == op && p.tr_tm == tr_tm && CheckColumnOverlap(p.Columns, changes) != 0)
+                    sqlite3CodeRowTriggerDirect(parse, p, table, reg, orconf, ignoreJump);
             }
         }
 
-        /*
-        ** Triggers may access values stored in the old.* or new.* pseudo-table. 
-        ** This function returns a 32-bit bitmask indicating which columns of the 
-        ** old.* or new.* tables actually are used by triggers. This information 
-        ** may be used by the caller, for example, to avoid having to load the entire
-        ** old.* record into memory when executing an UPDATE or DELETE command.
-        **
-        ** Bit 0 of the returned mask is set if the left-most column of the
-        ** table may be accessed using an [old|new].<col> reference. Bit 1 is set if
-        ** the second leftmost column value is required, and so on. If there
-        ** are more than 32 columns in the table, and at least one of the columns
-        ** with an index greater than 32 may be accessed, 0xffffffff is returned.
-        **
-        ** It is not possible to determine if the old.rowid or new.rowid column is 
-        ** accessed by triggers. The caller must always assume that it is.
-        **
-        ** Parameter isNew must be either 1 or 0. If it is 0, then the mask returned
-        ** applies to the old.* table. If 1, the new.* table.
-        **
-        ** Parameter tr_tm must be a mask with one or both of the TRIGGER_BEFORE
-        ** and TRIGGER_AFTER bits set. Values accessed by BEFORE triggers are only
-        ** included in the returned mask if the TRIGGER_BEFORE bit is set in the
-        ** tr_tm parameter. Similarly, values accessed by AFTER triggers are only
-        ** included in the returned mask if the TRIGGER_AFTER bit is set in tr_tm.
-        */
-        static u32 sqlite3TriggerColmask(
-          Parse pParse,        /* Parse context */
-          Trigger pTrigger,    /* List of triggers on table pTab */
-          ExprList pChanges,   /* Changes list for any UPDATE OF triggers */
-          int isNew,           /* 1 for new.* ref mask, 0 for old.* ref mask */
-          int tr_tm,           /* Mask of TRIGGER_BEFORE|TRIGGER_AFTER */
-          Table pTab,          /* The table to code triggers from */
-          int orconf           /* Default ON CONFLICT policy for trigger steps */
-        )
+        static uint32 sqlite3TriggerColmask(Parse parse, Trigger trigger, ExprList changes, bool isNew, int tr_tm, Table table, int orconf)
         {
-            int op = pChanges != null ? TK_UPDATE : TK_DELETE;
-            u32 mask = 0;
-            Trigger p;
-
-            Debug.Assert(isNew == 1 || isNew == 0);
-            for (p = pTrigger; p != null; p = p.pNext)
-            {
-                if (p.op == op && (tr_tm & p.tr_tm) != 0
-                 && checkColumnOverlap(p.pColumns, pChanges) != 0
-                )
+            TK op = (changes != null ? TK.UPDATE : TK.DELETE);
+            int isNewId = (isNew ? 1 : 0);
+            uint32 mask = 0;
+            for (Trigger p = trigger; p != null; p = p.pNext)
+                if (p.OP == op && (tr_tm & p.tr_tm) != 0 && CheckColumnOverlap(p.Columns, changes))
                 {
-                    TriggerPrg pPrg;
-                    pPrg = getRowTrigger(pParse, p, pTab, orconf);
-                    if (pPrg != null)
-                    {
-                        mask |= pPrg.aColmask[isNew];
-                    }
+                    TriggerPrg prg = GetRowTrigger(parse, p, table, orconf);
+                    if (prg != null)
+                        mask |= prg.Colmasks[isNewId];
                 }
-            }
-
             return mask;
         }
     }

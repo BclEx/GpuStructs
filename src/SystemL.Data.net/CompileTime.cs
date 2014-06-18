@@ -1,13 +1,14 @@
 #region OMIT_COMPILEOPTION_DIAGS
 #if !OMIT_COMPILEOPTION_DIAGS
 using System;
+
 namespace Core
 {
     public partial class CompileTime
     {
         static string[] _compileOpt = {
 #if _32BIT_ROWID
-"32BIT_ROWID",
+    "32BIT_ROWID",
 #endif
 #if _4_BYTE_ALIGNED_MALLOC
 "4_BYTE_ALIGNED_MALLOC",
@@ -356,5 +357,6 @@ namespace Core
         }
     }
 }
+
 #endif
 #endregion
