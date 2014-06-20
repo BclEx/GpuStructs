@@ -448,7 +448,7 @@ namespace Core
         public SrcList TabList;			    // List of tables in the join
         public ushort nOBSat;               // Number of ORDER BY terms satisfied by indices
         public WHERE WctrlFlags;            // Flags originally passed to sqlite3WhereBegin()
-        public byte okOnePass;              // Ok to use one-pass algorithm for UPDATE/DELETE
+        public bool OkOnePass;              // Ok to use one-pass algorithm for UPDATE/DELETE
         public byte untestedTerms;          // Not all WHERE terms resolved by outer loop
         public WHERE_DISTINCT eDistinct;    // One of the WHERE_DISTINCT_* values below
         public int iTop;					// The very beginning of the WHERE loop

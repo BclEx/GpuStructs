@@ -449,12 +449,12 @@ namespace Core
 	struct WhereClause;
 	struct WhereInfo
 	{
-		Parse *pParse;				// Parsing and code generating context
-		SrcList *pTabList;			// List of tables in the join
+		Parse *Parse;				// Parsing and code generating context
+		SrcList *TabList;			// List of tables in the join
 		uint16 nOBSat;              // Number of ORDER BY terms satisfied by indices
 		WHERE WctrlFlags;           // Flags originally passed to sqlite3WhereBegin()
-		uint8 okOnePass;            // Ok to use one-pass algorithm for UPDATE/DELETE
-		uint8 untestedTerms;        // Not all WHERE terms resolved by outer loop
+		bool OkOnePass;            // Ok to use one-pass algorithm for UPDATE/DELETE
+		uint8 UntestedTerms;        // Not all WHERE terms resolved by outer loop
 		WHERE_DISTINCT eDistinct;   // One of the WHERE_DISTINCT_* values below
 		int iTop;					// The very beginning of the WHERE loop
 		int iContinue;				// Jump here to continue with next record

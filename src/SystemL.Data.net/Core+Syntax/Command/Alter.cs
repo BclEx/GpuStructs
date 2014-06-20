@@ -11,7 +11,7 @@ namespace Core.Command
         static void RenameTableFunc(FuncContext fctx, int notUsed, Mem[] argv)
         {
             Context ctx = sqlite3_context_db_handle(fctx);
-            string sql = (Mem.Text(argv[0]);
+            string sql = Mem.Text(argv[0]);
             string tableName = Mem.Text(argv[1]);
             if (string.IsNullOrEmpty(sql))
                 return;
@@ -333,7 +333,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             string where_ = string.Empty; // Where clause to locate temp triggers
 #endif
 
-#if !(OMIT_FOREIGN_KEY) && !(OMIT_TRIGGER)
+#if !OMIT_FOREIGN_KEY && !OMIT_TRIGGER
             if ((ctx.Flags & Context.FLAG.ForeignKeys) != 0)
             {
                 // If foreign-key support is enabled, rewrite the CREATE TABLE statements corresponding to all child tables of foreign key constraints
@@ -553,7 +553,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
                 goto exit_begin_add_column;
 
             Debug.Assert(table.AddColOffset > 0);
-            int db = sqlite3SchemaToIndex(ctx, table.pSchema);
+            int db = sqlite3SchemaToIndex(ctx, table.Schema);
 
             // Put a copy of the Table struct in Parse.pNewTable for the sqlite3AddColumn() function and friends to modify.  But modify
             // the name by adding an "sqlite_altertab_" prefix.  By adding this prefix, we insure that the name will not collide with an existing
@@ -565,7 +565,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             newTable.Cols.length = table.Cols.length;
             Debug.Assert(newTable.Cols.length > 0);
             int allocs = (((newTable.Cols.length - 1) / 8) * 8) + 8;
-            Debug.Assert(allocs >= newTable.Cols.length && allocs % 8 == 0 && allocs - newTable.nCol < 8);
+            Debug.Assert(allocs >= newTable.Cols.length && allocs % 8 == 0 && allocs - newTable.Cols.length < 8);
             newTable.Cols.data = new Column[allocs];
             newTable.Name = SysEx.Mprintf(ctx, "sqlite_altertab_%s", table.Name);
             if (newTable.Cols.data == null || newTable.Name == null)
