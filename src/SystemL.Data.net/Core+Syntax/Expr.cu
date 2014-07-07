@@ -11,7 +11,7 @@ namespace Core
 	__device__ AFF Expr::Affinity()
 	{
 		Expr *expr = SkipCollate();
-		int op = expr->OP;
+		uint8 op = OP;
 		if (op == TK_SELECT)
 		{
 			_assert(expr->Flags&EP_xIsSelect);
@@ -36,11 +36,12 @@ namespace Core
 		return expr->Aff;
 	}
 
-	__device__ Expr *Parse::ExprAddCollateToken(Expr *expr, Token *collName)
+	__device__ Expr *Expr::AddCollateToken(Parse *parse, Token *collName)
 	{
+		Expr *expr = this;
 		if (collName->length > 0)
 		{
-			Expr *newExpr = Expr::Alloc(Ctx, TK_COLLATE, collName, 1);
+			Expr *newExpr = Expr::Alloc(parse->Ctx, TK_COLLATE, collName, 1);
 			if (newExpr)
 			{
 				newExpr->Left = expr;
@@ -51,13 +52,13 @@ namespace Core
 		return expr;
 	}
 
-	__device__ Expr *Parse::ExprAddCollateString(Expr *expr, const char *z)
+	__device__ Expr *Expr::AddCollateString(Parse *parse, const char *z)
 	{
 		_assert(z);
 		Token s;
 		s.data = z;
 		s.length = _strlen30(z);
-		return ExprAddCollateToken(expr, &s);
+		return AddCollateToken(parse, &s);
 	}
 
 	__device__ Expr *Expr::SkipCollate()
@@ -68,11 +69,11 @@ namespace Core
 		return expr;
 	}
 
-	__device__ CollSeq *Parse::ExprCollSeq(Expr *expr)
+	__device__ CollSeq *Expr::CollSeq(Parse *parse)
 	{
-		Context *ctx = Ctx;
+		Context *ctx = parse->Ctx;
 		CollSeq *coll = nullptr;
-		Expr *p = expr;
+		Expr *p = this;
 		while (p)
 		{
 			int op = p->OP;
@@ -87,7 +88,7 @@ namespace Core
 				if (ctx->Init.Busy) // Do not report errors when parsing while the schema 
 					coll = Callback::FindCollSeq(ctx, CTXENCODE(ctx), p->u.Token, 0);
 				else
-					coll = Callback::GetCollSeq(this, CTXENCODE(ctx), nullptr, p->u.Token);
+					coll = Callback::GetCollSeq(parse, CTXENCODE(ctx), nullptr, p->u.Token);
 				break;
 			}
 			if (p->Table && (op == TK_AGG_COLUMN || op == TK_COLUMN || op == TK_REGISTER || op == TK_TRIGGER))
@@ -106,7 +107,7 @@ namespace Core
 			else
 				break;
 		}
-		if (Callback::CheckCollSeq(this, coll))
+		if (Callback::CheckCollSeq(parse, coll))
 			coll = nullptr;
 		return coll;
 	}
@@ -162,25 +163,25 @@ namespace Core
 		return aff;
 	}
 
-	__device__ CollSeq *Parse::BinaryCompareCollSeq(Expr *left, Expr *right)
+	__device__ CollSeq *Expr::BinaryCompareCollSeq(Parse *parse, Expr *left, Expr *right)
 	{
 		_assert(left);
 		CollSeq *coll;
 		if (left->Flags & EP_Collate)
-			coll = ExprCollSeq(left);
+			coll = left->CollSeq(parse);
 		else if (right && (right->Flags & EP_Collate))
-			coll = ExprCollSeq(right);
+			coll = right->CollSeq(parse);
 		else{
-			coll = ExprCollSeq(left);
+			coll = left->CollSeq(parse);
 			if (!coll)
-				coll = ExprCollSeq(right);
+				coll = right->CollSeq(parse);
 		}
 		return coll;
 	}
 
 	__device__ static int CodeCompare(Parse *parse, Expr *left, Expr *right, int opcode, int in1, int in2, int dest, AFF jumpIfNull)
 	{
-		CollSeq *p4 = parse->BinaryCompareCollSeq(left, right);
+		CollSeq *p4 = Expr::BinaryCompareCollSeq(parse, left, right);
 		AFF p5 = BinaryCompareP5(left, right, jumpIfNull);
 		Vdbe *v = parse->V;
 		int addr = v->AddOp4(opcode, in2, dest, in1, (const char *)p4, Vdbe::P4T_COLLSEQ);
@@ -189,13 +190,13 @@ namespace Core
 	}
 
 #if MAX_EXPR_DEPTH > 0
-	__device__ RC Parse::ExprCheckHeight(int height)
+	__device__ RC Expr::CheckHeight(Parse *parse, int height)
 	{
-		Core::RC rc = RC_OK;
-		int maxHeight = Ctx->Limits[LIMIT_EXPR_DEPTH];
+		RC rc = RC_OK;
+		int maxHeight = parse->Ctx->Limits[LIMIT_EXPR_DEPTH];
 		if (height > maxHeight)
 		{
-			ErrorMsg("Expression tree is too large (maximum depth %d)", maxHeight);
+			parse->ErrorMsg("Expression tree is too large (maximum depth %d)", maxHeight);
 			rc = RC_ERROR;
 		}
 		return rc;
@@ -239,10 +240,10 @@ namespace Core
 			HeightOfExprList(p->x.List, &height);
 		p->Height = height + 1;
 	}
-	__device__ void Parse::ExprSetHeight(Expr *expr)
+	__device__ void Expr::SetHeight(Parse *parse)
 	{
-		ExprSetHeight(expr);
-		ExprCheckHeight(expr->Height);
+		ExprSetHeight(this);
+		ExprCheckHeight(parse, this->Height);
 	}
 
 	__device__ int Expr::SelectExprHeight(Select *select)
@@ -252,7 +253,7 @@ namespace Core
 		return height;
 	}
 #else
-#define ExprSetHeight(y)
+//#define ExprSetHeight(y)
 #endif
 
 	__device__ Expr *Expr::Alloc(Context *ctx, int op, const Token *token, bool dequote)
@@ -261,7 +262,7 @@ namespace Core
 		int value = 0;
 		if (token)
 		{
-			if (op != TK_INTEGER || !token->data || ConvertEx::Atoi(token->data, &value) == 0)
+			if (op != TK_INTEGER || !token->data || !ConvertEx::Atoi(token->data, &value))
 			{
 				extraSize = token->length + 1;
 				_assert(value >= 0);
@@ -287,7 +288,7 @@ namespace Core
 					if (token->length)
 						_memcpy(newExpr->u.Token, token->data, token->length);
 					newExpr->u.Token[token->length] = 0;
-					if (dequote && extraSize >= 3  && ((c = token->data[0]) == '\'' || c == '"' || c == '[' || c == '`'))
+					if (dequote && extraSize >= 3 && ((c = token->data[0]) == '\'' || c == '"' || c == '[' || c == '`'))
 					{
 						sqlite3Dequote(newExpr->u.Token);
 						if (c == '"')
@@ -302,7 +303,7 @@ namespace Core
 		return newExpr;
 	}
 
-	__device__ Expr *Expr::Alloc(Context *ctx, int op, const char *token)
+	__device__ Expr *Expr::Expr_(Context *ctx, int op, const char *token)
 	{
 		Token x;
 		x.data = (char *)token;
@@ -315,8 +316,8 @@ namespace Core
 		if (!root)
 		{
 			_assert(ctx->MallocFailed);
-			Expr::Delete(ctx, left);
-			Expr::Delete(ctx, right);
+			Delete(ctx, left);
+			Delete(ctx, right);
 		}
 		else
 		{
@@ -334,18 +335,19 @@ namespace Core
 		}
 	}
 
-	__device__ Expr *Parse::PExpr(int op, Expr *left, Expr *right, const Token *token)
+	__device__ Expr *Expr::PExpr(Parse *parse, int op, Expr *left, Expr *right, const Token *token)
 	{
+		Context *ctx = parse->Ctx;
 		Expr *p;
 		if (op == TK_AND && left && right) // Take advantage of short-circuit false optimization for AND
-			p = Expr::And(Ctx, left, right);
+			p = And(ctx, left, right);
 		else
 		{
-			p = Expr::Alloc(Ctx, op, token, true);
-			Expr::AttachSubtrees(Ctx, p, left, right);
+			p = Expr_(ctx, op, token, true);
+			AttachSubtrees(ctx, p, left, right);
 		}
 		if (p)
-			ExprCheckHeight(p->Height);
+			ExprCheckHeight(parse, p->Height);
 		return p;
 	}
 
@@ -377,14 +379,14 @@ namespace Core
 		}
 	}
 
-	__device__ Expr *Parse::ExprFunction(ExprList *list, Token *token)
+	__device__ Expr *Expr::Function(Parse *parse, ExprList *list, Token *token)
 	{
 		_assert(token);
-		Context *ctx = Ctx;
-		Expr *newExpr = Expr::Alloc(ctx, TK_FUNCTION, token, true);
+		Context *ctx = parse->Ctx;
+		Expr *newExpr = Alloc(ctx, TK_FUNCTION, token, true);
 		if (!newExpr)
 		{
-			Expr::ExprListDelete(ctx, list); // Avoid memory leak when malloc fails
+			ExprListDelete(ctx, list); // Avoid memory leak when malloc fails
 			return nullptr;
 		}
 		newExpr->x.List = list;
@@ -393,20 +395,19 @@ namespace Core
 		return newExpr;
 	}
 
-
-	__device__ void Parse::ExprAssignVarNumber(Expr *expr)
+	__device__ void Expr::AssignVarNumber(Parse *parse, Expr *expr)
 	{
 		if (!expr)
 			return;
 		_assert(!ExprHasAnyProperty(expr, EP_IntValue|EP_Reduced|EP_TokenOnly));
 		const char *z = expr->u.Token;
 		_assert(z && z[0] != 0);
-		Context *ctx = Ctx;
+		Context *ctx = parse->Ctx;
 		if (z[1] == 0) 
 		{
 			_assert(z[0] == '?');
 			// Wildcard of the form "?".  Assign the next variable number
-			expr->ColumnIdx = (yVars)(++VarsSeen);
+			expr->ColumnIdx = (yVars)(++parse->VarsSeen);
 		}
 		else
 		{

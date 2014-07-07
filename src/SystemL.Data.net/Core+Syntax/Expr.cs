@@ -13,43 +13,10 @@ namespace Core
 {
     public partial class Expr
     {
-        public AFF Affinity()
-        {
-            int op = OP;
-            if (op == TK.SELECT)
-            {
-                Debug.Assert((pExpr.flags & EP_xIsSelect) != 0);
-                return sqlite3ExprAffinity(pExpr.x.pSelect.pEList.a[0].pExpr);
-            }
-#if !SQLITE_OMIT_CAST
-            if (op == TK_CAST)
-            {
-                Debug.Assert(!ExprHasProperty(pExpr, EP_IntValue));
-                return sqlite3AffinityType(pExpr.u.zToken);
-            }
-#endif
-            if ((op == TK_AGG_COLUMN || op == TK_COLUMN || op == TK_REGISTER)
-            && pExpr.pTab != null
-            )
-            {
-                /* op==TK_REGISTER && pExpr.pTab!=0 happens when pExpr was originally
-                ** a TK_COLUMN but was previously evaluated and cached in a register */
-                int j = pExpr.iColumn;
-                if (j < 0)
-                    return SQLITE_AFF_INTEGER;
-                Debug.Assert(pExpr.pTab != null && j < pExpr.pTab.nCol);
-                return pExpr.pTab.aCol[j].affinity;
-            }
-            return pExpr.affinity;
-        }
 
-        /*
-        ** Set the explicit collating sequence for an expression to the
-        ** collating sequence supplied in the second argument.
-        */
-        static Expr sqlite3ExprSetColl(Expr pExpr, CollSeq pColl)
+        public Expr SetColl(CollSeq coll)
         {
-            if (pExpr != null && pColl != null)
+            if (pExpr != null && coll != null)
             {
                 pExpr.pColl = pColl;
                 pExpr.flags |= EP_ExpCollate;
@@ -57,13 +24,6 @@ namespace Core
             return pExpr;
         }
 
-        /*
-        ** Set the collating sequence for expression pExpr to be the collating
-        ** sequence named by pToken.   Return a pointer to the revised expression.
-        ** The collating sequence is marked as "explicit" using the EP_ExpCollate
-        ** flag.  An explicit collating sequence will override implicit
-        ** collating sequences.
-        */
         static Expr sqlite3ExprSetCollByToken(Parse pParse, Expr pExpr, Token pCollName)
         {
             string zColl;            /* Dequoted name of collation sequence */
@@ -76,596 +36,429 @@ namespace Core
             return pExpr;
         }
 
-        /*
-        ** Return the default collation sequence for the expression pExpr. If
-        ** there is no default collation type, return 0.
-        */
-        static CollSeq sqlite3ExprCollSeq(Parse pParse, Expr pExpr)
+
+
+
+        public AFF Affinity()
         {
-            CollSeq pColl = null;
-            Expr p = pExpr;
-            while (ALWAYS(p))
+            Expr expr = SkipCollate();
+            TK op = OP;
+            if (op == TK.SELECT)
             {
-                int op;
-                pColl = pExpr.pColl;
-                if (pColl != null)
-                    break;
-                op = p.op;
-                if (p.pTab != null && (
-                op == TK_AGG_COLUMN || op == TK_COLUMN || op == TK_REGISTER || op == TK_TRIGGER
-                ))
+                Debug.Assert((expr.Flags & EP.xIsSelect) != 0);
+                return expr.x.Select.EList.Ids[0].Expr.Affinity();
+            }
+#if !OMIT_CAST
+            if (op == TK.CAST)
+            {
+                Debug.Assert(!ExprHasProperty(expr, EP.IntValue));
+                return Parse.AffinityType(expr.u.Token);
+            }
+#endif
+            if ((op == TK.AGG_COLUMN || op == TK.COLUMN || op == TK.REGISTER) && expr.Table != null)
+            {
+                // op == TK_REGISTER && expr->Table happens when pExpr was originally a TK_COLUMN but was previously evaluated and cached in a register
+                int j = expr.ColumnIdx;
+                if (j < 0)
+                    return AFF.INTEGER;
+                Debug.Assert(expr.Table != null && j < expr.Table.Cols.length);
+                return expr.Table.Cols[j].Aff;
+            }
+            return expr.Aff;
+        }
+
+        public Expr ExprAddCollateToken(Parse parse, Token collName)
+        {
+            Expr expr = this;
+            if (collName.length > 0)
+            {
+                Expr newExpr = Alloc(parse.Ctx, TK.COLLATE, collName, 1);
+                if (newExpr != null)
                 {
-                    /* op==TK_REGISTER && p->pTab!=0 happens when pExpr was originally
-                    ** a TK_COLUMN but was previously evaluated and cached in a register */
-                    string zColl;
-                    int j = p.iColumn;
+                    newExpr.Left = expr;
+                    newExpr.Flags |= EP.Collate;
+                    expr = newExpr;
+                }
+            }
+            return expr;
+        }
+
+        public Expr ExprAddCollateString(Parse parse, string z)
+        {
+            Debug.Assert(z != null);
+            Token s;
+            s.data = z;
+            s.length = z.Length;
+            return AddCollateToken(parse, s);
+        }
+
+        public Expr SkipCollate()
+        {
+            Expr expr = this;
+            while (expr != null && (expr.OP == TK.COLLATE || expr.OP == TK.AS))
+                expr = expr.Left;
+            return expr;
+        }
+
+        public CollSeq CollSeq(Parse parse)
+        {
+            Context ctx = parse.Ctx;
+            CollSeq coll = null;
+            Expr p = this;
+            while (p != null)
+            {
+                TK op = p.OP;
+                if (op == TK.CAST || op == TK.UPLUS)
+                {
+                    p = p.Left;
+                    continue;
+                }
+                Debug.Assert(op != TK.REGISTER || p.OP2 != TK.COLLATE);
+                if (op == TK.COLLATE)
+                {
+                    if (ctx.Init.Busy) // Do not report errors when parsing while the schema 
+                        coll = Callback.FindCollSeq(ctx, E.CTXENCODE(ctx), p.u.Token, 0);
+                    else
+                        coll = Callback.GetCollSeq(parse, E.CTXENCODE(ctx), null, p.u.Token);
+                    break;
+                }
+                if (p.Table != null && (op == TK.AGG_COLUMN || op == TK.COLUMN || op == TK.REGISTER || op == TK.TRIGGER))
+                {
+                    // op==TK_REGISTER && p->pTab!=0 happens when pExpr was originally a TK_COLUMN but was previously evaluated and cached in a register
+                    int j = p.ColumnIdx;
                     if (j >= 0)
                     {
-                        sqlite3 db = pParse.db;
-                        zColl = p.pTab.aCol[j].zColl;
-                        pColl = sqlite3FindCollSeq(db, ENC(db), zColl, 0);
-                        pExpr.pColl = pColl;
+                        string nameColl = p.Table.Cols[j].Coll;
+                        coll = Callback.FindCollSeq(ctx, E.CTXENCODE(ctx), nameColl, false);
                     }
                     break;
                 }
-                if (op != TK_CAST && op != TK_UPLUS)
-                {
-                    break;
-                }
-                p = p.pLeft;
-            }
-            if (sqlite3CheckCollSeq(pParse, pColl) != 0)
-            {
-                pColl = null;
-            }
-            return pColl;
-        }
-
-        /*
-        ** pExpr is an operand of a comparison operator.  aff2 is the
-        ** type affinity of the other operand.  This routine returns the
-        ** type affinity that should be used for the comparison operator.
-        */
-        static char sqlite3CompareAffinity(Expr pExpr, char aff2)
-        {
-            char aff1 = sqlite3ExprAffinity(pExpr);
-            if (aff1 != '\0' && aff2 != '\0')
-            {
-                /* Both sides of the comparison are columns. If one has numeric
-                ** affinity, use that. Otherwise use no affinity.
-                */
-                if (aff1 >= SQLITE_AFF_NUMERIC || aff2 >= SQLITE_AFF_NUMERIC)
-                //        if (sqlite3IsNumericAffinity(aff1) || sqlite3IsNumericAffinity(aff2))
-                {
-                    return SQLITE_AFF_NUMERIC;
-                }
+                if ((p.Flags & EP.Collate) != 0)
+                    p = (SysEx.ALWAYS(p.Left != null) && (p.Left.Flags & EP.Collate) != 0 ? p.Left : p.Right);
                 else
-                {
-                    return SQLITE_AFF_NONE;
-                }
+                    break;
             }
-            else if (aff1 == '\0' && aff2 == '\0')
+            if (Callback.CheckCollSeq(parse, coll) != RC.OK)
+                coll = null;
+            return coll;
+        }
+
+        public AFF CompareAffinity(AFF aff2)
+        {
+            AFF aff1 = Affinity();
+            if (aff1 != 0 && aff2 != 0) // Both sides of the comparison are columns. If one has numeric affinity, use that. Otherwise use no affinity.
+                return (E.IsNumericAffinity(aff1) || E.IsNumericAffinity(aff2) ? AFF.NUMERIC : AFF.NONE);
+            else if (aff1 == 0 && aff2 == 0) // Neither side of the comparison is a column.  Compare the results directly.
+                return AFF.NONE;
+            else // One side is a column, the other is not. Use the columns affinity.
             {
-                /* Neither side of the comparison is a column.  Compare the
-                ** results directly.
-                */
-                return SQLITE_AFF_NONE;
-            }
-            else
-            {
-                /* One side is a column, the other is not. Use the columns affinity. */
                 Debug.Assert(aff1 == 0 || aff2 == 0);
-                return (aff1 != '\0' ? aff1 : aff2);
+                return (aff1 != 0 ? aff1 : aff2);
             }
         }
 
-        /*
-        ** pExpr is a comparison operator.  Return the type affinity that should
-        ** be applied to both operands prior to doing the comparison.
-        */
-        static char comparisonAffinity(Expr pExpr)
+        static AFF ComparisonAffinity(Expr expr)
         {
-            char aff;
-            Debug.Assert(pExpr.op == TK_EQ || pExpr.op == TK_IN || pExpr.op == TK_LT ||
-            pExpr.op == TK_GT || pExpr.op == TK_GE || pExpr.op == TK_LE ||
-            pExpr.op == TK_NE || pExpr.op == TK_IS || pExpr.op == TK_ISNOT);
-            Debug.Assert(pExpr.pLeft != null);
-            aff = sqlite3ExprAffinity(pExpr.pLeft);
-            if (pExpr.pRight != null)
-            {
-                aff = sqlite3CompareAffinity(pExpr.pRight, aff);
-            }
-            else if (ExprHasProperty(pExpr, EP_xIsSelect))
-            {
-                aff = sqlite3CompareAffinity(pExpr.x.pSelect.pEList.a[0].pExpr, aff);
-            }
-            else if (aff == '\0')
-            {
-                aff = SQLITE_AFF_NONE;
-            }
+            Debug.Assert(expr.OP == TK.EQ || expr.OP == TK.IN || expr.OP == TK.LT ||
+                expr.OP == TK.GT || expr.OP == TK.GE || expr.OP == TK.LE ||
+                expr.OP == TK.NE || expr.OP == TK.IS || expr.OP == TK.ISNOT);
+            Debug.Assert(expr.Left != null);
+            AFF aff = expr.Left.Affinity();
+            if (expr.Right != null)
+                aff = expr.Right.CompareAffinity(aff);
+            else if (E.ExprHasProperty(expr, EP.xIsSelect))
+                aff = expr.x.Select.EList.Ids[0].Expr.CompareAffinity(aff);
+            else if (aff == 0)
+                aff = AFF.NONE;
             return aff;
         }
 
-        /*
-        ** pExpr is a comparison expression, eg. '=', '<', IN(...) etc.
-        ** idx_affinity is the affinity of an indexed column. Return true
-        ** if the index with affinity idx_affinity may be used to implement
-        ** the comparison in pExpr.
-        */
-        static bool sqlite3IndexAffinityOk(Expr pExpr, char idx_affinity)
+        public bool ValidIndexAffinity(AFF indexAff)
         {
-            char aff = comparisonAffinity(pExpr);
+            AFF aff = ComparisonAffinity(this);
             switch (aff)
             {
-                case SQLITE_AFF_NONE:
+                case AFF.NONE:
                     return true;
-                case SQLITE_AFF_TEXT:
-                    return idx_affinity == SQLITE_AFF_TEXT;
+                case AFF.TEXT:
+                    return (indexAff == AFF.TEXT);
                 default:
-                    return idx_affinity >= SQLITE_AFF_NUMERIC;// sqlite3IsNumericAffinity(idx_affinity);
+                    return E.IsNumericAffinity(indexAff);
             }
         }
 
-        /*
-        ** Return the P5 value that should be used for a binary comparison
-        ** opcode (OP_Eq, OP_Ge etc.) used to compare pExpr1 and pExpr2.
-        */
-        static u8 binaryCompareP5(Expr pExpr1, Expr pExpr2, int jumpIfNull)
+        static AFF BinaryCompareP5(Expr expr1, Expr expr2, AFF jumpIfNull)
         {
-            u8 aff = (u8)sqlite3ExprAffinity(pExpr2);
-            aff = (u8)((u8)sqlite3CompareAffinity(pExpr1, (char)aff) | (u8)jumpIfNull);
+            AFF aff = expr2.Affinity();
+            aff = (AFF)(expr1.CompareAffinity(aff) | jumpIfNull);
             return aff;
         }
 
-        /*
-        ** Return a pointer to the collation sequence that should be used by
-        ** a binary comparison operator comparing pLeft and pRight.
-        **
-        ** If the left hand expression has a collating sequence type, then it is
-        ** used. Otherwise the collation sequence for the right hand expression
-        ** is used, or the default (BINARY) if neither expression has a collating
-        ** type.
-        **
-        ** Argument pRight (but not pLeft) may be a null pointer. In this case,
-        ** it is not considered.
-        */
-        static CollSeq sqlite3BinaryCompareCollSeq(
-        Parse pParse,
-        Expr pLeft,
-        Expr pRight
-        )
+        public static CollSeq BinaryCompareCollSeq(Parse parse, Expr left, Expr right)
         {
-            CollSeq pColl;
-            Debug.Assert(pLeft != null);
-            if ((pLeft.flags & EP_ExpCollate) != 0)
-            {
-                Debug.Assert(pLeft.pColl != null);
-                pColl = pLeft.pColl;
-            }
-            else if (pRight != null && ((pRight.flags & EP_ExpCollate) != 0))
-            {
-                Debug.Assert(pRight.pColl != null);
-                pColl = pRight.pColl;
-            }
+            CollSeq coll;
+            Debug.Assert(left != null);
+            if ((left.Flags & EP.Collate) != 0)
+                coll = left.CollSeq(parse);
+            else if (right != null && (right.Flags & EP.Collate) != 0)
+                coll = right.CollSeq(parse);
             else
             {
-                pColl = sqlite3ExprCollSeq(pParse, pLeft);
-                if (pColl == null)
-                {
-                    pColl = sqlite3ExprCollSeq(pParse, pRight);
-                }
+                coll = left.CollSeq(parse);
+                if (coll == null)
+                    coll = right.CollSeq(parse);
             }
-            return pColl;
+            return coll;
         }
 
-        /*
-        ** Generate code for a comparison operator.
-        */
-        static int codeCompare(
-        Parse pParse,    /* The parsing (and code generating) context */
-        Expr pLeft,      /* The left operand */
-        Expr pRight,     /* The right operand */
-        int opcode,       /* The comparison opcode */
-        int in1, int in2, /* Register holding operands */
-        int dest,         /* Jump here if true.  */
-        int jumpIfNull    /* If true, jump if either operand is NULL */
-        )
+        static int CodeCompare(Parse parse, Expr left, Expr right, int opcode, int in1, int in2, int dest, AFF jumpIfNull)
         {
-            int p5;
-            int addr;
-            CollSeq p4;
-
-            p4 = sqlite3BinaryCompareCollSeq(pParse, pLeft, pRight);
-            p5 = binaryCompareP5(pLeft, pRight, jumpIfNull);
-            addr = sqlite3VdbeAddOp4(pParse.pVdbe, opcode, in2, dest, in1,
-            p4, P4_COLLSEQ);
-            sqlite3VdbeChangeP5(pParse.pVdbe, (u8)p5);
+            CollSeq p4 = Expr.BinaryCompareCollSeq(parse, left, right);
+            AFF p5 = BinaryCompareP5(left, right, jumpIfNull);
+            Vdbe v = parse.V;
+            int addr = v.AddOp4(opcode, in2, dest, in1, p4, Vdbe.P4T.COLLSEQ);
+            v.ChangeP5((uint8)p5);
             return addr;
         }
 
-#if SQLITE_MAX_EXPR_DEPTH //>0
-        /*
-** Check that argument nHeight is less than or equal to the maximum
-** expression depth allowed. If it is not, leave an error message in
-** pParse.
-*/
-        static int sqlite3ExprCheckHeight(Parse pParse, int nHeight)
+#if MAX_EXPR_DEPTH //>0
+
+        public static RC CheckHeight(Parse parse, int height)
         {
-            int rc = SQLITE_OK;
-            int mxHeight = pParse.db.aLimit[SQLITE_LIMIT_EXPR_DEPTH];
-            if (nHeight > mxHeight)
+            RC rc = RC.OK;
+            int maxHeight = parse.Ctx.Limits[(int)LIMIT.EXPR_DEPTH];
+            if (height > maxHeight)
             {
-                sqlite3ErrorMsg(pParse,
-                "Expression tree is too large (maximum depth %d)", mxHeight
-                );
-                rc = SQLITE_ERROR;
+                parse.ErrorMsg("Expression tree is too large (maximum depth %d)", maxHeight);
+                rc = RC.ERROR;
             }
             return rc;
         }
 
-        /* The following three functions, heightOfExpr(), heightOfExprList()
-        ** and heightOfSelect(), are used to determine the maximum height
-        ** of any expression tree referenced by the structure passed as the
-        ** first argument.
-        **
-        ** If this maximum height is greater than the current value pointed
-        ** to by pnHeight, the second parameter, then set pnHeight to that
-        ** value.
-        */
-        static void heightOfExpr(Expr p, ref int pnHeight)
+        static void HeightOfExpr(Expr p, ref int height)
         {
             if (p != null)
-            {
-                if (p.nHeight > pnHeight)
-                {
-                    pnHeight = p.nHeight;
-                }
-            }
+                if (p.Height > height)
+                    height = p.Height;
         }
-        static void heightOfExprList(ExprList p, ref int pnHeight)
+        static void HeightOfExprList(ExprList p, ref int height)
         {
             if (p != null)
-            {
-                int i;
-                for (i = 0; i < p.nExpr; i++)
-                {
-                    heightOfExpr(p.a[i].pExpr, ref pnHeight);
-                }
-            }
+                for (int i = 0; i < p.Exprs; i++)
+                    HeightOfExpr(p.Ids[i].Expr, ref height);
         }
-        static void heightOfSelect(Select p, ref int pnHeight)
+        static void HeightOfSelect(Select p, ref int height)
         {
             if (p != null)
             {
-                heightOfExpr(p.pWhere, ref pnHeight);
-                heightOfExpr(p.pHaving, ref pnHeight);
-                heightOfExpr(p.pLimit, ref pnHeight);
-                heightOfExpr(p.pOffset, ref pnHeight);
-                heightOfExprList(p.pEList, ref pnHeight);
-                heightOfExprList(p.pGroupBy, ref pnHeight);
-                heightOfExprList(p.pOrderBy, ref pnHeight);
-                heightOfSelect(p.pPrior, ref pnHeight);
+                HeightOfExpr(p.Where, ref height);
+                HeightOfExpr(p.Having, ref height);
+                HeightOfExpr(p.Limit, ref height);
+                HeightOfExpr(p.Offset, ref height);
+                HeightOfExprList(p.EList, ref height);
+                HeightOfExprList(p.GroupBy, ref height);
+                HeightOfExprList(p.OrderBy, ref height);
+                HeightOfSelect(p.Prior, ref height);
             }
         }
 
-        /*
-        ** Set the Expr.nHeight variable in the structure passed as an
-        ** argument. An expression with no children, Expr.x.pList or
-        ** Expr.x.pSelect member has a height of 1. Any other expression
-        ** has a height equal to the maximum height of any other
-        ** referenced Expr plus one.
-        */
-        static void exprSetHeight(Expr p)
+        static void ExprSetHeight(Expr p)
         {
-            int nHeight = 0;
-            heightOfExpr(p.pLeft, ref nHeight);
-            heightOfExpr(p.pRight, ref nHeight);
-            if (ExprHasProperty(p, EP_xIsSelect))
-            {
-                heightOfSelect(p.x.pSelect, ref nHeight);
-            }
+            int height = 0;
+            HeightOfExpr(p.Left, ref height);
+            HeightOfExpr(p.Right, ref height);
+            if (E.ExprHasProperty(p, EP.xIsSelect))
+                HeightOfSelect(p.x.Select, ref height);
             else
+                HeightOfExprList(p.x.List, ref height);
+            p.Height = height + 1;
+        }
+
+        public void SetHeight(Parse parse)
+        {
+            ExprSetHeight(this);
+            CheckHeight(parse, this.Height);
+        }
+
+        public static int SelectExprHeight(Select p)
+        {
+            int height = 0;
+            HeightOfSelect(p, ref height);
+            return height;
+        }
+#endif
+
+        public static Expr Alloc(Context ctx, TK op, Token token, bool dequote)
+        {
+            int extraSize = 0;
+            int value = 0;
+            if (token != null)
             {
-                heightOfExprList(p.x.pList, ref nHeight);
-            }
-            p.nHeight = nHeight + 1;
-        }
-
-        /*
-        ** Set the Expr.nHeight variable using the exprSetHeight() function. If
-        ** the height is greater than the maximum allowed expression depth,
-        ** leave an error in pParse.
-        */
-        static void sqlite3ExprSetHeight(Parse pParse, Expr p)
-        {
-            exprSetHeight(p);
-            sqlite3ExprCheckHeight(pParse, p.nHeight);
-        }
-
-        /*
-        ** Return the maximum height of any expression tree referenced
-        ** by the select statement passed as an argument.
-        */
-        static int sqlite3SelectExprHeight(Select p)
-        {
-            int nHeight = 0;
-            heightOfSelect(p, ref nHeight);
-            return nHeight;
-        }
-#else
-//#define exprSetHeight(y)
-#endif //* SQLITE_MAX_EXPR_DEPTH>0 */
-
-        /*
-** This routine is the core allocator for Expr nodes.
-**
-** Construct a new expression node and return a pointer to it.  Memory
-** for this node and for the pToken argument is a single allocation
-** obtained from sqlite3DbMalloc().  The calling function
-** is responsible for making sure the node eventually gets freed.
-**
-** If dequote is true, then the token (if it exists) is dequoted.
-** If dequote is false, no dequoting is performance.  The deQuote
-** parameter is ignored if pToken is NULL or if the token does not
-** appear to be quoted.  If the quotes were of the form "..." (double-quotes)
-** then the EP_DblQuoted flag is set on the expression node.
-**
-** Special case:  If op==TK_INTEGER and pToken points to a string that
-** can be translated into a 32-bit integer, then the token is not
-** stored in u.zToken.  Instead, the integer values is written
-** into u.iValue and the EP_IntValue flag is set.  No extra storage
-** is allocated to hold the integer text and the dequote flag is ignored.
-*/
-        static Expr sqlite3ExprAlloc(
-        sqlite3 db,           /* Handle for sqlite3DbMallocZero() (may be null) */
-        int op,               /* Expression opcode */
-        Token pToken,         /* Token argument.  Might be NULL */
-        int dequote           /* True to dequote */
-        )
-        {
-            Expr pNew;
-            int nExtra = 0;
-            int iValue = 0;
-
-            if (pToken != null)
-            {
-                if (op != TK_INTEGER || pToken.z == null || pToken.z.Length == 0
-                || sqlite3GetInt32(pToken.z.ToString(), ref iValue) == false)
+                if (op != TK.INTEGER || token.data == null || !ConvertEx.Atoi(token.data, ref value))
                 {
-                    nExtra = pToken.n + 1;
-                    Debug.Assert(iValue >= 0);
+                    extraSize = token.length + 1;
+                    Debug.Assert(value >= 0);
                 }
             }
-            pNew = new Expr();//sqlite3DbMallocZero(db, sizeof(Expr)+nExtra);
-            if (pNew != null)
+            Expr newExpr = new Expr();
+            if (newExpr != null)
             {
-                pNew.op = (u8)op;
-                pNew.iAgg = -1;
-                if (pToken != null)
+                newExpr.OP = op;
+                newExpr.Agg = -1;
+                if (token != null)
                 {
-                    if (nExtra == 0)
+                    if (extraSize == 0)
                     {
-                        pNew.flags |= EP_IntValue;
-                        pNew.u.iValue = iValue;
+                        newExpr.Flags |= EP.IntValue;
+                        newExpr.u.I = value;
                     }
                     else
                     {
+                        //: newExpr.u.Token = (char *)&newExpr[1];
+                        Debug.Assert(token.data != null && token.length == 0);
+                        if (token.length > 0)
+                            newExpr.u.Token = token.data.Substring(0, token.length);
+                        else if (token.length == 0 && string.IsNullOrEmpty(token.data))
+                            newExpr.u.Token = string.Empty;
                         int c;
-                        //pNew.u.zToken = (char)&pNew[1];
-                        if (pToken.n > 0)
-                            pNew.u.zToken = pToken.z.Substring(0, pToken.n);//memcpy(pNew.u.zToken, pToken.z, pToken.n);
-                        else if (pToken.n == 0 && string.IsNullOrEmpty(pToken.z))
-                            pNew.u.zToken = string.Empty;
-                        //pNew.u.zToken[pToken.n] = 0;
-                        if (dequote != 0 && nExtra >= 3
-                        && ((c = pToken.z[0]) == '\'' || c == '"' || c == '[' || c == '`'))
+                        if (dequote && extraSize >= 3 && ((c = token.data[0]) == '\'' || c == '"' || c == '[' || c == '`'))
                         {
-#if DEBUG_CLASS_EXPR || DEBUG_CLASS_ALL
-Parse.Dequote(ref pNew.u._zToken);
-#else
-                            Parse.Dequote(ref pNew.u.zToken);
-#endif
+                            Parse.Dequote(ref newExpr.u.Token);
                             if (c == '"')
-                                pNew.flags |= EP_DblQuoted;
+                                newExpr.Flags |= EP.DblQuoted;
                         }
                     }
                 }
-#if SQLITE_MAX_EXPR_DEPTH//>0
-                pNew.nHeight = 1;
+#if MAX_EXPR_DEPTH//>0
+                newExpr.Height = 1;
 #endif
             }
-            return pNew;
+            return newExpr;
         }
 
-        /*
-        ** Allocate a new expression node from a zero-terminated token that has
-        ** already been dequoted.
-        */
-        static Expr sqlite3Expr(
-        sqlite3 db,           /* Handle for sqlite3DbMallocZero() (may be null) */
-        int op,               /* Expression opcode */
-        string zToken         /* Token argument.  Might be NULL */
-        )
+        public static Expr Expr_(Context ctx, TK op, string token)
         {
             Token x = new Token();
-            x.z = zToken;
-            x.n = !string.IsNullOrEmpty(zToken) ? sqlite3Strlen30(zToken) : 0;
-            return sqlite3ExprAlloc(db, op, x, 0);
+            x.data = token;
+            x.length = (!string.IsNullOrEmpty(token) ? token.Length : 0);
+            return Alloc(ctx, op, x, false);
         }
 
-        /*
-        ** Attach subtrees pLeft and pRight to the Expr node pRoot.
-        **
-        ** If pRoot==NULL that means that a memory allocation error has occurred.
-        ** In that case, delete the subtrees pLeft and pRight.
-        */
-        static void sqlite3ExprAttachSubtrees(
-        sqlite3 db,
-        Expr pRoot,
-        Expr pLeft,
-        Expr pRight
-        )
+        public static void AttachSubtrees(Context ctx, Expr root, Expr left, Expr right)
         {
-            if (pRoot == null)
+            if (root == null)
             {
-                //Debug.Assert( db.mallocFailed != 0 );
-                sqlite3ExprDelete(db, ref pLeft);
-                sqlite3ExprDelete(db, ref pRight);
+                Debug.Assert(!ctx.MallocFailed);
+                Delete(ctx, ref left);
+                Delete(ctx, ref right);
             }
             else
             {
-                if (pRight != null)
+                if (right != null)
                 {
-                    pRoot.pRight = pRight;
-                    if ((pRight.flags & EP_ExpCollate) != 0)
+                    root.Right = right;
+                    if ((right.Flags & EP.ExpCollate) != 0)
                     {
-                        pRoot.flags |= EP_ExpCollate;
-                        pRoot.pColl = pRight.pColl;
+                        root.Flags |= EP.ExpCollate;
+                        root.Coll = right.Coll;
                     }
                 }
-                if (pLeft != null)
+                if (left != null)
                 {
-                    pRoot.pLeft = pLeft;
-                    if ((pLeft.flags & EP_ExpCollate) != 0)
+                    root.Left = left;
+                    if ((left.Flags & EP.ExpCollate) != 0)
                     {
-                        pRoot.flags |= EP_ExpCollate;
-                        pRoot.pColl = pLeft.pColl;
+                        root.Flags |= EP.ExpCollate;
+                        root.Coll = left.Coll;
                     }
                 }
-                exprSetHeight(pRoot);
+                ExprSetHeight(root);
             }
         }
 
-        /*
-        ** Allocate a Expr node which joins as many as two subtrees.
-        **
-        ** One or both of the subtrees can be NULL.  Return a pointer to the new
-        ** Expr node.  Or, if an OOM error occurs, set pParse->db->mallocFailed,
-        ** free the subtrees and return NULL.
-        */
         // OVERLOADS, so I don't need to rewrite parse.c
-        static Expr sqlite3PExpr(Parse pParse, int op, int null_3, int null_4, int null_5)
+        static Expr PExpr_(Parse parse, TK op, int null3, int null4, int null5) { return PExpr_(parse, op, null, null, null); }
+        static Expr PExpr_(Parse parse, TK op, int null3, int null4, Token token) { return PExpr_(parse, op, null, null, token); }
+        static Expr PExpr_(Parse parse, TK op, Expr left, int null4, int null5) { return PExpr_(parse, op, left, null, null); }
+        static Expr PExpr_(Parse parse, TK op, Expr left, int null4, Token token) { return PExpr_(parse, op, left, null, token); }
+        static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, int null5) { return PExpr_(parse, op, left, right, null); }
+        static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, Token token)
         {
-            return sqlite3PExpr(pParse, op, null, null, null);
-        }
-        static Expr sqlite3PExpr(Parse pParse, int op, int null_3, int null_4, Token pToken)
-        {
-            return sqlite3PExpr(pParse, op, null, null, pToken);
-        }
-        static Expr sqlite3PExpr(Parse pParse, int op, Expr pLeft, int null_4, int null_5)
-        {
-            return sqlite3PExpr(pParse, op, pLeft, null, null);
-        }
-        static Expr sqlite3PExpr(Parse pParse, int op, Expr pLeft, int null_4, Token pToken)
-        {
-            return sqlite3PExpr(pParse, op, pLeft, null, pToken);
-        }
-        static Expr sqlite3PExpr(Parse pParse, int op, Expr pLeft, Expr pRight, int null_5)
-        {
-            return sqlite3PExpr(pParse, op, pLeft, pRight, null);
-        }
-        static Expr sqlite3PExpr(
-        Parse pParse,          /* Parsing context */
-        int op,                 /* Expression opcode */
-        Expr pLeft,            /* Left operand */
-        Expr pRight,           /* Right operand */
-        Token pToken     /* Argument Token */
-        )
-        {
-            Expr p = sqlite3ExprAlloc(pParse.db, op, pToken, 1);
-            sqlite3ExprAttachSubtrees(pParse.db, p, pLeft, pRight);
-            if (p != null)
+            Context ctx = parse.Ctx;
+            Expr p;
+            if (op == TK.AND && left != null && right != null) // Take advantage of short-circuit false optimization for AND
+                p = And(ctx, left, right);
+            else
             {
-                sqlite3ExprCheckHeight(pParse, p.nHeight);
+                expr = Expr_(ctx, op, token, 1);
+                AttachSubtrees(ctx, p, left, right);
             }
+            if (p != null)
+                ExprCheckHeight(parse, p.Height);
             return p;
         }
 
-        /*
-        ** Join two expressions using an AND operator.  If either expression is
-        ** NULL, then just return the other expression.
-        */
-        static Expr sqlite3ExprAnd(sqlite3 db, Expr pLeft, Expr pRight)
+
+        static bool ExprAlwaysFalse(Expr p)
         {
-            if (pLeft == null)
+            if (E.ExprHasProperty(p, EP.FromJoin)) return false;
+            int v = 0;
+            if (!p.IsInteger(ref v)) return false;
+            return (v == 0);
+        }
+
+        public static Expr And(Context ctx, Expr left, Expr right)
+        {
+            if (left == null)
+                return right;
+            else if (right == null)
+                return left;
+            else if (ExprAlwaysFalse(left) || ExprAlwaysFalse(right))
             {
-                return pRight;
-            }
-            else if (pRight == null)
-            {
-                return pLeft;
+                Delete(ctx, left);
+                Delete(ctx, right);
+                return Alloc(ctx, TK.INTEGER, &_IntTokens[0], false);
             }
             else
             {
-                Expr pNew = sqlite3ExprAlloc(db, TK_AND, null, 0);
-                sqlite3ExprAttachSubtrees(db, pNew, pLeft, pRight);
-                return pNew;
+                Expr newExpr = Alloc(ctx, TK.AND, null, false);
+                AttachSubtrees(ctx, newExpr, left, right);
+                return newExpr;
             }
         }
 
-        /*
-         ** Construct a new expression node for a function with multiple
-         ** arguments.
-         */
         // OVERLOADS, so I don't need to rewrite parse.c
-        static Expr sqlite3ExprFunction(Parse pParse, int null_2, Token pToken)
+        public static Expr Function(Parse parse, int null2, Token token) { return Function(parse, null, token); }
+        public static Expr Function(Parse parse, ExprList list, int null3) { return Function(parse, list, null); }
+        public static Expr Function(Parse parse, ExprList list, Token token)
         {
-            return sqlite3ExprFunction(pParse, null, pToken);
-        }
-        static Expr sqlite3ExprFunction(Parse pParse, ExprList pList, int null_3)
-        {
-            return sqlite3ExprFunction(pParse, pList, null);
-        }
-        static Expr sqlite3ExprFunction(Parse pParse, ExprList pList, Token pToken)
-        {
-            Expr pNew;
-            sqlite3 db = pParse.db;
-            Debug.Assert(pToken != null);
-            pNew = sqlite3ExprAlloc(db, TK_FUNCTION, pToken, 1);
-            if (pNew == null)
+            Debug.Assert(token != null);
+            Context ctx = parse.Ctx;
+            Expr newExpr = Alloc(ctx, TK.FUNCTION, token, 1);
+            if (newExpr == null)
             {
-                sqlite3ExprListDelete(db, ref pList); /* Avoid memory leak when malloc fails */
+                ExprListDelete(ctx, ref list); // Avoid memory leak when malloc fails
                 return null;
             }
-            pNew.x.pList = pList;
-            Debug.Assert(!ExprHasProperty(pNew, EP_xIsSelect));
-
-            sqlite3ExprSetHeight(pParse, pNew);
-            return pNew;
+            newExpr.x.List = list;
+            Debug.Assert(!E.ExprHasProperty(newExpr, EP.xIsSelect));
+            ExprSetHeight(parse, newExpr);
+            return newExpr;
         }
 
-        /*
-        ** Assign a variable number to an expression that encodes a wildcard
-        ** in the original SQL statement.
-        **
-        ** Wildcards consisting of a single "?" are assigned the next sequential
-        ** variable number.
-        **
-        ** Wildcards of the form "?nnn" are assigned the number "nnn".  We make
-        ** sure "nnn" is not too be to avoid a denial of service attack when
-        ** the SQL statement comes from an external source.
-        **
-        ** Wildcards of the form ":aaa", "@aaa" or "$aaa" are assigned the same number
-        ** as the previous instance of the same wildcard.  Or if this is the first
-        ** instance of the wildcard, the next sequenial variable number is
-        ** assigned.
-        */
-        static void sqlite3ExprAssignVarNumber(Parse pParse, Expr pExpr)
+        public static void AssignVarNumber(Parse parse, Expr expr)
         {
-            sqlite3 db = pParse.db;
-            string z;
-
-            if (pExpr == null)
+            if (expr == null)
                 return;
-            Debug.Assert(!ExprHasAnyProperty(pExpr, EP_IntValue | EP_Reduced | EP_TokenOnly));
-            z = pExpr.u.zToken;
-            Debug.Assert(z != null);
-            Debug.Assert(z.Length != 0);
+            Debug.Assert(!E.ExprHasAnyProperty(expr, EP.IntValue | EP.Reduced | EP.TokenOnly));
+            string z = expr.u.Token;
+            Debug.Assert(z != null && z.Length != 0);
+            Context ctx = parse.Ctx;
             if (z.Length == 1)
             {
-                /* Wildcard of the form "?".  Assign the next variable number */
                 Debug.Assert(z[0] == '?');
-                pExpr.iColumn = (yVars)(++pParse.nVar);
+                // Wildcard of the form "?".  Assign the next variable number
+                expr.ColumnIdx = (yVars)(++parse.VarsSeen);
             }
             else
             {
@@ -677,20 +470,20 @@ Parse.Dequote(ref pNew.u._zToken);
                     ** use it as the variable number */
                     i64 i = 0;
                     bool bOk = 0 == sqlite3Atoi64(z.Substring(1), ref i, n - 1, SQLITE_UTF8);
-                    pExpr.iColumn = x = (yVars)i;
+                    expr.iColumn = x = (yVars)i;
                     testcase(i == 0);
                     testcase(i == 1);
-                    testcase(i == db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER] - 1);
-                    testcase(i == db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
-                    if (bOk == false || i < 1 || i > db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
+                    testcase(i == ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER] - 1);
+                    testcase(i == ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
+                    if (bOk == false || i < 1 || i > ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
                     {
-                        sqlite3ErrorMsg(pParse, "variable number must be between ?1 and ?%d",
-                        db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
+                        sqlite3ErrorMsg(parse, "variable number must be between ?1 and ?%d",
+                        ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
                         x = 0;
                     }
-                    if (i > pParse.nVar)
+                    if (i > parse.nVar)
                     {
-                        pParse.nVar = (int)i;
+                        parse.nVar = (int)i;
                     }
                 }
                 else
@@ -700,38 +493,38 @@ Parse.Dequote(ref pNew.u._zToken);
                     ** has never appeared before, reuse the same variable number
                     */
                     yVars i;
-                    for (i = 0; i < pParse.nzVar; i++)
+                    for (i = 0; i < parse.nzVar; i++)
                     {
-                        if (pParse.azVar[i] != null && z.CompareTo(pParse.azVar[i]) == 0) //memcmp(pParse.azVar[i],z,n+1)==0 )
+                        if (parse.azVar[i] != null && z.CompareTo(parse.azVar[i]) == 0) //memcmp(pParse.azVar[i],z,n+1)==0 )
                         {
-                            pExpr.iColumn = x = (yVars)(i + 1);
+                            expr.iColumn = x = (yVars)(i + 1);
                             break;
                         }
                     }
-                    if (x == 0) x = pExpr.iColumn = (yVars)(++pParse.nVar);
+                    if (x == 0) x = expr.iColumn = (yVars)(++parse.nVar);
                 }
                 if (x > 0)
                 {
-                    if (x > pParse.nzVar)
+                    if (x > parse.nzVar)
                     {
                         //char **a;
                         //a = sqlite3DbRealloc(db, pParse.azVar, x*sizeof(a[0]));
                         //if( a==0 ) return;  /* Error reported through db.mallocFailed */
                         //pParse.azVar = a;
                         //memset(&a[pParse.nzVar], 0, (x-pParse.nzVar)*sizeof(a[0]));
-                        Array.Resize(ref pParse.azVar, x);
-                        pParse.nzVar = x;
+                        Array.Resize(ref parse.azVar, x);
+                        parse.nzVar = x;
                     }
-                    if (z[0] != '?' || pParse.azVar[x - 1] == null)
+                    if (z[0] != '?' || parse.azVar[x - 1] == null)
                     {
                         //sqlite3DbFree(db, pParse.azVar[x-1]);
-                        pParse.azVar[x - 1] = z.Substring(0, n);//sqlite3DbStrNDup( db, z, n );
+                        parse.azVar[x - 1] = z.Substring(0, n);//sqlite3DbStrNDup( db, z, n );
                     }
                 }
             }
-            if (pParse.nErr == 0 && pParse.nVar > db.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
+            if (parse.nErr == 0 && parse.nVar > ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
             {
-                sqlite3ErrorMsg(pParse, "too many SQL variables");
+                sqlite3ErrorMsg(parse, "too many SQL variables");
             }
         }
 
@@ -2086,7 +1879,7 @@ return null;
 #endif
                         }
                         sqlite3ExprDelete(pParse.db, ref pSel.pLimit);
-                        pSel.pLimit = sqlite3PExpr(pParse, TK_INTEGER, null, null, sqlite3IntTokens[1]);
+                        pSel.pLimit = PExpr_(pParse, TK_INTEGER, null, null, sqlite3IntTokens[1]);
                         pSel.iLimit = 0;
                         if (sqlite3Select(pParse, pSel, ref dest) != 0)
                         {

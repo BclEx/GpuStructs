@@ -517,7 +517,6 @@ namespace Core
             return errs;
         }
 
-
         public static int Dequote(ref string z)
         {
             if (string.IsNullOrEmpty(z)) return -1;

@@ -182,7 +182,7 @@ namespace Core
             Encode = encode;
         }
 
-        public void CopyTo(ref Mem ct)
+        public void memcopy(ref Mem ct)
         {
             if (ct == null) ct = new Mem();
             ct.u = u;

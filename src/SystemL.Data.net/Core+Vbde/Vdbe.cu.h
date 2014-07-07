@@ -123,7 +123,7 @@ namespace Core
 		__device__ void ChangeP5(uint8 P5);
 		__device__ void JumpHere(int addr);
 		__device__ void ChangeToNoop(int addr);
-		__device__ void ChangeP4(int addr, const char *zP4, int N);
+		__device__ void ChangeP4(int addr, const char *zP4, P4T N);
 		__device__ void UsesBtree(int);
 		__device__ VdbeOp *GetOp(int);
 		__device__ int MakeLabel();

@@ -623,17 +623,66 @@ namespace Core
 		// Table for TK_COLUMN expressions.
 		Table *Table;
 
+
+
+
+		__device__ ExprList *ExprListAppend(ExprList *list, Expr *expr);
+		__device__ void ExprListSetName(ExprList *list, Token *name, bool dequote);
+		__device__ void ExprListSetSpan(ExprList *list, ExprSpan *span);
+		__device__ void ExprListCheckLength(ExprList *lList, const char *object);
+
+		__device__ int CodeOnce();
+#ifndef OMIT_SUBQUERY
+		__device__ IN_INDEX FindInIndex(Expr *expr, int *notFound);
+		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid);
+		__device__ void ExprCodeIN(Expr *expr, int destIfFalse, int destIfNull);
+#endif
+		__device__ void ExprCacheStore(int table, int column, int reg);
+		__device__ void ExprCacheRemove(int reg, int regs);
+		__device__ void ExprCachePush();
+		__device__ void ExprCachePop(int n);
+		__device__ void ExprCachePinRegister(int reg);
+		__device__ int ExprCodeGetColumn(Table *table, int column, int tableId, int reg, uint8 p5);
+		__device__ void ExprCacheClear();
+		__device__ void ExprCacheAffinityChange(int start, int count);
+		__device__ void ExprCodeMove(int from, int to, int regs);
+		__device__ int ExprCodeTarget(Expr *expr, int target);
+		__device__ int ExprCodeTemp(Expr *expr, int *reg);
+		__device__ int ExprCode(Expr *expr, int target);
+		__device__ int ExprCodeAndCache(Expr *expr, int target);
+		__device__ void ExprCodeConstants(Expr *expr);
+		__device__ int ExprCodeExprList(ExprList *list, int target, bool doHardCopy);
+		__device__ void ExprIfTrue(Expr *expr, int dest, int jumpIfNull);
+		__device__ void ExprIfFalse(Expr *expr, int dest, int jumpIfNull);
+		__device__ int GetTempReg();
+		__device__ void ReleaseTempReg(int reg);
+		__device__ int GetTempRange(int regs);
+		__device__ void ReleaseTempRange(int reg, int regs);
+		__device__ void ClearTempRegCache();
+
+
+
+
 		__device__ AFF Affinity();
+		__device__ Expr *AddCollateToken(Parse *parse, Token *collName);
+		__device__ Expr *AddCollateString(Parse *parse, const char *z);
 		__device__ Expr *SkipCollate();
+		__device__ CollSeq *CollSeq(Parse *parse);
 		__device__ AFF CompareAffinity(AFF aff2);
 		__device__ bool ValidIndexAffinity(AFF indexAff);
+		__device__ static CollSeq *BinaryCompareCollSeq(Parse *parse, Expr *left, Expr *right);
 #if MAX_EXPR_DEPTH > 0
+		__device__ static RC ExprCheckHeight(Parse *parse, int height);
+		__device__ void SetHeight(Parse *parse);
 		__device__ int SelectExprHeight(Select *select);
 #endif
 		__device__ static Expr *Alloc(Context *ctx, int op, const Token *token, bool dequote);
-		__device__ static Expr *Alloc(Context *ctx, int op, const char *token);
+		__device__ static Expr *Expr_(Context *ctx, int op, const char *token);
 		__device__ static void AttachSubtrees(Context *ctx, Expr *root, Expr *left, Expr *right);
+		__device__ static Expr *PExpr_(Parse *parse, int op, Expr *left, Expr *right, const Token *token);
 		__device__ static Expr *And(Context *ctx, Expr *left, Expr *right);
+		__device__ static Expr *Function(Parse *parse, ExprList *list, Token *token);
+		__device__ static void AssignVarNumber(Parse *parse, Expr *expr);
 		__device__ static void Delete(Context *ctx, Expr *expr);
 		__device__ static Expr *Expr::ExprDup(Context *ctx, Expr *expr, int flags);
 		__device__ static ExprList *Expr::ExprListDup(Context *ctx, ExprList *list, int flags);
@@ -890,53 +939,6 @@ namespace Core
 		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
 
 
-#pragma region From: Expr_c		
-		__device__ Expr *ExprAddCollateToken(Expr *expr, Token *collName);
-		__device__ Expr *ExprAddCollateString(Expr *expr, const char *z);
-		__device__ CollSeq *ExprCollSeq(Expr *expr);
-		__device__ CollSeq *BinaryCompareCollSeq(Expr *left, Expr *right);
-#if MAX_EXPR_DEPTH > 0
-		__device__ Core::RC ExprCheckHeight(int height);
-		__device__ void ExprSetHeight(Expr *expr);
-#endif
-		__device__ Expr *PExpr(int op, Expr *left, Expr *right, const Token *token);
-		__device__ Expr *ExprFunction(ExprList *list, Token *token);
-		__device__ void ExprAssignVarNumber(Expr *expr);
-		__device__ ExprList *ExprListAppend(ExprList *list, Expr *expr);
-		__device__ void ExprListSetName(ExprList *list, Token *name, bool dequote);
-		__device__ void ExprListSetSpan(ExprList *list, ExprSpan *span);
-		__device__ void ExprListCheckLength(ExprList *lList, const char *object);
-
-		__device__ int CodeOnce();
-#ifndef OMIT_SUBQUERY
-		__device__ IN_INDEX FindInIndex(Expr *expr, int *notFound);
-		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid);
-		__device__ void ExprCodeIN(Expr *expr, int destIfFalse, int destIfNull);
-#endif
-		__device__ void ExprCacheStore(int table, int column, int reg);
-		__device__ void ExprCacheRemove(int reg, int regs);
-		__device__ void ExprCachePush();
-		__device__ void ExprCachePop(int n);
-		__device__ void ExprCachePinRegister(int reg);
-		__device__ int ExprCodeGetColumn(Table *table, int column, int tableId, int reg, uint8 p5);
-		__device__ void ExprCacheClear();
-		__device__ void ExprCacheAffinityChange(int start, int count);
-		__device__ void ExprCodeMove(int from, int to, int regs);
-		__device__ int ExprCodeTarget(Expr *expr, int target);
-		__device__ int ExprCodeTemp(Expr *expr, int *reg);
-		__device__ int ExprCode(Expr *expr, int target);
-		__device__ int ExprCodeAndCache(Expr *expr, int target);
-		__device__ void ExprCodeConstants(Expr *expr);
-		__device__ int ExprCodeExprList(ExprList *list, int target, bool doHardCopy);
-		__device__ void ExprIfTrue(Expr *expr, int dest, int jumpIfNull);
-		__device__ void ExprIfFalse(Expr *expr, int dest, int jumpIfNull);
-		__device__ int GetTempReg();
-		__device__ void ReleaseTempReg(int reg);
-		__device__ int GetTempRange(int regs);
-		__device__ void ReleaseTempRange(int reg, int regs);
-		__device__ void ClearTempRegCache();
-
-#pragma endregion
 
 #pragma region From: Select_c
 		__device__ Vdbe *GetVdbe();

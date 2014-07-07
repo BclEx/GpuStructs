@@ -19,7 +19,7 @@ namespace Core { namespace Command
 			Mem *value;
 			sqlite3ValueFromExpr(v->ctx, col->Dflt, textencode, col->Affinity, &value);
 			if (value)
-				v->ChangeP4(-1, (const char *)value, Context::P4T_MEM);
+				v->ChangeP4(-1, (const char *)value, Vdbe::P4T_MEM);
 #ifndef OMIT_FLOATING_POINT
 			if (regId >= 0 && table->Cols[i].Affinity == AFF_REAL)
 				v->AddOp1(OP_RealAffinity, regId);
@@ -47,15 +47,15 @@ namespace Core { namespace Command
 #ifndef OMIT_TRIGGER
 		int tmask; // Mask of TRIGGER_BEFORE|TRIGGER_AFTER
 		Trigger *trigger = sqlite3TriggersExist(parse, table, TK_UPDATE, changes, &tmask); // List of triggers on table, if required
+#ifdef OMIT_VIEW
+#define isView false
+#else
 		bool isView = (table->Select != nullptr); // True when updating a view (INSTEAD OF trigger)
+#endif		
 		assert(trigger || tmask == 0);
 #else
 #define tmask 0
 #define trigger nullptr
-#define isView false
-#endif
-#ifdef OMIT_VIEW
-#undef isView
 #define isView false
 #endif
 		if (sqlite3ViewGetColumnNames(parse, table) || sqlite3IsReadOnly(parse, table, tmask))
@@ -128,7 +128,7 @@ namespace Core { namespace Command
 		// the value with a register number for indices that are to be used and with zero for unused indices.
 		int idxLength; // Number of indices that need updating
 		for (idxLength = 0, idx = table->Index; idx; idx = idx->Next, idxLength++) ;
-		int *regIdxs = 0; // One register assigned to each index to be updated
+		int *regIdxs = nullptr; // One register assigned to each index to be updated
 		if (idxLength > 0)
 		{
 			regIdxs = (int *)SysEx::TagAlloc(ctx, sizeof(Index *) * idxLength);
@@ -206,7 +206,7 @@ namespace Core { namespace Command
 
 		// Begin the database scan
 		v->AddOp3(OP_Null, 0, regRowSet, regOldRowid);
-		WhereInfo *winfo = Where::Begin(parse, tabList, where_, 0, 0, WHERE_ONEPASS_DESIRED, 0); // Information about the WHERE clause
+		WhereInfo *winfo = Where::Begin(parse, tabList, where_, 0, nullptr, WHERE_ONEPASS_DESIRED, 0); // Information about the WHERE clause
 		if (!winfo) goto update_cleanup;
 		bool okOnePass = winfo->OkOnePass; // True for one-pass algorithm without the FIFO
 
@@ -277,7 +277,7 @@ namespace Core { namespace Command
 		_assert(chngRowid || trigger || hasFK || regOldRowid == regNewRowid);
 		if (chngRowid)
 		{
-			sqlite3ExprCode(parse, rowidExpr, regNewRowid);
+			Expr::Code(parse, rowidExpr, regNewRowid);
 			v->AddOp1(OP_MustBeInt, regNewRowid);
 		}
 
@@ -289,12 +289,12 @@ namespace Core { namespace Command
 			for (i = 0; i < table->Cols.length; i++)
 			{
 				if (xrefs[i] < 0 || oldmask == 0xffffffff || (i < 32 && (oldmask & (1<<i))))
-					sqlite3ExprCodeGetColumnOfTable(v, table, curId, i, regOld+i);
+					Expr::CodeGetColumnOfTable(v, table, curId, i, regOld+i);
 				else
-					v->AddOp2(v, OP_Null, 0, regOld+i);
+					v->AddOp2(OP_Null, 0, regOld+i);
 			}
 			if (!chngRowid)
-				v->AddOp2(v, OP_Copy, regOldRowid, regNewRowid);
+				v->AddOp2(OP_Copy, regOldRowid, regNewRowid);
 		}
 
 		// Populate the array of registers beginning at regNew with the new row data. This array is used to check constaints, create the new
@@ -310,13 +310,13 @@ namespace Core { namespace Command
 		{
 			if (i == table->PKey)
 			{
-				//!v->AddOp2(OP_Null, 0, regNew+i);
+				//!v->AddOp2(OP_Null, 0, regNew + i);
 			}
 			else
 			{
 				j = xrefs[i];
 				if (j >= 0)
-					sqlite3ExprCode(parse, changes->Ids[j].Expr, regNew+i);
+					Expr::Code(parse, changes->Ids[j].Expr, regNew+i);
 				else if ((tmask & TRIGGER_BEFORE) == 0 || i > 31 || (newmask & (1<<i)))
 				{
 					// This branch loads the value of a column that will not be changed into a register. This is done if there are no BEFORE triggers, or
@@ -352,8 +352,6 @@ namespace Core { namespace Command
 
 		if (!isView)
 		{
-			int j1; // Address of jump instruction
-
 			// Do constraint checks.
 			sqlite3GenerateConstraintChecks(parse, table, curId, regNewRowid, regIdxs, (chngRowid ? regOldRowid : 0), 1, onError, addr, 0);
 
@@ -362,7 +360,7 @@ namespace Core { namespace Command
 				sqlite3FkCheck(parse, table, regOldRowid, 0);
 
 			// Delete the index entries associated with the current record.
-			j1 = v->AddOp3(OP_NotExists, curId, 0, regOldRowid);
+			int j1 = v->AddOp3(OP_NotExists, curId, 0, regOldRowid);  // Address of jump instruction
 			sqlite3GenerateRowIndexDelete(parse, table, curId, regIdxs);
 
 			// If changing the record number, delete the old record.
@@ -393,12 +391,10 @@ namespace Core { namespace Command
 		v->JumpHere(addr);
 
 		// Close all tables
+		_assert(regIdxs);
 		for (i = 0, idx = table->Index; idx; idx = idx->Next, i++)
-		{
-			_assert(regIdxs);
 			if (openAll || regIdxs[i] > 0)
-				v-?AddOp2(OP_Close, curId+i+1, 0);
-		}
+				v->AddOp2(OP_Close, curId+i+1, 0);
 		v->AddOp2(OP_Close, curId, 0);
 
 		// Update the sqlite_sequence table by storing the content of the maximum rowid counter values recorded while inserting into
@@ -406,102 +402,85 @@ namespace Core { namespace Command
 		if (parse->Nested == 0 && parse->TriggerTab == 0)
 			sqlite3AutoincrementEnd(parse);
 
-		/*
-		** Return the number of rows that were changed. If this routine is 
-		** generating code because of a call to sqlite3NestedParse(), do not
-		** invoke the callback function.
-		*/
-		if( (ctx->flags&SQLITE_CountRows) && !pParse->pTriggerTab && !pParse->nested ){
-			sqlite3VdbeAddOp2(v, OP_ResultRow, regRowCount, 1);
-			sqlite3VdbeSetNumCols(v, 1);
-			sqlite3VdbeSetColName(v, 0, COLNAME_NAME, "rows updated", SQLITE_STATIC);
+		// Return the number of rows that were changed. If this routine is generating code because of a call to sqlite3NestedParse(), do not
+		// invoke the callback function.
+		if ((ctx->Flags & Context::FLAG_CountRows) && !parse->TriggerTab && !parse->Nested)
+		{
+			v->AddOp2(OP_ResultRow, regRowCount, 1);
+			v->SetNumCols(1);
+			v->SetColName(0, COLNAME_NAME, "rows updated", SQLITE_STATIC);
 		}
 
 update_cleanup:
-		sqlite3AuthContextPop(&sContext);
-		sqlite3DbFree(ctx, aRegIdx);
-		sqlite3DbFree(ctx, xrefs);
-		sqlite3SrcListDelete(ctx, pTabList);
-		sqlite3ExprListDelete(ctx, pChanges);
-		sqlite3ExprDelete(ctx, pWhere);
+		#if !OMIT_AUTHORIZATION
+		Auth::ContextPop(&sContext);
+		#endif
+		SysEx::TagFree(ctx, regIdxs);
+		SysEx::TagFree(ctx, xrefs);
+		SrcList::Delete(ctx, tabList);
+		ExprList::Delete(ctx, changes);
+		Expr::Delete(ctx, where_);
 		return;
 	}
-	/* Make sure "isView" and other macros defined above are undefined. Otherwise
-	** thely may interfere with compilation of other functions in this file
-	** (or in another file, if this file becomes part of the amalgamation).  */
+	// Make sure "isView" and other macros defined above are undefined. Otherwise thely may interfere with compilation of other functions in this file
+	// (or in another file, if this file becomes part of the amalgamation).
 #ifdef isView
 #undef isView
 #endif
-#ifdef pTrigger
-#undef pTrigger
+#ifdef trigger
+#undef trigger
 #endif
 
 #ifndef OMIT_VIRTUALTABLE
-	static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xref, Expr *where, OE onError)
+	static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xref, Expr *where_, OE onError)
 	{
-		Vdbe *v = pParse->pVdbe;  // Virtual machine under construction
-		ExprList *pEList = 0;     // The result set of the SELECT statement
-		Select *pSelect = 0;      // The SELECT statement
-		Expr *pExpr;              // Temporary expression
-		int ephemTab;             // Table holding the result of the SELECT
-		int i;                    // Loop counter
-		int addr;                 // Address of top of loop
-		int iReg;                 // First register in set passed to OP_VUpdate
-		Context *ctx = pParse->Ctx; // Database connection
-		const char *pVTab = (const char*)sqlite3GetVTable(ctx, table);
+		int i;
+		Context *ctx = parse->Ctx; // Database connection
+		const char *vtable = (const char *)VTable::GetVTable(ctx, table);
 		SelectDest dest;
 
-		/* Construct the SELECT statement that will find the new values for
-		** all updated rows. 
-		*/
-		pEList = sqlite3ExprListAppend(pParse, 0, sqlite3Expr(ctx, TK_ID, "_rowid_"));
-		if( pRowid ){
-			pEList = sqlite3ExprListAppend(pParse, pEList,
-				sqlite3ExprDup(ctx, pRowid, 0));
+		// Construct the SELECT statement that will find the new values for all updated rows. 
+		ExprList *list = ExprList::Append(parse, nullptr, Expr::Expr(ctx, TK_ID, "_rowid_")); // The result set of the SELECT statement
+		if (rowid)
+			list = ExprList::Append(parse, list, Expr::ExprDup(ctx, rowid, 0));
+		_assert(table->PKey < 0);
+		for (i = 0; i < table->Cols.length; i++)
+		{
+			Expr *expr = (xrefs[i] >= 0 ? Expr::Dup(ctx, changes->Ids[xrefs[i]].Expr, 0) : Expr::Expr(ctx, TK_ID, table->Cols[i].Name)); // Temporary expression
+			list = ExprList::Append(parse, list, expr);
 		}
-		assert( table->iPKey<0 );
-		for(i=0; i<table->nCol; i++){
-			if( xrefs[i]>=0 ){
-				pExpr = sqlite3ExprDup(ctx, pChanges->a[xrefs[i]].pExpr, 0);
-			}else{
-				pExpr = sqlite3Expr(ctx, TK_ID, table->aCol[i].zName);
-			}
-			pEList = sqlite3ExprListAppend(pParse, pEList, pExpr);
+		Select *select = Select::New(parse, list, src, where_, 0, 0, 0, 0, 0, 0); // The SELECT statement
+
+		// Create the ephemeral table into which the update results will be stored.
+		Vdbe *v = parse->V;  // Virtual machine under construction
+		_assert(v);
+		int ephemTab = parse->Tabs++; // Table holding the result of the SELECT
+		v->AddOp2(OP_OpenEphemeral, ephemTab, table->Cols.length + 1 + (rowid != 0));
+		v->ChangeP5(BTREE_UNORDERED);
+
+		// fill the ephemeral table 
+		Select::DestInit(&dest, SRT_Table, ephemTab);
+		Select::Select(parse, select, &dest);
+
+		// Generate code to scan the ephemeral table and call VUpdate.
+		int regId = ++parse->Mems; // First register in set passed to OP_VUpdate
+		parse->Mems += table->Cols.length+1;
+		int addr = v->AddOp2(OP_Rewind, ephemTab, 0); // Address of top of loop
+		v->AddOp3(OP_Column,  ephemTab, 0, regId);
+		v->AddOp3(OP_Column, ephemTab, (rowid ? 1 : 0), regId+1);
+		for (i = 0; i < table->Cols.length; i++){
+			v->AddOp3(v, OP_Column, ephemTab, i+1+(rowid!=0), regId+2+i);
 		}
-		pSelect = sqlite3SelectNew(pParse, pEList, pSrc, pWhere, 0, 0, 0, 0, 0, 0);
+		sqlite3VtabMakeWritable(parse, table);
+		v->AddOp4(OP_VUpdate, 0, table->Cols.length+2, regId, vtable, Vdbe::P4T_VTAB);
+		v->ChangeP5(onError == OE_Default ? OE_Abort : onError);
+		parse->MayAbort();
+		v->AddOp2(OP_Next, ephemTab, addr+1);
+		v->JumpHere(addr);
+		v->AddOp2(OP_Close, ephemTab, 0);
 
-		/* Create the ephemeral table into which the update results will
-		** be stored.
-		*/
-		assert( v );
-		ephemTab = pParse->nTab++;
-		sqlite3VdbeAddOp2(v, OP_OpenEphemeral, ephemTab, table->nCol+1+(pRowid!=0));
-		sqlite3VdbeChangeP5(v, BTREE_UNORDERED);
-
-		/* fill the ephemeral table 
-		*/
-		sqlite3SelectDestInit(&dest, SRT_Table, ephemTab);
-		sqlite3Select(pParse, pSelect, &dest);
-
-		/* Generate code to scan the ephemeral table and call VUpdate. */
-		iReg = ++pParse->nMem;
-		pParse->nMem += table->nCol+1;
-		addr = sqlite3VdbeAddOp2(v, OP_Rewind, ephemTab, 0);
-		sqlite3VdbeAddOp3(v, OP_Column,  ephemTab, 0, iReg);
-		sqlite3VdbeAddOp3(v, OP_Column, ephemTab, (pRowid?1:0), iReg+1);
-		for(i=0; i<table->nCol; i++){
-			sqlite3VdbeAddOp3(v, OP_Column, ephemTab, i+1+(pRowid!=0), iReg+2+i);
-		}
-		sqlite3VtabMakeWritable(pParse, table);
-		sqlite3VdbeAddOp4(v, OP_VUpdate, 0, table->nCol+2, iReg, pVTab, P4_VTAB);
-		sqlite3VdbeChangeP5(v, onError==OE_Default ? OE_Abort : onError);
-		sqlite3MayAbort(pParse);
-		sqlite3VdbeAddOp2(v, OP_Next, ephemTab, addr+1);
-		sqlite3VdbeJumpHere(v, addr);
-		sqlite3VdbeAddOp2(v, OP_Close, ephemTab, 0);
-
-		/* Cleanup */
-		sqlite3SelectDelete(ctx, pSelect);  
+		// Cleanup
+		Select::Delete(ctx, select);  
 	}
 #endif
 } }

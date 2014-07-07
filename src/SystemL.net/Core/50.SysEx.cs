@@ -49,6 +49,7 @@ namespace Core
         public static T[] Alloc<T>(byte s, int size, bool clear) where T : struct { return new T[size / s]; }
         public static byte[] TagAlloc(object tag, int size) { return new byte[size]; }
         public static byte[] TagAlloc(object tag, int size, bool clear) { return new byte[size]; }
+        public static T[] TagAlloc<T>(object tag, int size) where T : struct { return new T[size]; }
         public static T[] TagAlloc<T>(object tag, byte s, int size) where T : struct { return new T[size / s]; }
         public static T[] TagAlloc<T>(object tag, byte s, int size, bool clear) where T : struct { return new T[size / s]; }
         public static int AllocSize(byte[] p)
