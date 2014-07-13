@@ -1,4 +1,4 @@
-#include "Core+Syntax.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {
@@ -226,7 +226,7 @@ namespace Core
 		}
 		int idx;
 		WhereTerm *term = &wc->Slots[idx = wc->Terms++];
-		term->Expr = Expr::SkipCollate(p);
+		term->Expr = p->SkipCollate();
 		term->WtFlags = wtFlags;
 		term->WC = pWC;
 		term->Parent = -1;

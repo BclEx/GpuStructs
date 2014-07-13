@@ -1,4 +1,4 @@
-#include "..\Core+Syntax.cu.h"
+#include "..\Core+Vdbe.cu.h"
 
 namespace Core { namespace Command
 {

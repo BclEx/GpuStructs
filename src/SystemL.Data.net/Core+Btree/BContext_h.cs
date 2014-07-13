@@ -1,10 +1,14 @@
 ﻿using System;
 namespace Core
 {
+    public partial class E
+    {
+        public static TEXTENCODE CTXENCODE(BContext ctx) { return ctx.DBs[0].Schema.Encode; }
+    }
+
     public class BContext
     {
         const int MAX_ATTACHED = 10;
-        public static TEXTENCODE CTXENCODE(BContext ctx) { return ctx.DBs[0].Schema.Encode; }
 
         public class BusyHandlerType
         {

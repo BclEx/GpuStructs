@@ -51,7 +51,7 @@ namespace Core
 #if !OMIT_CAST
             if (op == TK.CAST)
             {
-                Debug.Assert(!ExprHasProperty(expr, EP.IntValue));
+                Debug.Assert(!E.ExprHasProperty(expr, EP.IntValue));
                 return Parse.AffinityType(expr.u.Token);
             }
 #endif
@@ -62,17 +62,17 @@ namespace Core
                 if (j < 0)
                     return AFF.INTEGER;
                 Debug.Assert(expr.Table != null && j < expr.Table.Cols.length);
-                return expr.Table.Cols[j].Aff;
+                return expr.Table.Cols[j].Affinity;
             }
             return expr.Aff;
         }
 
-        public Expr ExprAddCollateToken(Parse parse, Token collName)
+        public Expr AddCollateToken(Parse parse, Token collName)
         {
             Expr expr = this;
             if (collName.length > 0)
             {
-                Expr newExpr = Alloc(parse.Ctx, TK.COLLATE, collName, 1);
+                Expr newExpr = Alloc(parse.Ctx, TK.COLLATE, collName, true);
                 if (newExpr != null)
                 {
                     newExpr.Left = expr;
@@ -83,12 +83,12 @@ namespace Core
             return expr;
         }
 
-        public Expr ExprAddCollateString(Parse parse, string z)
+        public Expr AddCollateString(Parse parse, string z)
         {
             Debug.Assert(z != null);
             Token s;
             s.data = z;
-            s.length = z.Length;
+            s.length = (uint)z.Length;
             return AddCollateToken(parse, s);
         }
 
@@ -117,7 +117,7 @@ namespace Core
                 if (op == TK.COLLATE)
                 {
                     if (ctx.Init.Busy) // Do not report errors when parsing while the schema 
-                        coll = Callback.FindCollSeq(ctx, E.CTXENCODE(ctx), p.u.Token, 0);
+                        coll = Callback.FindCollSeq(ctx, E.CTXENCODE(ctx), p.u.Token, false);
                     else
                         coll = Callback.GetCollSeq(parse, E.CTXENCODE(ctx), null, p.u.Token);
                     break;
@@ -217,7 +217,7 @@ namespace Core
             AFF p5 = BinaryCompareP5(left, right, jumpIfNull);
             Vdbe v = parse.V;
             int addr = v.AddOp4(opcode, in2, dest, in1, p4, Vdbe.P4T.COLLSEQ);
-            v.ChangeP5((uint8)p5);
+            v.ChangeP5((byte)p5);
             return addr;
         }
 

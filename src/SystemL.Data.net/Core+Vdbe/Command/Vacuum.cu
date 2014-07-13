@@ -1,6 +1,6 @@
 #pragma region OMIT_VACUUM
 #if !defined(OMIT_VACUUM) && !defined(OMIT_ATTACH)
-#include "..\Core+Syntax.cu.h"
+#include "..\Core+Vdbe.cu.h"
 
 namespace Core { namespace Command
 {

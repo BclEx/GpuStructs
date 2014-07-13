@@ -1,7 +1,7 @@
 // alter.c
 #pragma region OMIT_ALTERTABLE
 #ifndef OMIT_ALTERTABLE
-#include "..\Core+Syntax.cu.h"
+#include "..\Core+Vdbe.cu.h"
 
 namespace Core { namespace Command
 {

@@ -1,5 +1,4 @@
-#include "sqliteInt.h"
-#include "vdbeInt.h"
+#include "vdbeInt.cu.h"
 
 #pragma region Aux
 

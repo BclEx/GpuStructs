@@ -720,10 +720,10 @@ namespace Core
 #define ExprSetIrreducible(x)
 #endif
 
-#define ExprHasProperty(x,p)     (((E)->Flags&(P))==(P))
-#define ExprHasAnyProperty(x,p)  (((E)->Flags&(P))!=0)
-#define ExprSetProperty(x,p)     (E)->Flags|=(P)
-#define ExprClearProperty(x,p)   (E)->Flags&=~(P)
+#define ExprHasProperty(x,p)     (((x)->Flags&(p))==(p))
+#define ExprHasAnyProperty(x,p)  (((x)->Flags&(p))!=0)
+#define ExprSetProperty(x,p)     (x)->Flags|=(p)
+#define ExprClearProperty(x,p)   (x)->Flags&=~(p)
 
 #define EXPR_FULLSIZE           sizeof(Expr)				// Full size
 #define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)	// Common features
@@ -768,6 +768,7 @@ namespace Core
 		WRC_Abort = 2,		// Abandon the tree walk
 	};
 
+	struct SrcCount;
 	struct Walker
 	{
 		WRC (*ExprCallback)(Walker *w, Expr *expr);			// Callback for expressions
@@ -779,14 +780,14 @@ namespace Core
 			NameContext *NC;            // Naming context
 			int I;                      // Integer value
 			SrcList *SrcList;           // FROM clause
-			SrcCount *SrcCount;	// Counting column references
+			SrcCount *SrcCount;			// Counting column references
 		} u; // Extra data for callback
 
-		__device__ int WalkExpr(Expr *expr);
-		__device__ int WalkExprList(ExprList *list);
-		__device__ int WalkSelect(Select *Select);
-		__device__ int WalkSelectExpr(Core::Select *left);
-		__device__ int WalkSelectFrom(Core::Select *left);
+		__device__ WRC WalkExpr(Expr *expr);
+		__device__ WRC WalkExprList(ExprList *list);
+		__device__ WRC WalkSelect(Select *Select);
+		__device__ WRC WalkSelectExpr(Core::Select *left);
+		__device__ WRC WalkSelectFrom(Core::Select *left);
 	};
 
 #pragma endregion
@@ -1362,5 +1363,26 @@ namespace Core
 
 #pragma endregion
 
+#pragma region Internal
+
+	struct VdbeCursor;
+	struct VdbeFrame;
+	struct VdbeFunc;
+	struct Explain;
+
+#pragma endregion 
+
+#pragma region Savepoint
+
+	struct Savepoint
+	{
+		char *Name;				// Savepoint name (nul-terminated)
+		int64 DeferredCons;		// Number of deferred fk violations
+		Savepoint *Next;		// Parent savepoint (if any)
+	};
+
+#pragma endregion
+
 	__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);
 }
+#include "Vdbe.cu.h"

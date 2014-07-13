@@ -1,7 +1,7 @@
 // complete.c
 #pragma region OMIT_COMPLETE
 #ifndef OMIT_COMPLETE
-#include "Core+Syntax.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {

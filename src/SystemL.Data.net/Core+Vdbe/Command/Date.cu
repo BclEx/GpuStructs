@@ -1,5 +1,5 @@
 // date.c
-#include "..\Core+Syntax.cu.h"
+#include "..\Core+Vdbe.cu.h"
 #include <stdlib.h>
 #include <time.h>
 

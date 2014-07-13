@@ -3,11 +3,12 @@ namespace Core
 	class Btree;
 	struct Savepoint;
 
+#define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
+
 	class BContext
 	{
 	public:
 		static const int MAX_ATTACHED = 10;
-		#define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
 
 		struct BusyHandlerType
 		{
@@ -60,7 +61,7 @@ namespace Core
 		Savepoint *Savepoints;			// List of active savepoints
 		int BusyTimeout;				// Busy handler timeout, in msec
 		int SavepointsLength;			// Number of non-transaction savepoints
-        //bool IsTransactionSavepoint;    // True if the outermost savepoint is a TS
+		//bool IsTransactionSavepoint;    // True if the outermost savepoint is a TS
 
 		__device__ inline int InvokeBusyHandler()
 		{

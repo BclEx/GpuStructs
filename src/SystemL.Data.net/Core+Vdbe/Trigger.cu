@@ -1,6 +1,6 @@
 // trigger.c
 #ifndef OMIT_TRIGGER
-#include "Core+Syntax.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {

@@ -1,7 +1,7 @@
 // analyze.c
 #pragma region OMIT_ANALYZE
 #ifndef OMIT_ANALYZE
-#include "..\Core+Syntax.cu.h"
+#include "..\Core+Vdbe.cu.h"
 
 namespace Core { namespace Command
 {

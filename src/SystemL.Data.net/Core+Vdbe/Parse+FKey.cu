@@ -1,7 +1,6 @@
 #pragma region OMIT_FOREIGN_KEY
 #ifndef OMIT_FOREIGN_KEY
-#include "Core+Syntax.cu.h"
-#include "..\Core+Vbde\Vdbe.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {

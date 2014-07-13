@@ -1,9 +1,9 @@
 // walker.c
-#include "Core+Syntax.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {
-	__device__ int Walker::WalkExpr(Expr *expr)
+	__device__ WRC Walker::WalkExpr(Expr *expr)
 	{
 		if (!expr) return WRC_Continue;
 		ASSERTCOVERAGE(ExprHasProperty(expr, EP_TokenOnly));
@@ -22,10 +22,10 @@ namespace Core
 				if (WalkExprList(expr->x.List)) return WRC_Abort;
 			}
 		}
-		return rc & WRC_Abort;
+		return (WRC)(rc & WRC_Abort);
 	}
 
-	__device__ int Walker::WalkExprList(ExprList *p)
+	__device__ WRC Walker::WalkExprList(ExprList *p)
 	{
 		int i;
 		ExprList::ExprListItem *item;
@@ -35,7 +35,7 @@ namespace Core
 		return WRC_Continue;
 	}
 
-	__device__ int Walker::WalkSelectExpr(Select *p)
+	__device__ WRC Walker::WalkSelectExpr(Select *p)
 	{
 		if (WalkExprList(p->EList)) return WRC_Abort;
 		if (WalkExpr(p->Where)) return WRC_Abort;
@@ -47,7 +47,7 @@ namespace Core
 		return WRC_Continue;
 	}
 
-	__device__ int Walker::WalkSelectFrom(Select *p)
+	__device__ WRC Walker::WalkSelectFrom(Select *p)
 	{
 		SrcList *src = p->Src;
 		int i;
@@ -58,10 +58,10 @@ namespace Core
 		return WRC_Continue;
 	} 
 
-	__device__ int Walker::WalkSelect(Select *p)
+	__device__ WRC Walker::WalkSelect(Select *p)
 	{
 		if (!p || !SelectCallback) return WRC_Continue;
-		int rc = WRC_Continue;
+		WRC rc = WRC_Continue;
 		WalkerDepth++;
 		while (p)
 		{
@@ -75,6 +75,6 @@ namespace Core
 			p = p->Prior;
 		}
 		WalkerDepth--;
-		return rc & WRC_Abort;
+		return (WRC)(rc & WRC_Abort);
 	}
 }

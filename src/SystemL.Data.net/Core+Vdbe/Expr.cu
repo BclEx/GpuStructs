@@ -1,5 +1,4 @@
-#include "Core+Syntax.cu.h"
-#include "..\Core+Vbde\Vdbe.cu.h"
+#include "Core+Vdbe.cu.h"
 
 namespace Core
 {
@@ -31,7 +30,7 @@ namespace Core
 			if (j < 0)
 				return AFF_INTEGER;
 			_assert(expr->Table && j < expr->Table->Cols.length);
-			return expr->Table->Cols[j].Aff;
+			return expr->Table->Cols[j].Affinity;
 		}
 		return expr->Aff;
 	}
@@ -72,7 +71,7 @@ namespace Core
 	__device__ CollSeq *Expr::CollSeq(Parse *parse)
 	{
 		Context *ctx = parse->Ctx;
-		CollSeq *coll = nullptr;
+		Core::CollSeq *coll = nullptr;
 		Expr *p = this;
 		while (p)
 		{
@@ -86,7 +85,7 @@ namespace Core
 			if (op == TK_COLLATE)
 			{
 				if (ctx->Init.Busy) // Do not report errors when parsing while the schema 
-					coll = Callback::FindCollSeq(ctx, CTXENCODE(ctx), p->u.Token, 0);
+					coll = Callback::FindCollSeq(ctx, CTXENCODE(ctx), p->u.Token, false);
 				else
 					coll = Callback::GetCollSeq(parse, CTXENCODE(ctx), nullptr, p->u.Token);
 				break;

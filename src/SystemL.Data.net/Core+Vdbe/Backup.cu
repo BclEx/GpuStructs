@@ -1,4 +1,4 @@
-#include "Core+Syntax.cu.h"
+#include "Core+Vdbe.cu.h"
 #include "..\Core+Btree\BtreeInt.cu.h"
 
 #ifndef MIN

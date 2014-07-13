@@ -614,7 +614,7 @@ namespace Core
         // TK_REGISTER: original value of Expr.op
         // TK_COLUMN: the value of p5 for OP_Column
         // TK_AGG_FUNCTION: nesting depth
-        public byte OP2;
+        public TK OP2;
         // Used by TK_AGG_COLUMN and TK_AGG_FUNCTION
         public AggInfo AggInfo;
         // Table for TK_COLUMN expressions.
@@ -681,14 +681,14 @@ namespace Core
     {
         Func<Walker, Expr, WRC> ExprCallback;       // Callback for expressions
         Func<Walker, Select, WRC> SelectCallback;   // Callback for SELECTs
-        public Parse Parse;                   // Parser context.
+        public Parse Parse;                 // Parser context.
         public int WalkerDepth;				// Number of subqueries
         public class _u
         {
-            public NameContext NC;            // Naming context
-            public int I;                      // Integer value
-            public SrcList SrcList;           // FROM clause
-            public SrcCount SrcCount;	// Counting column references
+            public NameContext NC;          // Naming context
+            public int I;                   // Integer value
+            public SrcList SrcList;         // FROM clause
+            public Expr.SrcCount SrcCount;	// Counting column references
         }
         public _u u; // Extra data for callback
     }
@@ -1014,6 +1014,17 @@ namespace Core
         FUNCTION = 31,              // NULL            Function Name
         SAVEPOINT = 32,             // Operation       Savepoint Name 
         COPY = 0,                   // No longer used
+    }
+
+    #endregion
+
+    #region Savepoint
+
+    public class Savepoint
+    {
+        public string Name;			// Savepoint name (nul-terminated)
+        public long DeferredCons;	// Number of deferred fk violations
+        public Savepoint Next;		// Parent savepoint (if any)
     }
 
     #endregion
