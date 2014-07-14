@@ -299,6 +299,10 @@ namespace Core
 
 #pragma endregion
 
+#pragma region Get/Put
+	// USE C#
+#pragma endregion
+
 #pragma region AtoX
 
 	__device__ bool ConvertEx::Atof(const char *z, double *out, int length, TEXTENCODE encode)
@@ -516,7 +520,7 @@ do_atof_calc:
 		//     2^31 -> 2147483648
 		ASSERTCOVERAGE(i == 10);
 		if (i > 10) return false;
-		ASSERTCOVERAGE( v-neg==2147483647 );
+		ASSERTCOVERAGE(v-neg == 2147483647);
 		if (v - neg > 2147483647) return false;
 		*out = (int)(neg ? -v : v);
 		return true;

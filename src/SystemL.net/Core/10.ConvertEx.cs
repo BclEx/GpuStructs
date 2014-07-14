@@ -446,7 +446,7 @@ namespace Core
 
         #endregion
 
-        #region Atof
+        #region AtoX
 
         public static bool Atof(string z, ref double out_, int length, TEXTENCODE encode)
         {
@@ -474,7 +474,7 @@ namespace Core
             int d = 0;      // adjust exponent for shifting decimal point
             int esign = 1;  // sign of exponent
             int e = 0;      // exponent
-            bool eValid = true;  // True exponent is either not used or is well-formed
+            bool nonNum = true;  // True exponent is either not used or is well-formed
             int digits = 0;
 
             // skip leading zeroes
@@ -499,17 +499,17 @@ namespace Core
             if (z[zIdx] == 'e' || z[zIdx] == 'E')
             {
                 zIdx += incr;
-                eValid = false;
+                nonNum = false;
                 if (zIdx >= length) goto do_atof_calc;
                 // get sign of exponent
                 if (z[zIdx] == '-') { esign = -1; zIdx += incr; }
                 else if (z[zIdx] == '+') zIdx += incr;
                 // copy digits to exponent
-                while (zIdx < length && char.IsDigit(z[zIdx])) { e = e * 10 + (z[zIdx] - '0'); zIdx += incr; eValid = true; }
+                while (zIdx < length && char.IsDigit(z[zIdx])) { e = e * 10 + (z[zIdx] - '0'); zIdx += incr; nonNum = true; }
             }
 
             // skip trailing spaces
-            if (digits != 0 && eValid) while (zIdx < length && char.IsWhiteSpace(z[zIdx])) zIdx += incr;
+            if (digits != 0 && nonNum) while (zIdx < length && char.IsWhiteSpace(z[zIdx])) zIdx += incr;
 
         do_atof_calc:
 
@@ -558,13 +558,13 @@ namespace Core
 
 
             out_ = result; // store the result
-            return (zIdx >= length && digits > 0 && eValid); // return true if number and no extra non-whitespace chracters after
+            return (zIdx >= length && digits > 0 && nonNum); // return true if number and no extra non-whitespace chracters after
 #else
             return !Atoi64(z, out_, length, encode);
 #endif
         }
 
-        static int compare2pow63(string z, int incr)
+        static int Compare2pow63(string z, int incr)
         {
             string pow63 = "922337203685477580"; // 012345678901234567
             int c = 0;
@@ -573,14 +573,14 @@ namespace Core
             if (c == 0)
             {
                 c = z[18 * incr] - '8';
-                //ASSERTCOVERAGE(c == -1);
-                //ASSERTCOVERAGE(c == 0);
-                //ASSERTCOVERAGE(c == +1);
+                SysEx.ASSERTCOVERAGE(c == -1);
+                SysEx.ASSERTCOVERAGE(c == 0);
+                SysEx.ASSERTCOVERAGE(c == +1);
             }
             return c;
         }
 
-        public static bool Atoi64(string z, ref long out_, int length, TEXTENCODE encode)
+        public static bool Atoi64(string z, out long out_, int length, TEXTENCODE encode)
         {
             if (z == null)
             {
@@ -609,37 +609,56 @@ namespace Core
             // skip leading zeros
             while (zIdx < length - 1 && z[zIdx] == '0') zIdx += incr;
 
-            ulong u = 0;
-
-            int c = 0;
-
             // Skip leading zeros.
+            ulong u = 0;
+            int c = 0;
             int i; for (i = zIdx; i < length && (c = z[i]) >= '0' && c <= '9'; i += incr) u = u * 10 + (ulong)(c - '0');
 
             if (u > long.MaxValue) out_ = long.MinValue;
             else out_ = (neg != 0 ? -(long)u : (long)u);
 
-            //ASSERTCOVERAGE(i - zIdx == 18);
-            //ASSERTCOVERAGE(i - zIdx == 19);
-            //ASSERTCOVERAGE(i - zIdx == 20);
+            SysEx.ASSERTCOVERAGE(i - zIdx == 18);
+            SysEx.ASSERTCOVERAGE(i - zIdx == 19);
+            SysEx.ASSERTCOVERAGE(i - zIdx == 20);
             if ((c != 0 && i < length) || i == zIdx || i - zIdx > 19 * incr) return true; // zNum is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
             else if (i - zIdx < 19 * incr) { Debug.Assert(u <= long.MaxValue); return false; } // Less than 19 digits, so we know that it fits in 64 bits
             else
             {
-                c = compare2pow63(z.Substring(zIdx), incr); // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
+                c = Compare2pow63(z.Substring(zIdx), incr); // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
                 if (c < 0) { Debug.Assert(u <= long.MaxValue); return false; } // zNum is less than 9223372036854775808 so it fits
                 else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows 
                 else { Debug.Assert(u - 1 == long.MaxValue); Debug.Assert(out_ == long.MinValue); return (neg == 0); } // zNum is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
             }
         }
 
-        //static int Atoi(string z)
-        //{
-        //    int x = 0;
-        //    if (!string.IsNullOrEmpty(z))
-        //        GetInt32(z, ref x);
-        //    return x;
-        //}
+        public static bool Atoi(string z, ref int out_) { return Atoi(z, 0, ref out_); }
+        public static bool Atoi(string z, int zIdx, ref int out_)
+        {
+            int neg = 0;
+            if (z[zIdx] == '-') { neg = 1; zIdx++; }
+            else if (z[zIdx] == '+') zIdx++;
+            while (zIdx < z.Length && z[zIdx] == '0') zIdx++;
+            long v = 0;
+            int i, c;
+            for (i = 0; i < 11 && i + zIdx < z.Length && (c = z[zIdx + i] - '0') >= 0 && c <= 9; i++) { v = v * 10 + c; }
+            // The longest decimal representation of a 32 bit integer is 10 digits:
+            //             1234567890
+            //     2^31 -> 2147483648
+            SysEx.ASSERTCOVERAGE(i == 10);
+            if (i > 10) return false;
+            SysEx.ASSERTCOVERAGE(v - neg == 2147483647);
+            if (v - neg > 2147483647) return false;
+            out_ = (int)(neg != 0 ? -v : v);
+            return true;
+        }
+
+        public static int Atoi(string z)
+        {
+            int x = 0;
+            if (!string.IsNullOrEmpty(z))
+                Atoi(z, ref x);
+            return x;
+        }
 
         #endregion
     }

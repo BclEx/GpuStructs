@@ -670,9 +670,9 @@ namespace Core
 		__device__ CollSeq *CollSeq(Parse *parse);
 		__device__ AFF CompareAffinity(AFF aff2);
 		__device__ bool ValidIndexAffinity(AFF indexAff);
-		__device__ static CollSeq *BinaryCompareCollSeq(Parse *parse, Expr *left, Expr *right);
+		__device__ static Core::CollSeq *BinaryCompareCollSeq(Parse *parse, Expr *left, Expr *right);
 #if MAX_EXPR_DEPTH > 0
-		__device__ static RC ExprCheckHeight(Parse *parse, int height);
+		__device__ static RC CheckHeight(Parse *parse, int height);
 		__device__ void SetHeight(Parse *parse);
 		__device__ int SelectExprHeight(Select *select);
 #endif
@@ -684,8 +684,8 @@ namespace Core
 		__device__ static Expr *Function(Parse *parse, ExprList *list, Token *token);
 		__device__ static void AssignVarNumber(Parse *parse, Expr *expr);
 		__device__ static void Delete(Context *ctx, Expr *expr);
-		__device__ static Expr *Expr::ExprDup(Context *ctx, Expr *expr, int flags);
-		__device__ static ExprList *Expr::ExprListDup(Context *ctx, ExprList *list, int flags);
+		__device__ static Expr *Dup(Context *ctx, Expr *expr, int flags);
+		__device__ static ExprList *ExprListDup(Context *ctx, ExprList *list, int flags);
 #if !defined(OMIT_VIEW) || !defined(OMIT_TRIGGER) || !defined(OMIT_SUBQUERY)
 		__device__ static SrcList *SrcListDup(Context *ctx, SrcList *list, int flags);
 		__device__ static IdList *IdListDup(Context *ctx, IdList *list);
@@ -939,31 +939,28 @@ namespace Core
 		Table *ZombieTab;			// List of Table objects to delete after code gen
 		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
 
+		//#pragma region From: Select_c
+		//		__device__ Vdbe *GetVdbe();
+		//#pragma endregion
+		//#pragma region From: Insert_c
+		//		__device__ void AutoincrementBegin();
+		//		__device__ void AutoincrementEnd();
+		//#pragma endregion
+		//#pragma region From: Tokenize_c
+		//		__device__ int GetToken(const unsigned char *z, int *tokenType);
+		//		__device__ int RunParser(const char *sql, char **errMsg);
+		//#pragma endregion
+		//#pragma region From: Prepair_c
+		//		__device__ Core::RC ReadSchema();
+		//		__device__ static int SchemaToIndex(Context *ctx, Schema *schema);
+		//#pragma endregion
+		//#pragma region From: Analyze_c
+		//#ifndef OMIT_ANALYZE
+		//		__device__ static void DeleteIndexSamples(Context *ctx, Index *index);
+		//#endif
+		//#pragma endregion
 
-
-#pragma region From: Select_c
-		__device__ Vdbe *GetVdbe();
-#pragma endregion
-#pragma region From: Insert_c
-		__device__ void AutoincrementBegin();
-		__device__ void AutoincrementEnd();
-#pragma endregion
-#pragma region From: Tokenize_c
-		__device__ int GetToken(const unsigned char *z, int *tokenType);
-		__device__ int RunParser(const char *sql, char **errMsg);
-#pragma endregion
-#pragma region From: Prepair_c
-		__device__ Core::RC ReadSchema();
-		__device__ static int SchemaToIndex(Context *ctx, Schema *schema);
-#pragma endregion
-#pragma region From: Analyze_c
-#ifndef OMIT_ANALYZE
-		__device__ static void DeleteIndexSamples(Context *ctx, Index *index);
-#endif
-#pragma endregion
-
-
-#pragma region From: Parse+Build_c
+#pragma region From: Parse+Build_cu
 		__device__ void BeginParse(bool explainFlag);
 #ifndef OMIT_SHARED_CACHE
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
@@ -1046,14 +1043,14 @@ namespace Core
 		__device__ KeyInfo *IndexKeyinfo(Index *index);
 #pragma endregion
 
-#pragma region From: Parse+Complete_c
+#pragma region From: Parse+Complete_cu
 		__device__ bool Complete(const char *sql);
 #ifndef OMIT_UTF16
 		__device__ bool Complete16(const void *sql);
 #endif
 #pragma endregion
 
-#pragma region From: Parse+FKey_c
+#pragma region From: Parse+FKey_cu
 
 #ifndef OMIT_TRIGGER
 		__device__ int FKLocateIndex(Table *parent, FKey *fkey, Index **indexOut, int **colsOut);
@@ -1065,6 +1062,12 @@ namespace Core
 		__device__ void FKActions(Table *table, ExprList *changes, int regOld);
 #endif
 		__device__ static void FKDelete(Context *ctx, Table *table);
+#pragma endregion
+
+#pragma region From: Parse+Tokenize_cu
+		__device__ static int GetToken(const unsigned char *z, int *tokenType);
+		__device__ int RunParser(const char *sql, char **errMsg);
+		__device__ static int Dequote(char *z);
 #pragma endregion
 
 	};

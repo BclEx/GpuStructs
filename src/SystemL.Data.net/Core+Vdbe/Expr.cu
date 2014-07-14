@@ -165,7 +165,7 @@ namespace Core
 	__device__ CollSeq *Expr::BinaryCompareCollSeq(Parse *parse, Expr *left, Expr *right)
 	{
 		_assert(left);
-		CollSeq *coll;
+		Core::CollSeq *coll;
 		if (left->Flags & EP_Collate)
 			coll = left->CollSeq(parse);
 		else if (right && (right->Flags & EP_Collate))
@@ -207,12 +207,14 @@ namespace Core
 			if (p->Height > *height)
 				*height = p->Height;
 	}
+
 	__device__ static void HeightOfExprList(ExprList *p, int *height)
 	{
 		if (p)
 			for (int i = 0; i < p->Exprs; i++)
 				HeightOfExpr(p->Ids[i].Expr, height);
 	}
+
 	__device__ static void HeightOfSelect(Select *p, int *height)
 	{
 		if (p)
@@ -239,6 +241,7 @@ namespace Core
 			HeightOfExprList(p->x.List, &height);
 		p->Height = height + 1;
 	}
+
 	__device__ void Expr::SetHeight(Parse *parse)
 	{
 		ExprSetHeight(this);
@@ -252,12 +255,12 @@ namespace Core
 		return height;
 	}
 #else
-//#define ExprSetHeight(y)
+	//#define ExprSetHeight(y)
 #endif
 
 	__device__ Expr *Expr::Alloc(Context *ctx, int op, const Token *token, bool dequote)
 	{
-		int extraSize = 0;
+		uint32 extraSize = 0;
 		int value = 0;
 		if (token)
 		{
@@ -289,13 +292,13 @@ namespace Core
 					newExpr->u.Token[token->length] = 0;
 					if (dequote && extraSize >= 3 && ((c = token->data[0]) == '\'' || c == '"' || c == '[' || c == '`'))
 					{
-						sqlite3Dequote(newExpr->u.Token);
+						Parse::Dequote(newExpr->u.Token);
 						if (c == '"')
 							newExpr->Flags |= EP_DblQuoted;
 					}
 				}
 			}
-#if MAX_EXPR_DEPTH>0
+#if MAX_EXPR_DEPTH > 0
 			newExpr->Height = 1;
 #endif  
 		}
@@ -334,7 +337,7 @@ namespace Core
 		}
 	}
 
-	__device__ Expr *Expr::PExpr(Parse *parse, int op, Expr *left, Expr *right, const Token *token)
+	__device__ Expr *Expr::PExpr_(Parse *parse, int op, Expr *left, Expr *right, const Token *token)
 	{
 		Context *ctx = parse->Ctx;
 		Expr *p;
@@ -342,11 +345,11 @@ namespace Core
 			p = And(ctx, left, right);
 		else
 		{
-			p = Expr_(ctx, op, token, true);
+			p = Alloc(ctx, op, token, true);
 			AttachSubtrees(ctx, p, left, right);
 		}
 		if (p)
-			ExprCheckHeight(parse, p->Height);
+			CheckHeight(parse, p->Height);
 		return p;
 	}
 
@@ -424,47 +427,47 @@ namespace Core
 				ASSERTCOVERAGE(i == ctx->Limits[LIMIT_VARIABLE_NUMBER]);
 				if (!ok || i < 1 || i > ctx->Limits[LIMIT_VARIABLE_NUMBER])
 				{
-					ErrorMsg("variable number must be between ?1 and ?%d", ctx->Limits[LIMIT_VARIABLE_NUMBER]);
+					parse->ErrorMsg("variable number must be between ?1 and ?%d", ctx->Limits[LIMIT_VARIABLE_NUMBER]);
 					x = 0;
 				}
-				if (i > VarsSeen)
-					VarsSeen = (int)i;
+				if (i > parse->VarsSeen)
+					parse->VarsSeen = (int)i;
 			}
 			else
 			{
 				// Wildcards like ":aaa", "$aaa" or "@aaa".  Reuse the same variable number as the prior appearance of the same name, or if the name
 				// has never appeared before, reuse the same variable number
 				yVars i;
-				for (i = 0; i < Vars.length; i++)
+				for (i = 0; i < parse->Vars.length; i++)
 				{
-					if (Vars[i] && !_strcmp(Vars[i], z))
+					if (parse->Vars[i] && !_strcmp(parse->Vars[i], z))
 					{
 						expr->ColumnIdx = x = (yVars)i + 1;
 						break;
 					}
 				}
 				if (x == 0)
-					x = expr->ColumnIdx = (yVars)(++VarsSeen);
+					expr->ColumnIdx = x = (yVars)(++parse->VarsSeen);
 			}
 			if (x > 0)
 			{
-				if (x > Vars.length)
+				if (x > parse->Vars.length)
 				{
-					char **a = (char **)SysEx::TagRealloc(ctx, Vars.data, x * sizeof(a[0]));
+					char **a = (char **)SysEx::TagRealloc(ctx, parse->Vars.data, x * sizeof(a[0]));
 					if (!a) return;  // Error reported through db->mallocFailed
-					Vars.data = a;
-					_memset(&a[Vars.length], 0, (x - Vars.length)*sizeof(a[0]));
-					Vars.length = x;
+					parse->Vars.data = a;
+					_memset(&a[parse->Vars.length], 0, (x - parse->Vars.length)*sizeof(a[0]));
+					parse->Vars.length = x;
 				}
-				if (z[0] != '?' || Vars[x-1] == nullptr)
+				if (z[0] != '?' || parse->Vars[x-1] == nullptr)
 				{
-					SysEx::TagFree(ctx, Vars[x-1]);
-					Vars[x-1] = SysEx::TagStrNDup(ctx, z, length);
+					SysEx::TagFree(ctx, parse->Vars[x-1]);
+					parse->Vars[x-1] = SysEx::TagStrNDup(ctx, z, length);
 				}
 			}
 		} 
-		if (!Errs && VarsSeen > ctx->Limits[LIMIT_VARIABLE_NUMBER])
-			ErrorMsg("too many SQL variables");
+		if (!parse->Errs && parse->VarsSeen > ctx->Limits[LIMIT_VARIABLE_NUMBER])
+			parse->ErrorMsg("too many SQL variables");
 	}
 
 	__device__ void Expr::Delete(Context *ctx, Expr *expr)
@@ -508,10 +511,7 @@ namespace Core
 			_assert(!ExprHasProperty(expr, EP_FromJoin)); 
 			_assert(!(expr->Flags2 & EP2_MallocedToken));
 			_assert(!(expr->Flags2 & EP2_Irreducible));
-			if (expr->Left || expr->Right || expr->x.List)
-				size = EXPR_REDUCEDSIZE | EP_Reduced;
-			else
-				size = EXPR_TOKENONLYSIZE | EP_TokenOnly;
+			size = (expr->Left || expr->Right || expr->x.List ? EXPR_REDUCEDSIZE | EP_Reduced : EXPR_TOKENONLYSIZE | EP_TokenOnly);
 		}
 		return size;
 	}
@@ -536,7 +536,7 @@ namespace Core
 		return bytes;
 	}
 
-	__device__ static Expr *ExprDup2(Context *ctx, Expr *expr, int flags, uint8 **buffer)
+	__device__ static Expr *ExprDup(Context *ctx, Expr *expr, int flags, uint8 **buffer)
 	{
 		Expr *newExpr = nullptr; // Value to return
 		if (expr)
@@ -564,7 +564,7 @@ namespace Core
 				const unsigned structSize = DupedExprStructSize(expr, flags);
 				const int newSize = structSize & 0xfff;
 				int tokenLength;
-				int tokenLength = (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token ? _strlen30(p->u.Token) + 1 : 0);
+				int tokenLength = (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token ? _strlen30(expr->u.Token) + 1 : 0);
 				if (isReduced)
 				{
 					_assert(!ExprHasProperty(expr, EP_Reduced));
@@ -572,7 +572,7 @@ namespace Core
 				}
 				else
 				{
-					int size = ExprStructSize(p);
+					int size = ExprStructSize(expr);
 					_memcpy(alloc, (uint8 *)expr, size);
 					_memset(&alloc[size], 0, EXPR_FULLSIZE-size);
 				}
@@ -591,9 +591,9 @@ namespace Core
 				{
 					// Fill in the pNew->x.pSelect or pNew->x.pList member.
 					if (ExprHasProperty(expr, EP_xIsSelect))
-						newExpr->x.Select = Expr::SelectDup(ctx, expr->x.Select, isReduced);
+						newExpr->x.Select = SelectDup(ctx, expr->x.Select, isReduced);
 					else
-						newExpr->x.List = Expr::ExprListDup(ctx, expr->x.List, isReduced);
+						newExpr->x.List = ExprListDup(ctx, expr->x.List, isReduced);
 				}
 				// Fill in pNew->pLeft and pNew->pRight.
 				if (ExprHasAnyProperty(newExpr, EP_Reduced|EP_TokenOnly))
@@ -601,8 +601,8 @@ namespace Core
 					alloc += DupedExprNodeSize(expr, flags);
 					if (ExprHasProperty(newExpr, EP_Reduced))
 					{
-						newExpr->Left = ExprDup2(ctx, expr->Left, EXPRDUP_REDUCE, &alloc);
-						newExpr->Right = ExprDup2(ctx, expr->Right, EXPRDUP_REDUCE, &alloc);
+						newExpr->Left = ExprDup(ctx, expr->Left, EXPRDUP_REDUCE, &alloc);
+						newExpr->Right = ExprDup(ctx, expr->Right, EXPRDUP_REDUCE, &alloc);
 					}
 					if (buffer)
 						*buffer = alloc;
@@ -612,8 +612,8 @@ namespace Core
 					newExpr->Flags2 = (EP2)0;
 					if (!ExprHasAnyProperty(expr, EP_TokenOnly))
 					{
-						newExpr->Left = ExprDup2(ctx, expr->Left, 0, nullptr);
-						newExpr->Right = ExprDup2(ctx, expr->Right, 0, nullptr);
+						newExpr->Left = ExprDup(ctx, expr->Left, 0, nullptr);
+						newExpr->Right = ExprDup(ctx, expr->Right, 0, nullptr);
 					}
 				}
 			}
@@ -621,14 +621,12 @@ namespace Core
 		return newExpr;
 	}
 
-	__device__ Expr *Expr::ExprDup(Context *ctx, Expr *expr, int flags) { return ExprDup2(ctx, expr, flags, nullptr); }
+	__device__ Expr *Expr::Dup(Context *ctx, Expr *expr, int flags) { return ExprDup(ctx, expr, flags, nullptr); }
 	__device__ ExprList *Expr::ExprListDup(Context *ctx, ExprList *list, int flags)
 	{
-		if (!list)
-			return 0;
+		if (!list) return nullptr;
 		ExprList *newList = (ExprList *)SysEx::TagAlloc(ctx, sizeof(*newList));
-		if (!newList)
-			return 0;
+		if (!newList) return nullptr;
 		int i;
 		newList->ECursor = 0;
 		newList->Exprs = i = list->Exprs;
@@ -641,13 +639,13 @@ namespace Core
 		if (!item)
 		{
 			SysEx::TagFree(ctx, newList);
-			return 0;
+			return nullptr;
 		} 
-		ExprList::ExprListItem *oldItem = list->a;
+		ExprList::ExprListItem *oldItem = list->Ids;
 		for (i = 0; i < list->Exprs; i++, item++, oldItem++)
 		{
 			Expr *oldExpr = oldItem->Expr;
-			item->Expr = ExprDup(ctx, oldExpr, flags);
+			item->Expr = Dup(ctx, oldExpr, flags);
 			item->Name = SysEx::TagStrDup(ctx, oldItem->Name);
 			item->Span = SysEx::TagStrDup(ctx, oldItem->Span);
 			item->SortOrder = oldItem->SortOrder;

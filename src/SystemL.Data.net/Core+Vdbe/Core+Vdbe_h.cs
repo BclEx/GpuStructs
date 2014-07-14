@@ -599,7 +599,7 @@ namespace Core
         // If the EP_Reduced flag is set in the Expr.flags mask, then no space is allocated for the fields below this point. An attempt to
         // access them will result in a segfault or malfunction.
 #if MAX_EXPR_DEPTH
-		public int Height;					// Height of the tree headed by this node
+        public int Height;					// Height of the tree headed by this node
 #endif
         // TK_COLUMN: cursor number of table holding column
         // TK_REGISTER: register number
@@ -619,6 +619,32 @@ namespace Core
         public AggInfo AggInfo;
         // Table for TK_COLUMN expressions.
         public Table Table;
+
+        public Expr memcpy(int flag = -1)
+        {
+            Expr p = new Expr();
+            p.OP = OP;
+            p.Aff = Aff;
+            p.Flags = Flags;
+            p.u = u;
+            if (flag == E.EXPR_TOKENONLYSIZE) return p;
+            if (Left != null) p.Left = Left.memcpy();
+            if (Right != null) p.Right = Right.memcpy();
+            p.x = x;
+            if (flag == E.EXPR_REDUCEDSIZE) return p;
+#if MAX_EXPR_DEPTH
+            p.Height = Height;
+#endif
+            p.TableIdx = TableIdx;
+            p.ColumnIdx = ColumnIdx;
+            p.Agg = Agg;
+            p.RightJoinTable = RightJoinTable;
+            p.Flags2 = Flags2;
+            p.OP2 = OP2;
+            p.AggInfo = AggInfo;
+            p.Table = Table;
+            return p;
+        }
     }
 
     public static partial class E

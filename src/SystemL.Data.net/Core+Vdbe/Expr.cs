@@ -1,4 +1,3 @@
-#define MAX_EXPR_DEPTH
 using System;
 using System.Diagnostics;
 using System.Text;
@@ -221,7 +220,7 @@ namespace Core
             return addr;
         }
 
-#if MAX_EXPR_DEPTH //>0
+#if MAX_EXPR_DEPTH
 
         public static RC CheckHeight(Parse parse, int height)
         {
@@ -241,12 +240,14 @@ namespace Core
                 if (p.Height > height)
                     height = p.Height;
         }
+
         static void HeightOfExprList(ExprList p, ref int height)
         {
             if (p != null)
                 for (int i = 0; i < p.Exprs; i++)
                     HeightOfExpr(p.Ids[i].Expr, ref height);
         }
+
         static void HeightOfSelect(Select p, ref int height)
         {
             if (p != null)
@@ -290,7 +291,7 @@ namespace Core
 
         public static Expr Alloc(Context ctx, TK op, Token token, bool dequote)
         {
-            int extraSize = 0;
+            uint extraSize = 0;
             int value = 0;
             if (token != null)
             {
@@ -317,7 +318,7 @@ namespace Core
                         //: newExpr.u.Token = (char *)&newExpr[1];
                         Debug.Assert(token.data != null && token.length == 0);
                         if (token.length > 0)
-                            newExpr.u.Token = token.data.Substring(0, token.length);
+                            newExpr.u.Token = token.data.Substring(0, (int)token.length);
                         else if (token.length == 0 && string.IsNullOrEmpty(token.data))
                             newExpr.u.Token = string.Empty;
                         int c;
@@ -329,7 +330,7 @@ namespace Core
                         }
                     }
                 }
-#if MAX_EXPR_DEPTH//>0
+#if MAX_EXPR_DEPTH
                 newExpr.Height = 1;
 #endif
             }
@@ -340,7 +341,7 @@ namespace Core
         {
             Token x = new Token();
             x.data = token;
-            x.length = (!string.IsNullOrEmpty(token) ? token.Length : 0);
+            x.length = (uint)(!string.IsNullOrEmpty(token) ? token.Length : 0);
             return Alloc(ctx, op, x, false);
         }
 
@@ -357,20 +358,12 @@ namespace Core
                 if (right != null)
                 {
                     root.Right = right;
-                    if ((right.Flags & EP.ExpCollate) != 0)
-                    {
-                        root.Flags |= EP.ExpCollate;
-                        root.Coll = right.Coll;
-                    }
+                    root.Flags |= EP.Collate & right.Flags;
                 }
                 if (left != null)
                 {
                     root.Left = left;
-                    if ((left.Flags & EP.ExpCollate) != 0)
-                    {
-                        root.Flags |= EP.ExpCollate;
-                        root.Coll = left.Coll;
-                    }
+                    root.Flags |= EP.Collate & left.Flags;
                 }
                 ExprSetHeight(root);
             }
@@ -390,14 +383,13 @@ namespace Core
                 p = And(ctx, left, right);
             else
             {
-                expr = Expr_(ctx, op, token, 1);
+                p = Alloc(ctx, op, token, true);
                 AttachSubtrees(ctx, p, left, right);
             }
             if (p != null)
-                ExprCheckHeight(parse, p.Height);
+                CheckHeight(parse, p.Height);
             return p;
         }
-
 
         static bool ExprAlwaysFalse(Expr p)
         {
@@ -434,7 +426,7 @@ namespace Core
         {
             Debug.Assert(token != null);
             Context ctx = parse.Ctx;
-            Expr newExpr = Alloc(ctx, TK.FUNCTION, token, 1);
+            Expr newExpr = Alloc(ctx, TK.FUNCTION, token, true);
             if (newExpr == null)
             {
                 ExprListDelete(ctx, ref list); // Avoid memory leak when malloc fails
@@ -442,7 +434,7 @@ namespace Core
             }
             newExpr.x.List = list;
             Debug.Assert(!E.ExprHasProperty(newExpr, EP.xIsSelect));
-            ExprSetHeight(parse, newExpr);
+            ExprSetHeight(newExpr);
             return newExpr;
         }
 
@@ -463,406 +455,218 @@ namespace Core
             else
             {
                 yVars x = 0;
-                int n = sqlite3Strlen30(z);
+                int length = z.Length;
                 if (z[0] == '?')
                 {
-                    /* Wildcard of the form "?nnn".  Convert "nnn" to an integer and
-                    ** use it as the variable number */
-                    i64 i = 0;
-                    bool bOk = 0 == sqlite3Atoi64(z.Substring(1), ref i, n - 1, SQLITE_UTF8);
-                    expr.iColumn = x = (yVars)i;
-                    testcase(i == 0);
-                    testcase(i == 1);
-                    testcase(i == ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER] - 1);
-                    testcase(i == ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
-                    if (bOk == false || i < 1 || i > ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
+                    // Wildcard of the form "?nnn".  Convert "nnn" to an integer and use it as the variable number
+                    long i = 0;
+                    bool ok = !ConvertEx.Atoi64(z.Substring(1), out i, length - 1, TEXTENCODE.UTF8);
+                    expr.ColumnIdx = x = (yVars)i;
+                    SysEx.ASSERTCOVERAGE(i == 0);
+                    SysEx.ASSERTCOVERAGE(i == 1);
+                    SysEx.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER] - 1);
+                    SysEx.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER]);
+                    if (!ok || i < 1 || i > ctx.Limits[(int)LIMIT.VARIABLE_NUMBER])
                     {
-                        sqlite3ErrorMsg(parse, "variable number must be between ?1 and ?%d",
-                        ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER]);
+                        parse.ErrorMsg("variable number must be between ?1 and ?%d", ctx.Limits[(int)LIMIT.VARIABLE_NUMBER]);
                         x = 0;
                     }
-                    if (i > parse.nVar)
-                    {
-                        parse.nVar = (int)i;
-                    }
+                    if (i > parse.VarsSeen)
+                        parse.VarsSeen = (int)i;
                 }
                 else
                 {
-                    /* Wildcards like ":aaa", "$aaa" or "@aaa".  Reuse the same variable
-                    ** number as the prior appearance of the same name, or if the name
-                    ** has never appeared before, reuse the same variable number
-                    */
+                    // Wildcards like ":aaa", "$aaa" or "@aaa".  Reuse the same variable number as the prior appearance of the same name, or if the name
+                    // has never appeared before, reuse the same variable number
                     yVars i;
-                    for (i = 0; i < parse.nzVar; i++)
+                    for (i = 0; i < parse.Vars.length; i++)
                     {
-                        if (parse.azVar[i] != null && z.CompareTo(parse.azVar[i]) == 0) //memcmp(pParse.azVar[i],z,n+1)==0 )
+                        if (parse.Vars[i] != null && string.Equals(z, parse.Vars[i], StringComparison.OrdinalIgnoreCase))
                         {
-                            expr.iColumn = x = (yVars)(i + 1);
+                            expr.ColumnIdx = x = (yVars)(i + 1);
                             break;
                         }
                     }
-                    if (x == 0) x = expr.iColumn = (yVars)(++parse.nVar);
+                    if (x == 0)
+                        expr.ColumnIdx = x = (yVars)(++parse.VarsSeen);
                 }
                 if (x > 0)
                 {
-                    if (x > parse.nzVar)
+                    if (x > parse.Vars.length)
                     {
-                        //char **a;
-                        //a = sqlite3DbRealloc(db, pParse.azVar, x*sizeof(a[0]));
-                        //if( a==0 ) return;  /* Error reported through db.mallocFailed */
-                        //pParse.azVar = a;
-                        //memset(&a[pParse.nzVar], 0, (x-pParse.nzVar)*sizeof(a[0]));
-                        Array.Resize(ref parse.azVar, x);
-                        parse.nzVar = x;
+                        Array.Resize(ref parse.Vars.data, x);
+                        parse.Vars.length = x;
                     }
-                    if (z[0] != '?' || parse.azVar[x - 1] == null)
+                    if (z[0] != '?' || parse.Vars[x - 1] == null)
                     {
-                        //sqlite3DbFree(db, pParse.azVar[x-1]);
-                        parse.azVar[x - 1] = z.Substring(0, n);//sqlite3DbStrNDup( db, z, n );
+                        SysEx.TagFree(ctx, ref parse.Vars.data[x - 1]);
+                        parse.Vars[x - 1] = z.Substring(0, length);
                     }
                 }
             }
-            if (parse.nErr == 0 && parse.nVar > ctx.aLimit[SQLITE_LIMIT_VARIABLE_NUMBER])
-            {
-                sqlite3ErrorMsg(parse, "too many SQL variables");
-            }
+            if (parse.Errs == 0 && parse.VarsSeen > ctx.Limits[(int)LIMIT.VARIABLE_NUMBER])
+                parse.ErrorMsg("too many SQL variables");
         }
 
-        /*
-        ** Recursively delete an expression tree.
-        */
-        static void sqlite3ExprDelete(sqlite3 db, ref Expr p)
+        public static void Delete(Context ctx, ref Expr expr)
         {
-            if (p == null)
-                return;
-            /* Sanity check: Assert that the IntValue is non-negative if it exists */
-            Debug.Assert(!ExprHasProperty(p, EP_IntValue) || p.u.iValue >= 0);
-            if (!ExprHasAnyProperty(p, EP_TokenOnly))
+            if (expr == null) return;
+            // Sanity check: Assert that the IntValue is non-negative if it exists
+            Debug.Assert(!E.ExprHasProperty(expr, EP.IntValue) || expr.u.I >= 0);
+            if (!E.ExprHasAnyProperty(expr, EP.TokenOnly))
             {
-                sqlite3ExprDelete(db, ref p.pLeft);
-                sqlite3ExprDelete(db, ref p.pRight);
-                if (!ExprHasProperty(p, EP_Reduced) && (p.flags2 & EP2_MallocedToken) != 0)
-                {
-#if DEBUG_CLASS_EXPR || DEBUG_CLASS_ALL
-sqlite3DbFree( db, ref p.u._zToken );
-#else
-                    sqlite3DbFree(db, ref p.u.zToken);
-#endif
-                }
-                if (ExprHasProperty(p, EP_xIsSelect))
-                {
-                    sqlite3SelectDelete(db, ref p.x.pSelect);
-                }
+                Delete(ctx, ref expr.Left);
+                Delete(ctx, ref expr.Right);
+                if (!E.ExprHasProperty(expr, EP.Reduced) && (expr.Flags2 & EP2.MallocedToken) != 0)
+                    SysEx.TagFree(ctx, ref expr.u.Token);
+                if (E.ExprHasProperty(expr, EP.xIsSelect))
+                    Select.Delete(ctx, ref expr.x.Select);
                 else
-                {
-                    sqlite3ExprListDelete(db, ref p.x.pList);
-                }
+                    ExprListDelete(ctx, ref expr.x.List);
             }
-            if (!ExprHasProperty(p, EP_Static))
-            {
-                sqlite3DbFree(db, ref p);
-            }
+            if (!E.ExprHasProperty(expr, EP.Static))
+                SysEx.TagFree(ctx, ref expr);
         }
 
-        /*
-        ** Return the number of bytes allocated for the expression structure
-        ** passed as the first argument. This is always one of EXPR_FULLSIZE,
-        ** EXPR_REDUCEDSIZE or EXPR_TOKENONLYSIZE.
-        */
-        static int exprStructSize(Expr p)
+        #region Clone
+
+        static int ExprStructSize(Expr expr)
         {
-            if (ExprHasProperty(p, EP_TokenOnly))
-                return EXPR_TOKENONLYSIZE;
-            if (ExprHasProperty(p, EP_Reduced))
-                return EXPR_REDUCEDSIZE;
-            return EXPR_FULLSIZE;
+            if (E.ExprHasProperty(expr, EP.TokenOnly)) return E.EXPR_TOKENONLYSIZE;
+            if (E.ExprHasProperty(expr, EP.Reduced)) return E.EXPR_REDUCEDSIZE;
+            return E.EXPR_FULLSIZE;
         }
 
-        /*
-        ** The dupedExpr*Size() routines each return the number of bytes required
-        ** to store a copy of an expression or expression tree.  They differ in
-        ** how much of the tree is measured.
-        **
-        **     dupedExprStructSize()     Size of only the Expr structure
-        **     dupedExprNodeSize()       Size of Expr + space for token
-        **     dupedExprSize()           Expr + token + subtree components
-        **
-        ***************************************************************************
-        **
-        ** The dupedExprStructSize() function returns two values OR-ed together:
-        ** (1) the space required for a copy of the Expr structure only and
-        ** (2) the EP_xxx flags that indicate what the structure size should be.
-        ** The return values is always one of:
-        **
-        **      EXPR_FULLSIZE
-        **      EXPR_REDUCEDSIZE   | EP_Reduced
-        **      EXPR_TOKENONLYSIZE | EP_TokenOnly
-        **
-        ** The size of the structure can be found by masking the return value
-        ** of this routine with 0xfff.  The flags can be found by masking the
-        ** return value with EP_Reduced|EP_TokenOnly.
-        **
-        ** Note that with flags==EXPRDUP_REDUCE, this routines works on full-size
-        ** (unreduced) Expr objects as they or originally constructed by the parser.
-        ** During expression analysis, extra information is computed and moved into
-        ** later parts of teh Expr object and that extra information might get chopped
-        ** off if the expression is reduced.  Note also that it does not work to
-        ** make a EXPRDUP_REDUCE copy of a reduced expression.  It is only legal
-        ** to reduce a pristine expression tree from the parser.  The implementation
-        ** of dupedExprStructSize() contain multiple Debug.Assert() statements that attempt
-        ** to enforce this constraint.
-        */
-        static int dupedExprStructSize(Expr p, int flags)
+        static int DupedExprStructSize(Expr expr, int flags)
         {
-            int nSize;
-            Debug.Assert(flags == EXPRDUP_REDUCE || flags == 0); /* Only one flag value allowed */
-            if (0 == (flags & EXPRDUP_REDUCE))
-            {
-                nSize = EXPR_FULLSIZE;
-            }
+            Debug.Assert(flags == E.EXPRDUP_REDUCE || flags == 0); // Only one flag value allowed
+            int size;
+            if ((flags & E.EXPRDUP_REDUCE) == 0)
+                size = E.EXPR_FULLSIZE;
             else
             {
-                Debug.Assert(!ExprHasAnyProperty(p, EP_TokenOnly | EP_Reduced));
-                Debug.Assert(!ExprHasProperty(p, EP_FromJoin));
-                Debug.Assert((p.flags2 & EP2_MallocedToken) == 0);
-                Debug.Assert((p.flags2 & EP2_Irreducible) == 0);
-                if (p.pLeft != null || p.pRight != null || p.pColl != null || p.x.pList != null || p.x.pSelect != null)
-                {
-                    nSize = EXPR_REDUCEDSIZE | EP_Reduced;
-                }
-                else
-                {
-                    nSize = EXPR_TOKENONLYSIZE | EP_TokenOnly;
-                }
+                Debug.Assert(!E.ExprHasAnyProperty(expr, EP.TokenOnly | EP.Reduced));
+                Debug.Assert(!E.ExprHasProperty(expr, EP.FromJoin));
+                Debug.Assert((expr.Flags2 & EP2.MallocedToken) == 0);
+                Debug.Assert((expr.Flags2 & EP2.Irreducible) == 0);
+                size = (expr.Left != null || expr.Right != null || expr.x.List != null ? E.EXPR_REDUCEDSIZE | (int)EP.Reduced : E.EXPR_TOKENONLYSIZE | (int)EP.TokenOnly);
             }
-            return nSize;
+            return size;
         }
 
-        /*
-        ** This function returns the space in bytes required to store the copy
-        ** of the Expr structure and a copy of the Expr.u.zToken string (if that
-        ** string is defined.)
-        */
-        static int dupedExprNodeSize(Expr p, int flags)
+        static int DupedExprNodeSize(Expr expr, int flags)
         {
-            int nByte = dupedExprStructSize(p, flags) & 0xfff;
-            if (!ExprHasProperty(p, EP_IntValue) && p.u.zToken != null)
-            {
-                nByte += sqlite3Strlen30(p.u.zToken) + 1;
-            }
-            return ROUND8(nByte);
+            int bytes = DupedExprStructSize(expr, flags) & 0xfff;
+            if (!E.ExprHasProperty(expr, EP.IntValue) && expr.u.Token != null)
+                bytes += expr.u.Token.Length + 1;
+            return SysEx.ROUND8(bytes);
         }
 
-        /*
-        ** Return the number of bytes required to create a duplicate of the
-        ** expression passed as the first argument. The second argument is a
-        ** mask containing EXPRDUP_XXX flags.
-        **
-        ** The value returned includes space to create a copy of the Expr struct
-        ** itself and the buffer referred to by Expr.u.zToken, if any.
-        **
-        ** If the EXPRDUP_REDUCE flag is set, then the return value includes
-        ** space to duplicate all Expr nodes in the tree formed by Expr.pLeft
-        ** and Expr.pRight variables (but not for any structures pointed to or
-        ** descended from the Expr.x.pList or Expr.x.pSelect variables).
-        */
-        static int dupedExprSize(Expr p, int flags)
+        static int DupedExprSize(Expr expr, int flags)
         {
-            int nByte = 0;
-            if (p != null)
+            int bytes = 0;
+            if (expr != null)
             {
-                nByte = dupedExprNodeSize(p, flags);
-                if ((flags & EXPRDUP_REDUCE) != 0)
-                {
-                    nByte += dupedExprSize(p.pLeft, flags) + dupedExprSize(p.pRight, flags);
-                }
+                bytes = DupedExprNodeSize(expr, flags);
+                if ((flags & E.EXPRDUP_REDUCE) != 0)
+                    bytes += DupedExprSize(expr.Left, flags) + DupedExprSize(expr.Right, flags);
             }
-            return nByte;
+            return bytes;
         }
 
-        /*
-        ** This function is similar to sqlite3ExprDup(), except that if pzBuffer
-        ** is not NULL then *pzBuffer is assumed to point to a buffer large enough
-        ** to store the copy of expression p, the copies of p->u.zToken
-        ** (if applicable), and the copies of the p->pLeft and p->pRight expressions,
-        ** if any. Before returning, *pzBuffer is set to the first byte passed the
-        ** portion of the buffer copied into by this function.
-        */
-        static Expr exprDup(sqlite3 db, Expr p, int flags, ref Expr pzBuffer)
+        static Expr ExprDup(Context ctx, Expr expr, int flags, ref Expr buffer)
         {
-            Expr pNew = null;                      /* Value to return */
-            if (p != null)
+            Expr newExpr = null; // Value to return
+            if (expr != null)
             {
-                bool isReduced = (flags & EXPRDUP_REDUCE) != 0;
-                ////Expr zAlloc = new Expr();
-                u32 staticFlag = 0;
-
-                Debug.Assert(pzBuffer == null || isReduced);
-
-                /* Figure out where to write the new Expr structure. */
-                //if ( pzBuffer !=null)
-                //{
-                //  zAlloc = pzBuffer;
-                //  staticFlag = EP_Static;
-                //}
-                //else
-                //{
-                ///Expr  zAlloc = new Expr();//sqlite3DbMallocRaw( db, dupedExprSize( p, flags ) );
-                //}
-                // (Expr)zAlloc;
-
-                //if ( pNew != null )
+                bool isReduced = ((flags & E.EXPRDUP_REDUCE) != 0);
+                uint staticFlag = 0;
+                Debug.Assert(buffer == null || isReduced);
                 {
-                    /* Set nNewSize to the size allocated for the structure pointed to
-                    ** by pNew. This is either EXPR_FULLSIZE, EXPR_REDUCEDSIZE or
-                    ** EXPR_TOKENONLYSIZE. nToken is set to the number of bytes consumed
-                    ** by the copy of the p->u.zToken string (if any).
-                    */
-                    int nStructSize = dupedExprStructSize(p, flags);
-                    ////int nNewSize = nStructSize & 0xfff;
-                    ////int nToken;
-                    ////if ( !ExprHasProperty( p, EP_IntValue ) && !string.IsNullOrEmpty( p.u.zToken ) )
-                    ////{
-                    ////  nToken = sqlite3Strlen30( p.u.zToken );
-                    ////}
-                    ////else
-                    ////{
-                    ////  nToken = 0;
-                    ////}
+                    int structSize = DupedExprStructSize(expr, flags);
                     if (isReduced)
                     {
-                        Debug.Assert(!ExprHasProperty(p, EP_Reduced));
-                        pNew = p.Copy(EXPR_TOKENONLYSIZE);////memcpy( zAlloc, p, nNewSize );
+                        Debug.Assert(!E.ExprHasProperty(expr, EP.Reduced));
+                        newExpr = expr.memcpy(E.EXPR_TOKENONLYSIZE);
                     }
                     else
-                    {
-                        ////int nSize = exprStructSize( p );
-                        ////memcpy( zAlloc, p, nSize );
-                        pNew = p.Copy();
-                        ////memset( &zAlloc[nSize], 0, EXPR_FULLSIZE - nSize );
-                    }
+                        newExpr = expr.memcpy();
 
-                    /* Set the EP_Reduced, EP_TokenOnly, and EP_Static flags appropriately. */
-                    unchecked
+                    // Set the EP_Reduced, EP_TokenOnly, and EP_Static flags appropriately.
+                    newExpr.Flags &= (ushort)(~(EP.Reduced | EP.TokenOnly | EP.Static));
+                    newExpr.Flags |= (ushort)(structSize & (EP.Reduced | EP.TokenOnly));
+                    newExpr.Flags |= (ushort)staticFlag;
+                    if (((expr.Flags | newExpr.Flags) & EP.TokenOnly) == 0)
                     {
-                        pNew.flags &= (ushort)(~(EP_Reduced | EP_TokenOnly | EP_Static));
-                    }
-                    pNew.flags |= (ushort)(nStructSize & (EP_Reduced | EP_TokenOnly));
-                    pNew.flags |= (ushort)staticFlag;
-
-                    /* Copy the p->u.zToken string, if any. */
-                    ////if ( nToken != 0 )
-                    ////{
-                    ////  string zToken;// = pNew.u.zToken = (char)&zAlloc[nNewSize];
-                    ////  zToken = p.u.zToken.Substring( 0, nToken );// memcpy( zToken, p.u.zToken, nToken );
-                    ////}
-
-                    if (0 == ((p.flags | pNew.flags) & EP_TokenOnly))
-                    {
-                        /* Fill in the pNew.x.pSelect or pNew.x.pList member. */
-                        if (ExprHasProperty(p, EP_xIsSelect))
-                        {
-                            pNew.x.pSelect = sqlite3SelectDup(db, p.x.pSelect, isReduced ? 1 : 0);
-                        }
+                        // Fill in the pNew.x.pSelect or pNew.x.pList member.
+                        if (E.ExprHasProperty(expr, EP.xIsSelect))
+                            newExpr.x.Select = SelectDup(ctx, expr.x.Select, isReduced);
                         else
-                        {
-                            pNew.x.pList = sqlite3ExprListDup(db, p.x.pList, isReduced ? 1 : 0);
-                        }
+                            newExpr.x.List = ExprListDup(ctx, expr.x.List, (isReduced ? 1 : 0));
                     }
-
-                    /* Fill in pNew.pLeft and pNew.pRight. */
-                    if (ExprHasAnyProperty(pNew, EP_Reduced | EP_TokenOnly))
+                    // Fill in pNew->pLeft and pNew->pRight.
+                    if (E.ExprHasAnyProperty(newExpr, EP.Reduced | EP.TokenOnly))
                     {
-                        //zAlloc += dupedExprNodeSize( p, flags );
-                        if (ExprHasProperty(pNew, EP_Reduced))
+                        if (E.ExprHasProperty(newExpr, EP.Reduced))
                         {
-                            pNew.pLeft = exprDup(db, p.pLeft, EXPRDUP_REDUCE, ref pzBuffer);
-                            pNew.pRight = exprDup(db, p.pRight, EXPRDUP_REDUCE, ref pzBuffer);
+                            newExpr.Left = ExprDup(ctx, expr.Left, E.EXPRDUP_REDUCE, ref buffer);
+                            newExpr.Right = ExprDup(ctx, expr.Right, E.EXPRDUP_REDUCE, ref buffer);
                         }
-                        //if ( pzBuffer != null )
-                        //{
-                        //  pzBuffer = zAlloc;
-                        //}
                     }
                     else
                     {
-                        pNew.flags2 = 0;
-                        if (!ExprHasAnyProperty(p, EP_TokenOnly))
+                        newExpr.Flags2 = 0;
+                        if (!E.ExprHasAnyProperty(expr, EP.TokenOnly))
                         {
-                            pNew.pLeft = sqlite3ExprDup(db, p.pLeft, 0);
-                            pNew.pRight = sqlite3ExprDup(db, p.pRight, 0);
+                            Expr dummy = null;
+                            newExpr.Left = ExprDup(ctx, expr.Left, 0, ref dummy);
+                            newExpr.Right = ExprDup(ctx, expr.Right, 0, ref dummy);
                         }
                     }
                 }
             }
-            return pNew;
+            return newExpr;
         }
 
-        /*
-        ** The following group of routines make deep copies of expressions,
-        ** expression lists, ID lists, and select statements.  The copies can
-        ** be deleted (by being passed to their respective ...Delete() routines)
-        ** without effecting the originals.
-        **
-        ** The expression list, ID, and source lists return by sqlite3ExprListDup(),
-        ** sqlite3IdListDup(), and sqlite3SrcListDup() can not be further expanded
-        ** by subsequent calls to sqlite*ListAppend() routines.
-        **
-        ** Any tables that the SrcList might point to are not duplicated.
-        **
-        ** The flags parameter contains a combination of the EXPRDUP_XXX flags.
-        ** If the EXPRDUP_REDUCE flag is set, then the structure returned is a
-        ** truncated version of the usual Expr structure that will be stored as
-        ** part of the in-memory representation of the database schema.
-        */
-        static Expr sqlite3ExprDup(sqlite3 db, Expr p, int flags)
+        public static Expr Dup(Context ctx, Expr expr, int flags)
         {
-            Expr ExprDummy = null;
-            return exprDup(db, p, flags, ref ExprDummy);
+            Expr dummy = null;
+            return ExprDup(ctx, expr, flags, ref dummy);
         }
 
-        static ExprList sqlite3ExprListDup(sqlite3 db, ExprList p, int flags)
+        public static ExprList ExprListDup(Context ctx, ExprList list, int flags)
         {
-            ExprList pNew;
-            ExprList_item pItem;
-            ExprList_item pOldItem;
-
-            if (p == null)
+            if (list == null) return null;
+            ExprList newList = new ExprList();
+            if (newList == null) return null;
+            int i;
+            newList.ECursor = 0;
+            newList.Exprs = i = list.Exprs;
+            ExprList.ExprListItem item;
+            newList.Ids = new ExprList.ExprListItem[i];
+            if (newList.Ids == null)
+            {
+                SysEx.TagFree(ctx, ref newList.Ids);
                 return null;
-            pNew = new ExprList();//sqlite3DbMallocRaw(db, sizeof(*pNew) );
-            //if ( pNew == null ) return null;
-            pNew.iECursor = 0;
-            pNew.nExpr = pNew.nAlloc = p.nExpr;
-            pNew.a = new ExprList_item[p.nExpr];//sqlite3DbMallocRaw(db,  p.nExpr*sizeof(p.a[0]) );
-            //if( pItem==null ){
-            //  sqlite3DbFree(db,ref pNew);
-            //  return null;
-            //}
-            //pOldItem = p.a;
-            for (int i = 0; i < p.nExpr; i++)
-            {//pItem++, pOldItem++){
-                pItem = pNew.a[i] = new ExprList_item();
-                pOldItem = p.a[i];
-                Expr pOldExpr = pOldItem.pExpr;
-                pItem.pExpr = sqlite3ExprDup(db, pOldExpr, flags);
-                pItem.zName = pOldItem.zName;// sqlite3DbStrDup(db, pOldItem.zName);
-                pItem.zSpan = pOldItem.zSpan;// sqlite3DbStrDup( db, pOldItem.zSpan );
-                pItem.sortOrder = pOldItem.sortOrder;
-                pItem.done = 0;
-                pItem.iCol = pOldItem.iCol;
-                pItem.iAlias = pOldItem.iAlias;
             }
-            return pNew;
+            ExprList.ExprListItem oldItem;
+            for (i = 0, oldItem = list.Ids[0]; i < list.Exprs; i++, oldItem = list.Ids[i])
+            {
+                newList.Ids[i] = item = new ExprList.ExprListItem();
+                Expr oldExpr = oldItem.Expr;
+                item.Expr = Dup(ctx, oldExpr, flags);
+                item.Name = oldItem.Name;
+                item.Span = oldItem.Span;
+                item.SortOrder = oldItem.SortOrder;
+                item.Done = false;
+                item.OrderByCol = oldItem.OrderByCol;
+                item.Alias = oldItem.Alias;
+            }
+            return newList;
         }
 
-        /*
-        ** If cursors, triggers, views and subqueries are all omitted from
-        ** the build, then none of the following routines, except for
-        ** sqlite3SelectDup(), can be called. sqlite3SelectDup() is sometimes
-        ** called with a NULL argument.
-        */
-#if !SQLITE_OMIT_VIEW || !SQLITE_OMIT_TRIGGER  || !SQLITE_OMIT_SUBQUERY
-        static SrcList sqlite3SrcListDup(sqlite3 db, SrcList p, int flags)
+#if !OMIT_VIEW || !OMIT_TRIGGER  || !OMIT_SUBQUERY
+        static SrcList SrcListDup(Context ctx, SrcList p, int flags)
         {
             SrcList pNew;
             int nByte;
@@ -895,9 +699,9 @@ sqlite3DbFree( db, ref p.u._zToken );
                 {
                     pTab.nRef++;
                 }
-                pNewItem.pSelect = sqlite3SelectDup(db, pOldItem.pSelect, flags);
-                pNewItem.pOn = sqlite3ExprDup(db, pOldItem.pOn, flags);
-                pNewItem.pUsing = sqlite3IdListDup(db, pOldItem.pUsing);
+                pNewItem.pSelect = sqlite3SelectDup(ctx, pOldItem.pSelect, flags);
+                pNewItem.pOn = sqlite3ExprDup(ctx, pOldItem.pOn, flags);
+                pNewItem.pUsing = sqlite3IdListDup(ctx, pOldItem.pUsing);
                 pNewItem.colUsed = pOldItem.colUsed;
             }
             return pNew;
@@ -937,12 +741,12 @@ sqlite3DbFree( db, ref p.u._zToken );
                 return null;
             pNew = new Select();//sqlite3DbMallocRaw(db, sizeof(*p) );
             //if ( pNew == null ) return null;
-            pNew.pEList = sqlite3ExprListDup(db, p.pEList, flags);
-            pNew.pSrc = sqlite3SrcListDup(db, p.pSrc, flags);
+            pNew.pEList = ExprListDup(db, p.pEList, flags);
+            pNew.pSrc = SrcListDup(db, p.pSrc, flags);
             pNew.pWhere = sqlite3ExprDup(db, p.pWhere, flags);
-            pNew.pGroupBy = sqlite3ExprListDup(db, p.pGroupBy, flags);
+            pNew.pGroupBy = ExprListDup(db, p.pGroupBy, flags);
             pNew.pHaving = sqlite3ExprDup(db, p.pHaving, flags);
-            pNew.pOrderBy = sqlite3ExprListDup(db, p.pOrderBy, flags);
+            pNew.pOrderBy = ExprListDup(db, p.pOrderBy, flags);
             pNew.op = p.op;
             pNew.pPrior = sqlite3SelectDup(db, p.pPrior, flags);
             pNew.pLimit = sqlite3ExprDup(db, p.pLimit, flags);
@@ -1112,7 +916,7 @@ return null;
             {
                 if ((pItem = pList.a[i]) != null)
                 {
-                    sqlite3ExprDelete(db, ref pItem.pExpr);
+                    Delete(db, ref pItem.pExpr);
                     sqlite3DbFree(db, ref pItem.zName);
                     sqlite3DbFree(db, ref pItem.zSpan);
                 }
@@ -1878,7 +1682,7 @@ return null;
               VdbeComment( v, "Init EXISTS result" );
 #endif
                         }
-                        sqlite3ExprDelete(pParse.db, ref pSel.pLimit);
+                        Delete(pParse.db, ref pSel.pLimit);
                         pSel.pLimit = PExpr_(pParse, TK_INTEGER, null, null, sqlite3IntTokens[1]);
                         pSel.iLimit = 0;
                         if (sqlite3Select(pParse, pSel, ref dest) != 0)
