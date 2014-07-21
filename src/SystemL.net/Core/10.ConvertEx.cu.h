@@ -22,7 +22,7 @@
 #pragma endregion
 #pragma region AtoX
 		__device__ static bool Atof(const char *z, double *out, int length, TEXTENCODE encode);
-		__device__ static bool Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode);
+		__device__ static int Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode);
 		__device__ static bool Atoi(const char *z, int *out);
 		__device__ static inline int Atoi(const char *z)
 		{

@@ -623,46 +623,6 @@ namespace Core
 		// Table for TK_COLUMN expressions.
 		Table *Table;
 
-
-
-
-		__device__ ExprList *ExprListAppend(ExprList *list, Expr *expr);
-		__device__ void ExprListSetName(ExprList *list, Token *name, bool dequote);
-		__device__ void ExprListSetSpan(ExprList *list, ExprSpan *span);
-		__device__ void ExprListCheckLength(ExprList *lList, const char *object);
-
-		__device__ int CodeOnce();
-#ifndef OMIT_SUBQUERY
-		__device__ IN_INDEX FindInIndex(Expr *expr, int *notFound);
-		__device__ int CodeSubselect(Expr *expr, int mayHaveNull, bool isRowid);
-		__device__ void ExprCodeIN(Expr *expr, int destIfFalse, int destIfNull);
-#endif
-		__device__ void ExprCacheStore(int table, int column, int reg);
-		__device__ void ExprCacheRemove(int reg, int regs);
-		__device__ void ExprCachePush();
-		__device__ void ExprCachePop(int n);
-		__device__ void ExprCachePinRegister(int reg);
-		__device__ int ExprCodeGetColumn(Table *table, int column, int tableId, int reg, uint8 p5);
-		__device__ void ExprCacheClear();
-		__device__ void ExprCacheAffinityChange(int start, int count);
-		__device__ void ExprCodeMove(int from, int to, int regs);
-		__device__ int ExprCodeTarget(Expr *expr, int target);
-		__device__ int ExprCodeTemp(Expr *expr, int *reg);
-		__device__ int ExprCode(Expr *expr, int target);
-		__device__ int ExprCodeAndCache(Expr *expr, int target);
-		__device__ void ExprCodeConstants(Expr *expr);
-		__device__ int ExprCodeExprList(ExprList *list, int target, bool doHardCopy);
-		__device__ void ExprIfTrue(Expr *expr, int dest, int jumpIfNull);
-		__device__ void ExprIfFalse(Expr *expr, int dest, int jumpIfNull);
-		__device__ int GetTempReg();
-		__device__ void ReleaseTempReg(int reg);
-		__device__ int GetTempRange(int regs);
-		__device__ void ReleaseTempRange(int reg, int regs);
-		__device__ void ClearTempRegCache();
-
-
-
-
 		__device__ AFF Affinity();
 		__device__ Expr *AddCollateToken(Parse *parse, Token *collName);
 		__device__ Expr *AddCollateString(Parse *parse, const char *z);
@@ -685,14 +645,18 @@ namespace Core
 		__device__ static void AssignVarNumber(Parse *parse, Expr *expr);
 		__device__ static void Delete(Context *ctx, Expr *expr);
 		__device__ static Expr *Dup(Context *ctx, Expr *expr, int flags);
-		__device__ static ExprList *ExprListDup(Context *ctx, ExprList *list, int flags);
+		__device__ static ExprList *ListDup(Context *ctx, ExprList *list, int flags);
 #if !defined(OMIT_VIEW) || !defined(OMIT_TRIGGER) || !defined(OMIT_SUBQUERY)
 		__device__ static SrcList *SrcListDup(Context *ctx, SrcList *list, int flags);
 		__device__ static IdList *IdListDup(Context *ctx, IdList *list);
 #endif
 		__device__ static Select *SelectDup(Context *ctx, Select *select, int flags);
-		__device__ static void ExprListDelete(Context *ctx, ExprList *list);
 
+		__device__ static ExprList *ListAppend(Parse *parse, ExprList *list, Expr *expr);
+		__device__ static void ListSetName(Parse *parse, ExprList *list, Token *name, bool dequote);
+		__device__ static void ListSetSpan(Parse *parse, ExprList *list, ExprSpan *span);
+		__device__ static void ListCheckLength(Parse *parse, ExprList *lList, const char *object);
+		__device__ static void ListDelete(Context *ctx, ExprList *list);
 		__device__ bool IsConstant();
 		__device__ bool IsConstantNotJoin();
 		__device__ bool IsConstantOrFunction();
@@ -700,18 +664,44 @@ namespace Core
 		__device__ bool CanBeNull();
 		__device__ static void CodeIsNullJump(Vdbe *v, const Expr *expr, int reg, int dest);
 		__device__ bool NeedsNoAffinityChange(AFF aff);
-		__device__ inline static bool IsRowid(const char *z)
-		{
-			return (!_strcmp(z, "_ROWID_") || !_strcmp(z, "ROWID") || !_strcmp(z, "OID"));
-		}
+		__device__ static bool IsRowid(const char *z);
+		__device__ static int CodeOnce(Parse *parse);
+#ifndef OMIT_SUBQUERY
+		__device__ static IN_INDEX FindInIndex(Parse *parse, Expr *expr, int *notFound);
+		__device__ static int CodeSubselect(Parse *parse, Expr *expr, int mayHaveNull, bool isRowid);
+		__device__ static void CodeIN(Parse *parse, Expr *expr, int destIfFalse, int destIfNull);
+#endif
+		__device__ static void CacheStore(Parse *parse, int table, int column, int reg);
+		__device__ static void CacheRemove(Parse *parse, int reg, int regs);
+		__device__ static void CachePush(Parse *parse);
+		__device__ static void CachePop(Parse *parse, int n);
+		__device__ static void CachePinRegister(Parse *parse, int reg);
 		__device__ static void CodeGetColumnOfTable(Vdbe *v, Core::Table *table, int tabCur, int column, int regOut);
+		__device__ static int CodeGetColumn(Parse *parse, Core::Table *table, int column, int tableId, int reg, uint8 p5);
+		__device__ static void CacheClear(Parse *parse);
+		__device__ static void CacheAffinityChange(Parse *parse, int start, int count);
+		__device__ static void CodeMove(Parse *parse, int from, int to, int regs);
+		__device__ static int CodeTarget(Parse *parse, Expr *expr, int target);
+		__device__ static int CodeTemp(Parse *parse, Expr *expr, int *reg);
+		__device__ static int Code(Parse *parse, Expr *expr, int target);
+		__device__ static int CodeAndCache(Parse *parse, Expr *expr, int target);
+#ifdef ENABLE_TREE_EXPLAIN
 		__device__ static void ExplainExpr(Vdbe *o, Expr *expr);
+#endif
+		__device__ static void CodeConstants(Parse *parse, Expr *expr);
+		__device__ static int CodeExprList(Parse *parse, ExprList *list, int target, bool doHardCopy);
+		__device__ void IfTrue(Parse *parse, int dest, AFF jumpIfNull);
+		__device__ void IfFalse(Parse *parse, int dest, AFF jumpIfNull);
 		__device__ static int Compare(Expr *a, Expr *b);
 		__device__ static int ListCompare(ExprList *a, ExprList *b);
 		__device__ int FunctionUsesThisSrc(SrcList *srcList);
 		__device__ static void AnalyzeAggregates(NameContext *nc, Expr *expr);
 		__device__ static void AnalyzeAggList(NameContext *nc, ExprList *list);
-
+		__device__ static int GetTempReg(Parse *parse);
+		__device__ static void ReleaseTempReg(Parse *parse, int reg);
+		__device__ static int GetTempRange(Parse *parse, int regs);
+		__device__ static void ReleaseTempRange(Parse *parse, int reg, int regs);
+		__device__ static void ClearTempRegCache(Parse *parse);
 	};
 
 #ifdef _DEBUG

@@ -449,7 +449,7 @@ do_atof_calc:
 		return c;
 	}
 
-	__device__ bool ConvertEx::Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode)
+	__device__ int ConvertEx::Atoi64(const char *z, int64 *out, int length, TEXTENCODE encode)
 	{
 		_assert(encode == TEXTENCODE_UTF8 || encode == TEXTENCODE_UTF16LE || encode == TEXTENCODE_UTF16BE);
 		//	*out = 0.0; // Default return value, in case of an error
@@ -495,14 +495,14 @@ do_atof_calc:
 		ASSERTCOVERAGE(i == 18);
 		ASSERTCOVERAGE(i == 19);
 		ASSERTCOVERAGE(i == 20);
-		if ((c != 0 && &z[i] < end) || (i == 0 && start == z) || i > 19 * incr || nonNum) return true; // z is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
-		else if (i < 19 * incr) { _assert(u <= LARGEST_INT64); return false; } // Less than 19 digits, so we know that it fits in 64 bits
+		if ((c != 0 && &z[i] < end) || (i == 0 && start == z) || i > 19 * incr || nonNum) return 1; // z is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
+		else if (i < 19 * incr) { _assert(u <= LARGEST_INT64); return 0; } // Less than 19 digits, so we know that it fits in 64 bits
 		else // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
 		{
 			c = Compare2pow63(z, incr);
-			if (c < 0) { _assert(u <= LARGEST_INT64); return false; } // zNum is less than 9223372036854775808 so it fits
-			else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows
-			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return !neg; } //(neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
+			if (c < 0) { _assert(u <= LARGEST_INT64); return 0; } // zNum is less than 9223372036854775808 so it fits
+			else if (c > 0) return 1; // zNum is greater than 9223372036854775808 so it overflows
+			else { _assert(u-1 == LARGEST_INT64); _assert(*out == SMALLEST_INT64); return neg ? 0 : 2; } //(neg ? 0 : 2); } // z is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
 		}
 	}
 

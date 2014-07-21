@@ -580,12 +580,12 @@ namespace Core
             return c;
         }
 
-        public static bool Atoi64(string z, out long out_, int length, TEXTENCODE encode)
+        public static int Atoi64(string z, out long out_, int length, TEXTENCODE encode)
         {
             if (z == null)
             {
                 out_ = 0;
-                return true;
+                return 1;
             }
 
             // get size
@@ -620,14 +620,14 @@ namespace Core
             SysEx.ASSERTCOVERAGE(i - zIdx == 18);
             SysEx.ASSERTCOVERAGE(i - zIdx == 19);
             SysEx.ASSERTCOVERAGE(i - zIdx == 20);
-            if ((c != 0 && i < length) || i == zIdx || i - zIdx > 19 * incr) return true; // zNum is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
-            else if (i - zIdx < 19 * incr) { Debug.Assert(u <= long.MaxValue); return false; } // Less than 19 digits, so we know that it fits in 64 bits
+            if ((c != 0 && i < length) || i == zIdx || i - zIdx > 19 * incr) return 1; // zNum is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
+            else if (i - zIdx < 19 * incr) { Debug.Assert(u <= long.MaxValue); return 0; } // Less than 19 digits, so we know that it fits in 64 bits
             else
             {
                 c = Compare2pow63(z.Substring(zIdx), incr); // zNum is a 19-digit numbers.  Compare it against 9223372036854775808.
-                if (c < 0) { Debug.Assert(u <= long.MaxValue); return false; } // zNum is less than 9223372036854775808 so it fits
-                else if (c > 0) return true; // zNum is greater than 9223372036854775808 so it overflows 
-                else { Debug.Assert(u - 1 == long.MaxValue); Debug.Assert(out_ == long.MinValue); return (neg == 0); } // zNum is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
+                if (c < 0) { Debug.Assert(u <= long.MaxValue); return 0; } // zNum is less than 9223372036854775808 so it fits
+                else if (c > 0) return 1; // zNum is greater than 9223372036854775808 so it overflows 
+                else { Debug.Assert(u - 1 == long.MaxValue); Debug.Assert(out_ == long.MinValue); return neg != 0 ? 0 : 2; } // zNum is exactly 9223372036854775808.  Fits if negative.  The special case 2 overflow if positive
             }
         }
 

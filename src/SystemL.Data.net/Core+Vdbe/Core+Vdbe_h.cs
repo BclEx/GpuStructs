@@ -672,7 +672,7 @@ namespace Core
         {
             public Expr Expr;			// The list of expressions
             public string Name;			// Token associated with this expression
-            public char Span;			// Original text of the expression
+            public string Span;			// Original text of the expression
             public byte SortOrder;      // 1 for DESC or 0 for ASC
             public bool Done;		    // A flag to indicate when processing is finished
             public bool SpanIsTab;	    // zSpan holds DB.TABLE.COLUMN
@@ -705,8 +705,8 @@ namespace Core
 
     public partial class Walker
     {
-        Func<Walker, Expr, WRC> ExprCallback;       // Callback for expressions
-        Func<Walker, Select, WRC> SelectCallback;   // Callback for SELECTs
+        public Func<Walker, Expr, WRC> ExprCallback;       // Callback for expressions
+        public Func<Walker, Select, WRC> SelectCallback;   // Callback for SELECTs
         public Parse Parse;                 // Parser context.
         public int WalkerDepth;				// Number of subqueries
         public class _u
