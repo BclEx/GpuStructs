@@ -375,25 +375,25 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	__runtimeWriteHeader(RUNTIMETYPE_MPRINTF, start, (end ? fmtstart : nullptr)); \
 	return nullptr; //(end ? (int)(end - start) : 0);
 
-__device__ static char *__mprintf(const char *fmt)
+__device__ static char *_mprintf(const char *fmt)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1> __device__ static char *__mprintf(const char *fmt, T1 arg1)
+template <typename T1> __device__ static char *_mprintf(const char *fmt, T1 arg1)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
 	MPRINTF_ARG(arg2);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -401,7 +401,7 @@ template <typename T1, typename T2, typename T3> __device__ static char *__mprin
 	MPRINTF_ARG(arg3);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -410,7 +410,7 @@ template <typename T1, typename T2, typename T3, typename T4> __device__ static 
 	MPRINTF_ARG(arg4);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -420,7 +420,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5> __dev
 	MPRINTF_ARG(arg5);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -431,7 +431,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	MPRINTF_ARG(arg6);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -443,7 +443,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	MPRINTF_ARG(arg7);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -456,7 +456,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	MPRINTF_ARG(arg8);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -470,7 +470,7 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	MPRINTF_ARG(arg9);
 	MPRINTF_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static char *__mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
 {
 	MPRINTF_PREAMBLE;
 	MPRINTF_ARG(arg1);
@@ -563,7 +563,7 @@ template <typename TLength, typename T> struct array_t2 { TLength length; T *dat
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // skiputf8
-template <typename T> __device__ inline int _skiputf8(const T *z)
+template <typename T> __device__ inline void _skiputf8(const T *z)
 {
 	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
 }
@@ -631,7 +631,7 @@ __device__ inline int _strlen30(const char *z)
 // hextobyte
 __device__ inline unsigned char _hextobyte(char h)
 {
-	__assert((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'));
+	_assert((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'));
 	return (unsigned char)((h + 9*(1&(h>>6))) & 0xf);
 }
 
