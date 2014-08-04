@@ -396,6 +396,17 @@ namespace Core
             public IIndexInfo VTableIndex;	// Virtual table index to use
         }
         public _u u;
+
+        internal void memset()
+        {
+            WsFlags = 0;
+            Eqs = 0;
+            OBSats = 0;
+            Rows = 0;
+            u.Index = null;
+            u.Term = null;
+            u.VTableIndex = null;
+        }
     }
 
     public struct WhereLevel
@@ -446,19 +457,19 @@ namespace Core
     {
         public Parse Parse;				    // Parsing and code generating context
         public SrcList TabList;			    // List of tables in the join
-        public ushort nOBSat;               // Number of ORDER BY terms satisfied by indices
+        public ushort OBSats;               // Number of ORDER BY terms satisfied by indices
         public WHERE WctrlFlags;            // Flags originally passed to sqlite3WhereBegin()
         public bool OkOnePass;              // Ok to use one-pass algorithm for UPDATE/DELETE
         public byte untestedTerms;          // Not all WHERE terms resolved by outer loop
         public WHERE_DISTINCT eDistinct;    // One of the WHERE_DISTINCT_* values below
-        public int iTop;					// The very beginning of the WHERE loop
-        public int iContinue;				// Jump here to continue with next record
-        public int iBreak;					// Jump here to break out of the loop
+        public int TopId;					// The very beginning of the WHERE loop
+        public int ContinueId;				// Jump here to continue with next record
+        public int BreakId;					// Jump here to break out of the loop
         public int Levels;					// Number of nested loop
-        public WhereClause WC;			    // Decomposition of the WHERE clause
+        public Where.WhereClause WC;			    // Decomposition of the WHERE clause
         public double SavedNQueryLoop;		// pParse->nQueryLoop outside the WHERE loop
         public double RowOuts;				// Estimated number of output rows
-        public WhereLevel[] a = new WhereLevel[1];	// Information about each nest loop in WHERE
+        public WhereLevel[] Data = new WhereLevel[1];	// Information about each nest loop in WHERE
     }
 
     public enum NC : byte

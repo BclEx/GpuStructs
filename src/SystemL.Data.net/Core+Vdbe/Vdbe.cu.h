@@ -1,6 +1,5 @@
 // vdbe.h
 #include <stdio.h>
-struct FILE;
 
 namespace Core
 {
@@ -148,7 +147,7 @@ namespace Core
 		__device__ void SetSql(const char *z, int n, int);
 		__device__ static void Swap(Vdbe *, Vdbe *);
 		__device__ VdbeOp *TakeOpArray(int *, int *);
-		__device__ Mem *GetValue(int, uint8);
+		__device__ Mem *GetValue(int, AFF);
 		__device__ void SetVarmask(int);
 #ifndef OMIT_TRACE
 		__device__ char *ExpandSql(const char *);

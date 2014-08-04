@@ -73,7 +73,7 @@ namespace Core
 
 		// Begin by generating some termination code at the end of the vdbe program
 		Vdbe *v = GetVdbe();
-		_assert(!IsMultiWrite || v->AssertMayAbort(MayAbort));
+		_assert(!IsMultiWrite || v->AssertMayAbort(_MayAbort));
 		if (v)
 		{
 			v->AddOp0(OP_Halt);
@@ -2543,7 +2543,7 @@ append_from_error:
 	__device__ void Parse::MayAbort()
 	{
 		Parse *toplevel = Parse_Toplevel(this);
-		toplevel->MayAbort = true;
+		toplevel->_MayAbort = true;
 	}
 
 	__device__ void Parse::HaltConstraint(int errCode, int onError, char *p4, int p4type)

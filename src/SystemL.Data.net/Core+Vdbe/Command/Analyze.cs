@@ -24,7 +24,7 @@ namespace Core.Command
         {
             new Table_t("sqlite_stat1", "tbl,idx,stat"),
 #if ENABLE_STAT3
-            new _aTable( "sqlite_stat3", "tbl,idx,new,sampleno,sample" ),
+            new Table_t( "sqlite_stat3", "tbl,idx,new,sampleno,sample" ),
 #endif
         };
 

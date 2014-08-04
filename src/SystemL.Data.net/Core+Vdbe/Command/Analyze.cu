@@ -64,7 +64,6 @@ namespace Core { namespace Command
 		}
 	}
 
-#define ENABLE_STAT3
 #ifndef STAT3_SAMPLES
 #define STAT3_SAMPLES 24
 #endif

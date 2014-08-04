@@ -196,7 +196,7 @@ namespace Core
 		else
 		{
 			if (incr > 0 && !fkey->IsDeferred)
-				Parse_Toplevel(parse)->MayAbort = 1;
+				Parse_Toplevel(parse)->_MayAbort = true;
 			v->AddOp2(OP_FkCounter, fkey->IsDeferred, incr);
 		}
 
@@ -280,7 +280,7 @@ namespace Core
 		// each row found. Otherwise, for deferred constraints, increment the deferred constraint counter by incr for each row selected.
 		WhereInfo *whereInfo = Where::Begin(parse, src, where_, 0, 0, 0, 0);  // Context used by sqlite3WhereXXX()
 		if (incr > 0 && !fkey->IsDeferred)
-			Parse_Toplevel(parse)->MayAbort = true;
+			Parse_Toplevel(parse)->_MayAbort = true;
 		v->AddOp2(OP_FkCounter, fkey->IsDeferred, incr);
 		if (whereInfo)
 			Where::End(whereInfo);

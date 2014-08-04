@@ -29,19 +29,19 @@ namespace Core
 		_assert(orig != nullptr);
 		_assert(orig->Flags & EP_Resolved );
 		Context *ctx = parse->Ctx; // The database connection
-		Expr *dup = Expr::ExprDup(ctx, orig, 0); // Copy of pOrig
+		Expr *dup = Expr::Dup(ctx, orig, 0); // Copy of pOrig
 		if (!dup) return;
 		if (orig->OP != TK_COLUMN && type[0] != 'G')
 		{
 			IncrAggFunctionDepth(dup, subqueries);
-			dup = Expr::PExpr(parse, TK_AS, dup, 0, 0);
+			dup = Expr::PExpr_(parse, TK_AS, dup, 0, 0);
 			if (!dup) return;
 			if (list->Ids[colId].Alias == 0)
 				list->Ids[colId].Alias = (uint16)(++parse->Alias.length);
 			dup->TableIdx = list->Ids[colId].Alias;
 		}
 		if (expr->OP == TK_COLLATE)
-			dup = Expr::AddCollateString(parse, dup, expr->u.Token);
+			dup = dup->AddCollateString(parse, expr->u.Token);
 
 		// Before calling sqlite3ExprDelete(), set the EP_Static flag. This prevents ExprDelete() from deleting the Expr structure itself,
 		// allowing it to be repopulated by the memcpy() on the following line. The pExpr->u.zToken might point into memory that will be freed by the
@@ -637,7 +637,7 @@ lookupname_end:
 					colId = ResolveAsName(parse, list, expr);
 					if (colId == 0)
 					{
-						Expr *dupExpr = Expr::ExprDup(ctx, expr, 0);
+						Expr *dupExpr = Expr::Dup(ctx, expr, 0);
 						if (!ctx->MallocFailed)
 						{
 							_assert(dupExpr);
@@ -650,7 +650,7 @@ lookupname_end:
 				{
 					/* Convert the ORDER BY term into an integer column number iCol,
 					** taking care to preserve the COLLATE clause if it exists */
-					Expr *newExpr = Expr::New(ctx, TK_INTEGER, 0);
+					Expr *newExpr = Expr::Expr_(ctx, TK_INTEGER, 0);
 					if (!newExpr) return 1;
 					newExpr->Flags |= EP_IntValue;
 					newExpr->u.I = colId;
@@ -896,7 +896,7 @@ lookupname_end:
 		if (!expr) return 0;
 #if MAX_EXPR_DEPTH > 0
 		{
-			Parse *Parse = nc->Parse;
+			Parse *parse = nc->Parse;
 			if (Expr::CheckHeight(parse, expr->Height + nc->Parse->Height))
 				return 1;
 			parse->Height += expr->Height;
@@ -905,8 +905,8 @@ lookupname_end:
 		uint8 savedHasAgg = nc->NCFlags & NC_HasAgg;
 		nc->NCFlags &= ~NC_HasAgg;
 		Walker w;
-		w.ExprCallback = resolveExprStep;
-		w.SelectCallback = resolveSelectStep;
+		w.ExprCallback = ResolveExprStep;
+		w.SelectCallback = ResolveSelectStep;
 		w.Parse = nc->Parse;
 		w.u.NC = nc;
 		w.WalkExpr(expr);

@@ -72,12 +72,8 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Table.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Trigger.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Api.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Aux.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Api.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Aux.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Blob.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Mem.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Sort.cu" />
@@ -173,7 +169,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;ENABLE_STAT3;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

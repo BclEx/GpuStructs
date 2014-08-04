@@ -47,7 +47,7 @@ namespace Core
 #if !ENABLE_STAT3
             VNULL = 0x80,   // Manufactured x>NULL or x<=NULL term
 #else
-		    VNULL = 0x00,   // Disabled if not using stat3
+            VNULL = 0x00,   // Disabled if not using stat3
 #endif
         }
 
@@ -129,41 +129,38 @@ namespace Core
             public double Cost;                         // Overall cost of pursuing this search strategy
             public Bitmask Used;                        // Bitmask of cursors used by this plan
 
-            public void Clear()
+            internal void memset()
             {
-                Plan.Clear();
+                Plan.memset();
                 Cost = 0;
                 Used = 0;
             }
         }
 
-        public enum WHERE
-        {
-            ROWID_EQ = 0x00001000,		// rowid=EXPR or rowid IN (...)
-            ROWID_RANGE = 0x00002000,		// rowid<EXPR and/or rowid>EXPR
-            COLUMN_EQ = 0x00010000,		// x=EXPR or x IN (...) or x IS NULL
-            COLUMN_RANGE = 0x00020000,	// x<EXPR and/or x>EXPR
-            COLUMN_IN = 0x00040000,		// x IN (...)
-            COLUMN_NULL = 0x00080000,		// x IS NULL
-            INDEXED = 0x000f0000,			// Anything that uses an index
-            NOT_FULLSCAN = 0x100f3000,	// Does not do a full table scan
-            IN_ABLE = 0x080f1000,			// Able to support an IN operator
-            TOP_LIMIT = 0x00100000,		// x<EXPR or x<=EXPR constraint
-            BTM_LIMIT = 0x00200000,		// x>EXPR or x>=EXPR constraint
-            BOTH_LIMIT = 0x00300000,		// Both x>EXPR and x<EXPR
-            IDX_ONLY = 0x00400000,		// Use index only - omit table
-            ORDERED = 0x00800000,			// Output will appear in correct order
-            REVERSE = 0x01000000,			// Scan in reverse order */
-            UNIQUE = 0x02000000,			// Selects no more than one row
-            ALL_UNIQUE = 0x04000000,		// This and all prior have one row
-            OB_UNIQUE = 0x00004000,		// Values in ORDER BY columns are 
-            // different for every output row
-            VIRTUALTABLE = 0x08000000,	// Use virtual-table processing
-            MULTI_OR = 0x10000000,		// OR using multiple indices
-            TEMP_INDEX = 0x20000000,		// Uses an ephemeral index
-            DISTINCT = 0x40000000,		// Correct order for DISTINCT
-            COVER_SCAN = 0x80000000,		// Full scan of a covering index
-        }
+        const uint ROWID_EQ = 0x00001000;		// rowid=EXPR or rowid IN (...)
+        const uint ROWID_RANGE = 0x00002000;		// rowid<EXPR and/or rowid>EXPR
+        const uint COLUMN_EQ = 0x00010000;		// x=EXPR or x IN (...) or x IS NULL
+        const uint COLUMN_RANGE = 0x00020000;	// x<EXPR and/or x>EXPR
+        const uint COLUMN_IN = 0x00040000;		// x IN (...)
+        const uint COLUMN_NULL = 0x00080000;		// x IS NULL
+        const uint INDEXED = 0x000f0000;			// Anything that uses an index
+        const uint NOT_FULLSCAN = 0x100f3000;	// Does not do a full table scan
+        const uint IN_ABLE = 0x080f1000;			// Able to support an IN operator
+        const uint TOP_LIMIT = 0x00100000;		// x<EXPR or x<=EXPR constraint
+        const uint BTM_LIMIT = 0x00200000;		// x>EXPR or x>=EXPR constraint
+        const uint BOTH_LIMIT = 0x00300000;		// Both x>EXPR and x<EXPR
+        const uint IDX_ONLY = 0x00400000;		// Use index only - omit table
+        const uint ORDERED = 0x00800000;			// Output will appear in correct order
+        const uint REVERSE = 0x01000000;			// Scan in reverse order */
+        const uint UNIQUE = 0x02000000;			// Selects no more than one row
+        const uint ALL_UNIQUE = 0x04000000;		// This and all prior have one row
+        const uint OB_UNIQUE = 0x00004000;		// Values in ORDER BY columns are 
+        // different for every output row
+        const uint VIRTUALTABLE = 0x08000000;	// Use virtual-table processing
+        const uint MULTI_OR = 0x10000000;		// OR using multiple indices
+        const uint TEMP_INDEX = 0x20000000;		// Uses an ephemeral index
+        const uint DISTINCT_ = 0x40000000;		// Correct order for DISTINCT
+        const uint COVER_SCAN = 0x80000000;		// Full scan of a covering index
 
         public struct WhereBestIdx
         {
@@ -289,7 +286,7 @@ namespace Core
             }
             mask = ExprTableUsage(maskSet, p.Right);
             mask |= ExprTableUsage(maskSet, p.Left);
-            if (ExprHasProperty(p, EP.xIsSelect))
+            if (E.ExprHasProperty(p, EP.xIsSelect))
                 mask |= ExprSelectTableUsage(maskSet, p.x.Select);
             else
                 mask |= ExprListTableUsage(maskSet, p.x.List);
@@ -327,29 +324,31 @@ namespace Core
             return mask;
         }
 
-        static bool AllowedOp(int op)
+        static bool AllowedOp(TK op)
         {
             Debug.Assert(TK.GT > TK.EQ && TK.GT < TK.GE);
             Debug.Assert(TK.LT > TK.EQ && TK.LT < TK.GE);
             Debug.Assert(TK.LE > TK.EQ && TK.LE < TK.GE);
             Debug.Assert(TK.GE == TK.EQ + 4);
-            return (op == TK.IN || (op >= TK,EQ && op <= TK.GE) || op == TK.ISNULL);
+            return (op == TK.IN || (op >= TK.EQ && op <= TK.GE) || op == TK.ISNULL);
         }
+
+        static void SWAP<T>(T A, T B) { T t = A; A = B; B = t; }
 
         static void ExprCommute(Parse parse, Expr expr)
         {
-            ushort expRight = (ushort)(expr.Right.Flags & EP.ExpCollate);
-            ushort expLeft = (ushort)(expr.Left.Flags & EP.ExpCollate);
+            ushort expRight = (ushort)(expr.Right.Flags & EP.Collate);
+            ushort expLeft = (ushort)(expr.Left.Flags & EP.Collate);
             Debug.Assert(AllowedOp(expr.OP) && expr.OP != TK.IN);
             if (expRight == expLeft)
             {
                 // Either X and Y both have COLLATE operator or neither do
                 if (expRight != null)
                     expr.Right.Flags &= ~EP.Collate; // Both X and Y have COLLATE operators.  Make sure X is always used by clearing the EP_Collate flag from Y.
-                else if (parse.ExprCollSeq(expr.Left))
-                    expr.Left.Flags |= EP_Collate; // Neither X nor Y have COLLATE operators, but X has a non-default collating sequence.  So add the EP_Collate marker on X to cause it to be searched first.
+                else if (expr.Left.CollSeq(parse) != null)
+                    expr.Left.Flags |= EP.Collate; // Neither X nor Y have COLLATE operators, but X has a non-default collating sequence.  So add the EP_Collate marker on X to cause it to be searched first.
             }
-            SWAP(ref expr.Right, ref expr.Left);
+            SWAP<Expr>(expr.Right, expr.Left);
             if (expr.OP >= TK.GT)
             {
                 Debug.Assert(TK.LT == TK.GT + 2);
@@ -357,11 +356,11 @@ namespace Core
                 Debug.Assert(TK.GT > TK.EQ);
                 Debug.Assert(TK.GT < TK.LE);
                 Debug.Assert(expr.OP >= TK.GT && expr.OP <= TK.GE);
-                expr.OP = (byte)(((expr.OP - TK.GT) ^ 2) + TK.GT);
+                expr.OP = (TK)(((expr.OP - TK.GT) ^ 2) + TK.GT);
             }
         }
 
-        static WO OperatorMask(int op)
+        static WO OperatorMask(TK op)
         {
             Debug.Assert(AllowedOp(op));
             WO c;
@@ -371,8 +370,8 @@ namespace Core
                 c = WO.ISNULL;
             else
             {
-                Debug.Assert((WO.EQ << (op - TK.EQ)) < 0x7fff);
-                c = (WO)(WO.EQ << (op - TK.EQ));
+                Debug.Assert(((int)WO.EQ << (op - TK.EQ)) < 0x7fff);
+                c = (WO)((int)WO.EQ << (op - TK.EQ));
             }
             Debug.Assert(op != TK.ISNULL || c == WO.ISNULL);
             Debug.Assert(op != TK.IN || c == WO.IN);
@@ -388,7 +387,7 @@ namespace Core
         {
             WhereTerm result = null; // The answer to return
             int origColumn = column;  // Original value of iColumn
-            int equivLength = 2; // Number of entires in aEquiv[]
+            int equivsLength = 2; // Number of entires in aEquiv[]
             int equivId = 2; // Number of entries of aEquiv[] processed so far
             int[] equivs = new int[22]; // iCur,iColumn and up to 10 other equivalents
 
@@ -400,14 +399,12 @@ namespace Core
             int j, k;
             for (; ; )
             {
-                for (wc = origWC; wc; wc = wc.Outer)
+                for (wc = origWC; wc != null; wc = wc.Outer)
                 {
-                    for (k = wc.Terms; k; k--)
-                    {
-                        term = wc.Slots[wc.Terms - k];
+                    for (term = wc.Slots[0], k = wc.Terms; k != 0; k--, term = wc.Slots[wc.Terms - k])
                         if (term.LeftCursor == cursor && term.u.LeftColumn == column)
                         {
-                            if ((term.PrereqRight & notReady) == 0 && (term.EOperator & op & WO.ALL) != 0)
+                            if ((term.PrereqRight & notReady) == 0 && (term.EOperator & (WO)op & WO.ALL) != 0)
                             {
                                 if (origColumn >= 0 && idx != null && (term.EOperator & WO.ISNULL) == 0)
                                 {
@@ -419,11 +416,11 @@ namespace Core
                                     // Figure out the collation sequence required from an index for it to be useful for optimising expression pX. Store this
                                     // value in variable pColl.
                                     Debug.Assert(x.Left != null);
-                                    CollSeq coll = sqlite3BinaryCompareCollSeq(parse, x.Left, x.Right);
+                                    CollSeq coll = Expr.BinaryCompareCollSeq(parse, x.Left, x.Right);
                                     if (coll == null) coll = parse.Ctx.DefaultColl;
                                     for (j = 0; idx.Columns[j] != origColumn; j++)
-                                        if (SysEx.NEVER(j >= idx.Columns.length)) return 0;
-                                    if (!string.Compare(coll.Name, idx.CollNames[j], StringComparison.OrdinalIgnoreCase))
+                                        if (SysEx.NEVER(j >= idx.Columns.length)) return null;
+                                    if (!string.Equals(coll.Name, idx.CollNames[j], StringComparison.OrdinalIgnoreCase))
                                         continue;
                                 }
                                 if (term.PrereqRight == 0)
@@ -436,8 +433,8 @@ namespace Core
                             }
                             if ((term.EOperator & WO.EQUIV) != 0 && equivsLength < equivs.Length)
                             {
-                                Expr x = Expr.SkipCollate(term.Expr->Right);
-                                Debug.Assert(x.OP == TK_COLUMN);
+                                Expr x = term.Expr.Right.SkipCollate();
+                                Debug.Assert(x.OP == TK.COLUMN);
                                 for (j = 0; j < equivsLength; j += 2)
                                     if (equivs[j] == x.TableIdx && equivs[j + 1] == x.ColumnIdx) break;
                                 if (j == equivsLength)
@@ -448,7 +445,6 @@ namespace Core
                                 }
                             }
                         }
-                    }
                 }
                 if (equivId >= equivsLength) break;
                 cursor = equivs[equivId++];
@@ -464,503 +460,298 @@ namespace Core
                 ExprAnalyze(tabList, wc, i);
         }
 
-#if  !OMIT_LIKE_OPTIMIZATION
-
-        static int isLikeOrGlob(
-        Parse pParse,         /* Parsing and code generating context */
-        Expr pExpr,           /* Test this expression */
-        ref Expr ppPrefix,    /* Pointer to TK_STRING expression with pattern prefix */
-        ref bool pisComplete, /* True if the only wildcard is % in the last character */
-        ref bool pnoCase      /* True if uppercase is equivalent to lowercase */
-        )
+#if !OMIT_LIKE_OPTIMIZATION
+        static int IsLikeOrGlob(Parse parse, Expr expr, ref Expr prefix, ref bool isComplete, ref bool noCase)
         {
-            string z = null;            /* String on RHS of LIKE operator */
-            Expr pRight, pLeft;        /* Right and left size of LIKE operator */
-            ExprList pList;            /* List of operands to the LIKE operator */
-            int c = 0;                 /* One character in z[] */
-            int cnt;                   /* Number of non-wildcard prefix characters */
-            char[] wc = new char[3];   /* Wildcard characters */
-            sqlite3 db = pParse.db;    /* Data_base connection */
-            sqlite3_value pVal = null;
-            int op;                    /* Opcode of pRight */
+            int cnt; // Number of non-wildcard prefix characters
+            char[] wc = new char[3]; // Wildcard characters
+            Context ctx = parse.Ctx; // Data_base connection
+            Mem val = null;
 
-            if (!sqlite3IsLikeFunction(db, pExpr, ref pnoCase, wc))
-            {
+            if (!sqlite3IsLikeFunction(ctx, expr, ref noCase, wc))
                 return 0;
-            }
-            //#if SQLITE_EBCDIC
-            //if( pnoCase ) return 0;
-            //#endif
-            pList = pExpr.x.pList;
-            pLeft = pList.a[1].pExpr;
-            if (pLeft.op != TK_COLUMN || sqlite3ExprAffinity(pLeft) != SQLITE_AFF_TEXT)
-            {
-                /* IMP: R-02065-49465 The left-hand side of the LIKE or GLOB operator must
-                ** be the name of an indexed column with TEXT affinity. */
-                return 0;
-            }
-            Debug.Assert(pLeft.iColumn != (-1)); /* Because IPK never has AFF_TEXT */
+            ExprList list = expr.x.List; // List of operands to the LIKE operator
+            Expr left = list.Ids[1].Expr; // Right and left size of LIKE operator
+            if (left.OP != TK.COLUMN || left.Affinity() != AFF.TEXT || E.IsVirtual(left.Table))
+                return 0; // IMP: R-02065-49465 The left-hand side of the LIKE or GLOB operator must be the name of an indexed column with TEXT affinity.
+            Debug.Assert(left.ColumnIdx != -1); // Because IPK never has AFF_TEXT
 
-            pRight = pList.a[0].pExpr;
-            op = pRight.op;
-            if (op == TK_REGISTER)
+            Expr right = list.Ids[0].Expr; // Right and left size of LIKE operator
+            TK op = right.OP; // Opcode of pRight
+            if (op == TK.REGISTER)
+                op = right.OP2;
+            string z = null; // String on RHS of LIKE operator
+            if (op == TK.VARIABLE)
             {
-                op = pRight.op2;
+                Vdbe reprepare = parse.Reprepare;
+                int column = right.ColumnIdx;
+                val = Vdbe.GetValue(reprepare, column, (byte)AFF.NONE);
+                if (val != null && sqlite3_value_type(val) == TYPE.TEXT)
+                    z = sqlite3_value_text(val);
+                sqlite3VdbeSetVarmask(parse.V, column); // IMP: R-23257-02778
+                Debug.Assert(right.OP == TK.VARIABLE || right.OP == TK.REGISTER);
             }
-            if (op == TK_VARIABLE)
-            {
-                Vdbe pReprepare = pParse.pReprepare;
-                int iCol = pRight.iColumn;
-                pVal = sqlite3VdbeGetValue(pReprepare, iCol, (byte)SQLITE_AFF_NONE);
-                if (pVal != null && sqlite3_value_type(pVal) == SQLITE_TEXT)
-                {
-                    z = sqlite3_value_text(pVal);
-                }
-                sqlite3VdbeSetVarmask(pParse.pVdbe, iCol); /* IMP: R-23257-02778 */
-                Debug.Assert(pRight.op == TK_VARIABLE || pRight.op == TK_REGISTER);
-            }
-            else if (op == TK_STRING)
-            {
-                z = pRight.u.zToken;
-            }
-            if (!String.IsNullOrEmpty(z))
+            else if (op == TK.STRING)
+                z = right.u.Token;
+            if (z != null)
             {
                 cnt = 0;
-                while (cnt < z.Length && (c = z[cnt]) != 0 && c != wc[0] && c != wc[1] && c != wc[2])
+                int c; // One character in z[]
+                while (cnt < z.Length && (c = z[cnt]) != 0 && c != wc[0] && c != wc[1] && c != wc[2]) cnt++;
+                if (cnt != 0 && (byte)z[cnt - 1] != 255)
                 {
-                    cnt++;
-                }
-                if (cnt != 0 && 255 != (u8)z[cnt - 1])
-                {
-                    Expr pPrefix;
-                    pisComplete = c == wc[0] && cnt == z.Length - 1;
-                    pPrefix = sqlite3Expr(db, TK_STRING, z);
-                    if (pPrefix != null)
-                        pPrefix.u.zToken = pPrefix.u.zToken.Substring(0, cnt);
-                    ppPrefix = pPrefix;
-                    if (op == TK_VARIABLE)
+                    isComplete = (c == wc[0] && cnt == z.Length - 1);
+                    Expr Prefix = Expr.Expr_(ctx, TK.STRING, z);
+                    if (Prefix != null)
+                        Prefix.u.Token = Prefix.u.Token.Substring(0, cnt);
+                    prefix = Prefix;
+                    if (op == TK.VARIABLE)
                     {
-                        Vdbe v = pParse.pVdbe;
-                        sqlite3VdbeSetVarmask(v, pRight.iColumn); /* IMP: R-23257-02778 */
-                        if (pisComplete && pRight.u.zToken.Length > 1)
+                        Vdbe v = parse.V;
+                        sqlite3VdbeSetVarmask(v, right.ColumnIdx); // IMP: R-23257-02778
+                        if (isComplete && right.u.Token.Length > 1)
                         {
-                            /* If the rhs of the LIKE expression is a variable, and the current
-                            ** value of the variable means there is no need to invoke the LIKE
-                            ** function, then no OP_Variable will be added to the program.
-                            ** This causes problems for the sqlite3_bind_parameter_name()
-                            ** API. To workaround them, add a dummy OP_Variable here.
-                            */
-                            int r1 = sqlite3GetTempReg(pParse);
-                            sqlite3ExprCodeTarget(pParse, pRight, r1);
-                            sqlite3VdbeChangeP3(v, sqlite3VdbeCurrentAddr(v) - 1, 0);
-                            sqlite3ReleaseTempReg(pParse, r1);
+                            // If the rhs of the LIKE expression is a variable, and the current value of the variable means there is no need to invoke the LIKE
+                            // function, then no OP_Variable will be added to the program. This causes problems for the sqlite3_bind_parameter_name()
+                            // API. To workaround them, add a dummy OP_Variable here.
+                            int r1 = parse.GetTempReg();
+                            Expr.CodeTarget(parse, right, r1);
+                            v.ChangeP3(v.CurrentAddr() - 1, 0);
+                            parse.ReleaseTempReg(r1);
                         }
                     }
                 }
                 else
-                {
                     z = null;
-                }
             }
-
-            sqlite3ValueFree(ref pVal);
-            return (z != null) ? 1 : 0;
+            sqlite3ValueFree(ref val);
+            return (z != null ? 1 : 0);
         }
-#endif //* SQLITE_OMIT_LIKE_OPTIMIZATION */
+#endif
 
 
-#if  !SQLITE_OMIT_VIRTUALTABLE
-        /*
-** Check to see if the given expression is of the form
-**
-**         column MATCH expr
-**
-** If it is then return TRUE.  If not, return FALSE.
-*/
-        static int isMatchOfColumn(
-        Expr pExpr      /* Test this expression */
-        )
+#if !OMIT_VIRTUALTABLE
+        static bool IsMatchOfColumn(Expr expr)
         {
-            ExprList pList;
-
-            if (pExpr.op != TK_FUNCTION)
-            {
-                return 0;
-            }
-            if (!pExpr.u.zToken.Equals("match", StringComparison.OrdinalIgnoreCase))
-            {
-                return 0;
-            }
-            pList = pExpr.x.pList;
-            if (pList.nExpr != 2)
-            {
-                return 0;
-            }
-            if (pList.a[1].pExpr.op != TK_COLUMN)
-            {
-                return 0;
-            }
-            return 1;
+            if (expr.OP != TK.FUNCTION || !string.Equals(expr.u.Token, "match", StringComparison.OrdinalIgnoreCase))
+                return false;
+            ExprList list = expr.x.List;
+            if (list.Exprs != 2 || list.Ids[1].Expr.OP != TK.COLUMN)
+                return false;
+            return true;
         }
-#endif //* SQLITE_OMIT_VIRTUALTABLE */
+#endif
 
-        /*
-** If the pBase expression originated in the ON or USING clause of
-** a join, then transfer the appropriate markings over to derived.
-*/
-        static void transferJoinMarkings(Expr pDerived, Expr pBase)
+        static void TransferJoinMarkings(Expr derived, Expr base_)
         {
-            pDerived.flags = (u16)(pDerived.flags | pBase.flags & EP_FromJoin);
-            pDerived.iRightJoinTable = pBase.iRightJoinTable;
+            derived.Flags = (EP)(derived.Flags | base_.Flags & EP.FromJoin);
+            derived.RightJoinTable = base_.RightJoinTable;
         }
 
-#if  !(SQLITE_OMIT_OR_OPTIMIZATION) && !(SQLITE_OMIT_SUBQUERY)
-        /*
-** Analyze a term that consists of two or more OR-connected
-** subterms.  So in:
-**
-**     ... WHERE  (a=5) AND (b=7 OR c=9 OR d=13) AND (d=13)
-**                          ^^^^^^^^^^^^^^^^^^^^
-**
-** This routine analyzes terms such as the middle term in the above example.
-** A WhereOrTerm object is computed and attached to the term under
-** analysis, regardless of the outcome of the analysis.  Hence:
-**
-**     WhereTerm.wtFlags   |=  TERM_ORINFO
-**     WhereTerm.u.pOrInfo  =  a dynamically allocated WhereOrTerm object
-**
-** The term being analyzed must have two or more of OR-connected subterms.
-** A single subterm might be a set of AND-connected sub-subterms.
-** Examples of terms under analysis:
-**
-**     (A)     t1.x=t2.y OR t1.x=t2.z OR t1.y=15 OR t1.z=t3.a+5
-**     (B)     x=expr1 OR expr2=x OR x=expr3
-**     (C)     t1.x=t2.y OR (t1.x=t2.z AND t1.y=15)
-**     (D)     x=expr1 OR (y>11 AND y<22 AND z LIKE '*hello*')
-**     (E)     (p.a=1 AND q.b=2 AND r.c=3) OR (p.x=4 AND q.y=5 AND r.z=6)
-**
-** CASE 1:
-**
-** If all subterms are of the form T.C=expr for some single column of C
-** a single table T (as shown in example B above) then create a new virtual
-** term that is an equivalent IN expression.  In other words, if the term
-** being analyzed is:
-**
-**      x = expr1  OR  expr2 = x  OR  x = expr3
-**
-** then create a new virtual term like this:
-**
-**      x IN (expr1,expr2,expr3)
-**
-** CASE 2:
-**
-** If all subterms are indexable by a single table T, then set
-**
-**     WhereTerm.eOperator              =  WO_OR
-**     WhereTerm.u.pOrInfo.indexable  |=  the cursor number for table T
-**
-** A subterm is "indexable" if it is of the form
-** "T.C <op> <expr>" where C is any column of table T and
-** <op> is one of "=", "<", "<=", ">", ">=", "IS NULL", or "IN".
-** A subterm is also indexable if it is an AND of two or more
-** subsubterms at least one of which is indexable.  Indexable AND
-** subterms have their eOperator set to WO_AND and they have
-** u.pAndInfo set to a dynamically allocated WhereAndTerm object.
-**
-** From another point of view, "indexable" means that the subterm could
-** potentially be used with an index if an appropriate index exists.
-** This analysis does not consider whether or not the index exists; that
-** is something the bestIndex() routine will determine.  This analysis
-** only looks at whether subterms appropriate for indexing exist.
-**
-** All examples A through E above all satisfy case 2.  But if a term
-** also statisfies case 1 (such as B) we know that the optimizer will
-** always prefer case 1, so in that case we pretend that case 2 is not
-** satisfied.
-**
-** It might be the case that multiple tables are indexable.  For example,
-** (E) above is indexable on tables P, Q, and R.
-**
-** Terms that satisfy case 2 are candidates for lookup by using
-** separate indices to find rowids for each subterm and composing
-** the union of all rowids using a RowSet object.  This is similar
-** to "bitmap indices" in other data_base engines.
-**
-** OTHERWISE:
-**
-** If neither case 1 nor case 2 apply, then leave the eOperator set to
-** zero.  This term is not useful for search.
-*/
-        static void exprAnalyzeOrTerm(
-        SrcList pSrc,            /* the FROM clause */
-        WhereClause pWC,         /* the complete WHERE clause */
-        int idxTerm               /* Index of the OR-term to be analyzed */
-        )
+#if !OMIT_OR_OPTIMIZATION && !OMIT_SUBQUERY
+        static void ExprAnalyzeOrTerm(SrcList src, WhereClause wc, int idxTerm)
         {
-            Parse pParse = pWC.pParse;            /* Parser context */
-            sqlite3 db = pParse.db;               /* Data_base connection */
-            WhereTerm pTerm = pWC.a[idxTerm];    /* The term to be analyzed */
-            Expr pExpr = pTerm.pExpr;             /* The expression of the term */
-            WhereMaskSet pMaskSet = pWC.pMaskSet; /* Table use masks */
-            int i;                                  /* Loop counters */
-            WhereClause pOrWc;        /* Breakup of pTerm into subterms */
-            WhereTerm pOrTerm;        /* A Sub-term within the pOrWc */
-            WhereOrInfo pOrInfo;      /* Additional information Debug.Associated with pTerm */
-            Bitmask chngToIN;         /* Tables that might satisfy case 1 */
-            Bitmask indexable;        /* Tables that are indexable, satisfying case 2 */
+            Parse parse = wc.Parse; // Parser context
+            Context ctx = parse.Ctx; // Data_base connection
+            WhereTerm term = wc.Slots[idxTerm]; // The term to be analyzed
+            Expr expr = term.Expr; // The expression of the term
+            WhereMaskSet maskSet = wc.MaskSet; // Table use masks
 
-            /*
-            ** Break the OR clause into its separate subterms.  The subterms are
-            ** stored in a WhereClause structure containing within the WhereOrInfo
-            ** object that is attached to the original OR clause term.
-            */
-            Debug.Assert((pTerm.wtFlags & (TERM_DYNAMIC | TERM_ORINFO | TERM_ANDINFO)) == 0);
-            Debug.Assert(pExpr.op == TK_OR);
-            pTerm.u.pOrInfo = pOrInfo = new WhereOrInfo();//sqlite3DbMallocZero(db, sizeof(*pOrInfo));
-            if (pOrInfo == null)
-                return;
-            pTerm.wtFlags |= TERM_ORINFO;
-            pOrWc = pOrInfo.wc;
-            whereClauseInit(pOrWc, pWC.pParse, pMaskSet);
-            whereSplit(pOrWc, pExpr, TK_OR);
-            exprAnalyzeAll(pSrc, pOrWc);
-            //      if ( db.mallocFailed != 0 ) return;
-            Debug.Assert(pOrWc.nTerm >= 2);
+            int i;
+            WhereClause orWc;        // Breakup of pTerm into subterms
+            WhereTerm orTerm;        // A Sub-term within the pOrWc
 
-            /*
-            ** Compute the set of tables that might satisfy cases 1 or 2.
-            */
-            indexable = ~(Bitmask)0;
-            chngToIN = ~(pWC.vmask);
-            for (i = pOrWc.nTerm - 1; i >= 0 && indexable != 0; i--)//, pOrTerm++ )
+            // Break the OR clause into its separate subterms.  The subterms are stored in a WhereClause structure containing within the WhereOrInfo
+            // object that is attached to the original OR clause term.
+            Debug.Assert((term.WtFlags & (TERM.DYNAMIC | TERM.ORINFO | TERM.ANDINFO)) == 0);
+            Debug.Assert(expr.OP == TK.OR);
+            WhereOrInfo orInfo; // Additional information Debug.Associated with pTerm
+            term.u.OrInfo = orInfo = new WhereOrInfo();
+            if (orInfo == null) return;
+            term.WtFlags |= TERM.ORINFO;
+            orWc = orInfo.WC;
+            WhereClauseInit(orWc, wc.Parse, maskSet, wc.WctrlFlags);
+            WhereSplit(orWc, expr, TK.OR);
+            ExprAnalyzeAll(src, orWc);
+            if (ctx.MallocFailed) return;
+            Debug.Assert(orWc.Terms >= 2);
+
+            // Compute the set of tables that might satisfy cases 1 or 2.
+            Bitmask indexable = ~(Bitmask)0; // Tables that are indexable, satisfying case 2
+            Bitmask chngToIN = ~(Bitmask)0; // Tables that might satisfy case 1
+            for (i = orWc.Terms - 1, orTerm = orWc.Slots[0]; i >= 0 && indexable != 0; i--, orTerm = orWc.Slots[i])
             {
-                pOrTerm = pOrWc.a[i];
-                if ((pOrTerm.eOperator & WO_SINGLE) == 0)
+                if ((orTerm.EOperator & WO.SINGLE) == 0)
                 {
-                    WhereAndInfo pAndInfo;
-                    Debug.Assert(pOrTerm.eOperator == 0);
-                    Debug.Assert((pOrTerm.wtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
+                    Debug.Assert((orTerm.WtFlags & (TERM.ANDINFO | TERM.ORINFO)) == 0);
                     chngToIN = 0;
-                    pAndInfo = new WhereAndInfo();//sqlite3DbMallocRaw(db, sizeof(*pAndInfo));
-                    if (pAndInfo != null)
+                    WhereAndInfo andInfo = new WhereAndInfo();
+                    if (andInfo != null)
                     {
-                        WhereClause pAndWC;
-                        WhereTerm pAndTerm;
+                        WhereTerm andTerm;
                         int j;
                         Bitmask b = 0;
-                        pOrTerm.u.pAndInfo = pAndInfo;
-                        pOrTerm.wtFlags |= TERM_ANDINFO;
-                        pOrTerm.eOperator = WO_AND;
-                        pAndWC = pAndInfo.wc;
-                        whereClauseInit(pAndWC, pWC.pParse, pMaskSet);
-                        whereSplit(pAndWC, pOrTerm.pExpr, TK_AND);
-                        exprAnalyzeAll(pSrc, pAndWC);
-                        //testcase( db.mallocFailed );
-                        ////if ( 0 == db.mallocFailed )
+                        orTerm.u.AndInfo = andInfo;
+                        orTerm.WtFlags |= TERM.ANDINFO;
+                        orTerm.EOperator = WO.AND;
+                        WhereClause andWC = andInfo.WC;
+                        WhereClauseInit(andWC, wc.Parse, maskSet, wc.WctrlFlags);
+                        WhereSplit(andWC, orTerm.Expr, TK.AND);
+                        ExprAnalyzeAll(src, andWC);
+                        SysEx.ASSERTCOVERAGE(ctx.MallocFailed);
+                        if (!ctx.MallocFailed)
                         {
-                            for (j = 0; j < pAndWC.nTerm; j++)//, pAndTerm++ )
+                            for (j = 0, andTerm = andWC.Slots[0]; j < andWC.Terms; j++, andTerm = andWC.Slots[j])
                             {
-                                pAndTerm = pAndWC.a[j];
-                                Debug.Assert(pAndTerm.pExpr != null);
-                                if (allowedOp(pAndTerm.pExpr.op))
-                                {
-                                    b |= getMask(pMaskSet, pAndTerm.leftCursor);
-                                }
+                                Debug.Assert(andTerm.Expr != null);
+                                if (AllowedOp(andTerm.Expr.OP))
+                                    b |= GetMask(maskSet, andTerm.LeftCursor);
                             }
                         }
                         indexable &= b;
                     }
                 }
-                else if ((pOrTerm.wtFlags & TERM_COPIED) != 0)
-                {
-                    /* Skip this term for now.  We revisit it when we process the
-                    ** corresponding TERM_VIRTUAL term */
-                }
+                else if ((orTerm.WtFlags & TERM.COPIED) != 0) { } // Skip this term for now.  We revisit it when we process the corresponding TERM_VIRTUAL term */
                 else
                 {
-                    Bitmask b;
-                    b = getMask(pMaskSet, pOrTerm.leftCursor);
-                    if ((pOrTerm.wtFlags & TERM_VIRTUAL) != 0)
+                    Bitmask b = GetMask(maskSet, orTerm.LeftCursor);
+                    if ((orTerm.WtFlags & TERM.VIRTUAL) != 0)
                     {
-                        WhereTerm pOther = pOrWc.a[pOrTerm.iParent];
-                        b |= getMask(pMaskSet, pOther.leftCursor);
+                        WhereTerm pOther = orWc.Ids[orTerm.Parent];
+                        b |= GetMask(maskSet, pOther.LeftCursor);
                     }
                     indexable &= b;
-                    if (pOrTerm.eOperator != WO_EQ)
-                    {
+                    if (orTerm.EOperator != WO.EQ)
                         chngToIN = 0;
-                    }
                     else
-                    {
                         chngToIN &= b;
-                    }
                 }
             }
 
-            /*
-            ** Record the set of tables that satisfy case 2.  The set might be
-            ** empty.
-            */
-            pOrInfo.indexable = indexable;
-            pTerm.eOperator = (u16)(indexable == 0 ? 0 : WO_OR);
+            // Record the set of tables that satisfy case 2.  The set might be empty.
+            orInfo.Indexable = indexable;
+            term.EOperator = (WO)(indexable == 0 ? 0 : WO.OR);
 
-            /*
-            ** chngToIN holds a set of tables that *might* satisfy case 1.  But
-            ** we have to do some additional checking to see if case 1 really
-            ** is satisfied.
-            **
-            ** chngToIN will hold either 0, 1, or 2 bits.  The 0-bit case means
-            ** that there is no possibility of transforming the OR clause into an
-            ** IN operator because one or more terms in the OR clause contain
-            ** something other than == on a column in the single table.  The 1-bit
-            ** case means that every term of the OR clause is of the form
-            ** "table.column=expr" for some single table.  The one bit that is set
-            ** will correspond to the common table.  We still need to check to make
-            ** sure the same column is used on all terms.  The 2-bit case is when
-            ** the all terms are of the form "table1.column=table2.column".  It
-            ** might be possible to form an IN operator with either table1.column
-            ** or table2.column as the LHS if either is common to every term of
-            ** the OR clause.
-            **
-            ** Note that terms of the form "table.column1=table.column2" (the
-            ** same table on both sizes of the ==) cannot be optimized.
-            */
+            // chngToIN holds a set of tables that *might* satisfy case 1.  But we have to do some additional checking to see if case 1 really
+            // is satisfied.
+            //
+            // chngToIN will hold either 0, 1, or 2 bits.  The 0-bit case means that there is no possibility of transforming the OR clause into an
+            // IN operator because one or more terms in the OR clause contain something other than == on a column in the single table.  The 1-bit
+            // case means that every term of the OR clause is of the form "table.column=expr" for some single table.  The one bit that is set
+            // will correspond to the common table.  We still need to check to make sure the same column is used on all terms.  The 2-bit case is when
+            // the all terms are of the form "table1.column=table2.column".  It might be possible to form an IN operator with either table1.column
+            // or table2.column as the LHS if either is common to every term of the OR clause.
+            //
+            // Note that terms of the form "table.column1=table.column2" (the same table on both sizes of the ==) cannot be optimized.
             if (chngToIN != 0)
             {
-                int okToChngToIN = 0;     /* True if the conversion to IN is valid */
-                int iColumn = -1;         /* Column index on lhs of IN operator */
-                int iCursor = -1;         /* Table cursor common to all terms */
-                int j = 0;                /* Loop counter */
+                bool okToChngToIN = false; // True if the conversion to IN is valid
+                int columnId = -1; // Column index on lhs of IN operator
+                int cursorId = -1; // Table cursor common to all terms
+                int j = 0;
 
-                /* Search for a table and column that appears on one side or the
-                ** other of the == operator in every subterm.  That table and column
-                ** will be recorded in iCursor and iColumn.  There might not be any
-                ** such table and column.  Set okToChngToIN if an appropriate table
-                ** and column is found but leave okToChngToIN false if not found.
-                */
-                for (j = 0; j < 2 && 0 == okToChngToIN; j++)
+                // Search for a table and column that appears on one side or the other of the == operator in every subterm.  That table and column
+                // will be recorded in iCursor and iColumn.  There might not be any such table and column.  Set okToChngToIN if an appropriate table
+                // and column is found but leave okToChngToIN false if not found.
+                for (j = 0; j < 2 && !okToChngToIN; j++)
                 {
-                    //pOrTerm = pOrWc.a;
-                    for (i = pOrWc.nTerm - 1; i >= 0; i--)//, pOrTerm++)
+                    for (i = orWc.Terms - 1, orTerm = orWc.Slots[0]; i >= 0; i--, orTerm = orWc.Slots[orWc.Terms - 1 - i])
                     {
-                        pOrTerm = pOrWc.a[pOrWc.nTerm - 1 - i];
-                        Debug.Assert(pOrTerm.eOperator == WO_EQ);
-                        pOrTerm.wtFlags = (u8)(pOrTerm.wtFlags & ~TERM_OR_OK);
-                        if (pOrTerm.leftCursor == iCursor)
+                        Debug.Assert(orTerm.EOperator == WO.EQ);
+                        orTerm.WtFlags = (TERM)(orTerm.WtFlags & ~TERM.OR_OK);
+                        if (orTerm.LeftCursor == cursorId)
                         {
-                            /* This is the 2-bit case and we are on the second iteration and
-                            ** current term is from the first iteration.  So skip this term. */
+                            // This is the 2-bit case and we are on the second iteration and current term is from the first iteration.  So skip this term.
                             Debug.Assert(j == 1);
                             continue;
                         }
-                        if ((chngToIN & getMask(pMaskSet, pOrTerm.leftCursor)) == 0)
+                        if ((chngToIN & GetMask(maskSet, orTerm.LeftCursor)) == 0)
                         {
-                            /* This term must be of the form t1.a==t2.b where t2 is in the
-                            ** chngToIN set but t1 is not.  This term will be either preceeded
-                            ** or follwed by an inverted copy (t2.b==t1.a).  Skip this term
-                            ** and use its inversion. */
-                            testcase(pOrTerm.wtFlags & TERM_COPIED);
-                            testcase(pOrTerm.wtFlags & TERM_VIRTUAL);
-                            Debug.Assert((pOrTerm.wtFlags & (TERM_COPIED | TERM_VIRTUAL)) != 0);
+                            // This term must be of the form t1.a==t2.b where t2 is in the chngToIN set but t1 is not.  This term will be either preceeded
+                            // or follwed by an inverted copy (t2.b==t1.a).  Skip this term and use its inversion.
+                            SysEx.ASSERTCOVERAGE((orTerm.WtFlags & TERM.COPIED) != 0);
+                            SysEx.ASSERTCOVERAGE((orTerm.WtFlags & TERM.VIRTUAL) != 0);
+                            Debug.Assert((orTerm.WtFlags & (TERM.COPIED | TERM.VIRTUAL)) != 0);
                             continue;
                         }
-                        iColumn = pOrTerm.u.leftColumn;
-                        iCursor = pOrTerm.leftCursor;
+                        columnId = orTerm.u.LeftColumn;
+                        cursorId = orTerm.LeftCursor;
                         break;
                     }
                     if (i < 0)
                     {
-                        /* No candidate table+column was found.  This can only occur
-                        ** on the second iteration */
+                        // No candidate table+column was found.  This can only occur on the second iteration
                         Debug.Assert(j == 1);
-                        Debug.Assert((chngToIN & (chngToIN - 1)) == 0);
-                        Debug.Assert(chngToIN == getMask(pMaskSet, iCursor));
+                        Debug.Assert(IsPowerOfTwo(chngToIN));
+                        Debug.Assert(chngToIN == GetMask(maskSet, cursorId));
                         break;
                     }
-                    testcase(j == 1);
+                    SysEx.ASSERTCOVERAGE(j == 1);
 
-                    /* We have found a candidate table and column.  Check to see if that
-                    ** table and column is common to every term in the OR clause */
-                    okToChngToIN = 1;
-                    for (; i >= 0 && okToChngToIN != 0; i--)//, pOrTerm++)
+                    // We have found a candidate table and column.  Check to see if that table and column is common to every term in the OR clause
+                    okToChngToIN = true;
+                    for (; i >= 0 && okToChngToIN; i--, orTerm = orWc.Slots[orWc.Terms - 1 - i])
                     {
-                        pOrTerm = pOrWc.a[pOrWc.nTerm - 1 - i];
-                        Debug.Assert(pOrTerm.eOperator == WO_EQ);
-                        if (pOrTerm.leftCursor != iCursor)
-                        {
-                            pOrTerm.wtFlags = (u8)(pOrTerm.wtFlags & ~TERM_OR_OK);
-                        }
-                        else if (pOrTerm.u.leftColumn != iColumn)
-                        {
-                            okToChngToIN = 0;
-                        }
+                        Debug.Assert(orTerm.EOperator == WO.EQ);
+                        if (orTerm.LeftCursor != cursorId)
+                            orTerm.WtFlags = (TERM)(orTerm.WtFlags & ~TERM.OR_OK);
+                        else if (orTerm.u.LeftColumn != columnId)
+                            okToChngToIN = false;
                         else
                         {
-                            int affLeft, affRight;
-                            /* If the right-hand side is also a column, then the affinities
-                            ** of both right and left sides must be such that no type
-                            ** conversions are required on the right.  (Ticket #2249)
-                            */
-                            affRight = sqlite3ExprAffinity(pOrTerm.pExpr.pRight);
-                            affLeft = sqlite3ExprAffinity(pOrTerm.pExpr.pLeft);
+                            // conversions are required on the right.  (Ticket #2249)
+                            AFF affRight = orTerm.Expr.Right.Affinity();
+                            AFF affLeft = orTerm.Expr.Left.Affinity();
                             if (affRight != 0 && affRight != affLeft)
-                            {
-                                okToChngToIN = 0;
-                            }
+                                okToChngToIN = false;
                             else
-                            {
-                                pOrTerm.wtFlags |= TERM_OR_OK;
-                            }
+                                orTerm.WtFlags |= TERM.OR_OK;
                         }
                     }
                 }
 
-                /* At this point, okToChngToIN is true if original pTerm satisfies
-                ** case 1.  In that case, construct a new virtual term that is
-                ** pTerm converted into an IN operator.
-                **
-                ** EV: R-00211-15100
-                */
-                if (okToChngToIN != 0)
+                // At this point, okToChngToIN is true if original pTerm satisfies
+                // case 1.  In that case, construct a new virtual term that is pTerm converted into an IN operator. EV: R-00211-15100
+                if (okToChngToIN)
                 {
                     Expr pDup;            /* A transient duplicate expression */
                     ExprList pList = null;   /* The RHS of the IN operator */
                     Expr pLeft = null;       /* The LHS of the IN operator */
                     Expr pNew;            /* The complete IN operator */
 
-                    for (i = pOrWc.nTerm - 1; i >= 0; i--)//, pOrTerm++)
+                    for (i = orWc.nTerm - 1; i >= 0; i--)//, pOrTerm++)
                     {
-                        pOrTerm = pOrWc.a[pOrWc.nTerm - 1 - i];
-                        if ((pOrTerm.wtFlags & TERM_OR_OK) == 0)
+                        orTerm = orWc.a[orWc.nTerm - 1 - i];
+                        if ((orTerm.wtFlags & TERM_OR_OK) == 0)
                             continue;
-                        Debug.Assert(pOrTerm.eOperator == WO_EQ);
-                        Debug.Assert(pOrTerm.leftCursor == iCursor);
-                        Debug.Assert(pOrTerm.u.leftColumn == iColumn);
-                        pDup = sqlite3ExprDup(db, pOrTerm.pExpr.pRight, 0);
-                        pList = sqlite3ExprListAppend(pWC.pParse, pList, pDup);
-                        pLeft = pOrTerm.pExpr.pLeft;
+                        Debug.Assert(orTerm.eOperator == WO_EQ);
+                        Debug.Assert(orTerm.leftCursor == cursorId);
+                        Debug.Assert(orTerm.u.leftColumn == columnId);
+                        pDup = sqlite3ExprDup(ctx, orTerm.pExpr.pRight, 0);
+                        pList = sqlite3ExprListAppend(wc.pParse, pList, pDup);
+                        pLeft = orTerm.pExpr.pLeft;
                     }
                     Debug.Assert(pLeft != null);
-                    pDup = sqlite3ExprDup(db, pLeft, 0);
-                    pNew = sqlite3PExpr(pParse, TK_IN, pDup, null, null);
+                    pDup = sqlite3ExprDup(ctx, pLeft, 0);
+                    pNew = sqlite3PExpr(parse, TK_IN, pDup, null, null);
                     if (pNew != null)
                     {
                         int idxNew;
-                        transferJoinMarkings(pNew, pExpr);
+                        TransferJoinMarkings(pNew, expr);
                         Debug.Assert(!ExprHasProperty(pNew, EP_xIsSelect));
                         pNew.x.pList = pList;
-                        idxNew = whereClauseInsert(pWC, pNew, TERM_VIRTUAL | TERM_DYNAMIC);
+                        idxNew = whereClauseInsert(wc, pNew, TERM_VIRTUAL | TERM_DYNAMIC);
                         testcase(idxNew == 0);
-                        exprAnalyze(pSrc, pWC, idxNew);
-                        pTerm = pWC.a[idxTerm];
-                        pWC.a[idxNew].iParent = idxTerm;
-                        pTerm.nChild = 1;
+                        exprAnalyze(src, wc, idxNew);
+                        term = wc.a[idxTerm];
+                        wc.a[idxNew].iParent = idxTerm;
+                        term.nChild = 1;
                     }
                     else
                     {
-                        sqlite3ExprListDelete(db, ref pList);
+                        sqlite3ExprListDelete(ctx, ref pList);
                     }
-                    pTerm.eOperator = WO_NOOP;  /* case 1 trumps case 2 */
+                    term.eOperator = WO_NOOP;  /* case 1 trumps case 2 */
                 }
             }
         }
@@ -1140,7 +931,7 @@ namespace Core
             else if (pExpr.op == TK_OR)
             {
                 Debug.Assert(pWC.op == TK_AND);
-                exprAnalyzeOrTerm(pSrc, pWC, idxTerm);
+                ExprAnalyzeOrTerm(pSrc, pWC, idxTerm);
                 pTerm = pWC.a[idxTerm];
             }
 #endif //* SQLITE_OMIT_OR_OPTIMIZATION */
@@ -1219,7 +1010,7 @@ namespace Core
 ** virtual tables.  The native query optimizer does not attempt
 ** to do anything with MATCH functions.
 */
-            if (isMatchOfColumn(pExpr) != 0)
+            if (IsMatchOfColumn(pExpr) != 0)
             {
                 int idxNew;
                 Expr pRight, pLeft;
@@ -2864,7 +2655,7 @@ whereEqualScanEst_cancel:
             if (pCost == null)
                 pCost = new WhereCost();
             else
-                pCost.Clear();  //memset(pCost, 0, sizeof(*pCost));
+                pCost.memset();  //memset(pCost, 0, sizeof(*pCost));
             pCost.rCost = SQLITE_BIG_DBL;
 
             /* If the pSrc table is the right table of a LEFT JOIN then we may not
@@ -3919,7 +3710,7 @@ static void explainOneScan(  Parse u,  SrcList v,  WhereLevel w,  int x,  int y,
             pParse = pWInfo.pParse;
             v = pParse.pVdbe;
             pWC = pWInfo.pWC;
-            pLevel = pWInfo.a[iLevel];
+            pLevel = pWInfo.Data[iLevel];
             pTabItem = pWInfo.pTabList.a[pLevel.iFrom];
             iCur = pTabItem.iCursor;
             bRev = (pLevel.plan.wsFlags & WHERE_REVERSE) != 0 ? 1 : 0;
@@ -4466,7 +4257,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                             origSrc = pWInfo.pTabList.a;
                             for (k = 1; k <= nNotReady; k++)
                             {
-                                pOrTab.a[k] = origSrc[pWInfo.a[iLevel + k].iFrom];// memcpy(&pOrTab.a[k], &origSrc[pLevel[k].iFrom], sizeof(pOrTab.a[k]));
+                                pOrTab.a[k] = origSrc[pWInfo.Data[iLevel + k].iFrom];// memcpy(&pOrTab.a[k], &origSrc[pLevel[k].iFrom], sizeof(pOrTab.a[k]));
                             }
                         }
                         else
@@ -4508,7 +4299,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                                 if (pSubWInfo != null)
                                 {
                                     explainOneScan(
-                                    pParse, pOrTab, pSubWInfo.a[0], iLevel, pLevel.iFrom, 0
+                                    pParse, pOrTab, pSubWInfo.Data[0], iLevel, pLevel.iFrom, 0
                                     );
                                     if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
                                     {
@@ -4654,7 +4445,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                 int i;
                 for (i = 0; i < pWInfo.nLevel; i++)
                 {
-                    sqlite3_index_info pInfo = pWInfo.a[i] != null ? pWInfo.a[i].pIdxInfo : null;
+                    sqlite3_index_info pInfo = pWInfo.Data[i] != null ? pWInfo.Data[i].pIdxInfo : null;
                     if (pInfo != null)
                     {
                         /* Debug.Assert( pInfo.needToFreeIdxStr==0 || db.mallocFailed ); */
@@ -4664,9 +4455,9 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                         }
                         sqlite3DbFree(db, ref pInfo);
                     }
-                    if (pWInfo.a[i] != null && (pWInfo.a[i].plan.wsFlags & WHERE_TEMP_INDEX) != 0)
+                    if (pWInfo.Data[i] != null && (pWInfo.Data[i].plan.wsFlags & WHERE_TEMP_INDEX) != 0)
                     {
-                        Index pIdx = pWInfo.a[i].plan.u.pIdx;
+                        Index pIdx = pWInfo.Data[i].plan.u.pIdx;
                         if (pIdx != null)
                         {
                             sqlite3DbFree(db, ref pIdx.zColAff);
@@ -4822,10 +4613,10 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             //    sizeof( WhereClause ) +
             //    sizeof( WhereMaskSet )
             //);
-            pWInfo.a = new WhereLevel[pTabList.nSrc];
-            for (int ai = 0; ai < pWInfo.a.Length; ai++)
+            pWInfo.Data = new WhereLevel[pTabList.nSrc];
+            for (int ai = 0; ai < pWInfo.Data.Length; ai++)
             {
-                pWInfo.a[ai] = new WhereLevel();
+                pWInfo.Data[ai] = new WhereLevel();
             }
             //if ( db.mallocFailed != 0 )
             //{
@@ -4836,7 +4627,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             pWInfo.nLevel = nTabList;
             pWInfo.pParse = pParse;
             pWInfo.pTabList = pTabList;
-            pWInfo.iBreak = sqlite3VdbeMakeLabel(v);
+            pWInfo.BreakId = sqlite3VdbeMakeLabel(v);
             pWInfo.pWC = pWC = new WhereClause();// (WhereClause )((u8 )pWInfo)[nByteWInfo];
             pWInfo.wctrlFlags = wctrlFlags;
             pWInfo.savedNQueryLoop = pParse.nQueryLoop;
@@ -4855,7 +4646,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             */
             if (pWhere != null && (nTabList == 0 || sqlite3ExprIsConstantNotJoin(pWhere) != 0))
             {
-                sqlite3ExprIfFalse(pParse, pWhere, pWInfo.iBreak, SQLITE_JUMPIFNULL);
+                sqlite3ExprIfFalse(pParse, pWhere, pWInfo.BreakId, SQLITE_JUMPIFNULL);
                 pWhere = null;
             }
 
@@ -4936,7 +4727,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
 #endif
             for (i = iFrom = 0; i < nTabList; i++)//, pLevel++ )
             {
-                pLevel = pWInfo.a[i];
+                pLevel = pWInfo.Data[i];
                 WhereCost bestPlan;         /* Most efficient plan seen so far */
                 Index pIdx;                 /* Index for FROM table at pTabItem */
                 int j;                      /* For looping over FROM tables */
@@ -5030,7 +4821,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
 #if  !SQLITE_OMIT_VIRTUALTABLE
                         if (IsVirtual(pTabItem.pTab))
                         {
-                            sqlite3_index_info pp = pWInfo.a[j].pIdxInfo;
+                            sqlite3_index_info pp = pWInfo.Data[j].pIdxInfo;
                             bestVirtualIndex(pParse, pWC, pTabItem, mask, notReady, pOrderBy,
                              ref sCost, ref pp);
                         }
@@ -5174,7 +4965,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             if ((wctrlFlags & WHERE_ONEPASS_DESIRED) != 0 && (andFlags & WHERE_UNIQUE) != 0)
             {
                 pWInfo.okOnePass = 1;
-                pWInfo.a[0].plan.wsFlags = (u32)(pWInfo.a[0].plan.wsFlags & ~WHERE_IDX_ONLY);
+                pWInfo.Data[0].plan.wsFlags = (u32)(pWInfo.Data[0].plan.wsFlags & ~WHERE_IDX_ONLY);
             }
 
             /* Open all tables in the pTabList and any indices selected for
@@ -5185,7 +4976,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             pWInfo.nRowOut = (double)1;
             for (i = 0; i < nTabList; i++)//, pLevel++ )
             {
-                pLevel = pWInfo.a[i];
+                pLevel = pWInfo.Data[i];
                 Table pTab;     /* Table to open */
                 int iDb;         /* Index of data_base containing table/index */
 
@@ -5255,7 +5046,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                 sqlite3CodeVerifySchema(pParse, iDb);
                 notReady &= ~getMask(pWC.pMaskSet, pTabItem.iCursor);
             }
-            pWInfo.iTop = sqlite3VdbeCurrentAddr(v);
+            pWInfo.TopId = sqlite3VdbeCurrentAddr(v);
             //if( db.mallocFailed ) goto whereBeginError;
 
             /* Generate the code to do the search.  Each iteration of the for
@@ -5265,10 +5056,10 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             notReady = ~(Bitmask)0;
             for (i = 0; i < nTabList; i++)
             {
-                pLevel = pWInfo.a[i];
+                pLevel = pWInfo.Data[i];
                 explainOneScan(pParse, pTabList, pLevel, i, pLevel.iFrom, wctrlFlags);
                 notReady = codeOneLoopStart(pWInfo, i, wctrlFlags, notReady);
-                pWInfo.iContinue = pLevel.addrCont;
+                pWInfo.ContinueId = pLevel.addrCont;
             }
 
 #if SQLITE_TEST  //* For testing and debugging use only */
@@ -5376,7 +5167,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             sqlite3ExprCacheClear(pParse);
             for (i = pWInfo.nLevel - 1; i >= 0; i--)
             {
-                pLevel = pWInfo.a[i];
+                pLevel = pWInfo.Data[i];
                 sqlite3VdbeResolveLabel(v, pLevel.addrCont);
                 if (pLevel.op != OP_Noop)
                 {
@@ -5427,14 +5218,14 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             /* The "break" point is here, just past the end of the outer loop.
             ** Set it.
             */
-            sqlite3VdbeResolveLabel(v, pWInfo.iBreak);
+            sqlite3VdbeResolveLabel(v, pWInfo.BreakId);
 
             /* Close all of the cursors that were opened by sqlite3WhereBegin.
             */
             Debug.Assert(pWInfo.nLevel == 1 || pWInfo.nLevel == pTabList.nSrc);
             for (i = 0; i < pWInfo.nLevel; i++)//  for(i=0, pLevel=pWInfo.a; i<pWInfo.nLevel; i++, pLevel++){
             {
-                pLevel = pWInfo.a[i];
+                pLevel = pWInfo.Data[i];
                 SrcList_item pTabItem = pTabList.a[pLevel.iFrom];
                 Table pTab = pTabItem.pTab;
                 Debug.Assert(pTab != null);
@@ -5476,7 +5267,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                     Debug.Assert(pIdx != null);
                     //pOp = sqlite3VdbeGetOp( v, pWInfo.iTop );
                     last = sqlite3VdbeCurrentAddr(v);
-                    for (k = pWInfo.iTop; k < last; k++)//, pOp++ )
+                    for (k = pWInfo.TopId; k < last; k++)//, pOp++ )
                     {
                         pOp = sqlite3VdbeGetOp(v, k);
                         if (pOp.p1 != pLevel.iTabCur)

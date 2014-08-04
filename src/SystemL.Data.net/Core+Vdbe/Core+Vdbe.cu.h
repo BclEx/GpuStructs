@@ -1,7 +1,6 @@
 ﻿#include "../Parse.h"
 #include "../Opcodes.h"
 #include "../Core+Btree/Core+Btree.cu.h"
-#include "Context.cu.h"
 namespace Core
 {
 #pragma region Limit Types
@@ -103,6 +102,7 @@ namespace Core
 
 #pragma region ITable
 
+	class Context;
 	struct IIndexInfo;
 	struct IVTable;
 	struct IVTableCursor;
@@ -225,6 +225,7 @@ namespace Core
 		TYPE_TEXT = 3,
 	};
 
+	struct IndexSample;
 	struct Index
 	{
 		char *Name;					// Name of this index
@@ -451,19 +452,19 @@ namespace Core
 	{
 		Parse *Parse;				// Parsing and code generating context
 		SrcList *TabList;			// List of tables in the join
-		uint16 nOBSat;              // Number of ORDER BY terms satisfied by indices
+		uint16 OBSats;              // Number of ORDER BY terms satisfied by indices
 		WHERE WctrlFlags;           // Flags originally passed to sqlite3WhereBegin()
-		bool OkOnePass;            // Ok to use one-pass algorithm for UPDATE/DELETE
+		bool OkOnePass;				// Ok to use one-pass algorithm for UPDATE/DELETE
 		uint8 UntestedTerms;        // Not all WHERE terms resolved by outer loop
-		WHERE_DISTINCT eDistinct;   // One of the WHERE_DISTINCT_* values below
-		int iTop;					// The very beginning of the WHERE loop
-		int iContinue;				// Jump here to continue with next record
-		int iBreak;					// Jump here to break out of the loop
+		WHERE_DISTINCT EDistinct;   // One of the WHERE_DISTINCT_* values below
+		int TopId;					// The very beginning of the WHERE loop
+		int ContinueId;				// Jump here to continue with next record
+		int BreakId;				// Jump here to break out of the loop
 		int Levels;					// Number of nested loop
 		WhereClause *WC;			// Decomposition of the WHERE clause
 		double SavedNQueryLoop;		// pParse->nQueryLoop outside the WHERE loop
 		double RowOuts;				// Estimated number of output rows
-		WhereLevel a[1];			// Information about each nest loop in WHERE
+		WhereLevel Data[1];			// Information about each nest loop in WHERE
 	};
 
 	enum NC : uint8
@@ -577,7 +578,10 @@ namespace Core
 		EP2_Irreducible = 0x0002,	// Cannot EXPRDUP_REDUCE this Expr
 	};
 
+	class Vdbe;
+	struct ExprSpan;
 	struct ExprList;
+	enum IN_INDEX : uint8;
 	struct Expr
 	{
 		uint8 OP;					// Operation performed by this node
@@ -784,6 +788,7 @@ namespace Core
 
 #pragma region Callback
 
+	struct FuncDefHash;
 	struct Callback
 	{
 		__device__ static CollSeq *GetCollSeq(Parse *parse, TEXTENCODE encode, CollSeq *coll, const char *name);
@@ -814,6 +819,7 @@ namespace Core
 	};
 
 	struct SubProgram;
+	struct Trigger;
 	struct TriggerPrg
 	{
 		Trigger *Trigger;		// Trigger this program was coded from
@@ -837,7 +843,8 @@ namespace Core
 #define Parse_Toplevel(p) ((p)->Toplevel ? (p)->Toplevel : (p))
 #endif
 
-	struct Vdbe;
+	struct FKey;
+	struct TableLock;
 	struct Parse
 	{
 		struct ColCache
@@ -862,7 +869,7 @@ namespace Core
 		//uint8 ColCaches;			// Number of entries in aColCache[]
 		uint8 ColCacheIdx;			// Next entry in aColCache[] to replace
 		uint8 IsMultiWrite;			// True if statement may modify/insert multiple rows
-		bool MayAbort;				// True if statement may throw an ABORT exception
+		bool _MayAbort;				// True if statement may throw an ABORT exception
 		array_t3<uint8, int, 8> TempReg; // Holding area for temporary registers
 		int RangeRegs;				// Size of the temporary register block
 		int RangeRegIdx;			// First register in temporary register block
@@ -1168,7 +1175,6 @@ namespace Core
 	struct Select;
 	struct FKey;
 	struct ExprList;
-	struct Trigger;
 	struct Table
 	{
 		char *Name;					// Name of the table or view
@@ -1379,3 +1385,4 @@ namespace Core
 	__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);
 }
 #include "Vdbe.cu.h"
+#include "Context.cu.h"

@@ -110,33 +110,30 @@ namespace Core
 		Bitmask Used;		// Bitmask of cursors used by this plan
 	};
 
-	enum WHERE
-	{
-		WHERE_ROWID_EQ = 0x00001000,		// rowid=EXPR or rowid IN (...)
-		WHERE_ROWID_RANGE = 0x00002000,		// rowid<EXPR and/or rowid>EXPR
-		WHERE_COLUMN_EQ = 0x00010000,		// x=EXPR or x IN (...) or x IS NULL
-		WHERE_COLUMN_RANGE = 0x00020000,	// x<EXPR and/or x>EXPR
-		WHERE_COLUMN_IN = 0x00040000,		// x IN (...)
-		WHERE_COLUMN_NULL = 0x00080000,		// x IS NULL
-		WHERE_INDEXED = 0x000f0000,			// Anything that uses an index
-		WHERE_NOT_FULLSCAN = 0x100f3000,	// Does not do a full table scan
-		WHERE_IN_ABLE = 0x080f1000,			// Able to support an IN operator
-		WHERE_TOP_LIMIT = 0x00100000,		// x<EXPR or x<=EXPR constraint
-		WHERE_BTM_LIMIT = 0x00200000,		// x>EXPR or x>=EXPR constraint
-		WHERE_BOTH_LIMIT = 0x00300000,		// Both x>EXPR and x<EXPR
-		WHERE_IDX_ONLY = 0x00400000,		// Use index only - omit table
-		WHERE_ORDERED = 0x00800000,			// Output will appear in correct order
-		WHERE_REVERSE = 0x01000000,			// Scan in reverse order */
-		WHERE_UNIQUE = 0x02000000,			// Selects no more than one row
-		WHERE_ALL_UNIQUE = 0x04000000,		// This and all prior have one row
-		WHERE_OB_UNIQUE = 0x00004000,		// Values in ORDER BY columns are 
-		// different for every output row
-		WHERE_VIRTUALTABLE = 0x08000000,	// Use virtual-table processing
-		WHERE_MULTI_OR = 0x10000000,		// OR using multiple indices
-		WHERE_TEMP_INDEX = 0x20000000,		// Uses an ephemeral index
-		WHERE_DISTINCT = 0x40000000,		// Correct order for DISTINCT
-		WHERE_COVER_SCAN = 0x80000000,		// Full scan of a covering index
-	};
+	const uint32 WHERE_ROWID_EQ = 0x00001000;		// rowid=EXPR or rowid IN (...)
+	const uint32 WHERE_ROWID_RANGE = 0x00002000;		// rowid<EXPR and/or rowid>EXPR
+	const uint32 WHERE_COLUMN_EQ = 0x00010000;		// x=EXPR or x IN (...) or x IS NULL
+	const uint32 WHERE_COLUMN_RANGE = 0x00020000;	// x<EXPR and/or x>EXPR
+	const uint32 WHERE_COLUMN_IN = 0x00040000;		// x IN (...)
+	const uint32 WHERE_COLUMN_NULL = 0x00080000;		// x IS NULL
+	const uint32 WHERE_INDEXED = 0x000f0000;			// Anything that uses an index
+	const uint32 WHERE_NOT_FULLSCAN = 0x100f3000;	// Does not do a full table scan
+	const uint32 WHERE_IN_ABLE = 0x080f1000;			// Able to support an IN operator
+	const uint32 WHERE_TOP_LIMIT = 0x00100000;		// x<EXPR or x<=EXPR constraint
+	const uint32 WHERE_BTM_LIMIT = 0x00200000;		// x>EXPR or x>=EXPR constraint
+	const uint32 WHERE_BOTH_LIMIT = 0x00300000;		// Both x>EXPR and x<EXPR
+	const uint32 WHERE_IDX_ONLY = 0x00400000;		// Use index only - omit table
+	const uint32 WHERE_ORDERED = 0x00800000;			// Output will appear in correct order
+	const uint32 WHERE_REVERSE = 0x01000000;			// Scan in reverse order */
+	const uint32 WHERE_UNIQUE = 0x02000000;			// Selects no more than one row
+	const uint32 WHERE_ALL_UNIQUE = 0x04000000;		// This and all prior have one row
+	const uint32 WHERE_OB_UNIQUE = 0x00004000;		// Values in ORDER BY columns are 
+	// different for every output row
+	const uint32 WHERE_VIRTUALTABLE = 0x08000000;	// Use virtual-table processing
+	const uint32 WHERE_MULTI_OR = 0x10000000;		// OR using multiple indices
+	const uint32 WHERE_TEMP_INDEX = 0x20000000;		// Uses an ephemeral index
+	const uint32 WHERE_DISTINCT_ = 0x40000000;		// Correct order for DISTINCT
+	const uint32 WHERE_COVER_SCAN = 0x80000000;		// Full scan of a covering index
 
 	struct WhereBestIdx
 	{
@@ -211,7 +208,7 @@ namespace Core
 		{
 			WhereTerm *old = wc->Slots.data;
 			Context *ctx = wc->Parse->Ctx;
-			wc->Slots.data = SysEx::TagAlloc(ctx, sizeof(wc->Slots[0])*wc->Slots.length*2);
+			wc->Slots.data = (WhereTerm *)SysEx::TagAlloc(ctx, sizeof(wc->Slots[0])*wc->Slots.length*2);
 			if (!wc->Slots.data)
 			{
 				if (wtFlags & TERM_DYNAMIC)
@@ -228,7 +225,7 @@ namespace Core
 		WhereTerm *term = &wc->Slots[idx = wc->Terms++];
 		term->Expr = p->SkipCollate();
 		term->WtFlags = wtFlags;
-		term->WC = pWC;
+		term->WC = wc;
 		term->Parent = -1;
 		return idx;
 	}
@@ -335,7 +332,7 @@ namespace Core
 			// Either X and Y both have COLLATE operator or neither do
 			if (expRight)
 				expr->Right->Flags &= ~EP_Collate; // Both X and Y have COLLATE operators.  Make sure X is always used by clearing the EP_Collate flag from Y.
-			else if (parse->ExprCollSeq(expr->Left))
+			else if (expr->Left->CollSeq(parse))
 				expr->Left->Flags |= EP_Collate; // Neither X nor Y have COLLATE operators, but X has a non-default collating sequence.  So add the EP_Collate marker on X to cause it to be searched first.
 		}
 		SWAP(Expr *, expr->Right, expr->Left);
@@ -377,7 +374,7 @@ namespace Core
 	{
 		WhereTerm *result = nullptr; // The answer to return
 		int origColumn = column;  // Original value of iColumn
-		int equivLength = 2; // Number of entires in aEquiv[]
+		int equivsLength = 2; // Number of entires in aEquiv[]
 		int equivId = 2; // Number of entries of aEquiv[] processed so far
 		int equivs[22]; // iCur,iColumn and up to 10 other equivalents
 
@@ -406,10 +403,10 @@ namespace Core
 								// Figure out the collation sequence required from an index for it to be useful for optimising expression pX. Store this
 								// value in variable pColl.
 								_assert(x->Left);
-								CollSeq *coll = sqlite3BinaryCompareCollSeq(parse, x->Left, x->Right);
+								CollSeq *coll = Expr::BinaryCompareCollSeq(parse, x->Left, x->Right);
 								if (!coll) coll = parse->Ctx->DefaultColl;
 								for (j = 0; idx->Columns[j] != origColumn; j++)
-									if (SysEx_NEVER(j >= idx->Columns.length)) return 0;
+									if (SysEx_NEVER(j >= idx->Columns.length)) return nullptr;
 								if (_strcmp(coll->Name, idx->CollNames[j]))
 									continue;
 							}
@@ -423,7 +420,7 @@ namespace Core
 						}
 						if ((term->EOperator & WO_EQUIV) != 0 && equivsLength < __arrayStaticLength(equivs))
 						{
-							Expr *x = Expr::SkipCollate(term->Expr->Right);
+							Expr *x = term->Expr->Right->SkipCollate();
 							_assert(x->OP == TK_COLUMN);
 							for (j = 0; j < equivsLength; j+=2)
 								if (equivs[j] == x->TableIdx && equivs[j+1] == x->ColumnIdx) break;
@@ -444,7 +441,7 @@ findTerm_success:
 		return result;
 	}
 
-	__device__ static void ExprAnalyze(SrcList *, WhereClause *, int);
+	__device__ static void ExprAnalyze(SrcList *, WhereClause *, int); // PROTOTYPE
 	__device__ static void ExprAnalyzeAll(SrcList *tabList, WhereClause *wc)
 	{
 		for (int i = wc->Terms-1; i >= 0; i--)
@@ -466,7 +463,7 @@ findTerm_success:
 #endif
 		ExprList *list = expr->x.List; // List of operands to the LIKE operator
 		Expr *left = list->Ids[1].Expr; // Right and left size of LIKE operator
-		if (left->OP != TK_COLUMN || left->Affinity != AFF_TEXT || IsVirtual(left->Table))
+		if (left->OP != TK_COLUMN || left->Affinity() != AFF_TEXT || IsVirtual(left->Table))
 			return 0; // IMP: R-02065-49465 The left-hand side of the LIKE or GLOB operator must be the name of an indexed column with TEXT affinity.
 		_assert(left->ColumnIdx != -1); // Because IPK never has AFF_TEXT
 
@@ -479,11 +476,11 @@ findTerm_success:
 		{
 			Vdbe *reprepare = parse->Reprepare;
 			int column = right->ColumnIdx;
-			val = Vdbe::GetValue(reprepare, column, SQLITE_AFF_NONE);
-			if (val && sqlite3_value_type(val) == SQLITE_TEXT)
+			val = reprepare->GetValue(column, AFF_NONE);
+			if (val && sqlite3_value_type(val) == TYPE_TEXT)
 				z = (char *)sqlite3_value_text(val);
-			sqlite3VdbeSetVarmask(parse->Vdbe, column);
-			_assert(right->OP == TK_VARIABLE || right->OP == TK_REGISTER );
+			parse->V->SetVarmask(column);
+			_assert(right->OP == TK_VARIABLE || right->OP == TK_REGISTER);
 		}
 		else if (op == TK_STRING)
 			z = right->u.Token;
@@ -491,25 +488,24 @@ findTerm_success:
 		{
 			cnt = 0;
 			int c; // One character in z[]
-			while ((c = z[cnt]) != 0 && c != wc[0] && c != wc[1] && c != wc[2])
-				cnt++;
-			if (cnt != 0 && 255 != (uint8)z[cnt-1])
+			while ((c = z[cnt]) != 0 && c != wc[0] && c != wc[1] && c != wc[2]) cnt++;
+			if (cnt != 0 && (uint8)z[cnt-1] != 255)
 			{
 				*isComplete = (c == wc[0] && z[cnt+1] == 0);
-				Expr *prefix2 = Expr::Expr(ctx, TK_STRING, z);
+				Expr *prefix2 = Expr::Expr_(ctx, TK_STRING, z);
 				if (prefix2) prefix2->u.Token[cnt] = 0;
 				*prefix = prefix2;
 				if (op == TK_VARIABLE)
 				{
 					Vdbe *v = parse->V;
-					sqlite3VdbeSetVarmask(v, right->ColumnIdx);
+					v->SetVarmask(right->ColumnIdx);
 					if (*isComplete && right->u.Token[1])
 					{
 						// If the rhs of the LIKE expression is a variable, and the current value of the variable means there is no need to invoke the LIKE
 						// function, then no OP_Variable will be added to the program. This causes problems for the sqlite3_bind_parameter_name()
 						// API. To workaround them, add a dummy OP_Variable here.
 						int r1 = parse->GetTempReg();
-						parse->ExprCodeTarget(right, r1);
+						Expr::CodeTarget(parse, right, r1);
 						v->ChangeP3(v->CurrentAddr()-1, 0);
 						parse->ReleaseTempReg(r1);
 					}
@@ -527,662 +523,454 @@ findTerm_success:
 #ifndef OMIT_VIRTUALTABLE
 	__device__ static bool IsMatchOfColumn(Expr *expr)
 	{
-		if (expr->OP != TK_FUNCTION)
-			return false;
-		if (_strcmp(expr->u.Token, "match"))
+		if (expr->OP != TK_FUNCTION || _strcmp(expr->u.Token, "match"))
 			return false;
 		ExprList *list = expr->x.List;
-		if (list->Exprs != 2)
+		if (list->Exprs != 2 || list->Ids[1].Expr->OP != TK_COLUMN)
 			return false;
-		if (list->Ids[1]pExpr->OP != TK_COLUMN)
-			return false;
-		return 1;
+		return true;
 	}
 #endif
 
-	__device__ static void TransferJoinMarkings(Expr *derived, Expr *base)
+	__device__ static void TransferJoinMarkings(Expr *derived, Expr *base_)
 	{
-		derived->Flags |= base->Flags & EP_FromJoin;
-		derived->RightJoinTable = base->RightJoinTable;
+		derived->Flags |= base_->Flags & EP_FromJoin;
+		derived->RightJoinTable = base_->RightJoinTable;
 	}
 
-#if !defined(SQLITE_OMIT_OR_OPTIMIZATION) && !defined(SQLITE_OMIT_SUBQUERY)
-	/*
-	** Analyze a term that consists of two or more OR-connected
-	** subterms.  So in:
-	**
-	**     ... WHERE  (a=5) AND (b=7 OR c=9 OR d=13) AND (d=13)
-	**                          ^^^^^^^^^^^^^^^^^^^^
-	**
-	** This routine analyzes terms such as the middle term in the above example.
-	** A WhereOrTerm object is computed and attached to the term under
-	** analysis, regardless of the outcome of the analysis.  Hence:
-	**
-	**     WhereTerm.wtFlags   |=  TERM_ORINFO
-	**     WhereTerm.u.pOrInfo  =  a dynamically allocated WhereOrTerm object
-	**
-	** The term being analyzed must have two or more of OR-connected subterms.
-	** A single subterm might be a set of AND-connected sub-subterms.
-	** Examples of terms under analysis:
-	**
-	**     (A)     t1.x=t2.y OR t1.x=t2.z OR t1.y=15 OR t1.z=t3.a+5
-	**     (B)     x=expr1 OR expr2=x OR x=expr3
-	**     (C)     t1.x=t2.y OR (t1.x=t2.z AND t1.y=15)
-	**     (D)     x=expr1 OR (y>11 AND y<22 AND z LIKE '*hello*')
-	**     (E)     (p.a=1 AND q.b=2 AND r.c=3) OR (p.x=4 AND q.y=5 AND r.z=6)
-	**
-	** CASE 1:
-	**
-	** If all subterms are of the form T.C=expr for some single column of C and
-	** a single table T (as shown in example B above) then create a new virtual
-	** term that is an equivalent IN expression.  In other words, if the term
-	** being analyzed is:
-	**
-	**      x = expr1  OR  expr2 = x  OR  x = expr3
-	**
-	** then create a new virtual term like this:
-	**
-	**      x IN (expr1,expr2,expr3)
-	**
-	** CASE 2:
-	**
-	** If all subterms are indexable by a single table T, then set
-	**
-	**     WhereTerm.eOperator              =  WO_OR
-	**     WhereTerm.u.pOrInfo->indexable  |=  the cursor number for table T
-	**
-	** A subterm is "indexable" if it is of the form
-	** "T.C <op> <expr>" where C is any column of table T and 
-	** <op> is one of "=", "<", "<=", ">", ">=", "IS NULL", or "IN".
-	** A subterm is also indexable if it is an AND of two or more
-	** subsubterms at least one of which is indexable.  Indexable AND 
-	** subterms have their eOperator set to WO_AND and they have
-	** u.pAndInfo set to a dynamically allocated WhereAndTerm object.
-	**
-	** From another point of view, "indexable" means that the subterm could
-	** potentially be used with an index if an appropriate index exists.
-	** This analysis does not consider whether or not the index exists; that
-	** is something the bestIndex() routine will determine.  This analysis
-	** only looks at whether subterms appropriate for indexing exist.
-	**
-	** All examples A through E above all satisfy case 2.  But if a term
-	** also statisfies case 1 (such as B) we know that the optimizer will
-	** always prefer case 1, so in that case we pretend that case 2 is not
-	** satisfied.
-	**
-	** It might be the case that multiple tables are indexable.  For example,
-	** (E) above is indexable on tables P, Q, and R.
-	**
-	** Terms that satisfy case 2 are candidates for lookup by using
-	** separate indices to find rowids for each subterm and composing
-	** the union of all rowids using a RowSet object.  This is similar
-	** to "bitmap indices" in other database engines.
-	**
-	** OTHERWISE:
-	**
-	** If neither case 1 nor case 2 apply, then leave the eOperator set to
-	** zero.  This term is not useful for search.
-	*/
-	static void exprAnalyzeOrTerm(
-		SrcList *pSrc,            /* the FROM clause */
-		WhereClause *pWC,         /* the complete WHERE clause */
-		int idxTerm               /* Index of the OR-term to be analyzed */
-		){
-			Parse *pParse = pWC->pParse;            /* Parser context */
-			sqlite3 *db = pParse->db;               /* Database connection */
-			WhereTerm *pTerm = &pWC->a[idxTerm];    /* The term to be analyzed */
-			Expr *pExpr = pTerm->pExpr;             /* The expression of the term */
-			WhereMaskSet *pMaskSet = pWC->pMaskSet; /* Table use masks */
-			int i;                                  /* Loop counters */
-			WhereClause *pOrWc;       /* Breakup of pTerm into subterms */
-			WhereTerm *pOrTerm;       /* A Sub-term within the pOrWc */
-			WhereOrInfo *pOrInfo;     /* Additional information associated with pTerm */
-			Bitmask chngToIN;         /* Tables that might satisfy case 1 */
-			Bitmask indexable;        /* Tables that are indexable, satisfying case 2 */
+#if !defined(OMIT_OR_OPTIMIZATION) && !defined(OMIT_SUBQUERY)
+	static void ExprAnalyzeOrTerm(SrcList *src, WhereClause *wc, int idxTerm)
+	{
+		Parse *parse = wc->Parse; // Parser context
+		Context *ctx = parse->Ctx; // Database connection
+		WhereTerm *term = &wc->Slots[idxTerm]; // The term to be analyzed
+		Expr *expr = term->Expr; // The expression of the term
+		WhereMaskSet *maskSet = wc->MaskSet; // Table use masks
 
-			/*
-			** Break the OR clause into its separate subterms.  The subterms are
-			** stored in a WhereClause structure containing within the WhereOrInfo
-			** object that is attached to the original OR clause term.
-			*/
-			assert( (pTerm->wtFlags & (TERM_DYNAMIC|TERM_ORINFO|TERM_ANDINFO))==0 );
-			assert( pExpr->op==TK_OR );
-			pTerm->u.pOrInfo = pOrInfo = sqlite3DbMallocZero(db, sizeof(*pOrInfo));
-			if( pOrInfo==0 ) return;
-			pTerm->wtFlags |= TERM_ORINFO;
-			pOrWc = &pOrInfo->wc;
-			whereClauseInit(pOrWc, pWC->pParse, pMaskSet, pWC->wctrlFlags);
-			whereSplit(pOrWc, pExpr, TK_OR);
-			exprAnalyzeAll(pSrc, pOrWc);
-			if( db->mallocFailed ) return;
-			assert( pOrWc->nTerm>=2 );
+		// Break the OR clause into its separate subterms.  The subterms are stored in a WhereClause structure containing within the WhereOrInfo
+		// object that is attached to the original OR clause term.
+		_assert((term->WtFlags & (TERM_DYNAMIC|TERM_ORINFO|TERM_ANDINFO)) == 0);
+		_assert(expr->OP == TK_OR);
+		WhereOrInfo *orInfo; // Additional information associated with pTerm
+		term->u.OrInfo = orInfo = (WhereOrInfo *)SysEx::TagAlloc(ctx, sizeof(*orInfo), true);
+		if (!orInfo) return;
+		term->WtFlags |= TERM_ORINFO;
+		WhereClause *orWc = &orInfo->WC; // Breakup of pTerm into subterms
+		WhereClauseInit(orWc, wc->Parse, maskSet, wc->WctrlFlags);
+		WhereSplit(orWc, expr, TK_OR);
+		ExprAnalyzeAll(src, orWc);
+		if (ctx->MallocFailed) return;
+		_assert(orWc->Terms >= 2);
 
-			/*
-			** Compute the set of tables that might satisfy cases 1 or 2.
-			*/
-			indexable = ~(Bitmask)0;
-			chngToIN = ~(Bitmask)0;
-			for(i=pOrWc->nTerm-1, pOrTerm=pOrWc->a; i>=0 && indexable; i--, pOrTerm++){
-				if( (pOrTerm->eOperator & WO_SINGLE)==0 ){
-					WhereAndInfo *pAndInfo;
-					assert( (pOrTerm->wtFlags & (TERM_ANDINFO|TERM_ORINFO))==0 );
-					chngToIN = 0;
-					pAndInfo = sqlite3DbMallocRaw(db, sizeof(*pAndInfo));
-					if( pAndInfo ){
-						WhereClause *pAndWC;
-						WhereTerm *pAndTerm;
-						int j;
-						Bitmask b = 0;
-						pOrTerm->u.pAndInfo = pAndInfo;
-						pOrTerm->wtFlags |= TERM_ANDINFO;
-						pOrTerm->eOperator = WO_AND;
-						pAndWC = &pAndInfo->wc;
-						whereClauseInit(pAndWC, pWC->pParse, pMaskSet, pWC->wctrlFlags);
-						whereSplit(pAndWC, pOrTerm->pExpr, TK_AND);
-						exprAnalyzeAll(pSrc, pAndWC);
-						pAndWC->pOuter = pWC;
-						testcase( db->mallocFailed );
-						if( !db->mallocFailed ){
-							for(j=0, pAndTerm=pAndWC->a; j<pAndWC->nTerm; j++, pAndTerm++){
-								assert( pAndTerm->pExpr );
-								if( allowedOp(pAndTerm->pExpr->op) ){
-									b |= getMask(pMaskSet, pAndTerm->leftCursor);
-								}
-							}
+		// Compute the set of tables that might satisfy cases 1 or 2.
+		int i;
+		WhereTerm *orTerm; // A Sub-term within the pOrWc
+		Bitmask indexable = ~(Bitmask)0; // Tables that are indexable, satisfying case 2
+		Bitmask chngToIN = ~(Bitmask)0; // Tables that might satisfy case 1
+		for (i = orWc->Terms-1, term = orWc->Slots; i >= 0 && indexable; i--, orTerm++)
+		{
+			if ((orTerm->EOperator & WO_SINGLE) == 0)
+			{
+				_assert((orTerm->WtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
+				chngToIN = 0;
+				WhereAndInfo *andInfo = (WhereAndInfo *)SysEx::TagAlloc(ctx, sizeof(*andInfo), true);
+				if (andInfo)
+				{
+					WhereTerm *andTerm;
+					int j;
+					Bitmask b = 0;
+					orTerm->u.AndInfo = andInfo;
+					orTerm->WtFlags |= TERM_ANDINFO;
+					orTerm->EOperator = WO_AND;
+					WhereClause *andWC = &andInfo->WC;
+					WhereClauseInit(andWC, wc->Parse, maskSet, wc->WctrlFlags);
+					WhereSplit(andWC, orTerm->Expr, TK_AND);
+					ExprAnalyzeAll(src, andWC);
+					andWC->Outer = wc;
+					ASSERTCOVERAGE(ctx->MallocFailed);
+					if (!ctx->MallocFailed)
+					{
+						for (j = 0, andTerm = andWC->Slots; j < andWC->Terms; j++, andTerm++)
+						{
+							_assert(andTerm->Expr);
+							if (AllowedOp(andTerm->Expr->OP))
+								b |= GetMask(maskSet, andTerm->LeftCursor);
 						}
-						indexable &= b;
-					}
-				}else if( pOrTerm->wtFlags & TERM_COPIED ){
-					/* Skip this term for now.  We revisit it when we process the
-					** corresponding TERM_VIRTUAL term */
-				}else{
-					Bitmask b;
-					b = getMask(pMaskSet, pOrTerm->leftCursor);
-					if( pOrTerm->wtFlags & TERM_VIRTUAL ){
-						WhereTerm *pOther = &pOrWc->a[pOrTerm->iParent];
-						b |= getMask(pMaskSet, pOther->leftCursor);
 					}
 					indexable &= b;
-					if( (pOrTerm->eOperator & WO_EQ)==0 ){
-						chngToIN = 0;
-					}else{
-						chngToIN &= b;
+				}
+			}
+			else if (orTerm->WtFlags & TERM_COPIED) { } // Skip this term for now.  We revisit it when we process the corresponding TERM_VIRTUAL term
+			else
+			{
+				Bitmask b = GetMask(maskSet, orTerm->LeftCursor);
+				if (orTerm->WtFlags & TERM_VIRTUAL)
+				{
+					WhereTerm *other = &orWc->Slots[term->Parent];
+					b |= GetMask(maskSet, other->LeftCursor);
+				}
+				indexable &= b;
+				if ((orTerm->EOperator & WO_EQ) == 0)
+					chngToIN = 0;
+				else
+					chngToIN &= b;
+			}
+		}
+
+		// Record the set of tables that satisfy case 2.  The set might be empty.
+		orInfo->Indexable = indexable;
+		term->EOperator = (WO)(indexable == 0 ? 0 : WO_OR);
+
+		// chngToIN holds a set of tables that *might* satisfy case 1.  But we have to do some additional checking to see if case 1 really
+		// is satisfied.
+		//
+		// chngToIN will hold either 0, 1, or 2 bits.  The 0-bit case means that there is no possibility of transforming the OR clause into an
+		// IN operator because one or more terms in the OR clause contain something other than == on a column in the single table.  The 1-bit
+		// case means that every term of the OR clause is of the form "table.column=expr" for some single table.  The one bit that is set
+		// will correspond to the common table.  We still need to check to make sure the same column is used on all terms.  The 2-bit case is when
+		// the all terms are of the form "table1.column=table2.column".  It might be possible to form an IN operator with either table1.column
+		// or table2.column as the LHS if either is common to every term of the OR clause.
+		//
+		// Note that terms of the form "table.column1=table.column2" (the same table on both sizes of the ==) cannot be optimized.
+		if (chngToIN)
+		{
+			bool okToChngToIN = false; // True if the conversion to IN is valid
+			int columnId = -1; // Column index on lhs of IN operator
+			int cursorId = -1; // Table cursor common to all terms
+			int j = 0;
+
+			// Search for a table and column that appears on one side or the other of the == operator in every subterm.  That table and column
+			// will be recorded in iCursor and iColumn.  There might not be any such table and column.  Set okToChngToIN if an appropriate table
+			// and column is found but leave okToChngToIN false if not found.
+			for (j = 0; j < 2 && !okToChngToIN; j++)
+			{
+				for (i = orWc->Terms-1, orTerm = orWc->Slots; i >= 0; i--, orTerm++)
+				{
+					_assert(orTerm->EOperator & WO_EQ);
+					orTerm->WtFlags &= ~TERM_OR_OK;
+					if (orTerm->LeftCursor == cursorId)
+					{
+						// This is the 2-bit case and we are on the second iteration and current term is from the first iteration.  So skip this term.
+						_assert(j == 1);
+						continue;
+					}
+					if ((chngToIN & GetMask(maskSet, orTerm->LeftCursor)) == 0)
+					{
+						// This term must be of the form t1.a==t2.b where t2 is in the chngToIN set but t1 is not.  This term will be either preceeded
+						// or follwed by an inverted copy (t2.b==t1.a).  Skip this term and use its inversion.
+						ASSERTCOVERAGE(orTerm->WtFlags & TERM_COPIED);
+						ASSERTCOVERAGE(orTerm->WtFlags & TERM_VIRTUAL);
+						_assert(orTerm->WtFlags & (TERM_COPIED|TERM_VIRTUAL));
+						continue;
+					}
+					columnId = orTerm->u.LeftColumn;
+					cursorId = orTerm->LeftCursor;
+					break;
+				}
+				if (i < 0)
+				{
+					// No candidate table+column was found.  This can only occur on the second iteration
+					_assert(j == 1);
+					_assert(IsPowerOfTwo(chngToIN));
+					_assert(chngToIN == GetMask(maskSet, cursorId));
+					break;
+				}
+				ASSERTCOVERAGE(j == 1);
+
+				// We have found a candidate table and column.  Check to see if that table and column is common to every term in the OR clause
+				okToChngToIN = true;
+				for (; i >= 0 && okToChngToIN; i--, orTerm++)
+				{
+					_assert(orTerm->EOperator & WO_EQ);
+					if(orTerm->LeftCursor != cursorId)
+						orTerm->WtFlags &= ~TERM_OR_OK;
+					else if (orTerm->u.LeftColumn != columnId)
+						okToChngToIN = false;
+					else
+					{
+						// If the right-hand side is also a column, then the affinities of both right and left sides must be such that no type
+						// conversions are required on the right.  (Ticket #2249)
+						AFF affRight = orTerm->Expr->Right->Affinity();
+						AFF affLeft = orTerm->Expr->Left->Affinity();
+						if (affRight != 0 && affRight != affLeft)
+							okToChngToIN = false;
+						else
+							orTerm->WtFlags |= TERM_OR_OK;
 					}
 				}
 			}
 
-			/*
-			** Record the set of tables that satisfy case 2.  The set might be
-			** empty.
-			*/
-			pOrInfo->indexable = indexable;
-			pTerm->eOperator = indexable==0 ? 0 : WO_OR;
-
-			/*
-			** chngToIN holds a set of tables that *might* satisfy case 1.  But
-			** we have to do some additional checking to see if case 1 really
-			** is satisfied.
-			**
-			** chngToIN will hold either 0, 1, or 2 bits.  The 0-bit case means
-			** that there is no possibility of transforming the OR clause into an
-			** IN operator because one or more terms in the OR clause contain
-			** something other than == on a column in the single table.  The 1-bit
-			** case means that every term of the OR clause is of the form
-			** "table.column=expr" for some single table.  The one bit that is set
-			** will correspond to the common table.  We still need to check to make
-			** sure the same column is used on all terms.  The 2-bit case is when
-			** the all terms are of the form "table1.column=table2.column".  It
-			** might be possible to form an IN operator with either table1.column
-			** or table2.column as the LHS if either is common to every term of
-			** the OR clause.
-			**
-			** Note that terms of the form "table.column1=table.column2" (the
-			** same table on both sizes of the ==) cannot be optimized.
-			*/
-			if( chngToIN ){
-				int okToChngToIN = 0;     /* True if the conversion to IN is valid */
-				int iColumn = -1;         /* Column index on lhs of IN operator */
-				int iCursor = -1;         /* Table cursor common to all terms */
-				int j = 0;                /* Loop counter */
-
-				/* Search for a table and column that appears on one side or the
-				** other of the == operator in every subterm.  That table and column
-				** will be recorded in iCursor and iColumn.  There might not be any
-				** such table and column.  Set okToChngToIN if an appropriate table
-				** and column is found but leave okToChngToIN false if not found.
-				*/
-				for(j=0; j<2 && !okToChngToIN; j++){
-					pOrTerm = pOrWc->a;
-					for(i=pOrWc->nTerm-1; i>=0; i--, pOrTerm++){
-						assert( pOrTerm->eOperator & WO_EQ );
-						pOrTerm->wtFlags &= ~TERM_OR_OK;
-						if( pOrTerm->leftCursor==iCursor ){
-							/* This is the 2-bit case and we are on the second iteration and
-							** current term is from the first iteration.  So skip this term. */
-							assert( j==1 );
-							continue;
-						}
-						if( (chngToIN & getMask(pMaskSet, pOrTerm->leftCursor))==0 ){
-							/* This term must be of the form t1.a==t2.b where t2 is in the
-							** chngToIN set but t1 is not.  This term will be either preceeded
-							** or follwed by an inverted copy (t2.b==t1.a).  Skip this term 
-							** and use its inversion. */
-							testcase( pOrTerm->wtFlags & TERM_COPIED );
-							testcase( pOrTerm->wtFlags & TERM_VIRTUAL );
-							assert( pOrTerm->wtFlags & (TERM_COPIED|TERM_VIRTUAL) );
-							continue;
-						}
-						iColumn = pOrTerm->u.leftColumn;
-						iCursor = pOrTerm->leftCursor;
-						break;
-					}
-					if( i<0 ){
-						/* No candidate table+column was found.  This can only occur
-						** on the second iteration */
-						assert( j==1 );
-						assert( IsPowerOfTwo(chngToIN) );
-						assert( chngToIN==getMask(pMaskSet, iCursor) );
-						break;
-					}
-					testcase( j==1 );
-
-					/* We have found a candidate table and column.  Check to see if that
-					** table and column is common to every term in the OR clause */
-					okToChngToIN = 1;
-					for(; i>=0 && okToChngToIN; i--, pOrTerm++){
-						assert( pOrTerm->eOperator & WO_EQ );
-						if( pOrTerm->leftCursor!=iCursor ){
-							pOrTerm->wtFlags &= ~TERM_OR_OK;
-						}else if( pOrTerm->u.leftColumn!=iColumn ){
-							okToChngToIN = 0;
-						}else{
-							int affLeft, affRight;
-							/* If the right-hand side is also a column, then the affinities
-							** of both right and left sides must be such that no type
-							** conversions are required on the right.  (Ticket #2249)
-							*/
-							affRight = sqlite3ExprAffinity(pOrTerm->pExpr->pRight);
-							affLeft = sqlite3ExprAffinity(pOrTerm->pExpr->pLeft);
-							if( affRight!=0 && affRight!=affLeft ){
-								okToChngToIN = 0;
-							}else{
-								pOrTerm->wtFlags |= TERM_OR_OK;
-							}
-						}
-					}
+			// At this point, okToChngToIN is true if original pTerm satisfies
+			// case 1.  In that case, construct a new virtual term that is pTerm converted into an IN operator. EV: R-00211-15100
+			if (okToChngToIN)
+			{
+				Expr *dup;
+				ExprList *list = nullptr; // The RHS of the IN operator
+				Expr *left = nullptr; // The LHS of the IN operator
+				for(i = orWc->Terms-1, orTerm = orWc->Slots; i >= 0; i--, orTerm++)
+				{
+					if ((orTerm->WtFlags & TERM_OR_OK) == 0) continue;
+					_assert(orTerm->EOperator & WO_EQ);
+					_assert(orTerm->LeftCursor == cursorId);
+					_assert(orTerm->u.LeftColumn == columnId);
+					dup = Expr::Dup(ctx, orTerm->Expr->Right, 0);
+					list = Expr::ListAppend(wc->Parse, list, dup);
+					left = orTerm->Expr->Left;
 				}
-
-				/* At this point, okToChngToIN is true if original pTerm satisfies
-				** case 1.  In that case, construct a new virtual term that is 
-				** pTerm converted into an IN operator.
-				**
-				** EV: R-00211-15100
-				*/
-				if( okToChngToIN ){
-					Expr *pDup;            /* A transient duplicate expression */
-					ExprList *pList = 0;   /* The RHS of the IN operator */
-					Expr *pLeft = 0;       /* The LHS of the IN operator */
-					Expr *pNew;            /* The complete IN operator */
-
-					for(i=pOrWc->nTerm-1, pOrTerm=pOrWc->a; i>=0; i--, pOrTerm++){
-						if( (pOrTerm->wtFlags & TERM_OR_OK)==0 ) continue;
-						assert( pOrTerm->eOperator & WO_EQ );
-						assert( pOrTerm->leftCursor==iCursor );
-						assert( pOrTerm->u.leftColumn==iColumn );
-						pDup = sqlite3ExprDup(db, pOrTerm->pExpr->pRight, 0);
-						pList = sqlite3ExprListAppend(pWC->pParse, pList, pDup);
-						pLeft = pOrTerm->pExpr->pLeft;
-					}
-					assert( pLeft!=0 );
-					pDup = sqlite3ExprDup(db, pLeft, 0);
-					pNew = sqlite3PExpr(pParse, TK_IN, pDup, 0, 0);
-					if( pNew ){
-						int idxNew;
-						transferJoinMarkings(pNew, pExpr);
-						assert( !ExprHasProperty(pNew, EP_xIsSelect) );
-						pNew->x.pList = pList;
-						idxNew = whereClauseInsert(pWC, pNew, TERM_VIRTUAL|TERM_DYNAMIC);
-						testcase( idxNew==0 );
-						exprAnalyze(pSrc, pWC, idxNew);
-						pTerm = &pWC->a[idxTerm];
-						pWC->a[idxNew].iParent = idxTerm;
-						pTerm->nChild = 1;
-					}else{
-						sqlite3ExprListDelete(db, pList);
-					}
-					pTerm->eOperator = WO_NOOP;  /* case 1 trumps case 2 */
+				_assert(left);
+				dup = Expr::Dup(ctx, left, 0); // A transient duplicate expression
+				Expr *newExpr = Expr::PExpr_(parse, TK_IN, dup, 0, 0); // The complete IN operator
+				if (newExpr)
+				{
+					TransferJoinMarkings(newExpr, expr);
+					_assert(!ExprHasProperty(newExpr, EP_xIsSelect));
+					newExpr->x.List = list;
+					int idxNew = WhereClauseInsert(wc, newExpr, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+					ASSERTCOVERAGE(idxNew == 0);
+					ExprAnalyze(src, wc, idxNew);
+					term = &wc->Slots[idxTerm];
+					wc->Slots[idxNew].Parent = idxTerm;
+					term->Childs = 1;
 				}
+				else
+					Expr::ListDelete(ctx, list);
+				term->EOperator = WO_NOOP; // case 1 trumps case 2
 			}
+		}
 	}
-#endif /* !SQLITE_OMIT_OR_OPTIMIZATION && !SQLITE_OMIT_SUBQUERY */
+#endif
 
-	/*
-	** The input to this routine is an WhereTerm structure with only the
-	** "pExpr" field filled in.  The job of this routine is to analyze the
-	** subexpression and populate all the other fields of the WhereTerm
-	** structure.
-	**
-	** If the expression is of the form "<expr> <op> X" it gets commuted
-	** to the standard form of "X <op> <expr>".
-	**
-	** If the expression is of the form "X <op> Y" where both X and Y are
-	** columns, then the original expression is unchanged and a new virtual
-	** term of the form "Y <op> X" is added to the WHERE clause and
-	** analyzed separately.  The original term is marked with TERM_COPIED
-	** and the new term is marked with TERM_DYNAMIC (because it's pExpr
-	** needs to be freed with the WhereClause) and TERM_VIRTUAL (because it
-	** is a commuted copy of a prior term.)  The original term has nChild=1
-	** and the copy has idxParent set to the index of the original term.
-	*/
-	static void exprAnalyze(
-		SrcList *pSrc,            /* the FROM clause */
-		WhereClause *pWC,         /* the WHERE clause */
-		int idxTerm               /* Index of the term to be analyzed */
-		){
-			WhereTerm *pTerm;                /* The term to be analyzed */
-			WhereMaskSet *pMaskSet;          /* Set of table index masks */
-			Expr *pExpr;                     /* The expression to be analyzed */
-			Bitmask prereqLeft;              /* Prerequesites of the pExpr->pLeft */
-			Bitmask prereqAll;               /* Prerequesites of pExpr */
-			Bitmask extraRight = 0;          /* Extra dependencies on LEFT JOIN */
-			Expr *pStr1 = 0;                 /* RHS of LIKE/GLOB operator */
-			int isComplete = 0;              /* RHS of LIKE/GLOB ends with wildcard */
-			int noCase = 0;                  /* LIKE/GLOB distinguishes case */
-			int op;                          /* Top-level operator.  pExpr->op */
-			Parse *pParse = pWC->pParse;     /* Parsing context */
-			sqlite3 *db = pParse->db;        /* Database connection */
+	static void ExprAnalyze(SrcList *src, WhereClause *wc, int idxTerm)
+	{
+		Bitmask extraRight = 0; // Extra dependencies on LEFT JOIN
+		Expr *str1 = 0; // RHS of LIKE/GLOB operator
+		int isComplete = 0; // RHS of LIKE/GLOB ends with wildcard
+		int noCase = 0; // LIKE/GLOB distinguishes case
+		Parse *parse = wc->Parse; // Parsing context
+		Context *ctx = parse->Ctx; // Database connection
 
-			if( db->mallocFailed ){
-				return;
+		if (ctx->MallocFailed) return;
+		WhereTerm *term = &wc->Slots[idxTerm]; // The term to be analyzed
+		WhereMaskSet *maskSet = wc->MaskSet; // Set of table index masks
+		Expr *expr = term->Expr; // The expression to be analyzed
+		_assert(expr->OP != TK_AS && expr->OP != TK_COLLATE );
+		Bitmask prereqLeft = ExprTableUsage(maskSet, expr->Left); // Prerequesites of the pExpr->pLeft
+		int op = expr->OP; // Top-level operator.  pExpr->op
+		if (op == TK_IN)
+		{
+			_assert(expr->Right == nullptr);
+			term->PrereqRight = (ExprHasProperty(expr, EP_xIsSelect) ? ExprSelectTableUsage(maskSet, expr->x.Select) : ExprListTableUsage(maskSet, expr->x.List));
+		}
+		else if (op == TK_ISNULL)
+			term->PrereqRight = 0;
+		else
+			term->PrereqRight = ExprTableUsage(maskSet, expr->Right);
+		Bitmask prereqAll = ExprTableUsage(maskSet, expr); // Prerequesites of pExpr
+		if (ExprHasProperty(expr, EP_FromJoin))
+		{
+			Bitmask x = GetMask(maskSet, expr->RightJoinTable);
+			prereqAll |= x;
+			extraRight = x-1; // ON clause terms may not be used with an index on left table of a LEFT JOIN.  Ticket #3015
+		}
+		term->PrereqAll = prereqAll;
+		term->LeftCursor = -1;
+		term->Parent = -1;
+		term->EOperator = 0;
+		if (AllowedOp(op))
+		{
+			Expr *left = expr->Left->SkipCollate();
+			Expr *right = expr->Right->SkipCollate();
+			uint16 opMask = ((term->PrereqRight & prereqLeft) == 0 ? WO_ALL : WO_EQUIV);
+			if (left->OP == TK_COLUMN)
+			{
+				term->LeftCursor = left->TableIdx;
+				term->u.LeftColumn = left->ColumnIdx;
+				term->EOperator = OperatorMask(op) & opMask;
 			}
-			pTerm = &pWC->a[idxTerm];
-			pMaskSet = pWC->pMaskSet;
-			pExpr = pTerm->pExpr;
-			assert( pExpr->op!=TK_AS && pExpr->op!=TK_COLLATE );
-			prereqLeft = exprTableUsage(pMaskSet, pExpr->pLeft);
-			op = pExpr->op;
-			if( op==TK_IN ){
-				assert( pExpr->pRight==0 );
-				if( ExprHasProperty(pExpr, EP_xIsSelect) ){
-					pTerm->prereqRight = exprSelectTableUsage(pMaskSet, pExpr->x.pSelect);
-				}else{
-					pTerm->prereqRight = exprListTableUsage(pMaskSet, pExpr->x.pList);
-				}
-			}else if( op==TK_ISNULL ){
-				pTerm->prereqRight = 0;
-			}else{
-				pTerm->prereqRight = exprTableUsage(pMaskSet, pExpr->pRight);
-			}
-			prereqAll = exprTableUsage(pMaskSet, pExpr);
-			if( ExprHasProperty(pExpr, EP_FromJoin) ){
-				Bitmask x = getMask(pMaskSet, pExpr->iRightJoinTable);
-				prereqAll |= x;
-				extraRight = x-1;  /* ON clause terms may not be used with an index
-								   ** on left table of a LEFT JOIN.  Ticket #3015 */
-			}
-			pTerm->prereqAll = prereqAll;
-			pTerm->leftCursor = -1;
-			pTerm->iParent = -1;
-			pTerm->eOperator = 0;
-			if( allowedOp(op) ){
-				Expr *pLeft = sqlite3ExprSkipCollate(pExpr->pLeft);
-				Expr *pRight = sqlite3ExprSkipCollate(pExpr->pRight);
-				u16 opMask = (pTerm->prereqRight & prereqLeft)==0 ? WO_ALL : WO_EQUIV;
-				if( pLeft->op==TK_COLUMN ){
-					pTerm->leftCursor = pLeft->iTable;
-					pTerm->u.leftColumn = pLeft->iColumn;
-					pTerm->eOperator = operatorMask(op) & opMask;
-				}
-				if( pRight && pRight->op==TK_COLUMN ){
-					WhereTerm *pNew;
-					Expr *pDup;
-					u16 eExtraOp = 0;        /* Extra bits for pNew->eOperator */
-					if( pTerm->leftCursor>=0 ){
-						int idxNew;
-						pDup = sqlite3ExprDup(db, pExpr, 0);
-						if( db->mallocFailed ){
-							sqlite3ExprDelete(db, pDup);
-							return;
-						}
-						idxNew = whereClauseInsert(pWC, pDup, TERM_VIRTUAL|TERM_DYNAMIC);
-						if( idxNew==0 ) return;
-						pNew = &pWC->a[idxNew];
-						pNew->iParent = idxTerm;
-						pTerm = &pWC->a[idxTerm];
-						pTerm->nChild = 1;
-						pTerm->wtFlags |= TERM_COPIED;
-						if( pExpr->op==TK_EQ
-							&& !ExprHasProperty(pExpr, EP_FromJoin)
-							&& OptimizationEnabled(db, SQLITE_Transitive)
-							){
-								pTerm->eOperator |= WO_EQUIV;
-								eExtraOp = WO_EQUIV;
-						}
-					}else{
-						pDup = pExpr;
-						pNew = pTerm;
+			if (right && right->OP == TK_COLUMN)
+			{
+				WhereTerm *newTerm;
+				Expr *dup;
+				uint16 extraOp = 0; // Extra bits for newTerm->eOperator
+				if (term->LeftCursor >= 0)
+				{
+					dup = Expr::Dup(ctx, expr, 0);
+					if (ctx->MallocFailed)
+					{
+						Expr::Delete(ctx, dup);
+						return;
 					}
-					exprCommute(pParse, pDup);
-					pLeft = sqlite3ExprSkipCollate(pDup->pLeft);
-					pNew->leftCursor = pLeft->iTable;
-					pNew->u.leftColumn = pLeft->iColumn;
-					testcase( (prereqLeft | extraRight) != prereqLeft );
-					pNew->prereqRight = prereqLeft | extraRight;
-					pNew->prereqAll = prereqAll;
-					pNew->eOperator = (operatorMask(pDup->op) + eExtraOp) & opMask;
+					int idxNew = WhereClauseInsert(wc, dup, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+					if (idxNew == 0) return;
+					newTerm = &wc->Slots[idxNew];
+					newTerm->Parent = idxTerm;
+					term = &wc->Slots[idxTerm];
+					term->Childs = 1;
+					term->WtFlags |= TERM_COPIED;
+					if (expr->OP == TK_EQ && !ExprHasProperty(expr, EP_FromJoin) && CtxOptimizationEnabled(ctx, OPTFLAG_Transitive))
+					{
+						term->EOperator |= WO_EQUIV;
+						extraOp = WO_EQUIV;
+					}
 				}
-			}
-
-#ifndef SQLITE_OMIT_BETWEEN_OPTIMIZATION
-			/* If a term is the BETWEEN operator, create two new virtual terms
-			** that define the range that the BETWEEN implements.  For example:
-			**
-			**      a BETWEEN b AND c
-			**
-			** is converted into:
-			**
-			**      (a BETWEEN b AND c) AND (a>=b) AND (a<=c)
-			**
-			** The two new terms are added onto the end of the WhereClause object.
-			** The new terms are "dynamic" and are children of the original BETWEEN
-			** term.  That means that if the BETWEEN term is coded, the children are
-			** skipped.  Or, if the children are satisfied by an index, the original
-			** BETWEEN term is skipped.
-			*/
-			else if( pExpr->op==TK_BETWEEN && pWC->op==TK_AND ){
-				ExprList *pList = pExpr->x.pList;
-				int i;
-				static const u8 ops[] = {TK_GE, TK_LE};
-				assert( pList!=0 );
-				assert( pList->nExpr==2 );
-				for(i=0; i<2; i++){
-					Expr *pNewExpr;
-					int idxNew;
-					pNewExpr = sqlite3PExpr(pParse, ops[i], 
-						sqlite3ExprDup(db, pExpr->pLeft, 0),
-						sqlite3ExprDup(db, pList->a[i].pExpr, 0), 0);
-					idxNew = whereClauseInsert(pWC, pNewExpr, TERM_VIRTUAL|TERM_DYNAMIC);
-					testcase( idxNew==0 );
-					exprAnalyze(pSrc, pWC, idxNew);
-					pTerm = &pWC->a[idxTerm];
-					pWC->a[idxNew].iParent = idxTerm;
+				else
+				{
+					dup = expr;
+					newTerm = term;
 				}
-				pTerm->nChild = 2;
+				ExprCommute(parse, dup);
+				left = dup->Left->SkipCollate();
+				newTerm->LeftCursor = left->TableIdx;
+				newTerm->u.LeftColumn = left->ColumnIdx;
+				ASSERTCOVERAGE((prereqLeft | extraRight) != prereqLeft);
+				newTerm->PrereqRight = prereqLeft | extraRight;
+				newTerm->PrereqAll = prereqAll;
+				newTerm->EOperator = (OperatorMask(dup->OP) + extraOp) & opMask;
 			}
-#endif /* SQLITE_OMIT_BETWEEN_OPTIMIZATION */
-
+		}
+#ifndef OMIT_BETWEEN_OPTIMIZATION
+		// If a term is the BETWEEN operator, create two new virtual terms that define the range that the BETWEEN implements.  For example:
+		//      a BETWEEN b AND c
+		//
+		// is converted into:
+		//      (a BETWEEN b AND c) AND (a>=b) AND (a<=c)
+		//
+		// The two new terms are added onto the end of the WhereClause object. The new terms are "dynamic" and are children of the original BETWEEN
+		// term.  That means that if the BETWEEN term is coded, the children are skipped.  Or, if the children are satisfied by an index, the original
+		// BETWEEN term is skipped.
+		else if (expr->OP == TK_BETWEEN && wc->OP ==TK_AND)
+		{
+			ExprList *list = expr->x.List;
+			static const uint8 ops[] = { TK_GE, TK_LE };
+			_assert(list);
+			_assert(list->Exprs == 2);
+			for (int i = 0; i < 2; i++)
+			{
+				Expr *newExpr = Expr::PExpr_(parse, ops[i], Expr::Dup(ctx, expr->Left, 0), Expr::Dup(ctx, list->Ids[i].Expr, 0), 0);
+				int idxNew = WhereClauseInsert(wc, newExpr, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+				ASSERTCOVERAGE(idxNew == 0);
+				ExprAnalyze(src, wc, idxNew);
+				term = &wc->Slots[idxTerm];
+				wc->Slots[idxNew].Parent = idxTerm;
+			}
+			term->Childs = 2;
+		}
+#endif
 #if !defined(SQLITE_OMIT_OR_OPTIMIZATION) && !defined(SQLITE_OMIT_SUBQUERY)
-			/* Analyze a term that is composed of two or more subterms connected by
-			** an OR operator.
-			*/
-			else if( pExpr->op==TK_OR ){
-				assert( pWC->op==TK_AND );
-				exprAnalyzeOrTerm(pSrc, pWC, idxTerm);
-				pTerm = &pWC->a[idxTerm];
-			}
-#endif /* SQLITE_OMIT_OR_OPTIMIZATION */
-
-#ifndef SQLITE_OMIT_LIKE_OPTIMIZATION
-			/* Add constraints to reduce the search space on a LIKE or GLOB
-			** operator.
-			**
-			** A like pattern of the form "x LIKE 'abc%'" is changed into constraints
-			**
-			**          x>='abc' AND x<'abd' AND x LIKE 'abc%'
-			**
-			** The last character of the prefix "abc" is incremented to form the
-			** termination condition "abd".
-			*/
-			if( pWC->op==TK_AND 
-				&& isLikeOrGlob(pParse, pExpr, &pStr1, &isComplete, &noCase)
-				){
-					Expr *pLeft;       /* LHS of LIKE/GLOB operator */
-					Expr *pStr2;       /* Copy of pStr1 - RHS of LIKE/GLOB operator */
-					Expr *pNewExpr1;
-					Expr *pNewExpr2;
-					int idxNew1;
-					int idxNew2;
-					Token sCollSeqName;  /* Name of collating sequence */
-
-					pLeft = pExpr->x.pList->a[1].pExpr;
-					pStr2 = sqlite3ExprDup(db, pStr1, 0);
-					if( !db->mallocFailed ){
-						u8 c, *pC;       /* Last character before the first wildcard */
-						pC = (u8*)&pStr2->u.zToken[sqlite3Strlen30(pStr2->u.zToken)-1];
-						c = *pC;
-						if( noCase ){
-							/* The point is to increment the last character before the first
-							** wildcard.  But if we increment '@', that will push it into the
-							** alphabetic range where case conversions will mess up the 
-							** inequality.  To avoid this, make sure to also run the full
-							** LIKE on all candidate expressions by clearing the isComplete flag
-							*/
-							if( c=='A'-1 ) isComplete = 0;   /* EV: R-64339-08207 */
-
-
-							c = sqlite3UpperToLower[c];
-						}
-						*pC = c + 1;
-					}
-					sCollSeqName.z = noCase ? "NOCASE" : "BINARY";
-					sCollSeqName.n = 6;
-					pNewExpr1 = sqlite3ExprDup(db, pLeft, 0);
-					pNewExpr1 = sqlite3PExpr(pParse, TK_GE, 
-						sqlite3ExprAddCollateToken(pParse,pNewExpr1,&sCollSeqName),
-						pStr1, 0);
-					idxNew1 = whereClauseInsert(pWC, pNewExpr1, TERM_VIRTUAL|TERM_DYNAMIC);
-					testcase( idxNew1==0 );
-					exprAnalyze(pSrc, pWC, idxNew1);
-					pNewExpr2 = sqlite3ExprDup(db, pLeft, 0);
-					pNewExpr2 = sqlite3PExpr(pParse, TK_LT,
-						sqlite3ExprAddCollateToken(pParse,pNewExpr2,&sCollSeqName),
-						pStr2, 0);
-					idxNew2 = whereClauseInsert(pWC, pNewExpr2, TERM_VIRTUAL|TERM_DYNAMIC);
-					testcase( idxNew2==0 );
-					exprAnalyze(pSrc, pWC, idxNew2);
-					pTerm = &pWC->a[idxTerm];
-					if( isComplete ){
-						pWC->a[idxNew1].iParent = idxTerm;
-						pWC->a[idxNew2].iParent = idxTerm;
-						pTerm->nChild = 2;
-					}
-			}
-#endif /* SQLITE_OMIT_LIKE_OPTIMIZATION */
-
-#ifndef SQLITE_OMIT_VIRTUALTABLE
-			/* Add a WO_MATCH auxiliary term to the constraint set if the
-			** current expression is of the form:  column MATCH expr.
-			** This information is used by the xBestIndex methods of
-			** virtual tables.  The native query optimizer does not attempt
-			** to do anything with MATCH functions.
-			*/
-			if( isMatchOfColumn(pExpr) ){
-				int idxNew;
-				Expr *pRight, *pLeft;
-				WhereTerm *pNewTerm;
-				Bitmask prereqColumn, prereqExpr;
-
-				pRight = pExpr->x.pList->a[0].pExpr;
-				pLeft = pExpr->x.pList->a[1].pExpr;
-				prereqExpr = exprTableUsage(pMaskSet, pRight);
-				prereqColumn = exprTableUsage(pMaskSet, pLeft);
-				if( (prereqExpr & prereqColumn)==0 ){
-					Expr *pNewExpr;
-					pNewExpr = sqlite3PExpr(pParse, TK_MATCH, 
-						0, sqlite3ExprDup(db, pRight, 0), 0);
-					idxNew = whereClauseInsert(pWC, pNewExpr, TERM_VIRTUAL|TERM_DYNAMIC);
-					testcase( idxNew==0 );
-					pNewTerm = &pWC->a[idxNew];
-					pNewTerm->prereqRight = prereqExpr;
-					pNewTerm->leftCursor = pLeft->iTable;
-					pNewTerm->u.leftColumn = pLeft->iColumn;
-					pNewTerm->eOperator = WO_MATCH;
-					pNewTerm->iParent = idxTerm;
-					pTerm = &pWC->a[idxTerm];
-					pTerm->nChild = 1;
-					pTerm->wtFlags |= TERM_COPIED;
-					pNewTerm->prereqAll = pTerm->prereqAll;
+		// Analyze a term that is composed of two or more subterms connected by an OR operator.
+		else if (expr->OP ==TK_OR)
+		{
+			_assert(wc->OP == TK_AND);
+			ExprAnalyzeOrTerm(src, wc, idxTerm);
+			term = &wc->Slots[idxTerm];
+		}
+#endif
+#ifndef OMIT_LIKE_OPTIMIZATION
+		// Add constraints to reduce the search space on a LIKE or GLOB operator.
+		//
+		// A like pattern of the form "x LIKE 'abc%'" is changed into constraints
+		//          x>='abc' AND x<'abd' AND x LIKE 'abc%'
+		// The last character of the prefix "abc" is incremented to form the termination condition "abd".
+		if (wc->OP == TK_AND && IsLikeOrGlob(parse, expr, &str1, &isComplete, &noCase))
+		{
+			Expr *left = expr->x.List->Ids[1].Expr; // LHS of LIKE/GLOB operator
+			Expr *str2 = Expr::Dup(ctx, str1, 0); // Copy of pStr1 - RHS of LIKE/GLOB operator
+			if (!ctx->MallocFailed)
+			{
+				uint8 *cRef = (uint8 *)&str2->u.Token[_strlen30(str2->u.Token)-1];
+				uint8 c = *cRef; // Last character before the first wildcard
+				if (noCase)
+				{
+					// The point is to increment the last character before the first wildcard.  But if we increment '@', that will push it into the
+					// alphabetic range where case conversions will mess up the inequality.  To avoid this, make sure to also run the full
+					// LIKE on all candidate expressions by clearing the isComplete flag
+					if (c == 'A'-1) isComplete = false; // EV: R-64339-08207
+					c = __tolower(c);
 				}
+				*cRef = c + 1;
 			}
-#endif /* SQLITE_OMIT_VIRTUALTABLE */
-
-#ifdef SQLITE_ENABLE_STAT3
-			/* When sqlite_stat3 histogram data is available an operator of the
-			** form "x IS NOT NULL" can sometimes be evaluated more efficiently
-			** as "x>NULL" if x is not an INTEGER PRIMARY KEY.  So construct a
-			** virtual term of that form.
-			**
-			** Note that the virtual term must be tagged with TERM_VNULL.  This
-			** TERM_VNULL tag will suppress the not-null check at the beginning
-			** of the loop.  Without the TERM_VNULL flag, the not-null check at
-			** the start of the loop will prevent any results from being returned.
-			*/
-			if( pExpr->op==TK_NOTNULL
-				&& pExpr->pLeft->op==TK_COLUMN
-				&& pExpr->pLeft->iColumn>=0
-				){
-					Expr *pNewExpr;
-					Expr *pLeft = pExpr->pLeft;
-					int idxNew;
-					WhereTerm *pNewTerm;
-
-					pNewExpr = sqlite3PExpr(pParse, TK_GT,
-						sqlite3ExprDup(db, pLeft, 0),
-						sqlite3PExpr(pParse, TK_NULL, 0, 0, 0), 0);
-
-					idxNew = whereClauseInsert(pWC, pNewExpr,
-						TERM_VIRTUAL|TERM_DYNAMIC|TERM_VNULL);
-					if( idxNew ){
-						pNewTerm = &pWC->a[idxNew];
-						pNewTerm->prereqRight = 0;
-						pNewTerm->leftCursor = pLeft->iTable;
-						pNewTerm->u.leftColumn = pLeft->iColumn;
-						pNewTerm->eOperator = WO_GT;
-						pNewTerm->iParent = idxTerm;
-						pTerm = &pWC->a[idxTerm];
-						pTerm->nChild = 1;
-						pTerm->wtFlags |= TERM_COPIED;
-						pNewTerm->prereqAll = pTerm->prereqAll;
-					}
+			Token sCollSeqName; // Name of collating sequence
+			sCollSeqName.data = (noCase ? "NOCASE" : "BINARY");
+			sCollSeqName.length = 6;
+			Expr *newExpr1 = Expr::Dup(ctx, left, 0);
+			newExpr1 = Expr::PExpr_(parse, TK_GE, newExpr1->AddCollateToken(parse, &sCollSeqName), str1, 0);
+			int idxNew1 = WhereClauseInsert(wc, newExpr1, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+			ASSERTCOVERAGE(idxNew1 == 0);
+			ExprAnalyze(src, wc, idxNew1);
+			Expr *newExpr2 = Expr::Dup(ctx, left, 0);
+			newExpr2 = Expr::PExpr_(parse, TK_LT, newExpr2->AddCollateToken(parse, &sCollSeqName), str2, 0);
+			int idxNew2 = WhereClauseInsert(wc, newExpr2, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+			ASSERTCOVERAGE(idxNew2 == 0);
+			ExprAnalyze(src, wc, idxNew2);
+			term = &wc->Slots[idxTerm];
+			if (isComplete)
+			{
+				wc->Slots[idxNew1].Parent = idxTerm;
+				wc->Slots[idxNew2].Parent = idxTerm;
+				term->Childs = 2;
 			}
-#endif /* SQLITE_ENABLE_STAT */
+		}
+#endif
+#ifndef OMIT_VIRTUALTABLE
+		// Add a WO_MATCH auxiliary term to the constraint set if the current expression is of the form:  column MATCH expr.
+		// This information is used by the xBestIndex methods of virtual tables.  The native query optimizer does not attempt
+		// to do anything with MATCH functions.
+		if (IsMatchOfColumn(expr))
+		{
+			Expr *right = expr->x.List->Ids[0].Expr;
+			Expr *left = expr->x.List->Ids[1].Expr;
+			Bitmask prereqExpr = ExprTableUsage(maskSet, right);
+			Bitmask prereqColumn = ExprTableUsage(maskSet, left);
+			if ((prereqExpr & prereqColumn) == 0)
+			{
+				Expr *newExpr = Expr::PExpr_(parse, TK_MATCH, nullptr, Expr::Dup(ctx, right, 0), 0);
+				int idxNew = WhereClauseInsert(wc, newExpr, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC));
+				ASSERTCOVERAGE(idxNew == 0);
+				WhereTerm *newTerm = &wc->Slots[idxNew];
+				newTerm->PrereqRight = prereqExpr;
+				newTerm->LeftCursor = left->TableIdx;
+				newTerm->u.LeftColumn = left->ColumnIdx;
+				newTerm->EOperator = WO_MATCH;
+				newTerm->Parent = idxTerm;
+				term = &wc->Slots[idxTerm];
+				term->Childs = 1;
+				term->WtFlags |= TERM_COPIED;
+				newTerm->PrereqAll = term->PrereqAll;
+			}
+		}
+#endif
+#ifdef ENABLE_STAT3
+		// When sqlite_stat3 histogram data is available an operator of the form "x IS NOT NULL" can sometimes be evaluated more efficiently
+		// as "x>NULL" if x is not an INTEGER PRIMARY KEY.  So construct a virtual term of that form.
+		//
+		// Note that the virtual term must be tagged with TERM_VNULL.  This TERM_VNULL tag will suppress the not-null check at the beginning
+		// of the loop.  Without the TERM_VNULL flag, the not-null check at the start of the loop will prevent any results from being returned.
+		if (expr->OP == TK_NOTNULL && expr->Left->OP == TK_COLUMN && expr->Left->ColumnIdx >= 0)
+		{
+			Expr *left = expr->Left;
+			Expr *newExpr = Expr::PExpr_(parse, TK_GT, Expr::Dup(ctx, left, 0), Expr::PExpr_(parse, TK_NULL, 0, 0, 0), 0);
+			int idxNew = WhereClauseInsert(wc, newExpr, (TERM)(TERM_VIRTUAL|TERM_DYNAMIC|TERM_VNULL));
+			if (idxNew != 0)
+			{
+				WhereTerm *newTerm = &wc->Slots[idxNew];
+				newTerm->PrereqRight = 0;
+				newTerm->LeftCursor = left->TableIdx;
+				newTerm->u.LeftColumn = left->ColumnIdx;
+				newTerm->EOperator = WO_GT;
+				newTerm->Parent = idxTerm;
+				term = &wc->Slots[idxTerm];
+				term->Childs = 1;
+				term->WtFlags |= TERM_COPIED;
+				newTerm->PrereqAll = term->PrereqAll;
+			}
+		}
+#endif
 
-			/* Prevent ON clause terms of a LEFT JOIN from being used to drive
-			** an index for tables to the left of the join.
-			*/
-			pTerm->prereqRight |= extraRight;
+		// Prevent ON clause terms of a LEFT JOIN from being used to drive an index for tables to the left of the join.
+		term->PrereqRight |= extraRight;
 	}
 
-	/*
-	** This function searches the expression list passed as the second argument
-	** for an expression of type TK_COLUMN that refers to the same column and
-	** uses the same collation sequence as the iCol'th column of index pIdx.
-	** Argument iBase is the cursor number used for the table that pIdx refers
-	** to.
-	**
-	** If such an expression is found, its index in pList->a[] is returned. If
-	** no expression is found, -1 is returned.
-	*/
+
 	static int findIndexCol(
 		Parse *pParse,                  /* Parse context */
 		ExprList *pList,                /* Expression list to search */
