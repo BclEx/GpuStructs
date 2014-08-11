@@ -1593,7 +1593,7 @@ namespace Core
 		while (!osReadFile(H, buffer, amount, &read, 0))
 		{
 #else
-		memset(&overlapped, 0, sizeof(OVERLAPPED));
+		_memset(&overlapped, 0, sizeof(OVERLAPPED));
 		overlapped.Offset = (LONG)(offset & 0xffffffff);
 		overlapped.OffsetHigh = (LONG)((offset>>32) & 0x7fffffff);
 		while (!osReadFile(H, buffer, amount, &read, &overlapped) && osGetLastError() != ERROR_HANDLE_EOF)
@@ -1608,7 +1608,7 @@ namespace Core
 		if (read < (DWORD)amount)
 		{
 			// Unread parts of the buffer must be zero-filled
-			memset(&((char *)buffer)[read], 0, amount - read);
+			_memset(&((char *)buffer)[read], 0, amount - read);
 			return RC_IOERR_SHORT_READ;
 		}
 		return RC_OK;

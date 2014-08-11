@@ -170,7 +170,7 @@ namespace Core
 		array_t<ConstraintUsage> ConstraintUsages;
 		int IdxNum;					// Number used to identify the index
 		char *IdxStr;				// String, possibly obtained from sqlite3_malloc
-		int NeedToFreeIdxStr;		// Free idxStr using sqlite3_free() if true
+		bool NeedToFreeIdxStr;		// Free idxStr using sqlite3_free() if true
 		bool OrderByConsumed;		// True if output is already ordered
 		double EstimatedCost;		// Estimated cost of using this index
 	};
@@ -216,6 +216,12 @@ namespace Core
 
 #pragma region NAME1
 
+	enum SO : uint8
+	{
+		SO_ASC = 0, // Sort in ascending order
+		SO_DESC = 1, // Sort in ascending order
+	};
+
 	enum TYPE : uint8
 	{
 		TYPE_INTEGER = 1,
@@ -235,7 +241,7 @@ namespace Core
 		char *ColAff;				// String defining the affinity of each column
 		Index *Next;				// The next index associated with the same table
 		Schema *Schema;				// Schema containing this index
-		uint8 *SortOrders;			// for each column: True==DESC, False==ASC
+		SO *SortOrders;			// for each column: True==DESC, False==ASC
 		char **CollNames;			// Array of collation sequence names for index
 		int Id;						// DB Page containing root of this index
 		OE OnError;					// OE_Abort, OE_Ignore, OE_Replace, or OE_None

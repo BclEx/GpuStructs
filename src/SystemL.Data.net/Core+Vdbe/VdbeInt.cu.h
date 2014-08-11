@@ -129,6 +129,30 @@ namespace Core
 #endif
 		void (*Del)(void *);	// If not null, call this function to delete Mem.z
 		char *Malloc;			// Dynamic buffer allocated by sqlite3_malloc()
+
+		inline const void *GetBlob()
+		{
+			if (Flags & (MEM_Blob|MEM_Str))
+			{
+				sqlite3VdbeMemExpandBlob(p);
+				Flags &= ~MEM_Str;
+				Flags |= MEM_Blob;
+				return (N ? Z : nullptr);
+			}
+			return GetText();
+		}
+		inline int GetBytes() { return sqlite3ValueBytes(this, TEXTENCODE_UTF8); }
+		inline int GetBytes16() { return sqlite3ValueBytes(this, TEXTENCODE_UTF16NATIVE); }
+		inline double GetDouble() { return sqlite3VdbeRealValue(this); }
+		inline int GetInt() { return (int)sqlite3VdbeIntValue(this); }
+		inline int64 GetInt64(){ return sqlite3VdbeIntValue(this); }
+		inline const unsigned char *GetText() { return (const unsigned char *)sqlite3ValueText(this, TEXTENCODE_UTF8); }
+#ifndef OMIT_UTF16
+		inline const void *GetText16() { return sqlite3ValueText(this, TEXTENCODE_UTF16NATIVE); }
+		inline const void *GetText16be() { return sqlite3ValueText(this, TEXTENCODE_UTF16BE); }
+		inline const void *GetText16le() { return sqlite3ValueText(this, TEXTENCODE_UTF16LE); }
+#endif
+		inline TYPE GetType() { return Type; }
 	};
 
 	struct VdbeFunc

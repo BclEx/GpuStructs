@@ -32,6 +32,8 @@ namespace Core
 
     public static class cs
     {
+        public const double BIG_DOUBLE = 1e99;
+
         public static int memcmp(byte[] a, byte[] b, int limit)
         {
             if (a.Length < limit)

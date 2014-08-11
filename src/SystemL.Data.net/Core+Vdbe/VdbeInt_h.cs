@@ -40,8 +40,8 @@ namespace Core
         public bool IsSorter;		    // True if a new-style sorter
         public bool MultiPseudo;	    // Multi-register pseudo-cursor
 #if !OMIT_VIRTUALTABLE
-      public VTableCursor VtabCursor;   // The cursor for a virtual table
-      public ITableModule IModule;      // Module for cursor pVtabCursor
+        public VTableCursor VtabCursor;   // The cursor for a virtual table
+        public ITableModule IModule;      // Module for cursor pVtabCursor
 #endif
         public long SeqCount;           // Sequence counter
         public long MovetoTarget;       // Argument to the deferred sqlite3BtreeMoveto()
@@ -117,7 +117,7 @@ namespace Core
         Ephem = 0x1000,		// Mem.z points to an ephemeral string
         Agg = 0x2000,		// Mem.z points to an agg function context
 #if !OMIT_INCRBLOB
-		Zero = 0x4000,		// Mem.i contains count of 0s appended to blob
+        Zero = 0x4000,		// Mem.i contains count of 0s appended to blob
 #else
         Zero = 0x0000,
 #endif
@@ -158,8 +158,32 @@ namespace Core
 #if DEBUG
         static bool memIsValid(Mem M) { return ((M).Flags & MEM.Invalid) == 0; }
 #else
-    static bool memIsValid( Mem M ) { return true; }
+        static bool memIsValid( Mem M ) { return true; }
 #endif
+
+        public string GetBlob()
+        {
+            if (Flags & (MEM.Blob | MEM.Str))
+            {
+                sqlite3VdbeMemExpandBlob(p);
+                Flags &= ~MEM.Str;
+                Flags |= MEM.Blob;
+                return (N != 0 ? Z : null);
+            }
+            return GetText();
+        }
+        public int GetBytes() { return Mem_Bytes(this, TEXTENCODE.UTF8); }
+        public int GetBytes16() { return Mem_Bytes(this, TEXTENCODE.UTF16NATIVE); }
+        public double GetDouble() { return sqlite3VdbeRealValue(this); }
+        public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
+        public long GetInt64() { return sqlite3VdbeIntValue(this); }
+        public string GetText() { return (const unsigned char *)Mem_Text(this, TEXTENCODE.UTF8); }
+#if !OMIT_UTF16
+        public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
+        public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
+        public string GetText16le() { return Mem_Text(this, TEXTENCODE.UTF16LE); }
+#endif
+        public TYPE GetType() { return Type; }
 
         public Mem() { }
         public Mem(Context db, string z, double r, int i, int n, MEM flags, TYPE type, TEXTENCODE encode

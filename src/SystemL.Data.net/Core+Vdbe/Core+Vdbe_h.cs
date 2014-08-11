@@ -154,17 +154,17 @@ namespace Core
         }
         public struct ConstraintUsage
         {
-            public int argvIndex;		// if >0, constraint is part of argv to xFilter
+            public int ArgvIndex;		// if >0, constraint is part of argv to xFilter
             public byte Omit; // Do not code a test for this constraint
         }
         // INPUTS
         public array_t<Constraint> Constraints; // Table of WHERE clause constraints
         public array_t<Orderby> OrderBys; // The ORDER BY clause
         // OUTPUTS
-        public array_t<ConstraintUsage> ConstraintUsage;
+        public array_t<ConstraintUsage> ConstraintUsages;
         public int IdxNum;              // Number used to identify the index
         public string IdxStr;           // String, possibly obtained from sqlite3_malloc
-        public int NeedToFreeIdxStr;    // Free idxStr using sqlite3_free() if true
+        public bool NeedToFreeIdxStr;    // Free idxStr using sqlite3_free() if true
         public bool OrderByConsumed;    // True if output is already ordered
         public double EstimatedCost;    // Estimated cost of using this index
     }
@@ -210,6 +210,12 @@ namespace Core
 
     #region NAME1
 
+    public enum SO : byte
+    {
+        ASC = 0, // Sort in ascending order
+        DESC = 1, // Sort in ascending order
+    }
+
     public enum TYPE : byte
     {
         INTEGER = 1,
@@ -223,7 +229,7 @@ namespace Core
     {
         public string Name;				// Name of this index
         public array_t2<ushort, int> Columns;   // Which columns are used by this index.  1st is 0 // Number of columns in table used by this index
-        public tRowcnt RowEsts;			// From ANALYZE: Est. rows selected by each column
+        public tRowcnt[] RowEsts;		// From ANALYZE: Est. rows selected by each column
         public Table Table;				// The SQL table being indexed
         public string ColAff;			// String defining the affinity of each column
         public Index Next;				// The next index associated with the same table
@@ -234,9 +240,9 @@ namespace Core
         public OE OnError;			// OE_Abort, OE_Ignore, OE_Replace, or OE_None
         public byte AutoIndex;		    // 1==UNIQUE, 2==PRIMARY KEY, 0==CREATE INDEX
         public bool Unordered;		    // Use this index for == or IN queries only
-#if ENABLE_STAT3		  
-		public tRowcnt AvgEq;					// Average nEq value for key values not in aSample
-		public array_t<IndexSample> Samples;   // Samples of the left-most key
+#if ENABLE_STAT3
+        public tRowcnt AvgEq;					// Average nEq value for key values not in aSample
+        public array_t<IndexSample> Samples;   // Samples of the left-most key
 #endif
     }
 

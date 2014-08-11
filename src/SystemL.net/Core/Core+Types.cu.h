@@ -25,6 +25,20 @@ typedef unsigned long long	uint64;
 #define LARGEST_INT64 (0xffffffff|(((int64)0x7fffffff)<<32))
 #define SMALLEST_INT64 (((int64)-1) - LARGEST_INT64)
 
+// If compiling for a processor that lacks floating point support, substitute integer for floating-point
+#ifdef OMIT_FLOATING_POINT
+#define double int64
+#define float int64
+//#define LONGDOUBLE_TYPE int64
+#define BIG_DOUBLE (((int64)1)<<50)
+#define OMIT_DATETIME_FUNCS 1
+#define OMIT_TRACE 1
+#undef MIXED_ENDIAN_64BIT_FLOAT
+#undef HAVE_ISNAN
+#else
+#define BIG_DOUBLE (1e99)
+#endif
+
 // Macros to determine whether the machine is big or little endian, evaluated at runtime.
 #if defined(i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__)
 #define TYPE_BIGENDIAN 0

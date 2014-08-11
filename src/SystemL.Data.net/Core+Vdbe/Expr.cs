@@ -344,12 +344,12 @@ namespace Core
         }
 
         // OVERLOADS, so I don't need to rewrite parse.c
-        static Expr PExpr_(Parse parse, TK op, int null3, int null4, int null5) { return PExpr_(parse, op, null, null, null); }
-        static Expr PExpr_(Parse parse, TK op, int null3, int null4, Token token) { return PExpr_(parse, op, null, null, token); }
-        static Expr PExpr_(Parse parse, TK op, Expr left, int null4, int null5) { return PExpr_(parse, op, left, null, null); }
-        static Expr PExpr_(Parse parse, TK op, Expr left, int null4, Token token) { return PExpr_(parse, op, left, null, token); }
-        static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, int null5) { return PExpr_(parse, op, left, right, null); }
-        static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, Token token)
+        public static Expr PExpr_(Parse parse, TK op, int null3, int null4, int null5) { return PExpr_(parse, op, null, null, null); }
+        public static Expr PExpr_(Parse parse, TK op, int null3, int null4, Token token) { return PExpr_(parse, op, null, null, token); }
+        public static Expr PExpr_(Parse parse, TK op, Expr left, int null4, int null5) { return PExpr_(parse, op, left, null, null); }
+        public static Expr PExpr_(Parse parse, TK op, Expr left, int null4, Token token) { return PExpr_(parse, op, left, null, token); }
+        public static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, int null5) { return PExpr_(parse, op, left, right, null); }
+        public static Expr PExpr_(Parse parse, TK op, Expr left, Expr right, Token token)
         {
             Context ctx = parse.Ctx;
             Expr p;
