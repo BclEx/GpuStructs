@@ -2663,77 +2663,57 @@ cancel:
 		return regId;
 	}
 
-	static int codeAllEqualityTerms(
-		Parse *pParse,        /* Parsing context */
-		WhereLevel *pLevel,   /* Which nested loop of the FROM we are coding */
-		WhereClause *pWC,     /* The WHERE clause */
-		Bitmask notReady,     /* Which parts of FROM have not yet been coded */
-		int nExtraReg,        /* Number of extra registers to allocate */
-		char **pzAff          /* OUT: Set to point to affinity string */
-		){
-			int nEq = pLevel->plan.nEq;   /* The number of == or IN constraints to code */
-			Vdbe *v = pParse->pVdbe;      /* The vm under construction */
-			Index *pIdx;                  /* The index being used for this loop */
-			int iCur = pLevel->iTabCur;   /* The cursor of the table */
-			WhereTerm *pTerm;             /* A single constraint term */
-			int j;                        /* Loop counter */
-			int regBase;                  /* Base register */
-			int nReg;                     /* Number of registers to allocate */
-			char *zAff;                   /* Affinity string to return */
+	__device__ static int CodeAllEqualityTerms(Parse *parse, WhereLevel *level, WhereClause *wc, Bitmask notReady, int extraRegs, char **affOut)
+	{
+		int eqs = level->Plan.Eqs; // The number of == or IN constraints to code
+		Vdbe *v = parse->V; // The vm under construction
+		int cursor = level->TabCur; // The cursor of the table
 
-			/* This module is only called on query plans that use an index. */
-			assert( pLevel->plan.wsFlags & WHERE_INDEXED );
-			pIdx = pLevel->plan.u.pIdx;
+		// This module is only called on query plans that use an index.
+		_assert(level->Plan.WsFlags & WHERE_INDEXED);
+		Index *index = level->Plan.u.Index; // The index being used for this loop
 
-			/* Figure out how many memory cells we will need then allocate them.
-			*/
-			regBase = pParse->nMem + 1;
-			nReg = pLevel->plan.nEq + nExtraReg;
-			pParse->nMem += nReg;
+		// Figure out how many memory cells we will need then allocate them.
+		int regBase = parse->Mems + 1; // Base register
+		int regs = level->Plan.Eqs + extraRegs; // Number of registers to allocate
+		parse->Mems += regs;
 
-			zAff = sqlite3DbStrDup(pParse->db, sqlite3IndexAffinityStr(v, pIdx));
-			if( !zAff ){
-				pParse->db->mallocFailed = 1;
-			}
+		char *aff = SysEx::TagStrDup(parse->Ctx, Index::AffinityStr(v, index)); // Affinity string to return
+		if (!aff)
+			parse->Ctx->MallocFailed = true;
 
-			/* Evaluate the equality constraints
-			*/
-			assert( pIdx->nColumn>=nEq );
-			for(j=0; j<nEq; j++){
-				int r1;
-				int k = pIdx->aiColumn[j];
-				pTerm = findTerm(pWC, iCur, k, notReady, pLevel->plan.wsFlags, pIdx);
-				if( pTerm==0 ) break;
-				/* The following true for indices with redundant columns. 
-				** Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0; */
-				testcase( (pTerm->wtFlags & TERM_CODED)!=0 );
-				testcase( pTerm->wtFlags & TERM_VIRTUAL ); /* EV: R-30575-11662 */
-				r1 = codeEqualityTerm(pParse, pTerm, pLevel, j, regBase+j);
-				if( r1!=regBase+j ){
-					if( nReg==1 ){
-						sqlite3ReleaseTempReg(pParse, regBase);
-						regBase = r1;
-					}else{
-						sqlite3VdbeAddOp2(v, OP_SCopy, r1, regBase+j);
-					}
+		// Evaluate the equality constraints
+		_assert(index->Columns.length >= eqs);
+		for (int j = 0; j < eqs; j++)
+		{
+			int k = index->Columns[j];
+			WhereTerm *term = FindTerm(wc, cursor, k, notReady, (WO)level->Plan.WsFlags, index); // A single constraint term
+			if (!term) break;
+			// The following true for indices with redundant columns. Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0;
+			ASSERTCOVERAGE((term->WtFlags & TERM_CODED) != 0);
+			ASSERTCOVERAGE(term->WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+			int r1 = CodeEqualityTerm(parse, term, level, j, regBase+j);
+			if (r1 != regBase+j)
+				if (regs == 1)
+				{
+					parse->ReleaseTempReg(regBase);
+					regBase = r1;
 				}
-				testcase( pTerm->eOperator & WO_ISNULL );
-				testcase( pTerm->eOperator & WO_IN );
-				if( (pTerm->eOperator & (WO_ISNULL|WO_IN))==0 ){
-					Expr *pRight = pTerm->pExpr->pRight;
-					sqlite3ExprCodeIsNullJump(v, pRight, regBase+j, pLevel->addrBrk);
-					if( zAff ){
-						if( sqlite3CompareAffinity(pRight, zAff[j])==SQLITE_AFF_NONE ){
-							zAff[j] = SQLITE_AFF_NONE;
-						}
-						if( sqlite3ExprNeedsNoAffinityChange(pRight, zAff[j]) ){
-							zAff[j] = SQLITE_AFF_NONE;
-						}
-					}
-				}
+				else
+					v->AddOp2(OP_SCopy, r1, regBase+j);
+			ASSERTCOVERAGE(term->EOperator & WO_ISNULL);
+			ASSERTCOVERAGE(term->EOperator & WO_IN);
+			if ((term->EOperator & (WO_ISNULL|WO_IN)) == 0)
+			{
+				Expr *right = term->Expr->Right;
+				Expr::CodeIsNullJump(v, right, regBase+j, level->AddrBrk);
+				if (aff)
+					if (right->CompareAffinity((AFF)aff[j]) == AFF_NONE || right->NeedsNoAffinityChange((AFF)aff[j]))
+						aff[j] = AFF_NONE;
 			}
-			*pzAff = zAff;
-			return regBase;
+		}
+		*affOut = aff;
+		return regBase;
 	}
 
 #ifndef OMIT_EXPLAIN

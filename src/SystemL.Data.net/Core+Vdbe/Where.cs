@@ -2715,127 +2715,58 @@ namespace Core
             return regId;
         }
 
-        /*
-        ** Generate code for a single equality term of the WHERE clause.  An equality
-        ** term can be either X=expr or X IN (...).   pTerm is the term to be 
-        ** coded.
-        **
-        ** For example, consider table t1(a,b,c,d,e,f) with index i1(a,b,c).
-        ** Suppose the WHERE clause is this:  a==5 AND b IN (1,2,3) AND c>5 AND c<10
-        ** The index has as many as three equality constraints, but in this
-        ** example, the third "c" value is an inequality.  So only two
-        ** constraints are coded.  This routine will generate code to evaluate
-        ** a==5 and b IN (1,2,3).  The current values for a and b will be stored
-        ** in consecutive registers and the index of the first register is returned.
-        **
-        ** In the example above nEq==2.  But this subroutine works for any value
-        ** of nEq including 0.  If nEq==null, this routine is nearly a no-op.
-        ** The only thing it does is allocate the pLevel.iMem memory cell and
-        ** compute the affinity string.
-        **
-        ** This routine always allocates at least one memory cell and returns
-        ** the index of that memory cell. The code that
-        ** calls this routine will use that memory cell to store the termination
-        ** key value of the loop.  If one or more IN operators appear, then
-        ** this routine allocates an additional nEq memory cells for internal
-        ** use.
-        **
-        ** Before returning, *pzAff is set to point to a buffer containing a
-        ** copy of the column affinity string of the index allocated using
-        ** sqlite3DbMalloc(). Except, entries in the copy of the string associated
-        ** with equality constraints that use NONE affinity are set to
-        ** SQLITE_AFF_NONE. This is to deal with SQL such as the following:
-        **
-        **   CREATE TABLE t1(a TEXT PRIMARY KEY, b);
-        **   SELECT ... FROM t1 AS t2, t1 WHERE t1.a = t2.b;
-        **
-        ** In the example above, the index on t1(a) has TEXT affinity. But since
-        ** the right hand side of the equality constraint (t2.b) has NONE affinity,
-        ** no conversion should be attempted before using a t2.b value as part of
-        ** a key to search the index. Hence the first byte in the returned affinity
-        ** string in this example would be set to SQLITE_AFF_NONE.
-        */
-        static int codeAllEqualityTerms(
-        Parse pParse,        /* Parsing context */
-        WhereLevel pLevel,   /* Which nested loop of the FROM we are coding */
-        WhereClause pWC,     /* The WHERE clause */
-        Bitmask notReady,    /* Which parts of FROM have not yet been coded */
-        int nExtraReg,       /* Number of extra registers to allocate */
-        out StringBuilder pzAff /* OUT: Set to point to affinity string */
-        )
+        static int CodeAllEqualityTerms(Parse parse, WhereLevel level, WhereClause wc, Bitmask notReady, int extraRegs, out StringBuilder affOut)
         {
-            int nEq = (int)pLevel.plan.nEq;   /* The number of == or IN constraints to code */
-            Vdbe v = pParse.pVdbe;       /* The vm under construction */
-            Index pIdx;                  /* The index being used for this loop */
-            int iCur = pLevel.iTabCur;   /* The cursor of the table */
-            WhereTerm pTerm;             /* A single constraint term */
-            int j;                       /* Loop counter */
-            int regBase;                 /* Base register */
-            int nReg;                    /* Number of registers to allocate */
-            StringBuilder zAff;          /* Affinity string to return */
+            int eqs = (int)level.Plan.Eqs; // The number of == or IN constraints to code
+            Vdbe v = parse.V;       // The vm under construction
+            int cursor = level.TabCur; // The cursor of the table
 
-            /* This module is only called on query plans that use an index. */
-            Debug.Assert((pLevel.plan.wsFlags & WHERE_INDEXED) != 0);
-            pIdx = pLevel.plan.u.pIdx;
+            // This module is only called on query plans that use an index.
+            Debug.Assert((level.Plan.WsFlags & WHERE_INDEXED) != 0);
+            Index index = level.Plan.u.Index; // The index being used for this loop
 
-            /* Figure out how many memory cells we will need then allocate them.
-            */
-            regBase = pParse.nMem + 1;
-            nReg = (int)(pLevel.plan.nEq + nExtraReg);
-            pParse.nMem += nReg;
+            // Figure out how many memory cells we will need then allocate them.
+            int regBase = parse.Mems + 1; // Base register
+            int regs = (int)(level.Plan.Eqs + extraRegs); // Number of registers to allocate
+            parse.Mems += regs;
 
-            zAff = new StringBuilder(sqlite3IndexAffinityStr(v, pIdx));//sqlite3DbStrDup(pParse.db, sqlite3IndexAffinityStr(v, pIdx));
-            //if( null==zAff ){
-            //  pParse.db.mallocFailed = 1;
-            //}
+            StringBuilder aff = new StringBuilder(Index.AffinityStr(v, index)); // Affinity string to return
+            if (aff == null)
+                parse.Ctx.MallocFailed = true;
 
-            /* Evaluate the equality constraints
-            */
-            Debug.Assert(pIdx.nColumn >= nEq);
-            for (j = 0; j < nEq; j++)
+            // Evaluate the equality constraints
+            Debug.Assert(index.Columns.length >= eqs);
+            for (int j = 0; j < eqs; j++)
             {
-                int r1;
-                int k = pIdx.aiColumn[j];
-                pTerm = FindTerm(pWC, iCur, k, notReady, pLevel.plan.wsFlags, pIdx);
-                if (NEVER(pTerm == null))
-                    break;
-                /* The following true for indices with redundant columns. 
-                ** Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0; */
-                testcase((pTerm.wtFlags & TERM_CODED) != 0);
-                testcase(pTerm.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
-                r1 = CodeEqualityTerm(pParse, pTerm, pLevel, regBase + j);
+                int k = index.Columns[j];
+                WhereTerm term = FindTerm(wc, cursor, k, notReady, level.Plan.WsFlags, index); // A single constraint term
+                if (term == null) break;
+                // The following true for indices with redundant columns. Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0;
+                SysEx.ASSERTCOVERAGE((term.wtFlags & TERM.CODED) != 0);
+                SysEx.ASSERTCOVERAGE((term.wtFlags & TERM.VIRTUAL) != 0); // EV: R-30575-11662
+                int r1 = CodeEqualityTerm(parse, term, level, regBase + j);
                 if (r1 != regBase + j)
                 {
-                    if (nReg == 1)
+                    if (regs == 1)
                     {
-                        sqlite3ReleaseTempReg(pParse, regBase);
+                        parse.ReleaseTempReg(regBase);
                         regBase = r1;
                     }
                     else
-                    {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, r1, regBase + j);
-                    }
+                        v.AddOp2(OP.SCopy, r1, regBase + j);
                 }
-                testcase(pTerm.eOperator & WO_ISNULL);
-                testcase(pTerm.eOperator & WO_IN);
-                if ((pTerm.eOperator & (WO_ISNULL | WO_IN)) == 0)
+                SysEx.ASSERTCOVERAGE((term.EOperator & WO.ISNULL) != 0);
+                SysEx.ASSERTCOVERAGE((term.EOperator & WO.IN) != 0);
+                if ((term.EOperator & (WO.ISNULL | WO.IN)) == 0)
                 {
-                    Expr pRight = pTerm.pExpr.pRight;
-                    sqlite3ExprCodeIsNullJump(v, pRight, regBase + j, pLevel.addrBrk);
-                    if (zAff.Length > 0)
-                    {
-                        if (sqlite3CompareAffinity(pRight, zAff[j]) == SQLITE_AFF_NONE)
-                        {
-                            zAff[j] = SQLITE_AFF_NONE;
-                        }
-                        if ((sqlite3ExprNeedsNoAffinityChange(pRight, zAff[j])) != 0)
-                        {
-                            zAff[j] = SQLITE_AFF_NONE;
-                        }
-                    }
+                    Expr right = term.Expr.Right;
+                    Expr.CodeIsNullJump(v, right, regBase + j, level.AddrBrk);
+                    if (aff.Length > 0)
+                        if (right.CompareAffinity(aff[j]) == AFF.NONE || right.NeedsNoAffinityChange(aff[j]))
+                            aff[j] = AFF.NONE;
                 }
             }
-            pzAff = zAff;
+            affOut = aff;
             return regBase;
         }
 
@@ -3360,7 +3291,7 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
                     ** and store the values of those terms in an array of registers
                     ** starting at regBase.
                     */
-                    regBase = codeAllEqualityTerms(
+                    regBase = CodeAllEqualityTerms(
                     pParse, pLevel, pWC, notReady, nExtraReg, out zStartAff
                     );
                     zEndAff = new StringBuilder(zStartAff.ToString());//sqlite3DbStrDup(pParse.db, zStartAff);
