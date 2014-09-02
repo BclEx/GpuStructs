@@ -370,7 +370,7 @@ namespace Core
 		return c;
 	}
 
-	static WhereTerm *FindTerm(WhereClause *wc, int cursor, int column, Bitmask notReady, uint32 op, Index *idx)
+	static WhereTerm *FindTerm(WhereClause *wc, int cursor, int column, Bitmask notReady, WO op, Index *idx)
 	{
 		WhereTerm *result = nullptr; // The answer to return
 		int origColumn = column;  // Original value of iColumn
@@ -381,8 +381,8 @@ namespace Core
 		_assert(cursor >= 0);
 		equivs[0] = cursor;
 		equivs[1] = column;
-		WhereClause *origWC = wc;  // Original pWC value
-		WhereTerm *term;            // Term being examined as possible result
+		WhereClause *origWC = wc; // Original pWC value
+		WhereTerm *term; // Term being examined as possible result
 		int j, k;
 		for (;;)
 		{
@@ -1883,7 +1883,7 @@ cancel:
 	{
 		WhereLevel *level = &p->Levels[p->i-1];
 		Index *index;
-		uint8 sortOrder;
+		SO sortOrder;
 		int i, j;
 		for (i = p->i-1; i >= 0; i--, level--)
 		{
@@ -1925,17 +1925,14 @@ cancel:
 		return 0;
 	}
 
-	static int IsSortingIndex(WhereBestIdx *p, Index *index, int baseId, int *pbRev, int *pbObUnique)
+	__device__ static int IsSortingIndex(WhereBestIdx *p, Index *index, int baseId, int *rev, bool *unique)
 	{
 		int i; // Number of pIdx terms used
 		int sortOrder = 2; // 0: forward.  1: backward.  2: unknown
 
-		Table *table = index->Table; // Table that owns index pIdx
-		ExprList *orderBy; // The ORDER BY clause
 		Parse *parse = p->Parse; // Parser context
 		Context *ctx = parse->Ctx; // Database connection
 		int priorSats; // ORDER BY terms satisfied by outer loops
-		int seenRowid = 0; // True if an ORDER BY rowid term is seen
 		bool outerObUnique; // Outer loops generate different values in every row for the ORDER BY columns
 		if (p->i == 0)
 		{
@@ -1954,7 +1951,7 @@ cancel:
 			ASSERTCOVERAGE(wsFlags & WHERE_ALL_UNIQUE);
 			outerObUnique = ((wsFlags & (WHERE_OB_UNIQUE|WHERE_ALL_UNIQUE)) != 0);
 		}
-		orderBy = p->OrderBy;
+		ExprList *orderBy = p->OrderBy; // The ORDER BY clause
 		_assert(orderBy);
 		if (index->Unordered) // Hash indices (indicated by the "unordered" tag on sqlite_stat1) cannot be used for sorting
 			return priorSats;
@@ -1972,16 +1969,10 @@ cancel:
 		// of the index is also allowed to match against the ORDER BY clause.
 		int j = priorSats; // Number of ORDER BY terms satisfied
 		ExprList::ExprListItem *obItem;// A term of the ORDER BY clause
+		Table *table = index->Table; // Table that owns index pIdx
+		bool seenRowid = false; // True if an ORDER BY rowid term is seen
 		for (i = 0, obItem = &orderBy->Ids[j]; j < terms && i <= index->Columns.length; i++)
 		{
-			CollSeq *coll; // The collating sequence of pOBExpr
-			int termSortOrder; // Sort order for this term
-			int column; // The i-th column of the index.  -1 for rowid
-			int sortOrder2; // 1 for DESC, 0 for ASC on the i-th index term
-			bool isEq; // Subject to an == or IS NULL constraint
-			
-			WhereTerm *constraint; // A constraint in the WHERE clause
-
 			// If the next term of the ORDER BY clause refers to anything other than a column in the "base" table, then this index will not be of any
 			// further use in handling the ORDER BY.
 			Expr *obExpr = obItem->Expr->SkipCollate(); // The expression of the ORDER BY pOBItem
@@ -1989,20 +1980,22 @@ cancel:
 				break;
 
 			// Find column number and collating sequence for the next entry in the index
+			int column; // The i-th column of the index.  -1 for rowid
+			SO sortOrder2; // 1 for DESC, 0 for ASC on the i-th index term
 			const char *collName; // Name of collating sequence for i-th index term
 			if (index->Name &&  i < index->Columns.length)
 			{
 				column = index->Columns[i];
 				if (column == index->Table->PKey)
 					column = -1;
-				sortOrder = index->SortOrders[i];
+				sortOrder2 = index->SortOrders[i];
 				collName = index->CollNames[i];
 				_assert(collName != nullptr);
 			}
 			else
 			{
 				column = -1;
-				sortOrder = 0;
+				sortOrder2 = (SO)0;
 				collName = nullptr;
 			}
 
@@ -2013,7 +2006,7 @@ cancel:
 			{
 				if (collName)
 				{
-					coll = sqlite3ExprCollSeq(parse, obItem->Expr);
+					CollSeq *coll = obItem->Expr->CollSeq(parse); // The collating sequence of pOBExpr
 					if (!coll) coll = ctx->DefaultColl;
 					isMatch = !_strcmp(coll->Name, collName);
 				}
@@ -2021,768 +2014,653 @@ cancel:
 			}
 			else isMatch = false;
 
-			/* termSortOrder is 0 or 1 for whether or not the access loop should
-			** run forward or backwards (respectively) in order to satisfy this 
-			** term of the ORDER BY clause. */
-			assert( pOBItem->sortOrder==0 || pOBItem->sortOrder==1 );
-			assert( iSortOrder==0 || iSortOrder==1 );
-			termSortOrder = iSortOrder ^ pOBItem->sortOrder;
+			// termSortOrder is 0 or 1 for whether or not the access loop should run forward or backwards (respectively) in order to satisfy this 
+			// term of the ORDER BY clause.
+			_assert(obItem->SortOrder==0 || obItem->SortOrder == 1);
+			_assert(sortOrder2 == 0 || sortOrder2 == 1);
+			SO termSortOrder = (SO)(sortOrder2 ^ obItem->SortOrder); // Sort order for this term
 
-			/* If X is the column in the index and ORDER BY clause, check to see
-			** if there are any X= or X IS NULL constraints in the WHERE clause. */
-			pConstraint = findTerm(p->pWC, base, iColumn, p->notReady,
-				WO_EQ|WO_ISNULL|WO_IN, pIdx);
-			if( pConstraint==0 ){
-				isEq = 0;
-			}else if( (pConstraint->eOperator & WO_IN)!=0 ){
-				isEq = 0;
-			}else if( (pConstraint->eOperator & WO_ISNULL)!=0 ){
-				uniqueNotNull = 0;
-				isEq = 1;  /* "X IS NULL" means X has only a single value */
-			}else if( pConstraint->prereqRight==0 ){
-				isEq = 1;  /* Constraint "X=constant" means X has only a single value */
-			}else{
-				Expr *pRight = pConstraint->pExpr->pRight;
-				if( pRight->op==TK_COLUMN ){
-					WHERETRACE(("       .. isOrderedColumn(tab=%d,col=%d)",
-						pRight->iTable, pRight->iColumn));
-					isEq = isOrderedColumn(p, pRight->iTable, pRight->iColumn);
-					WHERETRACE((" -> isEq=%d\n", isEq));
-
-					/* If the constraint is of the form X=Y where Y is an ordered value
-					** in an outer loop, then make sure the sort order of Y matches the
-					** sort order required for X. */
-					if( isMatch && isEq>=2 && isEq!=pOBItem->sortOrder+2 ){
-						testcase( isEq==2 );
-						testcase( isEq==3 );
+			// If X is the column in the index and ORDER BY clause, check to see if there are any X= or X IS NULL constraints in the WHERE clause.
+			int isEq; // Subject to an == or IS NULL constraint
+			WhereTerm *constraint = FindTerm(p->WC, baseId, column, p->NotReady, WO_EQ|WO_ISNULL|WO_IN, index); // A constraint in the WHERE clause
+			if (!constraint) isEq = 0;
+			else if ((constraint->EOperator & WO_IN) != 0) isEq = 0;
+			else if ((constraint->EOperator & WO_ISNULL) != 0) { uniqueNotNull = false; isEq = 1; } // "X IS NULL" means X has only a single value
+			else if (constraint->PrereqRight == 0) isEq = 1;  // Constraint "X=constant" means X has only a single value
+			else
+			{
+				Expr *right = constraint->Expr->Right;
+				if (right->OP == TK_COLUMN)
+				{
+					WHERETRACE("       .. isOrderedColumn(tab=%d,col=%d)", right->TableIdx, right->ColumnIdx);
+					isEq = IsOrderedColumn(p, right->TableIdx, right->ColumnIdx);
+					WHERETRACE(" -> isEq=%d\n", isEq);
+					// If the constraint is of the form X=Y where Y is an ordered value in an outer loop, then make sure the sort order of Y matches the
+					// sort order required for X.
+					if (isMatch && isEq >= 2 && isEq != obItem->SortOrder + 2)
+					{
+						ASSERTCOVERAGE(isEq == 2);
+						ASSERTCOVERAGE(isEq == 3);
 						break;
 					}
-				}else{
-					isEq = 0;  /* "X=expr" places no ordering constraints on X */
 				}
+				else isEq = 0; // "X=expr" places no ordering constraints on X
 			}
-			if( !isMatch ){
-				if( isEq==0 ){
-					break;
-				}else{
-					continue;
-				}
-			}else if( isEq!=1 ){
-				if( sortOrder==2 ){
-					sortOrder = termSortOrder;
-				}else if( termSortOrder!=sortOrder ){
-					break;
-				}
+			if (!isMatch)
+			{
+				if (isEq == 0) break;
+				else continue;
+			}
+			else if (isEq != 1)
+			{
+				if (sortOrder == 2) sortOrder = termSortOrder;
+				else if (termSortOrder != sortOrder) break;
 			}
 			j++;
-			pOBItem++;
-			if( iColumn<0 ){
-				seenRowid = 1;
+			obItem++;
+			if (column < 0)
+			{
+				seenRowid = true;
 				break;
-			}else if( pTab->aCol[iColumn].notNull==0 && isEq!=1 ){
-				testcase( isEq==0 );
-				testcase( isEq==2 );
-				testcase( isEq==3 );
-				uniqueNotNull = 0;
+			}
+			else if (table->Cols[column].NotNull == 0 && isEq != 1)
+			{
+				ASSERTCOVERAGE(isEq == 0);
+				ASSERTCOVERAGE(isEq == 2);
+				ASSERTCOVERAGE(isEq == 3);
+				uniqueNotNull = false;
 			}
 		}
-		if( seenRowid ){
-			uniqueNotNull = 1;
-		}else if( uniqueNotNull==0 || i<pIdx->nColumn ){
-			uniqueNotNull = 0;
-		}
+		if (seenRowid)
+			uniqueNotNull = true;
+		else if (!uniqueNotNull || i < index->Columns.length)
+			uniqueNotNull = false;
 
-		/* If we have not found at least one ORDER BY term that matches the
-		** index, then show no progress. */
-		if( pOBItem==&pOrderBy->a[nPriorSat] ) return nPriorSat;
+		// If we have not found at least one ORDER BY term that matches the index, then show no progress.
+		if (obItem == &orderBy->Ids[priorSats]) return priorSats;
 
-		/* Either the outer queries must generate rows where there are no two
-		** rows with the same values in all ORDER BY columns, or else this
-		** loop must generate just a single row of output.  Example:  Suppose
-		** the outer loops generate A=1 and A=1, and this loop generates B=3
-		** and B=4.  Then without the following test, ORDER BY A,B would 
-		** generate the wrong order output: 1,3 1,4 1,3 1,4
-		*/
-		if( outerObUnique==0 && uniqueNotNull==0 ) return nPriorSat;
-		*pbObUnique = uniqueNotNull;
+		// Either the outer queries must generate rows where there are no two rows with the same values in all ORDER BY columns, or else this
+		// loop must generate just a single row of output.  Example:  Suppose the outer loops generate A=1 and A=1, and this loop generates B=3
+		// and B=4.  Then without the following test, ORDER BY A,B would generate the wrong order output: 1,3 1,4 1,3 1,4
+		if (!outerObUnique && !uniqueNotNull) return priorSats;
+		*unique = uniqueNotNull;
 
-		/* Return the necessary scan order back to the caller */
-		*pbRev = sortOrder & 1;
+		// Return the necessary scan order back to the caller
+		*rev = sortOrder & 1;
 
-		/* If there was an "ORDER BY rowid" term that matched, or it is only
-		** possible for a single row from this table to match, then skip over
-		** any additional ORDER BY terms dealing with this table.
-		*/
-		if( uniqueNotNull ){
-			/* Advance j over additional ORDER BY terms associated with base */
-			WhereMaskSet *pMS = p->pWC->pMaskSet;
-			Bitmask m = ~getMask(pMS, base);
-			while( j<nTerm && (exprTableUsage(pMS, pOrderBy->a[j].pExpr)&m)==0 ){
-				j++;
-			}
+		// If there was an "ORDER BY rowid" term that matched, or it is only possible for a single row from this table to match, then skip over
+		// any additional ORDER BY terms dealing with this table.
+		if (uniqueNotNull)
+		{
+			// Advance j over additional ORDER BY terms associated with base
+			WhereMaskSet *ms = p->WC->MaskSet;
+			Bitmask m = ~GetMask(ms, baseId);
+			while (j < terms && (ExprTableUsage(ms, orderBy->Ids[j].Expr) & m) == 0) j++;
 		}
 		return j;
 	}
 
-	static void bestBtreeIndex(WhereBestIdx *p){
-		Parse *pParse = p->pParse;  /* The parsing context */
-		WhereClause *pWC = p->pWC;  /* The WHERE clause */
-		struct SrcList_item *pSrc = p->pSrc; /* The FROM clause term to search */
-		int iCur = pSrc->iCursor;   /* The cursor of the table to be accessed */
-		Index *pProbe;              /* An index we are evaluating */
-		Index *pIdx;                /* Copy of pProbe, or zero for IPK index */
-		int eqTermMask;             /* Current mask of valid equality operators */
-		int idxEqTermMask;          /* Index mask of valid equality operators */
-		Index sPk;                  /* A fake index object for the primary key */
-		tRowcnt aiRowEstPk[2];      /* The aiRowEst[] value for the sPk index */
-		int aiColumnPk = -1;        /* The aColumn[] value for the sPk index */
-		int wsFlagMask;             /* Allowed flags in p->cost.plan.wsFlag */
-		int nPriorSat;              /* ORDER BY terms satisfied by outer loops */
-		int nOrderBy;               /* Number of ORDER BY terms */
-		char bSortInit;             /* Initializer for bSort in inner loop */
-		char bDistInit;             /* Initializer for bDist in inner loop */
+	__constant__ bool _UseCis = true;
+	__device__ static void BestBtreeIndex(WhereBestIdx *p)
+	{
+		Parse *parse = p->Parse;  // The parsing context
+		WhereClause *wc = p->WC;  // The WHERE clause
+		SrcList::SrcListItem *src = p->Src; // The FROM clause term to search
+		int cursor = src->Cursor;   // The cursor of the table to be accessed
 
+		// Initialize the cost to a worst-case value
+		_memset(&p->Cost, 0, sizeof(p->Cost));
+		p->Cost.Cost = BIG_DOUBLE;
 
-		/* Initialize the cost to a worst-case value */
-		memset(&p->cost, 0, sizeof(p->cost));
-		p->cost.rCost = SQLITE_BIG_DBL;
-
-		/* If the pSrc table is the right table of a LEFT JOIN then we may not
-		** use an index to satisfy IS NULL constraints on that table.  This is
-		** because columns might end up being NULL if the table does not match -
-		** a circumstance which the index cannot help us discover.  Ticket #2177.
-		*/
-		if( pSrc->jointype & JT_LEFT ){
-			idxEqTermMask = WO_EQ|WO_IN;
-		}else{
-			idxEqTermMask = WO_EQ|WO_IN|WO_ISNULL;
-		}
-
-		if( pSrc->pIndex ){
-			/* An INDEXED BY clause specifies a particular index to use */
-			pIdx = pProbe = pSrc->pIndex;
+		// If the pSrc table is the right table of a LEFT JOIN then we may not use an index to satisfy IS NULL constraints on that table.  This is
+		// because columns might end up being NULL if the table does not match - a circumstance which the index cannot help us discover.  Ticket #2177.
+		Index *probe; // An index we are evaluating
+		Index *index; // Copy of pProbe, or zero for IPK index
+		int wsFlagMask; // Allowed flags in p->cost.plan.wsFlag
+		WO eqTermMask; // Current mask of valid equality operators
+		WO idxEqTermMask = (src->Jointype & JT_LEFT ? WO_EQ|WO_IN : WO_EQ|WO_IN|WO_ISNULL); // Index mask of valid equality operators
+		if (src->Index)
+		{
+			// An INDEXED BY clause specifies a particular index to use
+			index = probe = src->Index;
 			wsFlagMask = ~(WHERE_ROWID_EQ|WHERE_ROWID_RANGE);
 			eqTermMask = idxEqTermMask;
-		}else{
-			/* There is no INDEXED BY clause.  Create a fake Index object in local
-			** variable sPk to represent the rowid primary key index.  Make this
-			** fake index the first in a chain of Index objects with all of the real
-			** indices to follow */
-			Index *pFirst;                  /* First of real indices on the table */
-			memset(&sPk, 0, sizeof(Index));
-			sPk.nColumn = 1;
-			sPk.aiColumn = &aiColumnPk;
-			sPk.aiRowEst = aiRowEstPk;
-			sPk.onError = OE_Replace;
-			sPk.pTable = pSrc->pTab;
-			aiRowEstPk[0] = pSrc->pTab->nRowEst;
-			aiRowEstPk[1] = 1;
-			pFirst = pSrc->pTab->pIndex;
-			if( pSrc->notIndexed==0 ){
-				/* The real indices of the table are only considered if the
-				** NOT INDEXED qualifier is omitted from the FROM clause */
-				sPk.pNext = pFirst;
-			}
-			pProbe = &sPk;
-			wsFlagMask = ~(
-				WHERE_COLUMN_IN|WHERE_COLUMN_EQ|WHERE_COLUMN_NULL|WHERE_COLUMN_RANGE
-				);
+		}
+		else
+		{
+			Index sPk; // A fake index object for the primary key
+			tRowcnt rowEstPks[2]; // The aiRowEst[] value for the sPk index
+			int columnPks = -1; // The aColumn[] value for the sPk index
+			// There is no INDEXED BY clause.  Create a fake Index object in local variable sPk to represent the rowid primary key index.  Make this
+			// fake index the first in a chain of Index objects with all of the real indices to follow */
+			_memset(&sPk, 0, sizeof(Index));
+			sPk.Columns.length = 1;
+			sPk.Columns.data = &columnPks;
+			sPk.RowEsts = rowEstPks;
+			sPk.OnError = OE_Replace;
+			sPk.Table = src->Table;
+			rowEstPks[0] = src->Table->RowEst;
+			rowEstPks[1] = 1;
+			Index *first = src->Table->Index; // First of real indices on the table
+			if (!src->NotIndexed)
+				sPk.Next = first; // The real indices of the table are only considered if the NOT INDEXED qualifier is omitted from the FROM clause
+			probe = &sPk;
+			wsFlagMask = ~(WHERE_COLUMN_IN|WHERE_COLUMN_EQ|WHERE_COLUMN_NULL|WHERE_COLUMN_RANGE);
 			eqTermMask = WO_EQ|WO_IN;
-			pIdx = 0;
+			index = nullptr;
 		}
 
-		nOrderBy = p->pOrderBy ? p->pOrderBy->nExpr : 0;
-		if( p->i ){
-			nPriorSat = p->aLevel[p->i-1].plan.nOBSat;
-			bSortInit = nPriorSat<nOrderBy;
-			bDistInit = 0;
-		}else{
-			nPriorSat = 0;
-			bSortInit = nOrderBy>0;
-			bDistInit = p->pDistinct!=0;
+		int orderBys = (p->OrderBy ? p->OrderBy->Exprs : 0); // Number of ORDER BY terms
+		int priorSats; // ORDER BY terms satisfied by outer loops
+		bool sortInit; // Initializer for bSort in inner loop
+		bool distInit; // Initializer for bDist in inner loop
+		if (p->i)
+		{
+			priorSats = p->Levels[p->i-1].Plan.OBSats;
+			sortInit = (priorSats < orderBys);
+			distInit = false;
+		}
+		else
+		{
+			priorSats = 0;
+			sortInit = (orderBys > 0);
+			distInit = (p->Distinct != nullptr);
 		}
 
-		/* Loop over all indices looking for the best one to use
-		*/
-		for(; pProbe; pIdx=pProbe=pProbe->pNext){
-			const tRowcnt * const aiRowEst = pProbe->aiRowEst;
-			WhereCost pc;               /* Cost of using pProbe */
-			double log10N = (double)1;  /* base-10 logarithm of nRow (inexact) */
+		// Loop over all indices looking for the best one to use
+		for (; probe; index = probe= probe->Next)
+		{
+			const tRowcnt *const rowEsts = probe->RowEsts;
+			WhereCost pc; // Cost of using pProbe
+			double log10N = (double)1; // base-10 logarithm of nRow (inexact)
 
-			/* The following variables are populated based on the properties of
-			** index being evaluated. They are then used to determine the expected
-			** cost and number of rows returned.
-			**
-			**  pc.plan.nEq: 
-			**    Number of equality terms that can be implemented using the index.
-			**    In other words, the number of initial fields in the index that
-			**    are used in == or IN or NOT NULL constraints of the WHERE clause.
-			**
-			**  nInMul:  
-			**    The "in-multiplier". This is an estimate of how many seek operations 
-			**    SQLite must perform on the index in question. For example, if the 
-			**    WHERE clause is:
-			**
-			**      WHERE a IN (1, 2, 3) AND b IN (4, 5, 6)
-			**
-			**    SQLite must perform 9 lookups on an index on (a, b), so nInMul is 
-			**    set to 9. Given the same schema and either of the following WHERE 
-			**    clauses:
-			**
-			**      WHERE a =  1
-			**      WHERE a >= 2
-			**
-			**    nInMul is set to 1.
-			**
-			**    If there exists a WHERE term of the form "x IN (SELECT ...)", then 
-			**    the sub-select is assumed to return 25 rows for the purposes of 
-			**    determining nInMul.
-			**
-			**  bInEst:  
-			**    Set to true if there was at least one "x IN (SELECT ...)" term used 
-			**    in determining the value of nInMul.  Note that the RHS of the
-			**    IN operator must be a SELECT, not a value list, for this variable
-			**    to be true.
-			**
-			**  rangeDiv:
-			**    An estimate of a divisor by which to reduce the search space due
-			**    to inequality constraints.  In the absence of sqlite_stat3 ANALYZE
-			**    data, a single inequality reduces the search space to 1/4rd its
-			**    original size (rangeDiv==4).  Two inequalities reduce the search
-			**    space to 1/16th of its original size (rangeDiv==16).
-			**
-			**  bSort:   
-			**    Boolean. True if there is an ORDER BY clause that will require an 
-			**    external sort (i.e. scanning the index being evaluated will not 
-			**    correctly order records).
-			**
-			**  bDist:
-			**    Boolean. True if there is a DISTINCT clause that will require an 
-			**    external btree.
-			**
-			**  bLookup: 
-			**    Boolean. True if a table lookup is required for each index entry
-			**    visited.  In other words, true if this is not a covering index.
-			**    This is always false for the rowid primary key index of a table.
-			**    For other indexes, it is true unless all the columns of the table
-			**    used by the SELECT statement are present in the index (such an
-			**    index is sometimes described as a covering index).
-			**    For example, given the index on (a, b), the second of the following 
-			**    two queries requires table b-tree lookups in order to find the value
-			**    of column c, but the first does not because columns a and b are
-			**    both available in the index.
-			**
-			**             SELECT a, b    FROM tbl WHERE a = 1;
-			**             SELECT a, b, c FROM tbl WHERE a = 1;
-			*/
-			int bInEst = 0;               /* True if "x IN (SELECT...)" seen */
-			int nInMul = 1;               /* Number of distinct equalities to lookup */
-			double rangeDiv = (double)1;  /* Estimated reduction in search space */
-			int nBound = 0;               /* Number of range constraints seen */
-			char bSort = bSortInit;       /* True if external sort required */
-			char bDist = bDistInit;       /* True if index cannot help with DISTINCT */
-			char bLookup = 0;             /* True if not a covering index */
-			WhereTerm *pTerm;             /* A single term of the WHERE clause */
-#ifdef SQLITE_ENABLE_STAT3
-			WhereTerm *pFirstTerm = 0;    /* First term matching the index */
+			// The following variables are populated based on the properties of index being evaluated. They are then used to determine the expected
+			// cost and number of rows returned.
+			//
+			//  pc.plan.nEq: 
+			//    Number of equality terms that can be implemented using the index. In other words, the number of initial fields in the index that
+			//    are used in == or IN or NOT NULL constraints of the WHERE clause.
+			//
+			//  nInMul:  
+			//    The "in-multiplier". This is an estimate of how many seek operations SQLite must perform on the index in question. For example, if the 
+			//    WHERE clause is:
+			//      WHERE a IN (1, 2, 3) AND b IN (4, 5, 6)
+			//
+			//    SQLite must perform 9 lookups on an index on (a, b), so nInMul is set to 9. Given the same schema and either of the following WHERE 
+			//    clauses:
+			//      WHERE a =  1
+			//      WHERE a >= 2
+			//
+			//    nInMul is set to 1.
+			//
+			//    If there exists a WHERE term of the form "x IN (SELECT ...)", then the sub-select is assumed to return 25 rows for the purposes of 
+			//    determining nInMul.
+			//
+			//  bInEst:  
+			//    Set to true if there was at least one "x IN (SELECT ...)" term used in determining the value of nInMul.  Note that the RHS of the
+			//    IN operator must be a SELECT, not a value list, for this variable to be true.
+			//
+			//  rangeDiv:
+			//    An estimate of a divisor by which to reduce the search space due to inequality constraints.  In the absence of sqlite_stat3 ANALYZE
+			//    data, a single inequality reduces the search space to 1/4rd its original size (rangeDiv==4).  Two inequalities reduce the search
+			//    space to 1/16th of its original size (rangeDiv==16).
+			//
+			//  bSort:   
+			//    Boolean. True if there is an ORDER BY clause that will require an external sort (i.e. scanning the index being evaluated will not 
+			//    correctly order records).
+			//
+			//  bDist:
+			//    Boolean. True if there is a DISTINCT clause that will require an external btree.
+			//
+			//  bLookup: 
+			//    Boolean. True if a table lookup is required for each index entry visited.  In other words, true if this is not a covering index.
+			//    This is always false for the rowid primary key index of a table. For other indexes, it is true unless all the columns of the table
+			//    used by the SELECT statement are present in the index (such an index is sometimes described as a covering index).
+			//    For example, given the index on (a, b), the second of the following two queries requires table b-tree lookups in order to find the value
+			//    of column c, but the first does not because columns a and b are both available in the index.
+			//             SELECT a, b    FROM tbl WHERE a = 1;
+			//             SELECT a, b, c FROM tbl WHERE a = 1;
+			bool inEst = false;				// True if "x IN (SELECT...)" seen
+			int inMul = 1;					// Number of distinct equalities to lookup
+			double rangeDiv = (double)1;	// Estimated reduction in search space
+			int bounds = 0;					// Number of range constraints seen
+			bool sort = sortInit;			// True if external sort required
+			bool dist = distInit;			// True if index cannot help with DISTINCT
+			bool lookup = false;			// True if not a covering index
+#ifdef ENABLE_STAT3
+			WhereTerm *firstTerm = nullptr; // First term matching the index
 #endif
 
-			WHERETRACE((
-				"   %s(%s):\n",
-				pSrc->pTab->zName, (pIdx ? pIdx->zName : "ipk")
-				));
-			memset(&pc, 0, sizeof(pc));
-			pc.plan.nOBSat = nPriorSat;
+			WHERETRACE("   %s(%s):\n", src->Table->Name, (index ? index->Name : "ipk"));
+			_memset(&pc, 0, sizeof(pc));
+			pc.Plan.OBSats = priorSats;
 
-			/* Determine the values of pc.plan.nEq and nInMul */
-			for(pc.plan.nEq=0; pc.plan.nEq<pProbe->nColumn; pc.plan.nEq++){
-				int j = pProbe->aiColumn[pc.plan.nEq];
-				pTerm = findTerm(pWC, iCur, j, p->notReady, eqTermMask, pIdx);
-				if( pTerm==0 ) break;
-				pc.plan.wsFlags |= (WHERE_COLUMN_EQ|WHERE_ROWID_EQ);
-				testcase( pTerm->pWC!=pWC );
-				if( pTerm->eOperator & WO_IN ){
-					Expr *pExpr = pTerm->pExpr;
-					pc.plan.wsFlags |= WHERE_COLUMN_IN;
-					if( ExprHasProperty(pExpr, EP_xIsSelect) ){
-						/* "x IN (SELECT ...)":  Assume the SELECT returns 25 rows */
-						nInMul *= 25;
-						bInEst = 1;
-					}else if( ALWAYS(pExpr->x.pList && pExpr->x.pList->nExpr) ){
-						/* "x IN (value, value, ...)" */
-						nInMul *= pExpr->x.pList->nExpr;
+			// Determine the values of pc.plan.nEq and nInMul
+			WhereTerm *term; // A single term of the WHERE clause
+			for (pc.Plan.Eqs = 0; pc.Plan.Eqs < probe->Columns.length; pc.Plan.Eqs++)
+			{
+				int j = probe->Columns[pc.Plan.Eqs];
+				term = FindTerm(wc, cursor, j, p->NotReady, eqTermMask, index);
+				if (!term) break;
+				pc.Plan.WsFlags |= (WHERE_COLUMN_EQ|WHERE_ROWID_EQ);
+				ASSERTCOVERAGE(term->WC != wc);
+				if (term->EOperator & WO_IN)
+				{
+					Expr *expr = term->Expr;
+					pc.Plan.WsFlags |= WHERE_COLUMN_IN;
+					if (ExprHasProperty(expr, EP_xIsSelect))
+					{
+						// "x IN (SELECT ...)":  Assume the SELECT returns 25 rows
+						inMul *= 25;
+						inEst = true;
 					}
-				}else if( pTerm->eOperator & WO_ISNULL ){
-					pc.plan.wsFlags |= WHERE_COLUMN_NULL;
+					else if (SysEx_ALWAYS(expr->x.List && expr->x.List->Exprs))
+						inMul *= expr->x.List->Exprs; // "x IN (value, value, ...)"
 				}
-#ifdef SQLITE_ENABLE_STAT3
-				if( pc.plan.nEq==0 && pProbe->aSample ) pFirstTerm = pTerm;
+				else if (term->EOperator & WO_ISNULL)
+					pc.Plan.WsFlags |= WHERE_COLUMN_NULL;
+#ifdef ENABLE_STAT3
+				if (pc.Plan.Eqs == 0 && probe->Samples.data) firstTerm = term;
 #endif
-				pc.used |= pTerm->prereqRight;
+				pc.Used |= term->PrereqRight;
 			}
 
-			/* If the index being considered is UNIQUE, and there is an equality 
-			** constraint for all columns in the index, then this search will find
-			** at most a single row. In this case set the WHERE_UNIQUE flag to 
-			** indicate this to the caller.
-			**
-			** Otherwise, if the search may find more than one row, test to see if
-			** there is a range constraint on indexed column (pc.plan.nEq+1) that
-			** can be optimized using the index. 
-			*/
-			if( pc.plan.nEq==pProbe->nColumn && pProbe->onError!=OE_None ){
-				testcase( pc.plan.wsFlags & WHERE_COLUMN_IN );
-				testcase( pc.plan.wsFlags & WHERE_COLUMN_NULL );
-				if( (pc.plan.wsFlags & (WHERE_COLUMN_IN|WHERE_COLUMN_NULL))==0 ){
-					pc.plan.wsFlags |= WHERE_UNIQUE;
-					if( p->i==0 || (p->aLevel[p->i-1].plan.wsFlags & WHERE_ALL_UNIQUE)!=0 ){
-						pc.plan.wsFlags |= WHERE_ALL_UNIQUE;
+			// If the index being considered is UNIQUE, and there is an equality constraint for all columns in the index, then this search will find
+			// at most a single row. In this case set the WHERE_UNIQUE flag to indicate this to the caller.
+			//
+			// Otherwise, if the search may find more than one row, test to see if there is a range constraint on indexed column (pc.plan.nEq+1) that
+			// can be optimized using the index.
+			if (pc.Plan.Eqs == probe->Columns.length && probe->OnError != OE_None)
+			{
+				ASSERTCOVERAGE(pc.Plan.WsFlags & WHERE_COLUMN_IN);
+				ASSERTCOVERAGE(pc.Plan.WsFlags & WHERE_COLUMN_NULL);
+				if ((pc.Plan.WsFlags & (WHERE_COLUMN_IN|WHERE_COLUMN_NULL)) == 0)
+				{
+					pc.Plan.WsFlags |= WHERE_UNIQUE;
+					if (p->i == 0 || (p->Levels[p->i-1].Plan.WsFlags & WHERE_ALL_UNIQUE) != 0)
+						pc.Plan.WsFlags |= WHERE_ALL_UNIQUE;
+				}
+			}
+			else if (!probe->Unordered)
+			{
+				int j = (pc.Plan.Eqs == probe->Columns.length ? -1 : probe->Columns[pc.Plan.Eqs]);
+				if (FindTerm(wc, cursor, j, p->NotReady, WO_LT|WO_LE|WO_GT|WO_GE, index))
+				{
+					WhereTerm *top = FindTerm(wc, cursor, j, p->NotReady, WO_LT|WO_LE, index);
+					WhereTerm *btm = FindTerm(wc, cursor, j, p->NotReady, WO_GT|WO_GE, index);
+					WhereRangeScanEst(parse, probe, pc.Plan.Eqs, btm, top, &rangeDiv);
+					if (top)
+					{
+						bounds = 1;
+						pc.Plan.WsFlags |= WHERE_TOP_LIMIT;
+						pc.Used |= top->PrereqRight;
+						ASSERTCOVERAGE(top->WC != wc);
 					}
-				}
-			}else if( pProbe->bUnordered==0 ){
-				int j;
-				j = (pc.plan.nEq==pProbe->nColumn ? -1 : pProbe->aiColumn[pc.plan.nEq]);
-				if( findTerm(pWC, iCur, j, p->notReady, WO_LT|WO_LE|WO_GT|WO_GE, pIdx) ){
-					WhereTerm *pTop, *pBtm;
-					pTop = findTerm(pWC, iCur, j, p->notReady, WO_LT|WO_LE, pIdx);
-					pBtm = findTerm(pWC, iCur, j, p->notReady, WO_GT|WO_GE, pIdx);
-					whereRangeScanEst(pParse, pProbe, pc.plan.nEq, pBtm, pTop, &rangeDiv);
-					if( pTop ){
-						nBound = 1;
-						pc.plan.wsFlags |= WHERE_TOP_LIMIT;
-						pc.used |= pTop->prereqRight;
-						testcase( pTop->pWC!=pWC );
+					if (btm)
+					{
+						bounds++;
+						pc.Plan.WsFlags |= WHERE_BTM_LIMIT;
+						pc.Used |= btm->PrereqRight;
+						ASSERTCOVERAGE(btm->WC != wc);
 					}
-					if( pBtm ){
-						nBound++;
-						pc.plan.wsFlags |= WHERE_BTM_LIMIT;
-						pc.used |= pBtm->prereqRight;
-						testcase( pBtm->pWC!=pWC );
-					}
-					pc.plan.wsFlags |= (WHERE_COLUMN_RANGE|WHERE_ROWID_RANGE);
+					pc.Plan.WsFlags |= (WHERE_COLUMN_RANGE|WHERE_ROWID_RANGE);
 				}
 			}
 
-			/* If there is an ORDER BY clause and the index being considered will
-			** naturally scan rows in the required order, set the appropriate flags
-			** in pc.plan.wsFlags. Otherwise, if there is an ORDER BY clause but
-			** the index will scan rows in a different order, set the bSort
-			** variable.  */
-			if( bSort && (pSrc->jointype & JT_LEFT)==0 ){
-				int bRev = 2;
-				int bObUnique = 0;
-				WHERETRACE(("      --> before isSortIndex: nPriorSat=%d\n",nPriorSat));
-				pc.plan.nOBSat = isSortingIndex(p, pProbe, iCur, &bRev, &bObUnique);
-				WHERETRACE(("      --> after  isSortIndex: bRev=%d bObU=%d nOBSat=%d\n",
-					bRev, bObUnique, pc.plan.nOBSat));
-				if( nPriorSat<pc.plan.nOBSat || (pc.plan.wsFlags & WHERE_ALL_UNIQUE)!=0 ){
-					pc.plan.wsFlags |= WHERE_ORDERED;
-					if( bObUnique ) pc.plan.wsFlags |= WHERE_OB_UNIQUE;
+			// If there is an ORDER BY clause and the index being considered will naturally scan rows in the required order, set the appropriate flags
+			// in pc.plan.wsFlags. Otherwise, if there is an ORDER BY clause but the index will scan rows in a different order, set the bSort
+			// variable.
+			if (sort && (src->Jointype & JT_LEFT) == 0)
+			{
+				int rev = 2;
+				bool obUnique = false;
+				WHERETRACE("      --> before isSortIndex: nPriorSat=%d\n", priorSats);
+				pc.Plan.OBSats = IsSortingIndex(p, probe, cursor, &rev, &obUnique);
+				WHERETRACE("      --> after  isSortIndex: bRev=%d bObU=%d nOBSat=%d\n", rev, obUnique, pc.Plan.OBSats);
+				if (priorSats < pc.Plan.OBSats || (pc.Plan.WsFlags & WHERE_ALL_UNIQUE) != 0)
+				{
+					pc.Plan.WsFlags |= WHERE_ORDERED;
+					if (obUnique) pc.Plan.WsFlags |= WHERE_OB_UNIQUE;
 				}
-				if( nOrderBy==pc.plan.nOBSat ){
-					bSort = 0;
-					pc.plan.wsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE;
+				if (orderBys == pc.Plan.OBSats)
+				{
+					sort = false;
+					pc.Plan.WsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE;
 				}
-				if( bRev & 1 ) pc.plan.wsFlags |= WHERE_REVERSE;
+				if (rev & 1) pc.Plan.WsFlags |= WHERE_REVERSE;
 			}
 
-			/* If there is a DISTINCT qualifier and this index will scan rows in
-			** order of the DISTINCT expressions, clear bDist and set the appropriate
-			** flags in pc.plan.wsFlags. */
-			if( bDist
-				&& isDistinctIndex(pParse, pWC, pProbe, iCur, p->pDistinct, pc.plan.nEq)
-				&& (pc.plan.wsFlags & WHERE_COLUMN_IN)==0
-				){
-					bDist = 0;
-					pc.plan.wsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE|WHERE_DISTINCT;
+			// If there is a DISTINCT qualifier and this index will scan rows in order of the DISTINCT expressions, clear bDist and set the appropriate
+			// flags in pc.plan.wsFlags.
+			if (dist && IsDistinctIndex(parse, wc, probe, cursor, p->Distinct, pc.Plan.Eqs) && (pc.Plan.WsFlags & WHERE_COLUMN_IN) == 0)
+			{
+				dist = false;
+				pc.Plan.WsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE|WHERE_DISTINCT;
 			}
 
-			/* If currently calculating the cost of using an index (not the IPK
-			** index), determine if all required column data may be obtained without 
-			** using the main table (i.e. if the index is a covering
-			** index for this query). If it is, set the WHERE_IDX_ONLY flag in
-			** pc.plan.wsFlags. Otherwise, set the bLookup variable to true.  */
-			if( pIdx ){
-				Bitmask m = pSrc->colUsed;
-				int j;
-				for(j=0; j<pIdx->nColumn; j++){
-					int x = pIdx->aiColumn[j];
-					if( x<BMS-1 ){
+			// If currently calculating the cost of using an index (not the IPK index), determine if all required column data may be obtained without 
+			// using the main table (i.e. if the index is a covering index for this query). If it is, set the WHERE_IDX_ONLY flag in
+			// pc.plan.wsFlags. Otherwise, set the bLookup variable to true.
+			if (index)
+			{
+				Bitmask m = src->ColUsed;
+				for (int j = 0; j < index->Columns.length; j++)
+				{
+					int x = index->Columns[j];
+					if (x < BMS-1)
 						m &= ~(((Bitmask)1)<<x);
+				}
+				if (m == 0)
+					pc.Plan.WsFlags |= WHERE_IDX_ONLY;
+				else
+					lookup = true;
+			}
+
+			// Estimate the number of rows of output.  For an "x IN (SELECT...)" constraint, do not let the estimate exceed half the rows in the table.
+			pc.Plan.Rows = (double)(rowEsts[pc.Plan.Eqs] * inMul);
+			if (inEst && pc.Plan.Rows * 2 > rowEsts[0])
+			{
+				pc.Plan.Rows = rowEsts[0]/2;
+				inMul = (int)(pc.Plan.Rows / rowEsts[pc.Plan.Eqs]);
+			}
+
+#ifdef ENABLE_STAT3
+			// If the constraint is of the form x=VALUE or x IN (E1,E2,...) and we do not think that values of x are unique and if histogram
+			// data is available for column x, then it might be possible to get a better estimate on the number of rows based on
+			// VALUE and how common that value is according to the histogram.
+			if (pc.Plan.Rows > (double)1 && pc.Plan.Eqs == 1 && firstTerm && rowEsts[1] > 1)
+			{
+				_assert((firstTerm->EOperator & (WO_EQ|WO_ISNULL|WO_IN)) != 0);
+				if (firstTerm->EOperator & (WO_EQ|WO_ISNULL))
+				{
+					ASSERTCOVERAGE(firstTerm->EOperator & WO_EQ);
+					ASSERTCOVERAGE(firstTerm->EOperator & WO_EQUIV);
+					ASSERTCOVERAGE(firstTerm->EOperator & WO_ISNULL);
+					WhereEqualScanEst(parse, probe, firstTerm->Expr->Right, &pc.Plan.Rows);
+				}
+				else if (!inEst)
+				{
+					_assert(firstTerm->EOperator & WO_IN);
+					WhereInScanEst(parse, probe, firstTerm->Expr->x.List, &pc.Plan.Rows);
+				}
+			}
+#endif
+
+			// Adjust the number of output rows and downward to reflect rows that are excluded by range constraints.
+			pc.Plan.Rows = pc.Plan.Rows / rangeDiv;
+			if (pc.Plan.Rows < 1) pc.Plan.Rows = 1;
+
+			// Experiments run on real SQLite databases show that the time needed to do a binary search to locate a row in a table or index is roughly
+			// log10(N) times the time to move from one row to the next row within a table or index.  The actual times can vary, with the size of
+			// records being an important factor.  Both moves and searches are slower with larger records, presumably because fewer records fit
+			// on one page and hence more pages have to be fetched.
+			//
+			// The ANALYZE command and the sqlite_stat1 and sqlite_stat3 tables do not give us data on the relative sizes of table and index records.
+			// So this computation assumes table records are about twice as big as index records
+			if ((pc.Plan.WsFlags &~(WHERE_REVERSE|WHERE_ORDERED|WHERE_OB_UNIQUE)) == WHERE_IDX_ONLY &&
+				(wc->WctrlFlags & WHERE_ONEPASS_DESIRED) == 0 && _UseCis && CtxOptimizationEnabled(parse->Ctx, OPTFLAG_CoverIdxScan))
+			{
+				// This index is not useful for indexing, but it is a covering index. A full-scan of the index might be a little faster than a full-scan
+				// of the table, so give this case a cost slightly less than a table scan.
+				pc.Cost = rowEsts[0]*3 + probe->Columns.length;
+				pc.Plan.WsFlags |= WHERE_COVER_SCAN|WHERE_COLUMN_RANGE;
+			}
+			else if ((pc.Plan.WsFlags & WHERE_NOT_FULLSCAN) == 0)
+			{
+				// The cost of a full table scan is a number of move operations equal to the number of rows in the table.
+				//
+				// We add an additional 4x penalty to full table scans.  This causes the cost function to err on the side of choosing an index over
+				// choosing a full scan.  This 4x full-scan penalty is an arguable decision and one which we expect to revisit in the future.  But
+				// it seems to be working well enough at the moment.
+				pc.Cost = rowEsts[0]*4;
+				pc.Plan.WsFlags &= ~WHERE_IDX_ONLY;
+				if (index)
+				{
+					pc.Plan.WsFlags &= ~WHERE_ORDERED;
+					pc.Plan.OBSats = priorSats;
+				}
+			}
+			else
+			{
+				log10N = EstLog(rowEsts[0]);
+				pc.Cost = pc.Plan.Rows;
+				if (index)
+				{
+					if (lookup)
+					{
+						// For an index lookup followed by a table lookup:
+						//    nInMul index searches to find the start of each index range
+						//  + nRow steps through the index
+						//  + nRow table searches to lookup the table entry using the rowid
+						pc.Cost += (inMul + pc.Plan.Rows)*log10N;
+					}
+					else
+					{
+						// For a covering index:
+						//     nInMul index searches to find the initial entry 
+						//   + nRow steps through the index
+						pc.Cost += inMul*log10N;
 					}
 				}
-				if( m==0 ){
-					pc.plan.wsFlags |= WHERE_IDX_ONLY;
-				}else{
-					bLookup = 1;
+				else
+				{
+					// For a rowid primary key lookup:
+					//    nInMult table searches to find the initial entry for each range
+					//  + nRow steps through the table
+					pc.Cost += inMul*log10N;
 				}
 			}
 
-			/*
-			** Estimate the number of rows of output.  For an "x IN (SELECT...)"
-			** constraint, do not let the estimate exceed half the rows in the table.
-			*/
-			pc.plan.nRow = (double)(aiRowEst[pc.plan.nEq] * nInMul);
-			if( bInEst && pc.plan.nRow*2>aiRowEst[0] ){
-				pc.plan.nRow = aiRowEst[0]/2;
-				nInMul = (int)(pc.plan.nRow / aiRowEst[pc.plan.nEq]);
+			// Add in the estimated cost of sorting the result.  Actual experimental measurements of sorting performance in SQLite show that sorting time
+			// adds C*N*log10(N) to the cost, where N is the number of rows to be sorted and C is a factor between 1.95 and 4.3.  We will split the
+			// difference and select C of 3.0.
+			if (sort)
+			{
+				double m = EstLog(pc.Plan.Rows*(orderBys - pc.Plan.OBSats)/orderBys);
+				m *= (double)(pc.Plan.OBSats ? 2 : 3);
+				pc.Cost += pc.Plan.Rows*m;
 			}
+			if (dist)
+				pc.Cost += pc.Plan.Rows * EstLog(pc.Plan.Rows)*3;
 
-#ifdef SQLITE_ENABLE_STAT3
-			/* If the constraint is of the form x=VALUE or x IN (E1,E2,...)
-			** and we do not think that values of x are unique and if histogram
-			** data is available for column x, then it might be possible
-			** to get a better estimate on the number of rows based on
-			** VALUE and how common that value is according to the histogram.
-			*/
-			if( pc.plan.nRow>(double)1 && pc.plan.nEq==1
-				&& pFirstTerm!=0 && aiRowEst[1]>1 ){
-					assert( (pFirstTerm->eOperator & (WO_EQ|WO_ISNULL|WO_IN))!=0 );
-					if( pFirstTerm->eOperator & (WO_EQ|WO_ISNULL) ){
-						testcase( pFirstTerm->eOperator & WO_EQ );
-						testcase( pFirstTerm->eOperator & WO_EQUIV );
-						testcase( pFirstTerm->eOperator & WO_ISNULL );
-						whereEqualScanEst(pParse, pProbe, pFirstTerm->pExpr->pRight,
-							&pc.plan.nRow);
-					}else if( bInEst==0 ){
-						assert( pFirstTerm->eOperator & WO_IN );
-						whereInScanEst(pParse, pProbe, pFirstTerm->pExpr->x.pList,
-							&pc.plan.nRow);
+			//// Cost of using this index has now been computed ////
+
+			// If there are additional constraints on this table that cannot be used with the current index, but which might lower the number
+			// of output rows, adjust the nRow value accordingly.  This only matters if the current index is the least costly, so do not bother
+			// with this step if we already know this index will not be chosen. Also, never reduce the output row count below 2 using this step.
+			//
+			// It is critical that the notValid mask be used here instead of the notReady mask.  When computing an "optimal" index, the notReady
+			// mask will only have one bit set - the bit for the current table. The notValid mask, on the other hand, always has all bits set for
+			// tables that are not in outer loops.  If notReady is used here instead of notValid, then a optimal index that depends on inner joins loops
+			// might be selected even when there exists an optimal index that has no such dependency.
+			if (pc.Plan.Rows > 2 && pc.Cost <= p->Cost.Cost)
+			{
+				int k;
+				int skipEqs = pc.Plan.Eqs; // Number of == constraints to skip
+				int skipRanges = bounds; // Number of < constraints to skip
+				Bitmask thisTab = GetMask(wc->MaskSet, cursor); // Bitmap for pSrc
+				for (term = wc->Slots, k = wc->Terms; pc.Plan.Rows > 2 && k; k--, term++)
+				{
+					if (term->WtFlags & TERM_VIRTUAL) continue;
+					if ((term->PrereqAll & p->NotValid) != thisTab) continue;
+					if (term->EOperator & (WO_EQ|WO_IN|WO_ISNULL))
+					{
+						if (skipEqs) skipEqs--; // Ignore the first pc.plan.nEq equality matches since the index has already accounted for these
+						else pc.Plan.Rows /= 10; // Assume each additional equality match reduces the result set size by a factor of 10
 					}
-			}
-#endif /* SQLITE_ENABLE_STAT3 */
-
-			/* Adjust the number of output rows and downward to reflect rows
-			** that are excluded by range constraints.
-			*/
-			pc.plan.nRow = pc.plan.nRow/rangeDiv;
-			if( pc.plan.nRow<1 ) pc.plan.nRow = 1;
-
-			/* Experiments run on real SQLite databases show that the time needed
-			** to do a binary search to locate a row in a table or index is roughly
-			** log10(N) times the time to move from one row to the next row within
-			** a table or index.  The actual times can vary, with the size of
-			** records being an important factor.  Both moves and searches are
-			** slower with larger records, presumably because fewer records fit
-			** on one page and hence more pages have to be fetched.
-			**
-			** The ANALYZE command and the sqlite_stat1 and sqlite_stat3 tables do
-			** not give us data on the relative sizes of table and index records.
-			** So this computation assumes table records are about twice as big
-			** as index records
-			*/
-			if( (pc.plan.wsFlags&~(WHERE_REVERSE|WHERE_ORDERED|WHERE_OB_UNIQUE))
-				==WHERE_IDX_ONLY
-				&& (pWC->wctrlFlags & WHERE_ONEPASS_DESIRED)==0
-				&& sqlite3GlobalConfig.bUseCis
-				&& OptimizationEnabled(pParse->db, SQLITE_CoverIdxScan)
-				){
-					/* This index is not useful for indexing, but it is a covering index.
-					** A full-scan of the index might be a little faster than a full-scan
-					** of the table, so give this case a cost slightly less than a table
-					** scan. */
-					pc.rCost = aiRowEst[0]*3 + pProbe->nColumn;
-					pc.plan.wsFlags |= WHERE_COVER_SCAN|WHERE_COLUMN_RANGE;
-			}else if( (pc.plan.wsFlags & WHERE_NOT_FULLSCAN)==0 ){
-				/* The cost of a full table scan is a number of move operations equal
-				** to the number of rows in the table.
-				**
-				** We add an additional 4x penalty to full table scans.  This causes
-				** the cost function to err on the side of choosing an index over
-				** choosing a full scan.  This 4x full-scan penalty is an arguable
-				** decision and one which we expect to revisit in the future.  But
-				** it seems to be working well enough at the moment.
-				*/
-				pc.rCost = aiRowEst[0]*4;
-				pc.plan.wsFlags &= ~WHERE_IDX_ONLY;
-				if( pIdx ){
-					pc.plan.wsFlags &= ~WHERE_ORDERED;
-					pc.plan.nOBSat = nPriorSat;
-				}
-			}else{
-				log10N = estLog(aiRowEst[0]);
-				pc.rCost = pc.plan.nRow;
-				if( pIdx ){
-					if( bLookup ){
-						/* For an index lookup followed by a table lookup:
-						**    nInMul index searches to find the start of each index range
-						**  + nRow steps through the index
-						**  + nRow table searches to lookup the table entry using the rowid
-						*/
-						pc.rCost += (nInMul + pc.plan.nRow)*log10N;
-					}else{
-						/* For a covering index:
-						**     nInMul index searches to find the initial entry 
-						**   + nRow steps through the index
-						*/
-						pc.rCost += nInMul*log10N;
+					else if (term->EOperator & (WO_LT|WO_LE|WO_GT|WO_GE))
+					{
+						if (skipRanges) skipRanges--; // Ignore the first nSkipRange range constraints since the index has already accounted for these
+						// Assume each additional range constraint reduces the result set size by a factor of 3.  Indexed range constraints reduce
+						// the search space by a larger factor: 4.  We make indexed range more selective intentionally because of the subjective 
+						// observation that indexed range constraints really are more selective in practice, on average.
+						else pc.Plan.Rows /= 3;
 					}
-				}else{
-					/* For a rowid primary key lookup:
-					**    nInMult table searches to find the initial entry for each range
-					**  + nRow steps through the table
-					*/
-					pc.rCost += nInMul*log10N;
+					else if ((term->EOperator & WO_NOOP) == 0)
+						pc.Plan.Rows /= 2; // Any other expression lowers the output row count by half
 				}
+				if (pc.Plan.Rows < 2) pc.Plan.Rows = 2;
 			}
 
-			/* Add in the estimated cost of sorting the result.  Actual experimental
-			** measurements of sorting performance in SQLite show that sorting time
-			** adds C*N*log10(N) to the cost, where N is the number of rows to be 
-			** sorted and C is a factor between 1.95 and 4.3.  We will split the
-			** difference and select C of 3.0.
-			*/
-			if( bSort ){
-				double m = estLog(pc.plan.nRow*(nOrderBy - pc.plan.nOBSat)/nOrderBy);
-				m *= (double)(pc.plan.nOBSat ? 2 : 3);
-				pc.rCost += pc.plan.nRow*m;
-			}
-			if( bDist ){
-				pc.rCost += pc.plan.nRow*estLog(pc.plan.nRow)*3;
-			}
-
-			/**** Cost of using this index has now been computed ****/
-
-			/* If there are additional constraints on this table that cannot
-			** be used with the current index, but which might lower the number
-			** of output rows, adjust the nRow value accordingly.  This only 
-			** matters if the current index is the least costly, so do not bother
-			** with this step if we already know this index will not be chosen.
-			** Also, never reduce the output row count below 2 using this step.
-			**
-			** It is critical that the notValid mask be used here instead of
-			** the notReady mask.  When computing an "optimal" index, the notReady
-			** mask will only have one bit set - the bit for the current table.
-			** The notValid mask, on the other hand, always has all bits set for
-			** tables that are not in outer loops.  If notReady is used here instead
-			** of notValid, then a optimal index that depends on inner joins loops
-			** might be selected even when there exists an optimal index that has
-			** no such dependency.
-			*/
-			if( pc.plan.nRow>2 && pc.rCost<=p->cost.rCost ){
-				int k;                       /* Loop counter */
-				int nSkipEq = pc.plan.nEq;   /* Number of == constraints to skip */
-				int nSkipRange = nBound;     /* Number of < constraints to skip */
-				Bitmask thisTab;             /* Bitmap for pSrc */
-
-				thisTab = getMask(pWC->pMaskSet, iCur);
-				for(pTerm=pWC->a, k=pWC->nTerm; pc.plan.nRow>2 && k; k--, pTerm++){
-					if( pTerm->wtFlags & TERM_VIRTUAL ) continue;
-					if( (pTerm->prereqAll & p->notValid)!=thisTab ) continue;
-					if( pTerm->eOperator & (WO_EQ|WO_IN|WO_ISNULL) ){
-						if( nSkipEq ){
-							/* Ignore the first pc.plan.nEq equality matches since the index
-							** has already accounted for these */
-							nSkipEq--;
-						}else{
-							/* Assume each additional equality match reduces the result
-							** set size by a factor of 10 */
-							pc.plan.nRow /= 10;
-						}
-					}else if( pTerm->eOperator & (WO_LT|WO_LE|WO_GT|WO_GE) ){
-						if( nSkipRange ){
-							/* Ignore the first nSkipRange range constraints since the index
-							** has already accounted for these */
-							nSkipRange--;
-						}else{
-							/* Assume each additional range constraint reduces the result
-							** set size by a factor of 3.  Indexed range constraints reduce
-							** the search space by a larger factor: 4.  We make indexed range
-							** more selective intentionally because of the subjective 
-							** observation that indexed range constraints really are more
-							** selective in practice, on average. */
-							pc.plan.nRow /= 3;
-						}
-					}else if( (pTerm->eOperator & WO_NOOP)==0 ){
-						/* Any other expression lowers the output row count by half */
-						pc.plan.nRow /= 2;
-					}
-				}
-				if( pc.plan.nRow<2 ) pc.plan.nRow = 2;
-			}
-
-
-			WHERETRACE((
+			WHERETRACE(
 				"      nEq=%d nInMul=%d rangeDiv=%d bSort=%d bLookup=%d wsFlags=0x%08x\n"
 				"      notReady=0x%llx log10N=%.1f nRow=%.1f cost=%.1f\n"
 				"      used=0x%llx nOBSat=%d\n",
-				pc.plan.nEq, nInMul, (int)rangeDiv, bSort, bLookup, pc.plan.wsFlags,
-				p->notReady, log10N, pc.plan.nRow, pc.rCost, pc.used,
-				pc.plan.nOBSat
-				));
+				pc.Plan.Eqs, inMul, (int)rangeDiv, sort, lookup, pc.Plan.WsFlags,
+				p->NotReady, log10N, pc.Plan.Rows, pc.Cost, pc.Used,
+				pc.Plan.OBSats);
 
-			/* If this index is the best we have seen so far, then record this
-			** index and its cost in the p->cost structure.
-			*/
-			if( (!pIdx || pc.plan.wsFlags) && compareCost(&pc, &p->cost) ){
-				p->cost = pc;
-				p->cost.plan.wsFlags &= wsFlagMask;
-				p->cost.plan.u.pIdx = pIdx;
+			// If this index is the best we have seen so far, then record this index and its cost in the p->cost structure.
+			if ((!index || pc.Plan.WsFlags) && CompareCost(&pc, &p->Cost))
+			{
+				p->Cost = pc;
+				p->Cost.Plan.WsFlags &= wsFlagMask;
+				p->Cost.Plan.u.Index = index;
 			}
 
-			/* If there was an INDEXED BY clause, then only that one index is
-			** considered. */
-			if( pSrc->pIndex ) break;
+			// If there was an INDEXED BY clause, then only that one index is considered.
+			if (src->Index) break;
 
-			/* Reset masks for the next index in the loop */
+			// Reset masks for the next index in the loop
 			wsFlagMask = ~(WHERE_ROWID_EQ|WHERE_ROWID_RANGE);
 			eqTermMask = idxEqTermMask;
 		}
 
-		/* If there is no ORDER BY clause and the SQLITE_ReverseOrder flag
-		** is set, then reverse the order that the index will be scanned
-		** in. This is used for application testing, to help find cases
-		** where application behavior depends on the (undefined) order that
-		** SQLite outputs rows in in the absence of an ORDER BY clause.  */
-		if( !p->pOrderBy && pParse->db->flags & SQLITE_ReverseOrder ){
-			p->cost.plan.wsFlags |= WHERE_REVERSE;
-		}
+		// If there is no ORDER BY clause and the SQLITE_ReverseOrder flag is set, then reverse the order that the index will be scanned
+		// in. This is used for application testing, to help find cases where application behavior depends on the (undefined) order that
+		// SQLite outputs rows in in the absence of an ORDER BY clause.
+		if (!p->OrderBy && (parse->Ctx->Flags & Context::FLAG_ReverseOrder))
+			p->Cost.Plan.WsFlags |= WHERE_REVERSE;
 
-		assert( p->pOrderBy || (p->cost.plan.wsFlags&WHERE_ORDERED)==0 );
-		assert( p->cost.plan.u.pIdx==0 || (p->cost.plan.wsFlags&WHERE_ROWID_EQ)==0 );
-		assert( pSrc->pIndex==0 
-			|| p->cost.plan.u.pIdx==0 
-			|| p->cost.plan.u.pIdx==pSrc->pIndex 
-			);
+		_assert(p->OrderBy || (p->Cost.Plan.WsFlags & WHERE_ORDERED) == 0);
+		_assert(!p->Cost.Plan.u.Index || (p->Cost.Plan.WsFlags & WHERE_ROWID_EQ) == 0);
+		_assert(!src->Index || !p->Cost.Plan.u.Index || p->Cost.Plan.u.Index == src->Index);
 
-		WHERETRACE(("   best index is %s cost=%.1f\n",
-			p->cost.plan.u.pIdx ? p->cost.plan.u.pIdx->zName : "ipk",
-			p->cost.rCost));
+		WHERETRACE("   best index is %s cost=%.1f\n", (p->Cost.Plan.u.Index ? p->Cost.Plan.u.Index->Name : "ipk"), p->Cost.Cost);
 
-		bestOrClauseIndex(p);
-		bestAutomaticIndex(p);
-		p->cost.plan.wsFlags |= eqTermMask;
+		BestOrClauseIndex(p);
+		BestAutomaticIndex(p);
+		p->Cost.Plan.WsFlags |= eqTermMask;
 	}
 
-	static void bestIndex(WhereBestIdx *p){
+	__device__ static void BestIndex(WhereBestIdx *p)
+	{
 #ifndef OMIT_VIRTUALTABLE
-		if( IsVirtual(p->pSrc->pTab) ){
-			sqlite3_index_info *pIdxInfo = 0;
-			p->ppIdxInfo = &pIdxInfo;
-			bestVirtualIndex(p);
-			assert( pIdxInfo!=0 || p->pParse->db->mallocFailed );
-			if( pIdxInfo && pIdxInfo->needToFreeIdxStr ){
-				sqlite3_free(pIdxInfo->idxStr);
-			}
-			sqlite3DbFree(p->pParse->db, pIdxInfo);
-		}else
+		if (IsVirtual(p->Src->Table))
+		{
+			IIndexInfo *indexInfo = nullptr;
+			p->IdxInfo = &indexInfo;
+			BestVirtualIndex(p);
+			_assert(indexInfo || p->Parse->Ctx->MallocFailed);
+			if (indexInfo && indexInfo->NeedToFreeIdxStr)
+				SysEx::Free(indexInfo->IdxStr);
+			SysEx::TagFree(p->Parse->Ctx, indexInfo);
+		}
+		else
 #endif
 		{
-			bestBtreeIndex(p);
+			BestBtreeIndex(p);
 		}
 	}
 
-	static void disableTerm(WhereLevel *pLevel, WhereTerm *pTerm){
-		if( pTerm
-			&& (pTerm->wtFlags & TERM_CODED)==0
-			&& (pLevel->iLeftJoin==0 || ExprHasProperty(pTerm->pExpr, EP_FromJoin))
-			){
-				pTerm->wtFlags |= TERM_CODED;
-				if( pTerm->iParent>=0 ){
-					WhereTerm *pOther = &pTerm->pWC->a[pTerm->iParent];
-					if( (--pOther->nChild)==0 ){
-						disableTerm(pLevel, pOther);
-					}
-				}
+	__device__ static void DisableTerm(WhereLevel *level, WhereTerm *term)
+	{
+		if (term && (term->WtFlags & TERM_CODED) == 0 && (level->LeftJoin == 0 || ExprHasProperty(term->Expr, EP_FromJoin)))
+		{
+			term->WtFlags |= TERM_CODED;
+			if (term->Parent >= 0)
+			{
+				WhereTerm *other = &term->WC->Slots[term->Parent];
+				if (--other->Childs == 0)
+					DisableTerm(level, other);
+			}
 		}
 	}
 
-	static void codeApplyAffinity(Parse *pParse, int base, int n, char *zAff){
-		Vdbe *v = pParse->pVdbe;
-		if( zAff==0 ){
-			assert( pParse->db->mallocFailed );
+	__device__ static void CodeApplyAffinity(Parse *parse, int baseId, int n, AFF *affs)
+	{
+		Vdbe *v = parse->V;
+		if (!affs)
+		{
+			_assert(parse->Ctx->MallocFailed);
 			return;
 		}
-		assert( v!=0 );
-
-		/* Adjust base and n to skip over SQLITE_AFF_NONE entries at the beginning
-		** and end of the affinity string.
-		*/
-		while( n>0 && zAff[0]==SQLITE_AFF_NONE ){
+		_assert(v != nullptr);
+		// Adjust base and n to skip over SQLITE_AFF_NONE entries at the beginning and end of the affinity string.
+		while (n > 0 && affs[0] == AFF_NONE)
+		{
 			n--;
-			base++;
-			zAff++;
+			baseId++;
+			affs++;
 		}
-		while( n>1 && zAff[n-1]==SQLITE_AFF_NONE ){
-			n--;
-		}
-
-		/* Code the OP_Affinity opcode if there is anything left to do. */
-		if( n>0 ){
-			sqlite3VdbeAddOp2(v, OP_Affinity, base, n);
-			sqlite3VdbeChangeP4(v, -1, zAff, n);
-			sqlite3ExprCacheAffinityChange(pParse, base, n);
+		while (n > 1 && affs[n-1] == AFF_NONE) n--;
+		// Code the OP_Affinity opcode if there is anything left to do.
+		if (n > 0)
+		{
+			v->AddOp2(OP_Affinity, baseId, n);
+			v->ChangeP4(-1, (const char *)affs, n);
+			Expr::CacheAffinityChange(parse, baseId, n);
 		}
 	}
 
-	static int codeEqualityTerm(
-		Parse *pParse,      /* The parsing context */
-		WhereTerm *pTerm,   /* The term of the WHERE clause to be coded */
-		WhereLevel *pLevel, /* The level of the FROM clause we are working on */
-		int iEq,            /* Index of the equality term within this level */
-		int iTarget         /* Attempt to leave results in this register */
-		){
-			Expr *pX = pTerm->pExpr;
-			Vdbe *v = pParse->pVdbe;
-			int iReg;                  /* Register holding results */
-
-			assert( iTarget>0 );
-			if( pX->op==TK_EQ ){
-				iReg = sqlite3ExprCodeTarget(pParse, pX->pRight, iTarget);
-			}else if( pX->op==TK_ISNULL ){
-				iReg = iTarget;
-				sqlite3VdbeAddOp2(v, OP_Null, 0, iReg);
+	__device__ static int CodeEqualityTerm(Parse *parse, WhereTerm *term, WhereLevel *level, int eq, int targetId)
+	{
+		Expr *x = term->Expr;
+		Vdbe *v = parse->V;
+		int regId; // Register holding results
+		_assert(targetId > 0);
+		if (x->OP == TK_EQ)
+			regId = Expr::CodeTarget(parse, x->Right, targetId);
+		else if (x->OP == TK_ISNULL)
+		{
+			regId = targetId;
+			v->AddOp2(OP_Null, 0, regId);
 #ifndef OMIT_SUBQUERY
-			}else{
-				int eType;
-				int iTab;
-				struct InLoop *pIn;
-				u8 bRev = (pLevel->plan.wsFlags & WHERE_REVERSE)!=0;
-
-				if( (pLevel->plan.wsFlags & WHERE_INDEXED)!=0 
-					&& pLevel->plan.u.pIdx->aSortOrder[iEq]
-				){
-					testcase( iEq==0 );
-					testcase( iEq==pLevel->plan.u.pIdx->nColumn-1 );
-					testcase( iEq>0 && iEq+1<pLevel->plan.u.pIdx->nColumn );
-					testcase( bRev );
-					bRev = !bRev;
-				}
-				assert( pX->op==TK_IN );
-				iReg = iTarget;
-				eType = sqlite3FindInIndex(pParse, pX, 0);
-				if( eType==IN_INDEX_INDEX_DESC ){
-					testcase( bRev );
-					bRev = !bRev;
-				}
-				iTab = pX->iTable;
-				sqlite3VdbeAddOp2(v, bRev ? OP_Last : OP_Rewind, iTab, 0);
-				assert( pLevel->plan.wsFlags & WHERE_IN_ABLE );
-				if( pLevel->u.in.nIn==0 ){
-					pLevel->addrNxt = sqlite3VdbeMakeLabel(v);
-				}
-				pLevel->u.in.nIn++;
-				pLevel->u.in.aInLoop =
-					sqlite3DbReallocOrFree(pParse->db, pLevel->u.in.aInLoop,
-					sizeof(pLevel->u.in.aInLoop[0])*pLevel->u.in.nIn);
-				pIn = pLevel->u.in.aInLoop;
-				if( pIn ){
-					pIn += pLevel->u.in.nIn - 1;
-					pIn->iCur = iTab;
-					if( eType==IN_INDEX_ROWID ){
-						pIn->addrInTop = sqlite3VdbeAddOp2(v, OP_Rowid, iTab, iReg);
-					}else{
-						pIn->addrInTop = sqlite3VdbeAddOp3(v, OP_Column, iTab, 0, iReg);
-					}
-					pIn->eEndLoopOp = bRev ? OP_Prev : OP_Next;
-					sqlite3VdbeAddOp1(v, OP_IsNull, iReg);
-				}else{
-					pLevel->u.in.nIn = 0;
-				}
-#endif
+		}
+		else
+		{
+			bool rev = ((level->Plan.WsFlags & WHERE_REVERSE) != 0);
+			if ((level->Plan.WsFlags & WHERE_INDEXED) != 0 && level->Plan.u.Index->SortOrders[eq])
+			{
+				ASSERTCOVERAGE(eq == 0);
+				ASSERTCOVERAGE(eq == level->Plan.u.Index->Columns.length-1);
+				ASSERTCOVERAGE(eq > 0 && eq+1 < level->Plan.u.Index->Columns.length);
+				ASSERTCOVERAGE(rev);
+				rev = !rev;
 			}
-			disableTerm(pLevel, pTerm);
-			return iReg;
+			_assert(x->OP == TK_IN);
+			regId = targetId;
+			int type = FindInIndex(parse, x, 0);
+			if (type == IN_INDEX_INDEX_DESC)
+			{
+				ASSERTCOVERAGE(rev);
+				rev = !rev;
+			}
+			int tableId = x->TableIdx;
+			v->AddOp2(rev ? OP_Last : OP_Rewind, tableId, 0);
+			_assert(level->Plan.WsFlags & WHERE_IN_ABLE);
+			if (level->u.in.InLoops.length == 0)
+				level->AddrNxt = v->MakeLabel();
+			level->u.in.InLoops.length++;
+			level->u.in.InLoops = SysEx::TagRellocOrFree(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
+			WhereLevel::InLoop *in = level->u.in.InLoops;
+			if (in)
+			{
+				in += level->u.in.InLoops.lenght - 1;
+				in->Cur = tableId;
+				if (type == IN_INDEX_ROWID)
+					in->AddrInTop = v->AddOp2(OP_Rowid, tableId, regId);
+				else
+					in->AddrInTop = v->AddOp3(OP_Column, tableId, 0, regId);
+				in->EndLoopOp = (rev ? OP_Prev : OP_Next);
+				v->AddOp1(OP_IsNull, regId);
+			}
+			else
+				level->u.in.InLoops.length = 0;
+#endif
+		}
+		DisableTerm(level, term);
+		return regId;
 	}
 
 	static int codeAllEqualityTerms(

@@ -45,7 +45,7 @@ namespace Core
         public int End;				// First byte past end of available space
     }
 
-    public static class ContextEx
+    public static partial class E
     {
 #if !OMIT_BUILTIN_TEST
         public static bool CtxOptimizationDisabled(Context ctx, OPTFLAG mask) { return (((ctx).OptFlags & (mask)) != 0); }

@@ -234,10 +234,10 @@ namespace Core
         public string ColAff;			// String defining the affinity of each column
         public Index Next;				// The next index associated with the same table
         public Schema Schema;			// Schema containing this index
-        public byte SortOrders;			// for each column: True==DESC, False==ASC
+        public SO[] SortOrders;			// for each column: True==DESC, False==ASC
         public string[] CollNames;		// Array of collation sequence names for index
         public int Id;					// DB Page containing root of this index
-        public OE OnError;			// OE_Abort, OE_Ignore, OE_Replace, or OE_None
+        public OE OnError;			    // OE_Abort, OE_Ignore, OE_Replace, or OE_None
         public byte AutoIndex;		    // 1==UNIQUE, 2==PRIMARY KEY, 0==CREATE INDEX
         public bool Unordered;		    // Use this index for == or IN queries only
 #if ENABLE_STAT3
@@ -690,7 +690,7 @@ namespace Core
             public Expr Expr;			// The list of expressions
             public string Name;			// Token associated with this expression
             public string Span;			// Original text of the expression
-            public byte SortOrder;      // 1 for DESC or 0 for ASC
+            public SO SortOrder;        // 1 for DESC or 0 for ASC
             public bool Done;		    // A flag to indicate when processing is finished
             public bool SpanIsTab;	    // zSpan holds DB.TABLE.COLUMN
             public ushort OrderByCol;   // For ORDER BY, column number in result set

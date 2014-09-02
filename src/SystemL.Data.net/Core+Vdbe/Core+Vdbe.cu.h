@@ -241,7 +241,7 @@ namespace Core
 		char *ColAff;				// String defining the affinity of each column
 		Index *Next;				// The next index associated with the same table
 		Schema *Schema;				// Schema containing this index
-		SO *SortOrders;			// for each column: True==DESC, False==ASC
+		SO *SortOrders;				// for each column: True==DESC, False==ASC
 		char **CollNames;			// Array of collation sequence names for index
 		int Id;						// DB Page containing root of this index
 		OE OnError;					// OE_Abort, OE_Ignore, OE_Replace, or OE_None
@@ -412,6 +412,12 @@ namespace Core
 
 	struct WhereLevel
 	{
+		struct InLoop
+		{
+			int Cur;			// The VDBE cursor used by this IN operator
+			int AddrInTop;		// Top of the IN loop
+			uint8 EndLoopOp;	// IN Loop terminator. OP_Next or OP_Prev
+		};
 		WherePlan Plan;			// query plan for this element of the FROM clause
 		int LeftJoin;			// Memory cell used to implement LEFT OUTER JOIN
 		int TabCur;				// The VDBE cursor used to access the table
@@ -427,14 +433,7 @@ namespace Core
 		{
 			struct
 			{
-				struct InLoop
-				{
-					int Cur;			// The VDBE cursor used by this IN operator
-					int AddrInTop;		// Top of the IN loop
-					uint8 EndLoopOp;	// IN Loop terminator. OP_Next or OP_Prev
-				};
-				int InLoopsLength;		// Number of entries in aInLoop[]
-				InLoop *InLoops;		// Information about each nested IN operator
+				array_t<InLoop> InLoops; // Information about each nested IN operator
 			} in;						// Used when plan.wsFlags&WHERE_IN_ABLE
 			Index *Covidx;				// Possible covering index for WHERE_MULTI_OR
 		} u;							// Information that depends on plan.wsFlags
@@ -738,7 +737,7 @@ namespace Core
 			Expr *Expr;				// The list of expressions
 			char *Name;				// Token associated with this expression
 			char *Span;				// Original text of the expression
-			uint8 SortOrder;        // 1 for DESC or 0 for ASC
+			SO SortOrder;			// 1 for DESC or 0 for ASC
 			unsigned Done:1;		// A flag to indicate when processing is finished
 			unsigned SpanIsTab:1;	// zSpan holds DB.TABLE.COLUMN
 			uint16 OrderByCol;      // For ORDER BY, column number in result set
