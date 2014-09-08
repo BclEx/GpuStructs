@@ -1,6 +1,6 @@
 using System;
 using System.Diagnostics;
-using System.Text;
+using Core.Text;
 using Bitmask = System.UInt64;
 using tRowcnt = System.UInt32;
 
@@ -2651,7 +2651,7 @@ namespace Core
             }
         }
 
-        static int CodeEqualityTerm(Parse parse, WhereTerm term, WhereLevel level, int targetId)
+        static int CodeEqualityTerm(Parse parse, WhereTerm term, WhereLevel level, int eq, int targetId)
         {
             Expr x = term.Expr;
             Vdbe v = parse.V;
@@ -2667,1033 +2667,826 @@ namespace Core
             }
             else
             {
-                int eType;
-                int iTab;
-                InLoop pIn;
-
-                Debug.Assert(x.op == TK_IN);
+                bool rev = ((level.Plan.WsFlags & WHERE_REVERSE) != 0);
+                if ((level.Plan.WsFlags & WHERE_INDEXED) != 0 && level.Plan.u.Index.SortOrders[eq] != 0)
+                {
+                    SysEx.ASSERTCOVERAGE(eq == 0);
+                    SysEx.ASSERTCOVERAGE(eq == level.Plan.u.Index.Columns.length - 1);
+                    SysEx.ASSERTCOVERAGE(eq > 0 && eq + 1 < level.Plan.u.Index.Columns.length);
+                    SysEx.ASSERTCOVERAGE(rev);
+                    rev = !rev;
+                }
+                Debug.Assert(x.OP == TK.IN);
                 regId = targetId;
-                int iDummy = -1;
-                eType = sqlite3FindInIndex(parse, x, ref iDummy);
-                iTab = x.iTable;
-                sqlite3VdbeAddOp2(v, OP_Rewind, iTab, 0);
-                Debug.Assert((level.plan.wsFlags & WHERE_IN_ABLE) != 0);
-                if (level.u._in.nIn == 0)
+                int dummy1 = -1;
+                IN_INDEX type = sqlite3FindInIndex(parse, x, ref dummy1);
+                if (type == IN_INDEX.INDEX_DESC)
                 {
-                    level.addrNxt = sqlite3VdbeMakeLabel(v);
+                    SysEx.ASSERTCOVERAGE(rev);
+                    rev = !rev;
                 }
-                level.u._in.nIn++;
-                if (level.u._in.aInLoop == null)
-                    level.u._in.aInLoop = new InLoop[level.u._in.nIn];
+                int tableId = x.TableIdx;
+                v.AddOp2(rev ? OP.Last : OP.Rewind, tableId, 0);
+                Debug.Assert((level.Plan.WsFlags & WHERE_IN_ABLE) != 0);
+                if (level.u.in_.InLoops.length == 0)
+                    level.AddrNxt = v.MakeLabel();
+                level.u.in_.InLoops.length++;
+                //: level->u.in.InLoops = SysEx::TagRellocOrFree(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
+                if (level.u.in_.InLoops.data == null)
+                    level.u.in_.InLoops.data = new WhereLevel.InLoop[level.u.in_.InLoops.length];
                 else
-                    Array.Resize(ref level.u._in.aInLoop, level.u._in.nIn);
-                //sqlite3DbReallocOrFree(pParse.db, pLevel.u._in.aInLoop,
-                //                       sizeof(pLevel.u._in.aInLoop[0])*pLevel.u._in.nIn);
-                //pIn = pLevel.u._in.aInLoop;
-                if (level.u._in.aInLoop != null)//(pIn )
+                    Array.Resize(ref level.u.in_.InLoops.data, level.u.in_.InLoops.length);
+                WhereLevel.InLoop in_;
+                if (level.u.in_.InLoops.data != null)
                 {
-                    level.u._in.aInLoop[level.u._in.nIn - 1] = new InLoop();
-                    pIn = level.u._in.aInLoop[level.u._in.nIn - 1];//pIn++
-                    pIn.iCur = iTab;
-                    if (eType == IN_INDEX_ROWID)
-                    {
-                        pIn.addrInTop = sqlite3VdbeAddOp2(v, OP_Rowid, iTab, regId);
-                    }
+                    in_ = level.u.in_.InLoops[level.u.in_.InLoops.length - 1] = new WhereLevel.InLoop();
+                    in_.Cur = tableId;
+                    if (type == IN_INDEX.ROWID)
+                        in_.AddrInTop = v.AddOp2(OP.Rowid, tableId, regId);
                     else
-                    {
-                        pIn.addrInTop = sqlite3VdbeAddOp3(v, OP_Column, iTab, 0, regId);
-                    }
-                    sqlite3VdbeAddOp1(v, OP_IsNull, regId);
+                        in_.AddrInTop = v.AddOp3(OP.Column, tableId, 0, regId);
+                    in_.EndLoopOp = (rev ? OP.Prev : OP.Next);
+                    v.AddOp1(OP.IsNull, regId);
                 }
                 else
-                {
-                    level.u._in.nIn = 0;
-                }
+                    level.u.in_.InLoops.length = 0;
 #endif
             }
             DisableTerm(level, term);
             return regId;
         }
 
-        /*
-        ** Generate code for a single equality term of the WHERE clause.  An equality
-        ** term can be either X=expr or X IN (...).   pTerm is the term to be 
-        ** coded.
-        **
-        ** For example, consider table t1(a,b,c,d,e,f) with index i1(a,b,c).
-        ** Suppose the WHERE clause is this:  a==5 AND b IN (1,2,3) AND c>5 AND c<10
-        ** The index has as many as three equality constraints, but in this
-        ** example, the third "c" value is an inequality.  So only two
-        ** constraints are coded.  This routine will generate code to evaluate
-        ** a==5 and b IN (1,2,3).  The current values for a and b will be stored
-        ** in consecutive registers and the index of the first register is returned.
-        **
-        ** In the example above nEq==2.  But this subroutine works for any value
-        ** of nEq including 0.  If nEq==null, this routine is nearly a no-op.
-        ** The only thing it does is allocate the pLevel.iMem memory cell and
-        ** compute the affinity string.
-        **
-        ** This routine always allocates at least one memory cell and returns
-        ** the index of that memory cell. The code that
-        ** calls this routine will use that memory cell to store the termination
-        ** key value of the loop.  If one or more IN operators appear, then
-        ** this routine allocates an additional nEq memory cells for internal
-        ** use.
-        **
-        ** Before returning, *pzAff is set to point to a buffer containing a
-        ** copy of the column affinity string of the index allocated using
-        ** sqlite3DbMalloc(). Except, entries in the copy of the string associated
-        ** with equality constraints that use NONE affinity are set to
-        ** SQLITE_AFF_NONE. This is to deal with SQL such as the following:
-        **
-        **   CREATE TABLE t1(a TEXT PRIMARY KEY, b);
-        **   SELECT ... FROM t1 AS t2, t1 WHERE t1.a = t2.b;
-        **
-        ** In the example above, the index on t1(a) has TEXT affinity. But since
-        ** the right hand side of the equality constraint (t2.b) has NONE affinity,
-        ** no conversion should be attempted before using a t2.b value as part of
-        ** a key to search the index. Hence the first byte in the returned affinity
-        ** string in this example would be set to SQLITE_AFF_NONE.
-        */
-        static int codeAllEqualityTerms(
-        Parse pParse,        /* Parsing context */
-        WhereLevel pLevel,   /* Which nested loop of the FROM we are coding */
-        WhereClause pWC,     /* The WHERE clause */
-        Bitmask notReady,    /* Which parts of FROM have not yet been coded */
-        int nExtraReg,       /* Number of extra registers to allocate */
-        out StringBuilder pzAff /* OUT: Set to point to affinity string */
-        )
+        static int CodeAllEqualityTerms(Parse parse, WhereLevel level, WhereClause wc, Bitmask notReady, int extraRegs, out StringBuilder affsout)
         {
-            int nEq = (int)pLevel.plan.nEq;   /* The number of == or IN constraints to code */
-            Vdbe v = pParse.pVdbe;       /* The vm under construction */
-            Index pIdx;                  /* The index being used for this loop */
-            int iCur = pLevel.iTabCur;   /* The cursor of the table */
-            WhereTerm pTerm;             /* A single constraint term */
-            int j;                       /* Loop counter */
-            int regBase;                 /* Base register */
-            int nReg;                    /* Number of registers to allocate */
-            StringBuilder zAff;          /* Affinity string to return */
+            // This module is only called on query plans that use an index.
+            Debug.Assert((level.Plan.WsFlags & WHERE_INDEXED) != 0);
+            Index index = level.Plan.u.Index; // The index being used for this loop
 
-            /* This module is only called on query plans that use an index. */
-            Debug.Assert((pLevel.plan.wsFlags & WHERE_INDEXED) != 0);
-            pIdx = pLevel.plan.u.pIdx;
+            // Figure out how many memory cells we will need then allocate them.
+            int baseId = parse.Mems + 1; // Base register
+            int regs = (int)(level.Plan.Eqs + extraRegs); // Number of registers to allocate
+            parse.Mems += regs;
 
-            /* Figure out how many memory cells we will need then allocate them.
-            */
-            regBase = pParse.nMem + 1;
-            nReg = (int)(pLevel.plan.nEq + nExtraReg);
-            pParse.nMem += nReg;
+            Vdbe v = parse.V; // The vm under construction
+            StringBuilder affs = new StringBuilder(sqlite3IndexAffinityStr(v, index)); // Affinity string to return
+            if (affs == null)
+                parse.Ctx.MallocFailed = true;
 
-            zAff = new StringBuilder(sqlite3IndexAffinityStr(v, pIdx));//sqlite3DbStrDup(pParse.db, sqlite3IndexAffinityStr(v, pIdx));
-            //if( null==zAff ){
-            //  pParse.db.mallocFailed = 1;
-            //}
-
-            /* Evaluate the equality constraints
-            */
-            Debug.Assert(pIdx.nColumn >= nEq);
-            for (j = 0; j < nEq; j++)
+            // Evaluate the equality constraints
+            int eqs = (int)level.Plan.Eqs; // The number of == or IN constraints to code
+            Debug.Assert(index.Columns.length >= eqs);
+            int cur = level.TabCur; // The cursor of the table
+            for (j = 0; j < eqs; j++)
             {
-                int r1;
-                int k = pIdx.aiColumn[j];
-                pTerm = FindTerm(pWC, iCur, k, notReady, pLevel.plan.wsFlags, pIdx);
-                if (NEVER(pTerm == null))
+                int k = index.Columns[j];
+                WhereTerm term = FindTerm(wc, cur, k, notReady, level.plan.wsFlags, index); // A single constraint term
+                if (NEVER(term == null))
                     break;
-                /* The following true for indices with redundant columns. 
-                ** Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0; */
-                testcase((pTerm.wtFlags & TERM_CODED) != 0);
-                testcase(pTerm.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
-                r1 = CodeEqualityTerm(pParse, pTerm, pLevel, regBase + j);
-                if (r1 != regBase + j)
-                {
-                    if (nReg == 1)
+                // The following true for indices with redundant columns. Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0;
+                SysEx.ASSERTCOVERAGE((term.WtFlags & TERM_CODED) != 0);
+                SysEx.ASSERTCOVERAGE((term.WtFlags & TERM_VIRTUAL) != 0); // EV: R-30575-11662
+                int r1 = CodeEqualityTerm(parse, term, level, baseId + j);
+                if (r1 != baseId + j)
+                    if (regs == 1)
                     {
-                        sqlite3ReleaseTempReg(pParse, regBase);
-                        regBase = r1;
+                        parse.ReleaseTempReg(baseId);
+                        baseId = r1;
                     }
                     else
-                    {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, r1, regBase + j);
-                    }
-                }
-                testcase(pTerm.eOperator & WO_ISNULL);
-                testcase(pTerm.eOperator & WO_IN);
-                if ((pTerm.eOperator & (WO_ISNULL | WO_IN)) == 0)
+                        v.AddOp2(OP.SCopy, r1, baseId + j);
+                SysEx.ASSERTCOVERAGE((term.EOperator & WO_ISNULL) != 0);
+                SysEx.ASSERTCOVERAGE((term.EOperator & WO_IN) != 0);
+                if ((term.EOperator & (WO.ISNULL | WO.IN)) == 0)
                 {
-                    Expr pRight = pTerm.pExpr.pRight;
-                    sqlite3ExprCodeIsNullJump(v, pRight, regBase + j, pLevel.addrBrk);
-                    if (zAff.Length > 0)
-                    {
-                        if (sqlite3CompareAffinity(pRight, zAff[j]) == SQLITE_AFF_NONE)
-                        {
-                            zAff[j] = SQLITE_AFF_NONE;
-                        }
-                        if ((sqlite3ExprNeedsNoAffinityChange(pRight, zAff[j])) != 0)
-                        {
-                            zAff[j] = SQLITE_AFF_NONE;
-                        }
-                    }
+                    Expr right = term.Expr.Right;
+                    Expr.CodeIsNullJump(v, right, baseId + j, level.AddrBrk);
+                    if (affs.Length > 0)
+                        if (right.CompareAffinity((AFF)affs[j]) == AFF.NONE || right.NeedsNoAffinityChange(affs[j]))
+                            affs[j] = AFF.NONE;
                 }
             }
-            pzAff = zAff;
-            return regBase;
+            affsout = affs;
+            return baseId;
         }
 
-#if !SQLITE_OMIT_EXPLAIN
-        /*
-** This routine is a helper for explainIndexRange() below
-**
-** pStr holds the text of an expression that we are building up one term
-** at a time.  This routine adds a new term to the end of the expression.
-** Terms are separated by AND so add the "AND" text for second and subsequent
-** terms only.
-*/
-        static void explainAppendTerm(
-        StrAccum pStr,              /* The text expression being built */
-        int iTerm,                  /* Index of this term.  First is zero */
-        string zColumn,             /* Name of the column */
-        string zOp                  /* Name of the operator */
-        )
+#if !OMIT_EXPLAIN
+        static void ExplainAppendTerm(StringBuilder b, int term, string columnName, string opName)
         {
-            if (iTerm != 0)
-                sqlite3StrAccumAppend(pStr, " AND ", 5);
-            sqlite3StrAccumAppend(pStr, zColumn, -1);
-            sqlite3StrAccumAppend(pStr, zOp, 1);
-            sqlite3StrAccumAppend(pStr, "?", 1);
+            if (term != 0)
+                b.Append(" AND ", 5);
+            b.Append(columnName, -1);
+            b.Append(opName, 1);
+            b.Append("?", 1);
         }
 
-        /*
-        ** Argument pLevel describes a strategy for scanning table pTab. This 
-        ** function returns a pointer to a string buffer containing a description
-        ** of the subset of table rows scanned by the strategy in the form of an
-        ** SQL expression. Or, if all rows are scanned, NULL is returned.
-        **
-        ** For example, if the query:
-        **
-        **   SELECT * FROM t1 WHERE a=1 AND b>2;
-        **
-        ** is run and there is an index on (a, b), then this function returns a
-        ** string similar to:
-        **
-        **   "a=? AND b>?"
-        **
-        ** The returned pointer points to memory obtained from sqlite3DbMalloc().
-        ** It is the responsibility of the caller to free the buffer when it is
-        ** no longer required.
-        */
-        static string explainIndexRange(sqlite3 db, WhereLevel pLevel, Table pTab)
+        static string ExplainIndexRange(Context ctx, WhereLevel level, Table table)
         {
-            WherePlan pPlan = pLevel.plan;
-            Index pIndex = pPlan.u.pIdx;
-            uint nEq = pPlan.nEq;
-            int i, j;
-            Column[] aCol = pTab.aCol;
-            int[] aiColumn = pIndex.aiColumn;
-            StrAccum txt = new StrAccum(100);
-
-            if (nEq == 0 && (pPlan.wsFlags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) == 0)
-            {
+            WherePlan plan = level.Plan;
+            Index index = plan.u.Index;
+            uint eqs = plan.Eqs;
+            Column[] cols = table.Cols;
+            int[] columns = index.Columns;
+            if (eqs == 0 && (plan.WsFlags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) == 0)
                 return null;
-            }
-            sqlite3StrAccumInit(txt, null, 0, SQLITE_MAX_LENGTH);
-            txt.db = db;
-            sqlite3StrAccumAppend(txt, " (", 2);
-            for (i = 0; i < nEq; i++)
-            {
-                explainAppendTerm(txt, i, aCol[aiColumn[i]].zName, "=");
-            }
-
-            j = i;
-            if ((pPlan.wsFlags & WHERE_BTM_LIMIT) != 0)
-            {
-                explainAppendTerm(txt, i++, aCol[aiColumn[j]].zName, ">");
-            }
-            if ((pPlan.wsFlags & WHERE_TOP_LIMIT) != 0)
-            {
-                explainAppendTerm(txt, i, aCol[aiColumn[j]].zName, "<");
-            }
-            sqlite3StrAccumAppend(txt, ")", 1);
-            return sqlite3StrAccumFinish(txt);
+            StringBuilder b = new StringBuilder(100);
+            StringBuilder.Init(b, null, 0, MAX_LENGTH);
+            b.Ctx = ctx;
+            b.Append(b, " (", 2);
+            int i;
+            for (i = 0; i < eqs; i++)
+                ExplainAppendTerm(b, i, cols[columns[i]].Name, "=");
+            int j = i;
+            if ((plan.WsFlags & WHERE_BTM_LIMIT) != 0)
+                ExplainAppendTerm(b, i++, (j == index->Columns.length ? "rowid" : cols[columns[j]].Name), ">");
+            if ((plan.WsFlags & WHERE_TOP_LIMIT) != 0)
+                ExplainAppendTerm(b, i, (j == index->Columns.length ? "rowid" : cols[columns[j]].Name), "<");
+            b.Append(")", 1);
+            return b.ToString();
         }
 
-        /*
-        ** This function is a no-op unless currently processing an EXPLAIN QUERY PLAN
-        ** command. If the query being compiled is an EXPLAIN QUERY PLAN, a single
-        ** record is added to the output to describe the table scan strategy in 
-        ** pLevel.
-        */
-        static void explainOneScan(
-        Parse pParse,                   /* Parse context */
-        SrcList pTabList,               /* Table list this loop refers to */
-        WhereLevel pLevel,              /* Scan to write OP_Explain opcode for */
-        int iLevel,                     /* Value for "level" column of output */
-        int iFrom,                      /* Value for "from" column of output */
-        u16 wctrlFlags                  /* Flags passed to sqlite3WhereBegin() */
-        )
+        static void ExplainOneScan(Parse parse, SrcList list, WhereLevel level, int levelId, int fromId, ushort wctrlFlags)
         {
-            if (pParse.explain == 2)
+            if (parse.Explain == 2)
             {
-                u32 flags = pLevel.plan.wsFlags;
-                SrcList_item pItem = pTabList.a[pLevel.iFrom];
-                Vdbe v = pParse.pVdbe;       /* VM being constructed */
-                sqlite3 db = pParse.db;      /* Database handle */
-                StringBuilder zMsg = new StringBuilder(1000); /* Text to add to EQP output */
-                sqlite3_int64 nRow;          /* Expected number of rows visited by scan */
-                int iId = pParse.iSelectId;  /* Select id (left-most output column) */
-                bool isSearch;               /* True for a SEARCH. False for SCAN. */
+                u32 flags = level.Plan.WsFlags;
+                SrcList.SrcListItem item = list.Ids[level.From];
+                Vdbe v = parse.V; // VM being constructed
+                Context ctx = parse.Ctx; // Database handle
 
-                if ((flags & WHERE_MULTI_OR) != 0 || (wctrlFlags & WHERE_ONETABLE_ONLY) != 0)
-                    return;
+                if ((flags & WHERE_MULTI_OR) != 0 || (wctrlFlags & WHERE_ONETABLE_ONLY) != 0) return;
+                bool isSearch = (level.Plan.Eqs > 0 || (flags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) != 0 || (wctrlFlags & (WHERE_ORDERBY_MIN | WHERE_ORDERBY_MAX)) != 0); // True for a SEARCH. False for SCAN.
 
-                isSearch = (pLevel.plan.nEq > 0)
-                || (flags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) != 0
-                || (wctrlFlags & (WHERE_ORDERBY_MIN | WHERE_ORDERBY_MAX)) != 0;
-
-                zMsg.Append(sqlite3MPrintf(db, "%s", isSearch ? "SEARCH" : "SCAN"));
-                if (pItem.pSelect != null)
-                {
-                    zMsg.Append(sqlite3MAppendf(db, null, " SUBQUERY %d", pItem.iSelectId));
-                }
+                StringBuilder b = new StringBuilder(1000); // Text to add to EQP output
+                b.Append(sqlite3MPrintf(ctx, "%s", isSearch ? "SEARCH" : "SCAN"));
+                if (item.Select != null)
+                    b.Append(sqlite3MAppendf(ctx, null, " SUBQUERY %d", item.SelectId));
                 else
-                {
-                    zMsg.Append(sqlite3MAppendf(db, null, " TABLE %s", pItem.zName));
-                }
-
-                if (pItem.zAlias != null)
-                {
-                    zMsg.Append(sqlite3MAppendf(db, null, " AS %s", pItem.zAlias));
-                }
+                    b.Append(sqlite3MAppendf(ctx, null, " TABLE %s", item.Name));
+                if (item.Alias != null)
+                    b.Append(sqlite3MAppendf(ctx, null, " AS %s", item.Alias));
                 if ((flags & WHERE_INDEXED) != 0)
                 {
-                    string zWhere = explainIndexRange(db, pLevel, pItem.pTab);
-                    zMsg.Append(sqlite3MAppendf(db, null, " USING %s%sINDEX%s%s%s",
-                    ((flags & WHERE_TEMP_INDEX) != 0 ? "AUTOMATIC " : ""),
-                    ((flags & WHERE_IDX_ONLY) != 0 ? "COVERING " : ""),
-                    ((flags & WHERE_TEMP_INDEX) != 0 ? "" : " "),
-                    ((flags & WHERE_TEMP_INDEX) != 0 ? "" : pLevel.plan.u.pIdx.zName),
-                    zWhere != null ? zWhere : ""
-                    ));
-                    sqlite3DbFree(db, ref zWhere);
+                    string where = ExplainIndexRange(ctx, level, item.Table);
+                    b.Append(sqlite3MAppendf(ctx, null, " USING %s%sINDEX%s%s%s",
+                        ((flags & WHERE_TEMP_INDEX) != 0 ? "AUTOMATIC " : ""),
+                        ((flags & WHERE_IDX_ONLY) != 0 ? "COVERING " : ""),
+                        ((flags & WHERE_TEMP_INDEX) != 0 ? "" : " "),
+                        ((flags & WHERE_TEMP_INDEX) != 0 ? "" : level.plan.u.Index.Name),
+                        where != null ? where : ""));
+                    SysEx.TagFree(ctx, ref where);
                 }
                 else if ((flags & (WHERE_ROWID_EQ | WHERE_ROWID_RANGE)) != 0)
                 {
-                    zMsg.Append(" USING INTEGER PRIMARY KEY");
-
-                    if ((flags & WHERE_ROWID_EQ) != 0)
-                    {
-                        zMsg.Append(" (rowid=?)");
-                    }
-                    else if ((flags & WHERE_BOTH_LIMIT) == WHERE_BOTH_LIMIT)
-                    {
-                        zMsg.Append(" (rowid>? AND rowid<?)");
-                    }
-                    else if ((flags & WHERE_BTM_LIMIT) != 0)
-                    {
-                        zMsg.Append(" (rowid>?)");
-                    }
-                    else if ((flags & WHERE_TOP_LIMIT) != 0)
-                    {
-                        zMsg.Append(" (rowid<?)");
-                    }
+                    b.Append(" USING INTEGER PRIMARY KEY");
+                    if ((flags & WHERE_ROWID_EQ) != 0) b.Append(" (rowid=?)");
+                    else if ((flags & WHERE_BOTH_LIMIT) == WHERE_BOTH_LIMIT) b.Append(" (rowid>? AND rowid<?)");
+                    else if ((flags & WHERE_BTM_LIMIT) != 0) b.Append(" (rowid>?)");
+                    else if ((flags & WHERE_TOP_LIMIT) != 0) b.Append(" (rowid<?)");
                 }
-#if !SQLITE_OMIT_VIRTUALTABLE
+#if !OMIT_VIRTUALTABLE
                 else if ((flags & WHERE_VIRTUALTABLE) != 0)
                 {
-                    sqlite3_index_info pVtabIdx = pLevel.plan.u.pVtabIdx;
-                    zMsg.Append(sqlite3MAppendf(db, null, " VIRTUAL TABLE INDEX %d:%s",
-                    pVtabIdx.idxNum, pVtabIdx.idxStr));
+                    IIndexInfo vtableIndex = level.Plan.u.VTableIndex;
+                    b.Append(sqlite3MAppendf(ctx, null, " VIRTUAL TABLE INDEX %d:%s", vtableIndex.IdxNum, vtableIndex.IdxStr));
                 }
 #endif
+                long rows; // Expected number of rows visited by scan
                 if ((wctrlFlags & (WHERE_ORDERBY_MIN | WHERE_ORDERBY_MAX)) != 0)
                 {
-                    testcase(wctrlFlags & WHERE_ORDERBY_MIN);
-                    nRow = 1;
+                    SysEx.ASSERTCOVERAGE(wctrlFlags & WHERE_ORDERBY_MIN);
+                    rows = 1;
                 }
                 else
-                {
-                    nRow = (sqlite3_int64)pLevel.plan.nRow;
-                }
-                zMsg.Append(sqlite3MAppendf(db, null, " (~%lld rows)", nRow));
-                sqlite3VdbeAddOp4(v, OP_Explain, iId, iLevel, iFrom, zMsg, P4_DYNAMIC);
+                    rows = (sqlite3_int64)level.plan.nRow;
+                b.Append(sqlite3MAppendf(ctx, null, " (~%lld rows)", rows));
+                int selectId = parse.SelectId; // Select id (left-most output column)
+                v.AddOp4(OP.Explain, selectId, levelId, fromId, b, Vdbe.P4T.DYNAMIC);
             }
         }
 #else
-//# define explainOneScan(u,v,w,x,y,z)
-static void explainOneScan(  Parse u,  SrcList v,  WhereLevel w,  int x,  int y,  u16 z){}
-#endif //* SQLITE_OMIT_EXPLAIN */
-
-
-        /*
-** Generate code for the start of the iLevel-th loop in the WHERE clause
-** implementation described by pWInfo.
-*/
-        static Bitmask codeOneLoopStart(
-        WhereInfo pWInfo,     /* Complete information about the WHERE clause */
-        int iLevel,           /* Which level of pWInfo.a[] should be coded */
-        u16 wctrlFlags,       /* One of the WHERE_* flags defined in sqliteInt.h */
-        Bitmask notReady      /* Which tables are currently available */
-        )
-        {
-            int j, k;                 /* Loop counters */
-            int iCur;                 /* The VDBE cursor for the table */
-            int addrNxt;              /* Where to jump to continue with the next IN case */
-            int omitTable;            /* True if we use the index only */
-            int bRev;                 /* True if we need to scan in reverse order */
-            WhereLevel pLevel;        /* The where level to be coded */
-            WhereClause pWC;          /* Decomposition of the entire WHERE clause */
-            WhereTerm pTerm;          /* A WHERE clause term */
-            Parse pParse;             /* Parsing context */
-            Vdbe v;                   /* The prepared stmt under constructions */
-            SrcList_item pTabItem;    /* FROM clause term being coded */
-            int addrBrk;              /* Jump here to break out of the loop */
-            int addrCont;             /* Jump here to continue with next cycle */
-            int iRowidReg = 0;        /* Rowid is stored in this register, if not zero */
-            int iReleaseReg = 0;      /* Temp register to free before returning */
-
-            pParse = pWInfo.pParse;
-            v = pParse.pVdbe;
-            pWC = pWInfo.pWC;
-            pLevel = pWInfo.Data[iLevel];
-            pTabItem = pWInfo.pTabList.a[pLevel.iFrom];
-            iCur = pTabItem.iCursor;
-            bRev = (pLevel.plan.wsFlags & WHERE_REVERSE) != 0 ? 1 : 0;
-            omitTable = ((pLevel.plan.wsFlags & WHERE_IDX_ONLY) != 0
-            && (wctrlFlags & WHERE_FORCE_TABLE) == 0) ? 1 : 0;
-
-            /* Create labels for the "break" and "continue" instructions
-            ** for the current loop.  Jump to addrBrk to break out of a loop.
-            ** Jump to cont to go immediately to the next iteration of the
-            ** loop.
-            **
-            ** When there is an IN operator, we also have a "addrNxt" label that
-            ** means to continue with the next IN value combination.  When
-            ** there are no IN operators in the constraints, the "addrNxt" label
-            ** is the same as "addrBrk".
-            */
-            addrBrk = pLevel.addrBrk = pLevel.addrNxt = sqlite3VdbeMakeLabel(v);
-            addrCont = pLevel.addrCont = sqlite3VdbeMakeLabel(v);
-
-            /* If this is the right table of a LEFT OUTER JOIN, allocate and
-            ** initialize a memory cell that records if this table matches any
-            ** row of the left table of the join.
-            */
-            if (pLevel.iFrom > 0 && (pTabItem.jointype & JT_LEFT) != 0)// Check value of pTabItem[0].jointype
-            {
-                pLevel.iLeftJoin = ++pParse.nMem;
-                sqlite3VdbeAddOp2(v, OP_Integer, 0, pLevel.iLeftJoin);
-#if SQLITE_DEBUG
-        VdbeComment( v, "init LEFT JOIN no-match flag" );
+        static void ExplainOneScan(Parse u, SrcList v, WhereLevel w, int x, int y, uint16 z) { }
 #endif
+
+        static Bitmask CodeOneLoopStart(WhereInfo winfo, int levelId, ushort wctrlFlags, Bitmask notReady)
+        {
+            int j, k;
+            int addrNxt; // Where to jump to continue with the next IN case
+            WhereTerm term; // A WHERE clause term
+            int rowidRegId = 0;        // Rowid is stored in this register, if not zero
+            int releaseRegId = 0;      // Temp register to free before returning
+
+            Parse parse = winfo.Parse; // Parsing context
+            Vdbe v = parse.V; // The prepared stmt under constructions
+            WhereClause wc = winfo.WC; // Decomposition of the entire WHERE clause
+            WhereLevel level = winfo.Data[levelId]; // The where level to be coded
+            SrcList.SrcListItem item = winfo.TabList.Ids[level.From]; // FROM clause term being coded
+            int cur = item.Cursor; // The VDBE cursor for the table
+            bool rev = (level.plan.wsFlags & WHERE_REVERSE) != 0 ? 1 : 0; // True if we need to scan in reverse order
+            bool omitTable = ((level.plan.wsFlags & WHERE_IDX_ONLY) != 0 && (wctrlFlags & WHERE_FORCE_TABLE) == 0) ? 1 : 0; // True if we use the index only
+
+            // Create labels for the "break" and "continue" instructions for the current loop.  Jump to addrBrk to break out of a loop.
+            // Jump to cont to go immediately to the next iteration of the loop.
+            //
+            // When there is an IN operator, we also have a "addrNxt" label that means to continue with the next IN value combination.  When
+            // there are no IN operators in the constraints, the "addrNxt" label is the same as "addrBrk".
+            int addrBrk = level.AddrBrk = level.AddrNxt = v.MakeLabel(); // Jump here to break out of the loop
+            int addrCont = level.AddrCont = v.MakeLabel(); // Jump here to continue with next cycle
+
+            // If this is the right table of a LEFT OUTER JOIN, allocate and initialize a memory cell that records if this table matches any
+            // row of the left table of the join.
+            if (level.From > 0 && (item.Jointype & JT_LEFT) != 0)
+            {
+                level.LeftJoin = ++parse.Mems;
+                v.AddOp2(OP.Integer, 0, level.LeftJoin);
+                VdbeComment(v, "init LEFT JOIN no-match flag");
             }
 
-#if  !SQLITE_OMIT_VIRTUALTABLE
-            if ((pLevel.plan.wsFlags & WHERE_VIRTUALTABLE) != 0)
+            // Special case of a FROM clause subquery implemented as a co-routine
+            if (item.ViaCoroutine)
             {
-                /* Case 0:  The table is a virtual-table.  Use the VFilter and VNext
-                **          to access the data.
-                */
-                int iReg;   /* P3 Value for OP_VFilter */
-                sqlite3_index_info pVtabIdx = pLevel.plan.u.pVtabIdx;
-                int nConstraint = pVtabIdx.nConstraint;
-                sqlite3_index_constraint_usage[] aUsage = pVtabIdx.aConstraintUsage;
-                sqlite3_index_constraint[] aConstraint = pVtabIdx.aConstraint;
-
-                sqlite3ExprCachePush(pParse);
-                iReg = sqlite3GetTempRange(pParse, nConstraint + 2);
-                for (j = 1; j <= nConstraint; j++)
-                {
-                    for (k = 0; k < nConstraint; k++)
-                    {
-                        if (aUsage[k].argvIndex == j)
-                        {
-                            int iTerm = aConstraint[k].iTermOffset;
-                            sqlite3ExprCode(pParse, pWC.a[iTerm].pExpr.pRight, iReg + j + 1);
-                            break;
-                        }
-                    }
-                    if (k == nConstraint)
-                        break;
-                }
-                sqlite3VdbeAddOp2(v, OP_Integer, pVtabIdx.idxNum, iReg);
-                sqlite3VdbeAddOp2(v, OP_Integer, j - 1, iReg + 1);
-                sqlite3VdbeAddOp4(v, OP_VFilter, iCur, addrBrk, iReg, pVtabIdx.idxStr,
-                pVtabIdx.needToFreeIdxStr != 0 ? P4_MPRINTF : P4_STATIC);
-                pVtabIdx.needToFreeIdxStr = 0;
-                for (j = 0; j < nConstraint; j++)
-                {
-                    if (aUsage[j].omit != false)
-                    {
-                        int iTerm = aConstraint[j].iTermOffset;
-                        DisableTerm(pLevel, pWC.a[iTerm]);
-                    }
-                }
-                pLevel.op = OP_VNext;
-                pLevel.p1 = iCur;
-                pLevel.p2 = sqlite3VdbeCurrentAddr(v);
-                sqlite3ReleaseTempRange(pParse, iReg, nConstraint + 2);
-                sqlite3ExprCachePop(pParse, 1);
+                int regYield = item.RegReturn;
+                v.AddOp2(OP.Integer, item.AddrFillSub - 1, regYield);
+                level.P2 = v.AddOp1(OP.Yield, regYield);
+                VdbeComment(v, "next row of co-routine %s", item.Table.Name);
+                v.AddOp2(OP.If, regYield + 1, addrBrk);
+                level.OP = OP.Goto;
             }
             else
-#endif //* SQLITE_OMIT_VIRTUALTABLE */
-
-                if ((pLevel.plan.wsFlags & WHERE_ROWID_EQ) != 0)
+#if !OMIT_VIRTUALTABLE
+                if ((level.Plan.WsFlags & WHERE_VIRTUALTABLE) != 0)
                 {
-                    /* Case 1:  We can directly reference a single row using an
-                    **          equality comparison against the ROWID field.  Or
-                    **          we reference multiple rows using a "rowid IN (...)"
-                    **          construct.
-                    */
-                    iReleaseReg = sqlite3GetTempReg(pParse);
-                    pTerm = FindTerm(pWC, iCur, -1, notReady, WO_EQ | WO_IN, null);
-                    Debug.Assert(pTerm != null);
-                    Debug.Assert(pTerm.pExpr != null);
-                    Debug.Assert(pTerm.leftCursor == iCur);
-                    Debug.Assert(omitTable == 0);
-                    testcase(pTerm.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
-                    iRowidReg = CodeEqualityTerm(pParse, pTerm, pLevel, iReleaseReg);
-                    addrNxt = pLevel.addrNxt;
-                    sqlite3VdbeAddOp2(v, OP_MustBeInt, iRowidReg, addrNxt);
-                    sqlite3VdbeAddOp3(v, OP_NotExists, iCur, addrNxt, iRowidReg);
-                    sqlite3ExprCacheStore(pParse, iCur, -1, iRowidReg);
-#if SQLITE_DEBUG
-          VdbeComment( v, "pk" );
-#endif
-                    pLevel.op = OP_Noop;
-                }
-                else if ((pLevel.plan.wsFlags & WHERE_ROWID_RANGE) != 0)
-                {
-                    /* Case 2:  We have an inequality comparison against the ROWID field.
-                    */
-                    int testOp = OP_Noop;
-                    int start;
-                    int memEndValue = 0;
-                    WhereTerm pStart, pEnd;
+                    // Case 0:  The table is a virtual-table.  Use the VFilter and VNext to access the data.
+                    IIndexInfo vtableIndex = level.Plan.u.VTableIndex;
+                    int constraintsLength = vtableIndex.Constraints.length;
+                    IIndexInfo.ConstraintUsage[] usages = vtableIndex.ConstraintUsages;
+                    IIndexInfo.Constraint[] constraints = vtableIndex.Constraints;
 
-                    Debug.Assert(omitTable == 0);
-                    pStart = FindTerm(pWC, iCur, -1, notReady, WO_GT | WO_GE, null);
-                    pEnd = FindTerm(pWC, iCur, -1, notReady, WO_LT | WO_LE, null);
-                    if (bRev != 0)
+                    Expr.CachePush(parse);
+                    int regId = parse->GetTempRange(constraintsLength + 2); // P3 Value for OP_VFilter
+                    int addrNotFound = level->AddrBrk;
+                    for (j = 1; j <= constraintsLength; j++)
                     {
-                        pTerm = pStart;
-                        pStart = pEnd;
-                        pEnd = pTerm;
-                    }
-                    if (pStart != null)
-                    {
-                        Expr pX;             /* The expression that defines the start bound */
-                        int r1, rTemp = 0;        /* Registers for holding the start boundary */
-
-                        /* The following constant maps TK_xx codes into corresponding
-                        ** seek opcodes.  It depends on a particular ordering of TK_xx
-                        */
-                        u8[] aMoveOp = new u8[]{
-/* TK_GT */  OP_SeekGt,
-/* TK_LE */  OP_SeekLe,
-/* TK_LT */  OP_SeekLt,
-/* TK_GE */  OP_SeekGe
-};
-                        Debug.Assert(TK_LE == TK_GT + 1);      /* Make sure the ordering.. */
-                        Debug.Assert(TK_LT == TK_GT + 2);      /*  ... of the TK_xx values... */
-                        Debug.Assert(TK_GE == TK_GT + 3);      /*  ... is correcct. */
-
-                        testcase(pStart.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
-                        pX = pStart.pExpr;
-                        Debug.Assert(pX != null);
-                        Debug.Assert(pStart.leftCursor == iCur);
-                        r1 = sqlite3ExprCodeTemp(pParse, pX.pRight, ref rTemp);
-                        sqlite3VdbeAddOp3(v, aMoveOp[pX.op - TK_GT], iCur, addrBrk, r1);
-#if SQLITE_DEBUG
-            VdbeComment( v, "pk" );
-#endif
-                        sqlite3ExprCacheAffinityChange(pParse, r1, 1);
-                        sqlite3ReleaseTempReg(pParse, rTemp);
-                        DisableTerm(pLevel, pStart);
-                    }
-                    else
-                    {
-                        sqlite3VdbeAddOp2(v, bRev != 0 ? OP_Last : OP_Rewind, iCur, addrBrk);
-                    }
-                    if (pEnd != null)
-                    {
-                        Expr pX;
-                        pX = pEnd.pExpr;
-                        Debug.Assert(pX != null);
-                        Debug.Assert(pEnd.leftCursor == iCur);
-                        testcase(pEnd.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
-                        memEndValue = ++pParse.nMem;
-                        sqlite3ExprCode(pParse, pX.pRight, memEndValue);
-                        if (pX.op == TK_LT || pX.op == TK_GT)
+                        for (k = 0; k < constraintsLength; k++)
                         {
-                            testOp = bRev != 0 ? OP_Le : OP_Ge;
-                        }
-                        else
-                        {
-                            testOp = bRev != 0 ? OP_Lt : OP_Gt;
-                        }
-                        DisableTerm(pLevel, pEnd);
-                    }
-                    start = sqlite3VdbeCurrentAddr(v);
-                    pLevel.op = (u8)(bRev != 0 ? OP_Prev : OP_Next);
-                    pLevel.p1 = iCur;
-                    pLevel.p2 = start;
-                    if (pStart == null && pEnd == null)
-                    {
-                        pLevel.p5 = SQLITE_STMTSTATUS_FULLSCAN_STEP;
-                    }
-                    else
-                    {
-                        Debug.Assert(pLevel.p5 == 0);
-                    }
-                    if (testOp != OP_Noop)
-                    {
-                        iRowidReg = iReleaseReg = sqlite3GetTempReg(pParse);
-                        sqlite3VdbeAddOp2(v, OP_Rowid, iCur, iRowidReg);
-                        sqlite3ExprCacheStore(pParse, iCur, -1, iRowidReg);
-                        sqlite3VdbeAddOp3(v, testOp, memEndValue, addrBrk, iRowidReg);
-                        sqlite3VdbeChangeP5(v, SQLITE_AFF_NUMERIC | SQLITE_JUMPIFNULL);
-                    }
-                }
-                else if ((pLevel.plan.wsFlags & (WHERE_COLUMN_RANGE | WHERE_COLUMN_EQ)) != 0)
-                {
-                    /* Case 3: A scan using an index.
-                    **
-                    **         The WHERE clause may contain zero or more equality
-                    **         terms ("==" or "IN" operators) that refer to the N
-                    **         left-most columns of the index. It may also contain
-                    **         inequality constraints (>, <, >= or <=) on the indexed
-                    **         column that immediately follows the N equalities. Only
-                    **         the right-most column can be an inequality - the rest must
-                    **         use the "==" and "IN" operators. For example, if the
-                    **         index is on (x,y,z), then the following clauses are all
-                    **         optimized:
-                    **
-                    **            x=5
-                    **            x=5 AND y=10
-                    **            x=5 AND y<10
-                    **            x=5 AND y>5 AND y<10
-                    **            x=5 AND y=5 AND z<=10
-                    **
-                    **         The z<10 term of the following cannot be used, only
-                    **         the x=5 term:
-                    **
-                    **            x=5 AND z<10
-                    **
-                    **         N may be zero if there are inequality constraints.
-                    **         If there are no inequality constraints, then N is at
-                    **         least one.
-                    **
-                    **         This case is also used when there are no WHERE clause
-                    **         constraints but an index is selected anyway, in order
-                    **         to force the output order to conform to an ORDER BY.
-                    */
-                    u8[] aStartOp = new u8[]  {
-0,
-0,
-OP_Rewind,           /* 2: (!start_constraints && startEq &&  !bRev) */
-OP_Last,             /* 3: (!start_constraints && startEq &&   bRev) */
-OP_SeekGt,           /* 4: (start_constraints  && !startEq && !bRev) */
-OP_SeekLt,           /* 5: (start_constraints  && !startEq &&  bRev) */
-OP_SeekGe,           /* 6: (start_constraints  &&  startEq && !bRev) */
-OP_SeekLe            /* 7: (start_constraints  &&  startEq &&  bRev) */
-};
-                    u8[] aEndOp = new u8[]  {
-OP_Noop,             /* 0: (!end_constraints) */
-OP_IdxGE,            /* 1: (end_constraints && !bRev) */
-OP_IdxLT             /* 2: (end_constraints && bRev) */
-};
-                    int nEq = (int)pLevel.plan.nEq; /* Number of == or IN terms */
-                    int isMinQuery = 0;          /* If this is an optimized SELECT min(x).. */
-                    int regBase;                 /* Base register holding constraint values */
-                    int r1;                      /* Temp register */
-                    WhereTerm pRangeStart = null;  /* Inequality constraint at range start */
-                    WhereTerm pRangeEnd = null;    /* Inequality constraint at range end */
-                    int startEq;                   /* True if range start uses ==, >= or <= */
-                    int endEq;                     /* True if range end uses ==, >= or <= */
-                    int start_constraints;         /* Start of range is constrained */
-                    int nConstraint;               /* Number of constraint terms */
-                    Index pIdx;                    /* The index we will be using */
-                    int iIdxCur;                   /* The VDBE cursor for the index */
-                    int nExtraReg = 0;             /* Number of extra registers needed */
-                    int op;                        /* Instruction opcode */
-                    StringBuilder zStartAff = new StringBuilder("");
-                    ;/* Affinity for start of range constraint */
-                    StringBuilder zEndAff;         /* Affinity for end of range constraint */
-
-                    pIdx = pLevel.plan.u.pIdx;
-                    iIdxCur = pLevel.iIdxCur;
-                    k = pIdx.aiColumn[nEq];        /* Column for inequality constraints */
-
-                    /* If this loop satisfies a sort order (pOrderBy) request that
-                    ** was pDebug.Assed to this function to implement a "SELECT min(x) ..."
-                    ** query, then the caller will only allow the loop to run for
-                    ** a single iteration. This means that the first row returned
-                    ** should not have a NULL value stored in 'x'. If column 'x' is
-                    ** the first one after the nEq equality constraints in the index,
-                    ** this requires some special handling.
-                    */
-                    if ((wctrlFlags & WHERE_ORDERBY_MIN) != 0
-                    && ((pLevel.plan.wsFlags & WHERE_ORDERBY) != 0)
-                    && (pIdx.nColumn > nEq)
-                    )
-                    {
-                        /* Debug.Assert( pOrderBy.nExpr==1 ); */
-                        /* Debug.Assert( pOrderBy.a[0].pExpr.iColumn==pIdx.aiColumn[nEq] ); */
-                        isMinQuery = 1;
-                        nExtraReg = 1;
-                    }
-
-                    /* Find any inequality constraint terms for the start and end
-                    ** of the range.
-                    */
-                    if ((pLevel.plan.wsFlags & WHERE_TOP_LIMIT) != 0)
-                    {
-                        pRangeEnd = FindTerm(pWC, iCur, k, notReady, (WO_LT | WO_LE), pIdx);
-                        nExtraReg = 1;
-                    }
-                    if ((pLevel.plan.wsFlags & WHERE_BTM_LIMIT) != 0)
-                    {
-                        pRangeStart = FindTerm(pWC, iCur, k, notReady, (WO_GT | WO_GE), pIdx);
-                        nExtraReg = 1;
-                    }
-
-                    /* Generate code to evaluate all constraint terms using == or IN
-                    ** and store the values of those terms in an array of registers
-                    ** starting at regBase.
-                    */
-                    regBase = codeAllEqualityTerms(
-                    pParse, pLevel, pWC, notReady, nExtraReg, out zStartAff
-                    );
-                    zEndAff = new StringBuilder(zStartAff.ToString());//sqlite3DbStrDup(pParse.db, zStartAff);
-                    addrNxt = pLevel.addrNxt;
-
-                    /* If we are doing a reverse order scan on an ascending index, or
-                    ** a forward order scan on a descending index, interchange the
-                    ** start and end terms (pRangeStart and pRangeEnd).
-                    */
-                    if (nEq < pIdx.nColumn && bRev == (pIdx.aSortOrder[nEq] == SQLITE_SO_ASC ? 1 : 0))
-                    {
-                        SWAP(ref pRangeEnd, ref pRangeStart);
-                    }
-
-                    testcase(pRangeStart != null && (pRangeStart.eOperator & WO_LE) != 0);
-                    testcase(pRangeStart != null && (pRangeStart.eOperator & WO_GE) != 0);
-                    testcase(pRangeEnd != null && (pRangeEnd.eOperator & WO_LE) != 0);
-                    testcase(pRangeEnd != null && (pRangeEnd.eOperator & WO_GE) != 0);
-                    startEq = (null == pRangeStart || (pRangeStart.eOperator & (WO_LE | WO_GE)) != 0) ? 1 : 0;
-                    endEq = (null == pRangeEnd || (pRangeEnd.eOperator & (WO_LE | WO_GE)) != 0) ? 1 : 0;
-                    start_constraints = (pRangeStart != null || nEq > 0) ? 1 : 0;
-
-                    /* Seek the index cursor to the start of the range. */
-                    nConstraint = nEq;
-                    if (pRangeStart != null)
-                    {
-                        Expr pRight = pRangeStart.pExpr.pRight;
-                        sqlite3ExprCode(pParse, pRight, regBase + nEq);
-                        if ((pRangeStart.wtFlags & TERM_VNULL) == 0)
-                        {
-                            sqlite3ExprCodeIsNullJump(v, pRight, regBase + nEq, addrNxt);
-                        }
-                        if (zStartAff.Length != 0)
-                        {
-                            if (sqlite3CompareAffinity(pRight, zStartAff[nEq]) == SQLITE_AFF_NONE)
+                            if (usages[k].ArgvIndex == j)
                             {
-                                /* Since the comparison is to be performed with no conversions
-                                ** applied to the operands, set the affinity to apply to pRight to 
-                                ** SQLITE_AFF_NONE.  */
-                                zStartAff[nEq] = SQLITE_AFF_NONE;
-                            }
-                            if ((sqlite3ExprNeedsNoAffinityChange(pRight, zStartAff[nEq])) != 0)
-                            {
-                                zStartAff[nEq] = SQLITE_AFF_NONE;
+                                int targetId = regId + j + 1;
+                                term = &wc->Slots[constraints[k].TermOffset];
+                                if (term->EOperator & WO_IN)
+                                {
+                                    CodeEqualityTerm(parse, term, level, k, targetId);
+                                    addrNotFound = level.AddrNxt;
+                                }
+                                else
+                                    Expr.Code(parse, term.Expr.Right, targetId);
+                                break;
                             }
                         }
-                        nConstraint++;
-                        testcase(pRangeStart.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
+                        if (k == constraintsLength) break;
                     }
-                    else if (isMinQuery != 0)
+                    v.AddOp2(OP.Integer, vtableIndex.idxNum, regId);
+                    v.AddOp2(OP.Integer, j - 1, regId + 1);
+                    v.AddOp4(OP.VFilter, cur, addrNotFound, regId, vtableIndex.idxStr, vtableIndex.NeedToFreeIdxStr ? Vdbe.P4T.MPRINTF : Vdbe.P4T.STATIC);
+                    vtableIndex.NeedToFreeIdxStr = false;
+                    for (j = 0; j < constraintsLength; j++)
                     {
-                        sqlite3VdbeAddOp2(v, OP_Null, 0, regBase + nEq);
-                        nConstraint++;
-                        startEq = 0;
-                        start_constraints = 1;
-                    }
-                    CodeApplyAffinity(pParse, regBase, nConstraint, zStartAff.ToString());
-                    op = aStartOp[(start_constraints << 2) + (startEq << 1) + bRev];
-                    Debug.Assert(op != 0);
-                    testcase(op == OP_Rewind);
-                    testcase(op == OP_Last);
-                    testcase(op == OP_SeekGt);
-                    testcase(op == OP_SeekGe);
-                    testcase(op == OP_SeekLe);
-                    testcase(op == OP_SeekLt);
-                    sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
-
-                    /* Load the value for the inequality constraint at the end of the
-                    ** range (if any).
-                    */
-                    nConstraint = nEq;
-                    if (pRangeEnd != null)
-                    {
-                        Expr pRight = pRangeEnd.pExpr.pRight;
-                        sqlite3ExprCacheRemove(pParse, regBase + nEq, 1);
-                        sqlite3ExprCode(pParse, pRight, regBase + nEq);
-                        if ((pRangeEnd.wtFlags & TERM_VNULL) == 0)
+                        if (usages[j].Omit)
                         {
-                            sqlite3ExprCodeIsNullJump(v, pRight, regBase + nEq, addrNxt);
+                            int termId = constraints[j].TermOffset;
+                            DisableTerm(level, wc.Slots[termId]);
                         }
-                        if (zEndAff.Length > 0)
-                        {
-                            if (sqlite3CompareAffinity(pRight, zEndAff[nEq]) == SQLITE_AFF_NONE)
-                            {
-                                /* Since the comparison is to be performed with no conversions
-                                ** applied to the operands, set the affinity to apply to pRight to 
-                                ** SQLITE_AFF_NONE.  */
-                                zEndAff[nEq] = SQLITE_AFF_NONE;
-                            }
-                            if ((sqlite3ExprNeedsNoAffinityChange(pRight, zEndAff[nEq])) != 0)
-                            {
-                                zEndAff[nEq] = SQLITE_AFF_NONE;
-                            }
-                        }
-                        CodeApplyAffinity(pParse, regBase, nEq + 1, zEndAff.ToString());
-                        nConstraint++;
-                        testcase(pRangeEnd.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
                     }
-                    sqlite3DbFree(pParse.db, ref zStartAff);
-                    sqlite3DbFree(pParse.db, ref zEndAff);
-
-                    /* Top of the loop body */
-                    pLevel.p2 = sqlite3VdbeCurrentAddr(v);
-
-                    /* Check if the index cursor is past the end of the range. */
-                    op = aEndOp[((pRangeEnd != null || nEq != 0) ? 1 : 0) * (1 + bRev)];
-                    testcase(op == OP_Noop);
-                    testcase(op == OP_IdxGE);
-                    testcase(op == OP_IdxLT);
-                    if (op != OP_Noop)
-                    {
-                        sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
-                        sqlite3VdbeChangeP5(v, (u8)(endEq != bRev ? 1 : 0));
-                    }
-
-                    /* If there are inequality constraints, check that the value
-                    ** of the table column that the inequality contrains is not NULL.
-                    ** If it is, jump to the next iteration of the loop.
-                    */
-                    r1 = sqlite3GetTempReg(pParse);
-                    testcase(pLevel.plan.wsFlags & WHERE_BTM_LIMIT);
-                    testcase(pLevel.plan.wsFlags & WHERE_TOP_LIMIT);
-                    if ((pLevel.plan.wsFlags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) != 0)
-                    {
-                        sqlite3VdbeAddOp3(v, OP_Column, iIdxCur, nEq, r1);
-                        sqlite3VdbeAddOp2(v, OP_IsNull, r1, addrCont);
-                    }
-                    sqlite3ReleaseTempReg(pParse, r1);
-
-                    /* Seek the table cursor, if required */
-                    DisableTerm(pLevel, pRangeStart);
-                    DisableTerm(pLevel, pRangeEnd);
-                    if (0 == omitTable)
-                    {
-                        iRowidReg = iReleaseReg = sqlite3GetTempReg(pParse);
-                        sqlite3VdbeAddOp2(v, OP_IdxRowid, iIdxCur, iRowidReg);
-                        sqlite3ExprCacheStore(pParse, iCur, -1, iRowidReg);
-                        sqlite3VdbeAddOp2(v, OP_Seek, iCur, iRowidReg);  /* Deferred seek */
-                    }
-
-                    /* Record the instruction used to terminate the loop. Disable
-                    ** WHERE clause terms made redundant by the index range scan.
-                    */
-                    if ((pLevel.plan.wsFlags & WHERE_UNIQUE) != 0)
-                    {
-                        pLevel.op = OP_Noop;
-                    }
-                    else if (bRev != 0)
-                    {
-                        pLevel.op = OP_Prev;
-                    }
-                    else
-                    {
-                        pLevel.op = OP_Next;
-                    }
-                    pLevel.p1 = iIdxCur;
+                    level.OP = OP.VNext;
+                    level.P1 = cur;
+                    level.P2 = v.CurrentAddr();
+                    parse.ReleaseTempRange(regId, constraintsLength + 2);
+                    Expr.CachePop(parse, 1);
                 }
                 else
-
-#if  !SQLITE_OMIT_OR_OPTIMIZATION
-                    if ((pLevel.plan.wsFlags & WHERE_MULTI_OR) != 0)
+#endif
+                    if ((level.Plan.WsFlags & WHERE_ROWID_EQ) != 0)
                     {
-                        /* Case 4:  Two or more separately indexed terms connected by OR
-                        **
-                        ** Example:
-                        **
-                        **   CREATE TABLE t1(a,b,c,d);
-                        **   CREATE INDEX i1 ON t1(a);
-                        **   CREATE INDEX i2 ON t1(b);
-                        **   CREATE INDEX i3 ON t1(c);
-                        **
-                        **   SELECT * FROM t1 WHERE a=5 OR b=7 OR (c=11 AND d=13)
-                        **
-                        ** In the example, there are three indexed terms connected by OR.
-                        ** The top of the loop looks like this:
-                        **
-                        **          Null       1                # Zero the rowset in reg 1
-                        **
-                        ** Then, for each indexed term, the following. The arguments to
-                        ** RowSetTest are such that the rowid of the current row is inserted
-                        ** into the RowSet. If it is already present, control skips the
-                        ** Gosub opcode and jumps straight to the code generated by WhereEnd().
-                        **
-                        **        sqlite3WhereBegin(<term>)
-                        **          RowSetTest                  # Insert rowid into rowset
-                        **          Gosub      2 A
-                        **        sqlite3WhereEnd()
-                        **
-                        ** Following the above, code to terminate the loop. Label A, the target
-                        ** of the Gosub above, jumps to the instruction right after the Goto.
-                        **
-                        **          Null       1                # Zero the rowset in reg 1
-                        **          Goto       B                # The loop is finished.
-                        **
-                        **       A: <loop body>                 # Return data, whatever.
-                        **
-                        **          Return     2                # Jump back to the Gosub
-                        **
-                        **       B: <after the loop>
-                        **
-                        */
-                        WhereClause pOrWc;    /* The OR-clause broken out into subterms */
-                        SrcList pOrTab;       /* Shortened table list or OR-clause generation */
-
-                        int regReturn = ++pParse.nMem;            /* Register used with OP_Gosub */
-                        int regRowset = 0;                        /* Register for RowSet object */
-                        int regRowid = 0;                         /* Register holding rowid */
-                        int iLoopBody = sqlite3VdbeMakeLabel(v);/* Start of loop body */
-                        int iRetInit;                             /* Address of regReturn init */
-                        int untestedTerms = 0;                    /* Some terms not completely tested */
-                        int ii;
-                        pTerm = pLevel.plan.u.pTerm;
-                        Debug.Assert(pTerm != null);
-                        Debug.Assert(pTerm.eOperator == WO_OR);
-                        Debug.Assert((pTerm.wtFlags & TERM_ORINFO) != 0);
-                        pOrWc = pTerm.u.pOrInfo.wc;
-                        pLevel.op = OP_Return;
-                        pLevel.p1 = regReturn;
-
-                        /* Set up a new SrcList in pOrTab containing the table being scanned
-                        ** by this loop in the a[0] slot and all notReady tables in a[1..] slots.
-                        ** This becomes the SrcList in the recursive call to sqlite3WhereBegin().
-                        */
-                        if (pWInfo.nLevel > 1)
+                        // Case 1:  We can directly reference a single row using an equality comparison against the ROWID field.  Or
+                        // we reference multiple rows using a "rowid IN (...)" construct.
+                        releaseRegId = parse.GetTempReg();
+                        term = FindTerm(wc, cur, -1, notReady, WO_EQ | WO_IN, null);
+                        Debug.Assert(term != null);
+                        Debug.Assert(term.Expr != null);
+                        Debug.Assert(!omitTable);
+                        SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                        rowidRegId = CodeEqualityTerm(parse, term, level, releaseRegId);
+                        addrNxt = level.AddrNxt;
+                        v.AddOp2(OP.MustBeInt, rowidRegId, addrNxt);
+                        v.AddOp3(OP.NotExists, cur, addrNxt, rowidRegId);
+                        Expr.CacheAffinityChange(parse, rowidRegId, 1);
+                        Expr.CacheStore(parse, cur, -1, rowidRegId);
+                        VdbeComment(v, "pk");
+                        level.OP = OP.Noop;
+                    }
+                    else if ((level.Plan.WsFlags & WHERE_ROWID_RANGE) != 0)
+                    {
+                        // Case 2:  We have an inequality comparison against the ROWID field.
+                        int testOp = OP_Noop;
+                        int memEndValue = 0;
+                        Debug.Assert(!omitTable);
+                        WhereTerm start = FindTerm(wc, cur, -1, notReady, WO_GT | WO_GE, null);
+                        WhereTerm end = FindTerm(wc, cur, -1, notReady, WO_LT | WO_LE, null);
+                        if (rev)
                         {
-                            int nNotReady;                 /* The number of notReady tables */
-                            SrcList_item[] origSrc;         /* Original list of tables */
-                            nNotReady = pWInfo.nLevel - iLevel - 1;
-                            //sqlite3StackAllocRaw(pParse.db,
-                            //sizeof(*pOrTab)+ nNotReady*sizeof(pOrTab.a[0]));
-                            pOrTab = new SrcList();
-                            pOrTab.a = new SrcList_item[nNotReady + 1];
-                            //if( pOrTab==0 ) return notReady;
-                            pOrTab.nAlloc = (i16)(nNotReady + 1);
-                            pOrTab.nSrc = pOrTab.nAlloc;
-                            pOrTab.a[0] = pTabItem;//memcpy(pOrTab.a, pTabItem, sizeof(*pTabItem));
-                            origSrc = pWInfo.pTabList.a;
-                            for (k = 1; k <= nNotReady; k++)
+                            term = start;
+                            start = end;
+                            end = term;
+                        }
+                        if (start != null)
+                        {
+                            // The following constant maps TK_xx codes into corresponding seek opcodes.  It depends on a particular ordering of TK_xx
+                            uint8[] _moveOps = new uint8[]
                             {
-                                pOrTab.a[k] = origSrc[pWInfo.Data[iLevel + k].iFrom];// memcpy(&pOrTab.a[k], &origSrc[pLevel[k].iFrom], sizeof(pOrTab.a[k]));
+                                OP_SeekGt, // TK_GT 
+                                OP_SeekLe, // TK_LE 
+                                OP_SeekLt, // TK_LT 
+                                OP_SeekGe  // TK_GE 
+                            };
+                            Debug.Assert(TK_LE == TK_GT + 1); // Make sure the ordering..
+                            Debug.Assert(TK_LT == TK_GT + 2); //  ... of the TK_xx values...
+                            Debug.Assert(TK_GE == TK_GT + 3); //  ... is correcct.
+
+                            SysEx.ASSERTCOVERAGE(start.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                            Expr x = start.Expr; // The expression that defines the start bound
+                            Debug.Assert(x != null);
+                            Debug.Assert(start.LeftCursor == cur);
+                            int tempId = 0; // Registers for holding the start boundary
+                            int r1 = Expr.CodeTemp(parse, x.Right, ref tempId); // Registers for holding the start boundary
+                            v.AddOp3(_moveOps[x.OP - TK_GT], cur, addrBrk, r1);
+                            VdbeComment(v, "pk");
+                            Expr.CacheAffinityChange(r1, 1);
+                            parse.ReleaseTempReg(tempId);
+                            DisableTerm(level, start);
+                        }
+                        else
+                            v.AddOp2(rev ? OP.Last : OP.Rewind, cur, addrBrk);
+                        if (end != null)
+                        {
+                            Expr x = end.Expr;
+                            Debug.Assert(x != null);
+                            Debug.Assert(end.leftCursor == cur);
+                            ASSERTCOVERAGE(end.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                            memEndValue = ++parse.Mems;
+                            Expr.Code(parse, x.Right, memEndValue);
+                            if (x.OP == TK.LT || x.OP == TK.GT)
+                                testOp = rev ? OP.Le : OP.Ge;
+                            else
+                                testOp = rev ? OP.Lt : OP.Gt;
+                            DisableTerm(level, end);
+                        }
+                        int startId = v.CurrentAddr();
+                        level.OP = (rev ? OP.Prev : OP.Next);
+                        level.P1 = cur;
+                        level.P2 = startId;
+                        if (start == null && end == null)
+                            level.p5 = SQLITE_STMTSTATUS_FULLSCAN_STEP;
+                        else
+                            Debug.Assert(level.p5 == 0);
+                        if (testOp != OP_Noop)
+                        {
+                            rowidRegId = releaseRegId = parse->GetTempReg();
+                            v.AddOp2(OP.Rowid, cur, rowidRegId);
+                            Expr.CacheStore(parse, cur, -1, rowidRegId);
+                            v.AddOp3(testOp, memEndValue, addrBrk, rowidRegId);
+                            v.ChangeP5(AFF_NUMERIC | _JUMPIFNULL);
+                        }
+                    }
+                    else if ((level.plan.wsFlags & (WHERE_COLUMN_RANGE | WHERE_COLUMN_EQ)) != 0)
+                    {
+                        // Case 3: A scan using an index.
+                        //
+                        //         The WHERE clause may contain zero or more equality terms ("==" or "IN" operators) that refer to the N
+                        //         left-most columns of the index. It may also contain inequality constraints (>, <, >= or <=) on the indexed
+                        //         column that immediately follows the N equalities. Only the right-most column can be an inequality - the rest must
+                        //         use the "==" and "IN" operators. For example, if the index is on (x,y,z), then the following clauses are all optimized:
+                        //
+                        //            x=5
+                        //            x=5 AND y=10
+                        //            x=5 AND y<10
+                        //            x=5 AND y>5 AND y<10
+                        //            x=5 AND y=5 AND z<=10
+                        //
+                        //         The z<10 term of the following cannot be used, only the x=5 term:
+                        //            x=5 AND z<10
+                        //
+                        //         N may be zero if there are inequality constraints. If there are no inequality constraints, then N is at least one.
+                        //
+                        //         This case is also used when there are no WHERE clause constraints but an index is selected anyway, in order
+                        //         to force the output order to conform to an ORDER BY.
+                        uint8[] aStartOp = new uint8[]
+                        {
+0,
+0,
+OP_Rewind,  // 2: (!start_constraints && startEq &&  !bRev)
+OP_Last,    // 3: (!start_constraints && startEq &&   bRev)
+OP_SeekGt,  // 4: (start_constraints  && !startEq && !bRev)
+OP_SeekLt,  // 5: (start_constraints  && !startEq &&  bRev)
+OP_SeekGe,  // 6: (start_constraints  &&  startEq && !bRev)
+OP_SeekLe   // 7: (start_constraints  &&  startEq &&  bRev)
+};
+                        u8[] aEndOp = new u8[]  {
+OP_Noop,  // 0: (!end_constraints)
+OP_IdxGE, // 1: (end_constraints && !bRev)
+OP_IdxLT  // 2: (end_constraints && bRev)
+};
+                        int nEq = (int)level.plan.nEq; /* Number of == or IN terms */
+                        int isMinQuery = 0;          /* If this is an optimized SELECT min(x).. */
+                        int regBase;                 /* Base register holding constraint values */
+                        int r1;                      /* Temp register */
+                        WhereTerm pRangeStart = null;  /* Inequality constraint at range start */
+                        WhereTerm pRangeEnd = null;    /* Inequality constraint at range end */
+                        int startEq;                   /* True if range start uses ==, >= or <= */
+                        int endEq;                     /* True if range end uses ==, >= or <= */
+                        int start_constraints;         /* Start of range is constrained */
+                        int nConstraint;               /* Number of constraint terms */
+                        Index pIdx;                    /* The index we will be using */
+                        int iIdxCur;                   /* The VDBE cursor for the index */
+                        int nExtraReg = 0;             /* Number of extra registers needed */
+                        int op;                        /* Instruction opcode */
+                        StringBuilder zStartAff = new StringBuilder("");
+                        ;/* Affinity for start of range constraint */
+                        StringBuilder zEndAff;         /* Affinity for end of range constraint */
+
+                        pIdx = level.plan.u.pIdx;
+                        iIdxCur = level.iIdxCur;
+                        k = pIdx.aiColumn[nEq];        /* Column for inequality constraints */
+
+                        /* If this loop satisfies a sort order (pOrderBy) request that
+                        ** was pDebug.Assed to this function to implement a "SELECT min(x) ..."
+                        ** query, then the caller will only allow the loop to run for
+                        ** a single iteration. This means that the first row returned
+                        ** should not have a NULL value stored in 'x'. If column 'x' is
+                        ** the first one after the nEq equality constraints in the index,
+                        ** this requires some special handling.
+                        */
+                        if ((wctrlFlags & WHERE_ORDERBY_MIN) != 0
+                        && ((level.plan.wsFlags & WHERE_ORDERBY) != 0)
+                        && (pIdx.nColumn > nEq)
+                        )
+                        {
+                            /* Debug.Assert( pOrderBy.nExpr==1 ); */
+                            /* Debug.Assert( pOrderBy.a[0].pExpr.iColumn==pIdx.aiColumn[nEq] ); */
+                            isMinQuery = 1;
+                            nExtraReg = 1;
+                        }
+
+                        /* Find any inequality constraint terms for the start and end
+                        ** of the range.
+                        */
+                        if ((level.plan.wsFlags & WHERE_TOP_LIMIT) != 0)
+                        {
+                            pRangeEnd = FindTerm(wc, cur, k, notReady, (WO_LT | WO_LE), pIdx);
+                            nExtraReg = 1;
+                        }
+                        if ((level.plan.wsFlags & WHERE_BTM_LIMIT) != 0)
+                        {
+                            pRangeStart = FindTerm(wc, cur, k, notReady, (WO_GT | WO_GE), pIdx);
+                            nExtraReg = 1;
+                        }
+
+                        /* Generate code to evaluate all constraint terms using == or IN
+                        ** and store the values of those terms in an array of registers
+                        ** starting at regBase.
+                        */
+                        regBase = CodeAllEqualityTerms(
+                        parse, level, wc, notReady, nExtraReg, out zStartAff
+                        );
+                        zEndAff = new StringBuilder(zStartAff.ToString());//sqlite3DbStrDup(pParse.db, zStartAff);
+                        addrNxt = level.addrNxt;
+
+                        /* If we are doing a reverse order scan on an ascending index, or
+                        ** a forward order scan on a descending index, interchange the
+                        ** start and end terms (pRangeStart and pRangeEnd).
+                        */
+                        if (nEq < pIdx.nColumn && rev == (pIdx.aSortOrder[nEq] == SQLITE_SO_ASC ? 1 : 0))
+                        {
+                            SWAP(ref pRangeEnd, ref pRangeStart);
+                        }
+
+                        testcase(pRangeStart != null && (pRangeStart.eOperator & WO_LE) != 0);
+                        testcase(pRangeStart != null && (pRangeStart.eOperator & WO_GE) != 0);
+                        testcase(pRangeEnd != null && (pRangeEnd.eOperator & WO_LE) != 0);
+                        testcase(pRangeEnd != null && (pRangeEnd.eOperator & WO_GE) != 0);
+                        startEq = (null == pRangeStart || (pRangeStart.eOperator & (WO_LE | WO_GE)) != 0) ? 1 : 0;
+                        endEq = (null == pRangeEnd || (pRangeEnd.eOperator & (WO_LE | WO_GE)) != 0) ? 1 : 0;
+                        start_constraints = (pRangeStart != null || nEq > 0) ? 1 : 0;
+
+                        /* Seek the index cursor to the start of the range. */
+                        nConstraint = nEq;
+                        if (pRangeStart != null)
+                        {
+                            Expr pRight = pRangeStart.pExpr.pRight;
+                            sqlite3ExprCode(parse, pRight, regBase + nEq);
+                            if ((pRangeStart.wtFlags & TERM_VNULL) == 0)
+                            {
+                                sqlite3ExprCodeIsNullJump(v, pRight, regBase + nEq, addrNxt);
                             }
+                            if (zStartAff.Length != 0)
+                            {
+                                if (sqlite3CompareAffinity(pRight, zStartAff[nEq]) == SQLITE_AFF_NONE)
+                                {
+                                    /* Since the comparison is to be performed with no conversions
+                                    ** applied to the operands, set the affinity to apply to pRight to 
+                                    ** SQLITE_AFF_NONE.  */
+                                    zStartAff[nEq] = SQLITE_AFF_NONE;
+                                }
+                                if ((sqlite3ExprNeedsNoAffinityChange(pRight, zStartAff[nEq])) != 0)
+                                {
+                                    zStartAff[nEq] = SQLITE_AFF_NONE;
+                                }
+                            }
+                            nConstraint++;
+                            testcase(pRangeStart.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
+                        }
+                        else if (isMinQuery != 0)
+                        {
+                            sqlite3VdbeAddOp2(v, OP_Null, 0, regBase + nEq);
+                            nConstraint++;
+                            startEq = 0;
+                            start_constraints = 1;
+                        }
+                        CodeApplyAffinity(parse, regBase, nConstraint, zStartAff.ToString());
+                        op = aStartOp[(start_constraints << 2) + (startEq << 1) + rev];
+                        Debug.Assert(op != 0);
+                        testcase(op == OP_Rewind);
+                        testcase(op == OP_Last);
+                        testcase(op == OP_SeekGt);
+                        testcase(op == OP_SeekGe);
+                        testcase(op == OP_SeekLe);
+                        testcase(op == OP_SeekLt);
+                        sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
+
+                        /* Load the value for the inequality constraint at the end of the
+                        ** range (if any).
+                        */
+                        nConstraint = nEq;
+                        if (pRangeEnd != null)
+                        {
+                            Expr pRight = pRangeEnd.pExpr.pRight;
+                            sqlite3ExprCacheRemove(parse, regBase + nEq, 1);
+                            sqlite3ExprCode(parse, pRight, regBase + nEq);
+                            if ((pRangeEnd.wtFlags & TERM_VNULL) == 0)
+                            {
+                                sqlite3ExprCodeIsNullJump(v, pRight, regBase + nEq, addrNxt);
+                            }
+                            if (zEndAff.Length > 0)
+                            {
+                                if (sqlite3CompareAffinity(pRight, zEndAff[nEq]) == SQLITE_AFF_NONE)
+                                {
+                                    /* Since the comparison is to be performed with no conversions
+                                    ** applied to the operands, set the affinity to apply to pRight to 
+                                    ** SQLITE_AFF_NONE.  */
+                                    zEndAff[nEq] = SQLITE_AFF_NONE;
+                                }
+                                if ((sqlite3ExprNeedsNoAffinityChange(pRight, zEndAff[nEq])) != 0)
+                                {
+                                    zEndAff[nEq] = SQLITE_AFF_NONE;
+                                }
+                            }
+                            CodeApplyAffinity(parse, regBase, nEq + 1, zEndAff.ToString());
+                            nConstraint++;
+                            testcase(pRangeEnd.wtFlags & TERM_VIRTUAL); /* EV: R-30575-11662 */
+                        }
+                        sqlite3DbFree(parse.db, ref zStartAff);
+                        sqlite3DbFree(parse.db, ref zEndAff);
+
+                        /* Top of the loop body */
+                        level.p2 = sqlite3VdbeCurrentAddr(v);
+
+                        /* Check if the index cursor is past the end of the range. */
+                        op = aEndOp[((pRangeEnd != null || nEq != 0) ? 1 : 0) * (1 + rev)];
+                        testcase(op == OP_Noop);
+                        testcase(op == OP_IdxGE);
+                        testcase(op == OP_IdxLT);
+                        if (op != OP_Noop)
+                        {
+                            sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
+                            sqlite3VdbeChangeP5(v, (u8)(endEq != rev ? 1 : 0));
+                        }
+
+                        /* If there are inequality constraints, check that the value
+                        ** of the table column that the inequality contrains is not NULL.
+                        ** If it is, jump to the next iteration of the loop.
+                        */
+                        r1 = sqlite3GetTempReg(parse);
+                        testcase(level.plan.wsFlags & WHERE_BTM_LIMIT);
+                        testcase(level.plan.wsFlags & WHERE_TOP_LIMIT);
+                        if ((level.plan.wsFlags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) != 0)
+                        {
+                            sqlite3VdbeAddOp3(v, OP_Column, iIdxCur, nEq, r1);
+                            sqlite3VdbeAddOp2(v, OP_IsNull, r1, addrCont);
+                        }
+                        sqlite3ReleaseTempReg(parse, r1);
+
+                        /* Seek the table cursor, if required */
+                        DisableTerm(level, pRangeStart);
+                        DisableTerm(level, pRangeEnd);
+                        if (0 == omitTable)
+                        {
+                            rowidRegId = releaseRegId = sqlite3GetTempReg(parse);
+                            sqlite3VdbeAddOp2(v, OP_IdxRowid, iIdxCur, rowidRegId);
+                            sqlite3ExprCacheStore(parse, cur, -1, rowidRegId);
+                            sqlite3VdbeAddOp2(v, OP_Seek, cur, rowidRegId);  /* Deferred seek */
+                        }
+
+                        /* Record the instruction used to terminate the loop. Disable
+                        ** WHERE clause terms made redundant by the index range scan.
+                        */
+                        if ((level.plan.wsFlags & WHERE_UNIQUE) != 0)
+                        {
+                            level.op = OP_Noop;
+                        }
+                        else if (rev != 0)
+                        {
+                            level.op = OP_Prev;
                         }
                         else
                         {
-                            pOrTab = pWInfo.pTabList;
+                            level.op = OP_Next;
                         }
-
-                        /* Initialize the rowset register to contain NULL. An SQL NULL is
-                        ** equivalent to an empty rowset.
-                        **
-                        ** Also initialize regReturn to contain the address of the instruction
-                        ** immediately following the OP_Return at the bottom of the loop. This
-                        ** is required in a few obscure LEFT JOIN cases where control jumps
-                        ** over the top of the loop into the body of it. In this case the
-                        ** correct response for the end-of-loop code (the OP_Return) is to
-                        ** fall through to the next instruction, just as an OP_Next does if
-                        ** called on an uninitialized cursor.
-                        */
-                        if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
-                        {
-                            regRowset = ++pParse.nMem;
-                            regRowid = ++pParse.nMem;
-                            sqlite3VdbeAddOp2(v, OP_Null, 0, regRowset);
-                        }
-                        iRetInit = sqlite3VdbeAddOp2(v, OP_Integer, 0, regReturn);
-
-                        for (ii = 0; ii < pOrWc.nTerm; ii++)
-                        {
-                            WhereTerm pOrTerm = pOrWc.a[ii];
-                            if (pOrTerm.leftCursor == iCur || pOrTerm.eOperator == WO_AND)
-                            {
-                                WhereInfo pSubWInfo;          /* Info for single OR-term scan */
-
-                                /* Loop through table entries that match term pOrTerm. */
-                                ExprList elDummy = null;
-                                pSubWInfo = sqlite3WhereBegin(pParse, pOrTab, pOrTerm.pExpr, ref elDummy,
-                                    WHERE_OMIT_OPEN | WHERE_OMIT_CLOSE |
-                                    WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY);
-                                if (pSubWInfo != null)
-                                {
-                                    explainOneScan(
-                                    pParse, pOrTab, pSubWInfo.Data[0], iLevel, pLevel.iFrom, 0
-                                    );
-                                    if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
-                                    {
-                                        int iSet = ((ii == pOrWc.nTerm - 1) ? -1 : ii);
-                                        int r;
-                                        r = sqlite3ExprCodeGetColumn(pParse, pTabItem.pTab, -1, iCur,
-                                        regRowid);
-                                        sqlite3VdbeAddOp4Int(v, OP_RowSetTest, regRowset,
-                                                       sqlite3VdbeCurrentAddr(v) + 2, r, iSet);
-                                    }
-                                    sqlite3VdbeAddOp2(v, OP_Gosub, regReturn, iLoopBody);
-
-                                    /* The pSubWInfo.untestedTerms flag means that this OR term
-                                    ** contained one or more AND term from a notReady table.  The
-                                    ** terms from the notReady table could not be tested and will
-                                    ** need to be tested later.
-                                    */
-                                    if (pSubWInfo.untestedTerms != 0)
-                                        untestedTerms = 1;
-
-                                    /* Finish the loop through table entries that match term pOrTerm. */
-                                    sqlite3WhereEnd(pSubWInfo);
-                                }
-                            }
-                        }
-                        sqlite3VdbeChangeP1(v, iRetInit, sqlite3VdbeCurrentAddr(v));
-                        sqlite3VdbeAddOp2(v, OP_Goto, 0, pLevel.addrBrk);
-                        sqlite3VdbeResolveLabel(v, iLoopBody);
-
-                        if (pWInfo.nLevel > 1)
-                            sqlite3DbFree(pParse.db, ref pOrTab);//sqlite3DbFree(pParse.db, pOrTab)
-                        if (0 == untestedTerms)
-                            DisableTerm(pLevel, pTerm);
+                        level.p1 = iIdxCur;
                     }
                     else
+
+#if  !SQLITE_OMIT_OR_OPTIMIZATION
+                        if ((level.plan.wsFlags & WHERE_MULTI_OR) != 0)
+                        {
+                            /* Case 4:  Two or more separately indexed terms connected by OR
+                            **
+                            ** Example:
+                            **
+                            **   CREATE TABLE t1(a,b,c,d);
+                            **   CREATE INDEX i1 ON t1(a);
+                            **   CREATE INDEX i2 ON t1(b);
+                            **   CREATE INDEX i3 ON t1(c);
+                            **
+                            **   SELECT * FROM t1 WHERE a=5 OR b=7 OR (c=11 AND d=13)
+                            **
+                            ** In the example, there are three indexed terms connected by OR.
+                            ** The top of the loop looks like this:
+                            **
+                            **          Null       1                # Zero the rowset in reg 1
+                            **
+                            ** Then, for each indexed term, the following. The arguments to
+                            ** RowSetTest are such that the rowid of the current row is inserted
+                            ** into the RowSet. If it is already present, control skips the
+                            ** Gosub opcode and jumps straight to the code generated by WhereEnd().
+                            **
+                            **        sqlite3WhereBegin(<term>)
+                            **          RowSetTest                  # Insert rowid into rowset
+                            **          Gosub      2 A
+                            **        sqlite3WhereEnd()
+                            **
+                            ** Following the above, code to terminate the loop. Label A, the target
+                            ** of the Gosub above, jumps to the instruction right after the Goto.
+                            **
+                            **          Null       1                # Zero the rowset in reg 1
+                            **          Goto       B                # The loop is finished.
+                            **
+                            **       A: <loop body>                 # Return data, whatever.
+                            **
+                            **          Return     2                # Jump back to the Gosub
+                            **
+                            **       B: <after the loop>
+                            **
+                            */
+                            WhereClause pOrWc;    /* The OR-clause broken out into subterms */
+                            SrcList pOrTab;       /* Shortened table list or OR-clause generation */
+
+                            int regReturn = ++parse.nMem;            /* Register used with OP_Gosub */
+                            int regRowset = 0;                        /* Register for RowSet object */
+                            int regRowid = 0;                         /* Register holding rowid */
+                            int iLoopBody = sqlite3VdbeMakeLabel(v);/* Start of loop body */
+                            int iRetInit;                             /* Address of regReturn init */
+                            int untestedTerms = 0;                    /* Some terms not completely tested */
+                            int ii;
+                            term = level.plan.u.pTerm;
+                            Debug.Assert(term != null);
+                            Debug.Assert(term.eOperator == WO_OR);
+                            Debug.Assert((term.wtFlags & TERM_ORINFO) != 0);
+                            pOrWc = term.u.pOrInfo.wc;
+                            level.op = OP_Return;
+                            level.p1 = regReturn;
+
+                            /* Set up a new SrcList in pOrTab containing the table being scanned
+                            ** by this loop in the a[0] slot and all notReady tables in a[1..] slots.
+                            ** This becomes the SrcList in the recursive call to sqlite3WhereBegin().
+                            */
+                            if (winfo.nLevel > 1)
+                            {
+                                int nNotReady;                 /* The number of notReady tables */
+                                SrcList_item[] origSrc;         /* Original list of tables */
+                                nNotReady = winfo.nLevel - levelId - 1;
+                                //sqlite3StackAllocRaw(pParse.db,
+                                //sizeof(*pOrTab)+ nNotReady*sizeof(pOrTab.a[0]));
+                                pOrTab = new SrcList();
+                                pOrTab.a = new SrcList_item[nNotReady + 1];
+                                //if( pOrTab==0 ) return notReady;
+                                pOrTab.nAlloc = (i16)(nNotReady + 1);
+                                pOrTab.nSrc = pOrTab.nAlloc;
+                                pOrTab.a[0] = item;//memcpy(pOrTab.a, pTabItem, sizeof(*pTabItem));
+                                origSrc = winfo.pTabList.a;
+                                for (k = 1; k <= nNotReady; k++)
+                                {
+                                    pOrTab.a[k] = origSrc[winfo.Data[levelId + k].iFrom];// memcpy(&pOrTab.a[k], &origSrc[pLevel[k].iFrom], sizeof(pOrTab.a[k]));
+                                }
+                            }
+                            else
+                            {
+                                pOrTab = winfo.pTabList;
+                            }
+
+                            /* Initialize the rowset register to contain NULL. An SQL NULL is
+                            ** equivalent to an empty rowset.
+                            **
+                            ** Also initialize regReturn to contain the address of the instruction
+                            ** immediately following the OP_Return at the bottom of the loop. This
+                            ** is required in a few obscure LEFT JOIN cases where control jumps
+                            ** over the top of the loop into the body of it. In this case the
+                            ** correct response for the end-of-loop code (the OP_Return) is to
+                            ** fall through to the next instruction, just as an OP_Next does if
+                            ** called on an uninitialized cursor.
+                            */
+                            if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
+                            {
+                                regRowset = ++parse.nMem;
+                                regRowid = ++parse.nMem;
+                                sqlite3VdbeAddOp2(v, OP_Null, 0, regRowset);
+                            }
+                            iRetInit = sqlite3VdbeAddOp2(v, OP_Integer, 0, regReturn);
+
+                            for (ii = 0; ii < pOrWc.nTerm; ii++)
+                            {
+                                WhereTerm pOrTerm = pOrWc.a[ii];
+                                if (pOrTerm.leftCursor == cur || pOrTerm.eOperator == WO_AND)
+                                {
+                                    WhereInfo pSubWInfo;          /* Info for single OR-term scan */
+
+                                    /* Loop through table entries that match term pOrTerm. */
+                                    ExprList elDummy = null;
+                                    pSubWInfo = sqlite3WhereBegin(parse, pOrTab, pOrTerm.pExpr, ref elDummy,
+                                        WHERE_OMIT_OPEN | WHERE_OMIT_CLOSE |
+                                        WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY);
+                                    if (pSubWInfo != null)
+                                    {
+                                        ExplainOneScan(
+                                        parse, pOrTab, pSubWInfo.Data[0], levelId, level.iFrom, 0
+                                        );
+                                        if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
+                                        {
+                                            int iSet = ((ii == pOrWc.nTerm - 1) ? -1 : ii);
+                                            int r;
+                                            r = sqlite3ExprCodeGetColumn(parse, item.pTab, -1, cur,
+                                            regRowid);
+                                            sqlite3VdbeAddOp4Int(v, OP_RowSetTest, regRowset,
+                                                           sqlite3VdbeCurrentAddr(v) + 2, r, iSet);
+                                        }
+                                        sqlite3VdbeAddOp2(v, OP_Gosub, regReturn, iLoopBody);
+
+                                        /* The pSubWInfo.untestedTerms flag means that this OR term
+                                        ** contained one or more AND term from a notReady table.  The
+                                        ** terms from the notReady table could not be tested and will
+                                        ** need to be tested later.
+                                        */
+                                        if (pSubWInfo.untestedTerms != 0)
+                                            untestedTerms = 1;
+
+                                        /* Finish the loop through table entries that match term pOrTerm. */
+                                        sqlite3WhereEnd(pSubWInfo);
+                                    }
+                                }
+                            }
+                            sqlite3VdbeChangeP1(v, iRetInit, sqlite3VdbeCurrentAddr(v));
+                            sqlite3VdbeAddOp2(v, OP_Goto, 0, level.addrBrk);
+                            sqlite3VdbeResolveLabel(v, iLoopBody);
+
+                            if (winfo.nLevel > 1)
+                                sqlite3DbFree(parse.db, ref pOrTab);//sqlite3DbFree(pParse.db, pOrTab)
+                            if (0 == untestedTerms)
+                                DisableTerm(level, term);
+                        }
+                        else
 #endif //* SQLITE_OMIT_OR_OPTIMIZATION */
 
-                    {
-                        /* Case 5:  There is no usable index.  We must do a complete
-                        **          scan of the entire table.
-                        */
-                        u8[] aStep = new u8[] { OP_Next, OP_Prev };
-                        u8[] aStart = new u8[] { OP_Rewind, OP_Last };
-                        Debug.Assert(bRev == 0 || bRev == 1);
-                        Debug.Assert(omitTable == 0);
-                        pLevel.op = aStep[bRev];
-                        pLevel.p1 = iCur;
-                        pLevel.p2 = 1 + sqlite3VdbeAddOp2(v, aStart[bRev], iCur, addrBrk);
-                        pLevel.p5 = SQLITE_STMTSTATUS_FULLSCAN_STEP;
-                    }
-            notReady &= ~getMask(pWC.pMaskSet, iCur);
+                        {
+                            /* Case 5:  There is no usable index.  We must do a complete
+                            **          scan of the entire table.
+                            */
+                            u8[] aStep = new u8[] { OP_Next, OP_Prev };
+                            u8[] aStart = new u8[] { OP_Rewind, OP_Last };
+                            Debug.Assert(rev == 0 || rev == 1);
+                            Debug.Assert(omitTable == 0);
+                            level.op = aStep[rev];
+                            level.p1 = cur;
+                            level.p2 = 1 + sqlite3VdbeAddOp2(v, aStart[rev], cur, addrBrk);
+                            level.p5 = SQLITE_STMTSTATUS_FULLSCAN_STEP;
+                        }
+            notReady &= ~getMask(wc.pMaskSet, cur);
 
             /* Insert code to test every subexpression that can be completely
             ** computed using the current set of tables.
@@ -3702,61 +3495,61 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             ** the use of indices become tests that are evaluated against each row of
             ** the relevant input tables.
             */
-            for (j = pWC.nTerm; j > 0; j--)//, pTerm++)
+            for (j = wc.nTerm; j > 0; j--)//, pTerm++)
             {
-                pTerm = pWC.a[pWC.nTerm - j];
+                term = wc.a[wc.nTerm - j];
                 Expr pE;
-                testcase(pTerm.wtFlags & TERM_VIRTUAL); /* IMP: R-30575-11662 */
-                testcase(pTerm.wtFlags & TERM_CODED);
-                if ((pTerm.wtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0)
+                testcase(term.wtFlags & TERM_VIRTUAL); /* IMP: R-30575-11662 */
+                testcase(term.wtFlags & TERM_CODED);
+                if ((term.wtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0)
                     continue;
-                if ((pTerm.prereqAll & notReady) != 0)
+                if ((term.prereqAll & notReady) != 0)
                 {
-                    testcase(pWInfo.untestedTerms == 0
-                    && (pWInfo.wctrlFlags & WHERE_ONETABLE_ONLY) != 0);
-                    pWInfo.untestedTerms = 1;
+                    testcase(winfo.untestedTerms == 0
+                    && (winfo.wctrlFlags & WHERE_ONETABLE_ONLY) != 0);
+                    winfo.untestedTerms = 1;
                     continue;
                 }
-                pE = pTerm.pExpr;
+                pE = term.pExpr;
                 Debug.Assert(pE != null);
-                if (pLevel.iLeftJoin != 0 && !((pE.flags & EP_FromJoin) == EP_FromJoin))// !ExprHasProperty(pE, EP_FromJoin) ){
+                if (level.iLeftJoin != 0 && !((pE.flags & EP_FromJoin) == EP_FromJoin))// !ExprHasProperty(pE, EP_FromJoin) ){
                 {
                     continue;
                 }
-                sqlite3ExprIfFalse(pParse, pE, addrCont, SQLITE_JUMPIFNULL);
-                pTerm.wtFlags |= TERM_CODED;
+                sqlite3ExprIfFalse(parse, pE, addrCont, SQLITE_JUMPIFNULL);
+                term.wtFlags |= TERM_CODED;
             }
 
             /* For a LEFT OUTER JOIN, generate code that will record the fact that
             ** at least one row of the right table has matched the left table.
             */
-            if (pLevel.iLeftJoin != 0)
+            if (level.iLeftJoin != 0)
             {
-                pLevel.addrFirst = sqlite3VdbeCurrentAddr(v);
-                sqlite3VdbeAddOp2(v, OP_Integer, 1, pLevel.iLeftJoin);
+                level.addrFirst = sqlite3VdbeCurrentAddr(v);
+                sqlite3VdbeAddOp2(v, OP_Integer, 1, level.iLeftJoin);
 #if SQLITE_DEBUG
         VdbeComment( v, "record LEFT JOIN hit" );
 #endif
-                sqlite3ExprCacheClear(pParse);
-                for (j = 0; j < pWC.nTerm; j++)//, pTerm++)
+                sqlite3ExprCacheClear(parse);
+                for (j = 0; j < wc.nTerm; j++)//, pTerm++)
                 {
-                    pTerm = pWC.a[j];
-                    testcase(pTerm.wtFlags & TERM_VIRTUAL);  /* IMP: R-30575-11662 */
-                    testcase(pTerm.wtFlags & TERM_CODED);
-                    if ((pTerm.wtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0)
+                    term = wc.a[j];
+                    testcase(term.wtFlags & TERM_VIRTUAL);  /* IMP: R-30575-11662 */
+                    testcase(term.wtFlags & TERM_CODED);
+                    if ((term.wtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0)
                         continue;
-                    if ((pTerm.prereqAll & notReady) != 0)
+                    if ((term.prereqAll & notReady) != 0)
                     {
-                        Debug.Assert(pWInfo.untestedTerms != 0);
+                        Debug.Assert(winfo.untestedTerms != 0);
                         continue;
                     }
-                    Debug.Assert(pTerm.pExpr != null);
-                    sqlite3ExprIfFalse(pParse, pTerm.pExpr, addrCont, SQLITE_JUMPIFNULL);
-                    pTerm.wtFlags |= TERM_CODED;
+                    Debug.Assert(term.pExpr != null);
+                    sqlite3ExprIfFalse(parse, term.pExpr, addrCont, SQLITE_JUMPIFNULL);
+                    term.wtFlags |= TERM_CODED;
                 }
             }
 
-            sqlite3ReleaseTempReg(pParse, iReleaseReg);
+            sqlite3ReleaseTempReg(parse, releaseRegId);
             return notReady;
         }
 
@@ -4400,8 +4193,8 @@ OP_IdxLT             /* 2: (end_constraints && bRev) */
             for (i = 0; i < nTabList; i++)
             {
                 pLevel = pWInfo.Data[i];
-                explainOneScan(pParse, pTabList, pLevel, i, pLevel.iFrom, wctrlFlags);
-                notReady = codeOneLoopStart(pWInfo, i, wctrlFlags, notReady);
+                ExplainOneScan(pParse, pTabList, pLevel, i, pLevel.iFrom, wctrlFlags);
+                notReady = CodeOneLoopStart(pWInfo, i, wctrlFlags, notReady);
                 pWInfo.ContinueId = pLevel.addrCont;
             }
 

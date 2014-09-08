@@ -417,6 +417,12 @@ namespace Core
 
     public struct WhereLevel
     {
+        public class InLoop
+        {
+            public int Cur;			    // The VDBE cursor used by this IN operator
+            public int AddrInTop;		// Top of the IN loop
+            public OP EndLoopOp;	    // IN Loop terminator. OP_Next or OP_Prev
+        }
         public WherePlan Plan;		// query plan for this element of the FROM clause
         public int LeftJoin;		// Memory cell used to implement LEFT OUTER JOIN
         public int TabCur;			// The VDBE cursor used to access the table
@@ -432,14 +438,7 @@ namespace Core
         {
             public class _in
             {
-                public class InLoop
-                {
-                    public int Cur;			    // The VDBE cursor used by this IN operator
-                    public int AddrInTop;		// Top of the IN loop
-                    public byte EndLoopOp;	    // IN Loop terminator. OP_Next or OP_Prev
-                }
-                public int InLoopsLength;		// Number of entries in aInLoop[]
-                public InLoop InLoops;		    // Information about each nested IN operator
+                public array_t<InLoop> InLoops; // Information about each nested IN operator
             }
             public _in in_;						// Used when plan.wsFlags&WHERE_IN_ABLE
             public Index Covidx;				// Possible covering index for WHERE_MULTI_OR
