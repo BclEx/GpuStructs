@@ -2663,7 +2663,7 @@ cancel:
 		return regId;
 	}
 
-	__device__ static int codeAllEqualityTerms(Parse *parse, WhereLevel *level, WhereClause *wc, Bitmask notReady, int extraRegs, char **affsOut)
+	__device__ static int CodeAllEqualityTerms(Parse *parse, WhereLevel *level, WhereClause *wc, Bitmask notReady, int extraRegs, char **affsOut)
 	{
 		// This module is only called on query plans that use an index.
 		_assert(level->plan.wsFlags & WHERE_INDEXED);

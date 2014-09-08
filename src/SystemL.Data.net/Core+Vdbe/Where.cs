@@ -1212,7 +1212,7 @@ namespace Core
                         p.Cost.Cost = total;
                         p.Cost.Used = used;
                         p.Cost.Plan.Rows = rows;
-                        p.Cost.Plan.OBSats = (p.i ? p.Levels[p.i - 1].Plan.OBSats : 0);
+                        p.Cost.Plan.OBSats = (p.i != 0 ? p.Levels[p.i - 1].Plan.OBSats : (ushort)0);
                         p.Cost.Plan.WsFlags = flags;
                         p.Cost.Plan.u.Term = term;
                     }
@@ -1335,7 +1335,7 @@ namespace Core
             level.Plan.u.Index = index;
             index.CollNames = new string[columns + 1];
             index.Columns.data = new int[columns + 1];
-            index.SortOrders = new byte[columns + 1];
+            index.SortOrders = new SO[columns + 1];
             index.Name = "auto-index";
             index.Columns.length = (ushort)columns;
             index.Table = table;
@@ -1504,7 +1504,7 @@ namespace Core
         static int VTableBestIndex(Parse parse, Table table, IIndexInfo p)
         {
             IVTable vtable = VTable.GetTable(parse.Ctx, table).IVTable;
-            WHERETRACE("xBestIndex for %s\n", pTab.zName);
+            WHERETRACE("xBestIndex for %s\n", table.Name);
             TRACE_IDX_INPUTS(p);
             RC rc = vtable.IModule.BestIndex(vtable, p);
             TRACE_IDX_OUTPUTS(p);
