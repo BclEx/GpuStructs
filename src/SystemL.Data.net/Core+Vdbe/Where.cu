@@ -3022,56 +3022,54 @@ cancel:
 					//
 					//         This case is also used when there are no WHERE clause constraints but an index is selected anyway, in order
 					//         to force the output order to conform to an ORDER BY.
-					static const uint8 aStartOp[] = {
+					static const uint8 _startOps[] = {
 						0,
 						0,
-						OP_Rewind,           /* 2: (!start_constraints && startEq &&  !bRev) */
-						OP_Last,             /* 3: (!start_constraints && startEq &&   bRev) */
-						OP_SeekGt,           /* 4: (start_constraints  && !startEq && !bRev) */
-						OP_SeekLt,           /* 5: (start_constraints  && !startEq &&  bRev) */
-						OP_SeekGe,           /* 6: (start_constraints  &&  startEq && !bRev) */
-						OP_SeekLe            /* 7: (start_constraints  &&  startEq &&  bRev) */
+						OP_Rewind,           // 2: (!start_constraints && startEq &&  !bRev)
+						OP_Last,             // 3: (!start_constraints && startEq &&   bRev)
+						OP_SeekGt,           // 4: (start_constraints  && !startEq && !bRev)
+						OP_SeekLt,           // 5: (start_constraints  && !startEq &&  bRev)
+						OP_SeekGe,           // 6: (start_constraints  &&  startEq && !bRev)
+						OP_SeekLe            // 7: (start_constraints  &&  startEq &&  bRev)
 					};
-					static const uint8 aEndOp[] = {
-						OP_Noop,             /* 0: (!end_constraints) */
-						OP_IdxGE,            /* 1: (end_constraints && !bRev) */
-						OP_IdxLT             /* 2: (end_constraints && bRev) */
+					static const uint8 _endOps[] = {
+						OP_Noop,             // 0: (!end_constraints)
+						OP_IdxGE,            // 1: (end_constraints && !bRev)
+						OP_IdxLT             // 2: (end_constraints && bRev)
 					};
-					int nEq = level->plan.nEq;  /* Number of == or IN terms */
-					int isMinQuery = 0;          /* If this is an optimized SELECT min(x).. */
-					int regBase;                 /* Base register holding constraint values */
-					int r1;                      /* Temp register */
-					WhereTerm *pRangeStart = 0;  /* Inequality constraint at range start */
-					WhereTerm *pRangeEnd = 0;    /* Inequality constraint at range end */
-					int startEq;                 /* True if range start uses ==, >= or <= */
-					int endEq;                   /* True if range end uses ==, >= or <= */
-					int start_constraints;       /* Start of range is constrained */
-					int nConstraint;             /* Number of constraint terms */
-					Index *pIdx;                 /* The index we will be using */
-					int iIdxCur;                 /* The VDBE cursor for the index */
-					int nExtraReg = 0;           /* Number of extra registers needed */
-					int op;                      /* Instruction opcode */
-					char *zStartAff;             /* Affinity for start of range constraint */
-					char *zEndAff;               /* Affinity for end of range constraint */
+					int eqs = level->plan.Eqs;	// Number of == or IN terms
+					int isMinQuery = 0;			// If this is an optimized SELECT min(x)..
+					int baseId;				// Base register holding constraint values
+					int r1;						// Temp register
+					WhereTerm *pRangeStart = 0;	// Inequality constraint at range start
+					WhereTerm *pRangeEnd = 0;	// Inequality constraint at range end
+					int startEq;				// True if range start uses ==, >= or <=
+					int endEq;					// True if range end uses ==, >= or <=
+					int start_constraints;		// Start of range is constrained
+					int nConstraint;			// Number of constraint terms
+					int nExtraReg = 0;			// Number of extra registers needed
+					int op;						// Instruction opcode
+					char *zStartAff;			// Affinity for start of range constraint
+					char *zEndAff;				// Affinity for end of range constraint
 
-					pIdx = level->plan.u.pIdx;
-					iIdxCur = level->iIdxCur;
-					k = (nEq==pIdx->nColumn ? -1 : pIdx->aiColumn[nEq]);
+					Index *index = level->Plan.u.Index; // The index we will be using
+					int iIdxCur = level->IdxCur; // The VDBE cursor for the index
+					k = (eqs == index->Columns.length ? -1 : index->Columns[eqs]);
 
 					/* If this loop satisfies a sort order (pOrderBy) request that 
 					** was passed to this function to implement a "SELECT min(x) ..." 
 					** query, then the caller will only allow the loop to run for
 					** a single iteration. This means that the first row returned
 					** should not have a NULL value stored in 'x'. If column 'x' is
-					** the first one after the nEq equality constraints in the index,
+					** the first one after the eqs equality constraints in the index,
 					** this requires some special handling.
 					*/
 					if( (wctrlFlags&WHERE_ORDERBY_MIN)!=0
 						&& (level->plan.wsFlags&WHERE_ORDERED)
-						&& (pIdx->nColumn>nEq)
+						&& (index->nColumn>eqs)
 						){
 							/* assert( pOrderBy->nExpr==1 ); */
-							/* assert( pOrderBy->a[0].pExpr->iColumn==pIdx->aiColumn[nEq] ); */
+							/* assert( pOrderBy->a[0].pExpr->iColumn==index->aiColumn[eqs] ); */
 							isMinQuery = 1;
 							nExtraReg = 1;
 					}
@@ -3080,19 +3078,19 @@ cancel:
 					** of the range. 
 					*/
 					if( level->plan.wsFlags & WHERE_TOP_LIMIT ){
-						pRangeEnd = findTerm(wc, cur, k, notReady, (WO_LT|WO_LE), pIdx);
+						pRangeEnd = findTerm(wc, cur, k, notReady, (WO_LT|WO_LE), index);
 						nExtraReg = 1;
 					}
 					if( level->plan.wsFlags & WHERE_BTM_LIMIT ){
-						pRangeStart = findTerm(wc, cur, k, notReady, (WO_GT|WO_GE), pIdx);
+						pRangeStart = findTerm(wc, cur, k, notReady, (WO_GT|WO_GE), index);
 						nExtraReg = 1;
 					}
 
 					/* Generate code to evaluate all constraint terms using == or IN
 					** and store the values of those terms in an array of registers
-					** starting at regBase.
+					** starting at baseId.
 					*/
-					regBase = codeAllEqualityTerms(
+					baseId = codeAllEqualityTerms(
 						parse, level, wc, notReady, nExtraReg, &zStartAff
 						);
 					zEndAff = sqlite3DbStrDup(parse->db, zStartAff);
@@ -3102,8 +3100,8 @@ cancel:
 					** a forward order scan on a descending index, interchange the 
 					** start and end terms (pRangeStart and pRangeEnd).
 					*/
-					if( (nEq<pIdx->nColumn && bRev==(pIdx->aSortOrder[nEq]==SQLITE_SO_ASC))
-						|| (bRev && pIdx->nColumn==nEq)
+					if( (eqs<index->nColumn && bRev==(index->aSortOrder[eqs]==SQLITE_SO_ASC))
+						|| (bRev && index->nColumn==eqs)
 						){
 							SWAP(WhereTerm *, pRangeEnd, pRangeStart);
 					}
@@ -3114,37 +3112,37 @@ cancel:
 					testcase( pRangeEnd && pRangeEnd->eOperator & WO_GE );
 					startEq = !pRangeStart || pRangeStart->eOperator & (WO_LE|WO_GE);
 					endEq =   !pRangeEnd || pRangeEnd->eOperator & (WO_LE|WO_GE);
-					start_constraints = pRangeStart || nEq>0;
+					start_constraints = pRangeStart || eqs>0;
 
 					/* Seek the index cursor to the start of the range. */
-					nConstraint = nEq;
+					nConstraint = eqs;
 					if( pRangeStart ){
 						Expr *pRight = pRangeStart->pExpr->pRight;
-						sqlite3ExprCode(parse, pRight, regBase+nEq);
+						sqlite3ExprCode(parse, pRight, baseId+eqs);
 						if( (pRangeStart->wtFlags & TERM_VNULL)==0 ){
-							sqlite3ExprCodeIsNullJump(v, pRight, regBase+nEq, addrNxt);
+							sqlite3ExprCodeIsNullJump(v, pRight, baseId+eqs, addrNxt);
 						}
 						if( zStartAff ){
-							if( sqlite3CompareAffinity(pRight, zStartAff[nEq])==SQLITE_AFF_NONE){
+							if( sqlite3CompareAffinity(pRight, zStartAff[eqs])==SQLITE_AFF_NONE){
 								/* Since the comparison is to be performed with no conversions
 								** applied to the operands, set the affinity to apply to pRight to 
 								** SQLITE_AFF_NONE.  */
-								zStartAff[nEq] = SQLITE_AFF_NONE;
+								zStartAff[eqs] = SQLITE_AFF_NONE;
 							}
-							if( sqlite3ExprNeedsNoAffinityChange(pRight, zStartAff[nEq]) ){
-								zStartAff[nEq] = SQLITE_AFF_NONE;
+							if( sqlite3ExprNeedsNoAffinityChange(pRight, zStartAff[eqs]) ){
+								zStartAff[eqs] = SQLITE_AFF_NONE;
 							}
 						}  
 						nConstraint++;
 						testcase( pRangeStart->wtFlags & TERM_VIRTUAL ); /* EV: R-30575-11662 */
 					}else if( isMinQuery ){
-						sqlite3VdbeAddOp2(v, OP_Null, 0, regBase+nEq);
+						sqlite3VdbeAddOp2(v, OP_Null, 0, baseId+eqs);
 						nConstraint++;
 						startEq = 0;
 						start_constraints = 1;
 					}
-					codeApplyAffinity(parse, regBase, nConstraint, zStartAff);
-					op = aStartOp[(start_constraints<<2) + (startEq<<1) + bRev];
+					codeApplyAffinity(parse, baseId, nConstraint, zStartAff);
+					op = _startOps[(start_constraints<<2) + (startEq<<1) + bRev];
 					assert( op!=0 );
 					testcase( op==OP_Rewind );
 					testcase( op==OP_Last );
@@ -3152,31 +3150,31 @@ cancel:
 					testcase( op==OP_SeekGe );
 					testcase( op==OP_SeekLe );
 					testcase( op==OP_SeekLt );
-					sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
+					sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, baseId, nConstraint);
 
 					/* Load the value for the inequality constraint at the end of the
 					** range (if any).
 					*/
-					nConstraint = nEq;
+					nConstraint = eqs;
 					if( pRangeEnd ){
 						Expr *pRight = pRangeEnd->pExpr->pRight;
-						sqlite3ExprCacheRemove(parse, regBase+nEq, 1);
-						sqlite3ExprCode(parse, pRight, regBase+nEq);
+						sqlite3ExprCacheRemove(parse, baseId+eqs, 1);
+						sqlite3ExprCode(parse, pRight, baseId+eqs);
 						if( (pRangeEnd->wtFlags & TERM_VNULL)==0 ){
-							sqlite3ExprCodeIsNullJump(v, pRight, regBase+nEq, addrNxt);
+							sqlite3ExprCodeIsNullJump(v, pRight, baseId+eqs, addrNxt);
 						}
 						if( zEndAff ){
-							if( sqlite3CompareAffinity(pRight, zEndAff[nEq])==SQLITE_AFF_NONE){
+							if( sqlite3CompareAffinity(pRight, zEndAff[eqs])==SQLITE_AFF_NONE){
 								/* Since the comparison is to be performed with no conversions
 								** applied to the operands, set the affinity to apply to pRight to 
 								** SQLITE_AFF_NONE.  */
-								zEndAff[nEq] = SQLITE_AFF_NONE;
+								zEndAff[eqs] = SQLITE_AFF_NONE;
 							}
-							if( sqlite3ExprNeedsNoAffinityChange(pRight, zEndAff[nEq]) ){
-								zEndAff[nEq] = SQLITE_AFF_NONE;
+							if( sqlite3ExprNeedsNoAffinityChange(pRight, zEndAff[eqs]) ){
+								zEndAff[eqs] = SQLITE_AFF_NONE;
 							}
 						}  
-						codeApplyAffinity(parse, regBase, nEq+1, zEndAff);
+						codeApplyAffinity(parse, baseId, eqs+1, zEndAff);
 						nConstraint++;
 						testcase( pRangeEnd->wtFlags & TERM_VIRTUAL ); /* EV: R-30575-11662 */
 					}
@@ -3187,12 +3185,12 @@ cancel:
 					level->p2 = sqlite3VdbeCurrentAddr(v);
 
 					/* Check if the index cursor is past the end of the range. */
-					op = aEndOp[(pRangeEnd || nEq) * (1 + bRev)];
+					op = _endOps[(pRangeEnd || eqs) * (1 + bRev)];
 					testcase( op==OP_Noop );
 					testcase( op==OP_IdxGE );
 					testcase( op==OP_IdxLT );
 					if( op!=OP_Noop ){
-						sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, regBase, nConstraint);
+						sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, baseId, nConstraint);
 						sqlite3VdbeChangeP5(v, endEq!=bRev ?1:0);
 					}
 
@@ -3204,7 +3202,7 @@ cancel:
 					testcase( level->plan.wsFlags & WHERE_BTM_LIMIT );
 					testcase( level->plan.wsFlags & WHERE_TOP_LIMIT );
 					if( (level->plan.wsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT))!=0 ){
-						sqlite3VdbeAddOp3(v, OP_Column, iIdxCur, nEq, r1);
+						sqlite3VdbeAddOp3(v, OP_Column, iIdxCur, eqs, r1);
 						sqlite3VdbeAddOp2(v, OP_IsNull, r1, addrCont);
 					}
 					sqlite3ReleaseTempReg(parse, r1);
@@ -3416,10 +3414,10 @@ cancel:
 									pLvl = &pSubWInfo->a[0];
 									if( (pLvl->plan.wsFlags & WHERE_INDEXED)!=0
 										&& (pLvl->plan.wsFlags & WHERE_TEMP_INDEX)==0
-										&& (ii==0 || pLvl->plan.u.pIdx==pCov)
+										&& (ii==0 || pLvl->plan.u.Index == pCov)
 										){
 											assert( pLvl->iIdxCur==iCovCur );
-											pCov = pLvl->plan.u.pIdx;
+											pCov = pLvl->plan.u.Index;
 									}else{
 										pCov = 0;
 									}
