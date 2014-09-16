@@ -2812,7 +2812,7 @@ cancel:
 #define ExplainOneScan(u, v, w, x, y, z)
 #endif
 
-	static Bitmask CodeOneLoopStart(WhereInfo *winfo, int iLevel, uint16 wctrlFlags, Bitmask notReady)
+	static Bitmask CodeOneLoopStart(WhereInfo *winfo, int levelId, uint16 wctrlFlags, Bitmask notReady)
 	{
 		int j, k;
 		int addrNxt; // Where to jump to continue with the next IN case
@@ -2823,11 +2823,11 @@ cancel:
 		Parse *parse = winfo->Parse; // Parsing context
 		Vdbe *v = parse->V; // The prepared stmt under constructions
 		WhereClause *wc = winfo->WC; // Decomposition of the entire WHERE clause 
-		WhereLevel *level = &winfo->Data[iLevel]; // The where level to be coded
+		WhereLevel *level = &winfo->Data[levelId]; // The where level to be coded
 		SrcList::SrcListItem *item = &winfo->TabList->Ids[level->From]; // FROM clause term being coded
 		int cur = item->Cursor; // The VDBE cursor for the table
-		bool bRev = (level->Plan.WsFlags & WHERE_REVERSE) != 0; // True if we need to scan in reverse order
-		bool omitTable = (level->Plan.WsFlags & WHERE_IDX_ONLY) != 0 && (wctrlFlags & WHERE_FORCE_TABLE) == 0; // True if we use the index only
+		bool rev = ((level->Plan.WsFlags & WHERE_REVERSE) != 0); // True if we need to scan in reverse order
+		bool omitTable = ((level->Plan.WsFlags & WHERE_IDX_ONLY) != 0 && (wctrlFlags & WHERE_FORCE_TABLE) == 0); // True if we use the index only
 
 		// Create labels for the "break" and "continue" instructions for the current loop.  Jump to addrBrk to break out of a loop.
 		// Jump to cont to go immediately to the next iteration of the loop.
@@ -3025,362 +3025,296 @@ cancel:
 					static const uint8 _startOps[] = {
 						0,
 						0,
-						OP_Rewind,           // 2: (!start_constraints && startEq &&  !bRev)
-						OP_Last,             // 3: (!start_constraints && startEq &&   bRev)
-						OP_SeekGt,           // 4: (start_constraints  && !startEq && !bRev)
-						OP_SeekLt,           // 5: (start_constraints  && !startEq &&  bRev)
-						OP_SeekGe,           // 6: (start_constraints  &&  startEq && !bRev)
-						OP_SeekLe            // 7: (start_constraints  &&  startEq &&  bRev)
+						OP_Rewind,           // 2: (!startConstraints && startEq &&  !bRev)
+						OP_Last,             // 3: (!startConstraints && startEq &&   bRev)
+						OP_SeekGt,           // 4: (startConstraints  && !startEq && !bRev)
+						OP_SeekLt,           // 5: (startConstraints  && !startEq &&  bRev)
+						OP_SeekGe,           // 6: (startConstraints  &&  startEq && !bRev)
+						OP_SeekLe            // 7: (startConstraints  &&  startEq &&  bRev)
 					};
 					static const uint8 _endOps[] = {
 						OP_Noop,             // 0: (!end_constraints)
 						OP_IdxGE,            // 1: (end_constraints && !bRev)
 						OP_IdxLT             // 2: (end_constraints && bRev)
 					};
-					int eqs = level->plan.Eqs;	// Number of == or IN terms
-					int isMinQuery = 0;			// If this is an optimized SELECT min(x)..
-					int baseId;				// Base register holding constraint values
-					int r1;						// Temp register
-					WhereTerm *pRangeStart = 0;	// Inequality constraint at range start
-					WhereTerm *pRangeEnd = 0;	// Inequality constraint at range end
-					int startEq;				// True if range start uses ==, >= or <=
-					int endEq;					// True if range end uses ==, >= or <=
-					int start_constraints;		// Start of range is constrained
-					int nConstraint;			// Number of constraint terms
-					int nExtraReg = 0;			// Number of extra registers needed
-					int op;						// Instruction opcode
-					char *zStartAff;			// Affinity for start of range constraint
-					char *zEndAff;				// Affinity for end of range constraint
+					int eqs = level->Plan.Eqs; // Number of == or IN terms
+					int r1; 
 
 					Index *index = level->Plan.u.Index; // The index we will be using
-					int iIdxCur = level->IdxCur; // The VDBE cursor for the index
+					int idxCur = level->IdxCur; // The VDBE cursor for the index
 					k = (eqs == index->Columns.length ? -1 : index->Columns[eqs]);
 
-					/* If this loop satisfies a sort order (pOrderBy) request that 
-					** was passed to this function to implement a "SELECT min(x) ..." 
-					** query, then the caller will only allow the loop to run for
-					** a single iteration. This means that the first row returned
-					** should not have a NULL value stored in 'x'. If column 'x' is
-					** the first one after the eqs equality constraints in the index,
-					** this requires some special handling.
-					*/
-					if( (wctrlFlags&WHERE_ORDERBY_MIN)!=0
-						&& (level->plan.wsFlags&WHERE_ORDERED)
-						&& (index->nColumn>eqs)
-						){
-							/* assert( pOrderBy->nExpr==1 ); */
-							/* assert( pOrderBy->a[0].pExpr->iColumn==index->aiColumn[eqs] ); */
-							isMinQuery = 1;
-							nExtraReg = 1;
+					// If this loop satisfies a sort order (pOrderBy) request that was passed to this function to implement a "SELECT min(x) ..." 
+					// query, then the caller will only allow the loop to run for a single iteration. This means that the first row returned
+					// should not have a NULL value stored in 'x'. If column 'x' is the first one after the eqs equality constraints in the index,
+					// this requires some special handling.
+					bool isMinQuery = false; // If this is an optimized SELECT min(x)..
+					int extraRegs = 0; // Number of extra registers needed
+					if ((wctrlFlags&WHERE_ORDERBY_MIN) != 0 && (level->Plan.WsFlags&WHERE_ORDERED) && index->Columns.length > eqs)
+					{
+						// _assert(orderBy->Exprs == 1);
+						// _assert(orderBy->Ids[0].Expr->Column == index->Columns[eqs]);
+						isMinQuery = true;
+						extraRegs = 1;
 					}
 
-					/* Find any inequality constraint terms for the start and end 
-					** of the range. 
-					*/
-					if( level->plan.wsFlags & WHERE_TOP_LIMIT ){
-						pRangeEnd = findTerm(wc, cur, k, notReady, (WO_LT|WO_LE), index);
-						nExtraReg = 1;
+					// Find any inequality constraint terms for the start and end of the range. 
+					WhereTerm *rangeEnd = nullptr; // Inequality constraint at range end
+					if (level->Plan.WsFlags & WHERE_TOP_LIMIT)
+					{
+						rangeEnd = FindTerm(wc, cur, k, notReady, (WO_LT|WO_LE), index);
+						extraRegs = 1;
 					}
-					if( level->plan.wsFlags & WHERE_BTM_LIMIT ){
-						pRangeStart = findTerm(wc, cur, k, notReady, (WO_GT|WO_GE), index);
-						nExtraReg = 1;
-					}
-
-					/* Generate code to evaluate all constraint terms using == or IN
-					** and store the values of those terms in an array of registers
-					** starting at baseId.
-					*/
-					baseId = codeAllEqualityTerms(
-						parse, level, wc, notReady, nExtraReg, &zStartAff
-						);
-					zEndAff = sqlite3DbStrDup(parse->db, zStartAff);
-					addrNxt = level->addrNxt;
-
-					/* If we are doing a reverse order scan on an ascending index, or
-					** a forward order scan on a descending index, interchange the 
-					** start and end terms (pRangeStart and pRangeEnd).
-					*/
-					if( (eqs<index->nColumn && bRev==(index->aSortOrder[eqs]==SQLITE_SO_ASC))
-						|| (bRev && index->nColumn==eqs)
-						){
-							SWAP(WhereTerm *, pRangeEnd, pRangeStart);
+					WhereTerm *rangeStart = nullptr; // Inequality constraint at range start
+					if (level->Plan.WsFlags & WHERE_BTM_LIMIT)
+					{
+						rangeStart = FindTerm(wc, cur, k, notReady, (WO_GT|WO_GE), index);
+						extraRegs = 1;
 					}
 
-					testcase( pRangeStart && pRangeStart->eOperator & WO_LE );
-					testcase( pRangeStart && pRangeStart->eOperator & WO_GE );
-					testcase( pRangeEnd && pRangeEnd->eOperator & WO_LE );
-					testcase( pRangeEnd && pRangeEnd->eOperator & WO_GE );
-					startEq = !pRangeStart || pRangeStart->eOperator & (WO_LE|WO_GE);
-					endEq =   !pRangeEnd || pRangeEnd->eOperator & (WO_LE|WO_GE);
-					start_constraints = pRangeStart || eqs>0;
+					// Generate code to evaluate all constraint terms using == or IN and store the values of those terms in an array of registers starting at baseId.
+					char *startAffs; // Affinity for start of range constraint
+					int baseId = CodeAllEqualityTerms(parse, level, wc, notReady, extraRegs, &startAffs); // Base register holding constraint values
+					char *endAffs = SysEx::TagStrDup(parse->Ctx, startAffs); // Affinity for end of range constraint
+					addrNxt = level->AddrNxt;
 
-					/* Seek the index cursor to the start of the range. */
-					nConstraint = eqs;
-					if( pRangeStart ){
-						Expr *pRight = pRangeStart->pExpr->pRight;
-						sqlite3ExprCode(parse, pRight, baseId+eqs);
-						if( (pRangeStart->wtFlags & TERM_VNULL)==0 ){
-							sqlite3ExprCodeIsNullJump(v, pRight, baseId+eqs, addrNxt);
-						}
-						if( zStartAff ){
-							if( sqlite3CompareAffinity(pRight, zStartAff[eqs])==SQLITE_AFF_NONE){
-								/* Since the comparison is to be performed with no conversions
-								** applied to the operands, set the affinity to apply to pRight to 
-								** SQLITE_AFF_NONE.  */
-								zStartAff[eqs] = SQLITE_AFF_NONE;
-							}
-							if( sqlite3ExprNeedsNoAffinityChange(pRight, zStartAff[eqs]) ){
-								zStartAff[eqs] = SQLITE_AFF_NONE;
-							}
-						}  
-						nConstraint++;
-						testcase( pRangeStart->wtFlags & TERM_VIRTUAL ); /* EV: R-30575-11662 */
-					}else if( isMinQuery ){
-						sqlite3VdbeAddOp2(v, OP_Null, 0, baseId+eqs);
-						nConstraint++;
+					// If we are doing a reverse order scan on an ascending index, or  a forward order scan on a descending index, interchange the start and end terms (rangeStart and rangeEnd).
+					if ((eqs < index->Columns.length && rev == (index->SortOrders[eqs] == SO_ASC)) || (rev && index->Columns.length == eqs))
+						SWAP(WhereTerm *, rangeEnd, rangeStart);
+
+					ASSERTCOVERAGE(rangeStart && rangeStart->EOperator & WO_LE);
+					ASSERTCOVERAGE(rangeStart && rangeStart->EOperator & WO_GE);
+					ASSERTCOVERAGE(rangeEnd && rangeEnd->EOperator & WO_LE);
+					ASSERTCOVERAGE(rangeEnd && rangeEnd->EOperator & WO_GE);
+					bool startEq = (!rangeStart || rangeStart->EOperator & (WO_LE|WO_GE)); // True if range start uses ==, >= or <=
+					bool endEq = (!rangeEnd || rangeEnd->EOperator & (WO_LE|WO_GE)); // True if range end uses ==, >= or <=
+					bool startConstraints = (rangeStart || eqs > 0); // Start of range is constrained
+
+					// Seek the index cursor to the start of the range.
+					int constraints = eqs; // Number of constraint terms
+					if (rangeStart)
+					{
+						Expr *right = rangeStart->Expr->Right;
+						Expr::Code(parse, right, baseId+eqs);
+						if ((rangeStart->WtFlags & TERM_VNULL) == 0)
+							Expr::CodeIsNullJump(v, right, baseId+eqs, addrNxt);
+						if (startAffs)
+							if (right->CompareAffinity((AFF)startAffs[eqs]) == AFF_NONE || right->NeedsNoAffinityChange((AFF)startAffs[eqs]))
+								startAffs[eqs] = AFF_NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
+						constraints++;
+						ASSERTCOVERAGE(rangeStart->wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+					}
+					else if (isMinQuery)
+					{
+						v->AddOp2(OP_Null, 0, baseId+eqs);
+						constraints++;
 						startEq = 0;
-						start_constraints = 1;
+						startConstraints = 1;
 					}
-					codeApplyAffinity(parse, baseId, nConstraint, zStartAff);
-					op = _startOps[(start_constraints<<2) + (startEq<<1) + bRev];
-					assert( op!=0 );
-					testcase( op==OP_Rewind );
-					testcase( op==OP_Last );
-					testcase( op==OP_SeekGt );
-					testcase( op==OP_SeekGe );
-					testcase( op==OP_SeekLe );
-					testcase( op==OP_SeekLt );
-					sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, baseId, nConstraint);
+					CodeApplyAffinity(parse, baseId, constraints, startAffs);
+					int op = _startOps[(startConstraints<<2) + (startEq<<1) + rev]; // Instruction opcode
+					_assert(op != 0);
+					ASSERTCOVERAGE(op == OP_Rewind);
+					ASSERTCOVERAGE(op == OP_Last);
+					ASSERTCOVERAGE(op == OP_SeekGt);
+					ASSERTCOVERAGE(op == OP_SeekGe);
+					ASSERTCOVERAGE(op == OP_SeekLe);
+					ASSERTCOVERAGE(op == OP_SeekLt);
+					v->AddOp4Int(op, idxCur, addrNxt, baseId, constraints);
 
-					/* Load the value for the inequality constraint at the end of the
-					** range (if any).
-					*/
-					nConstraint = eqs;
-					if( pRangeEnd ){
-						Expr *pRight = pRangeEnd->pExpr->pRight;
-						sqlite3ExprCacheRemove(parse, baseId+eqs, 1);
-						sqlite3ExprCode(parse, pRight, baseId+eqs);
-						if( (pRangeEnd->wtFlags & TERM_VNULL)==0 ){
-							sqlite3ExprCodeIsNullJump(v, pRight, baseId+eqs, addrNxt);
-						}
-						if( zEndAff ){
-							if( sqlite3CompareAffinity(pRight, zEndAff[eqs])==SQLITE_AFF_NONE){
-								/* Since the comparison is to be performed with no conversions
-								** applied to the operands, set the affinity to apply to pRight to 
-								** SQLITE_AFF_NONE.  */
-								zEndAff[eqs] = SQLITE_AFF_NONE;
-							}
-							if( sqlite3ExprNeedsNoAffinityChange(pRight, zEndAff[eqs]) ){
-								zEndAff[eqs] = SQLITE_AFF_NONE;
-							}
-						}  
-						codeApplyAffinity(parse, baseId, eqs+1, zEndAff);
-						nConstraint++;
-						testcase( pRangeEnd->wtFlags & TERM_VIRTUAL ); /* EV: R-30575-11662 */
+					// Load the value for the inequality constraint at the end of the range (if any).
+					constraints = eqs;
+					if (rangeEnd)
+					{
+						Expr *right = rangeEnd->Expr->Right;
+						Expr::CacheRemove(parse, baseId+eqs, 1);
+						Expr::Code(parse, right, baseId+eqs);
+						if ((rangeEnd->WtFlags & TERM_VNULL) == 0)
+							Expr::CodeIsNullJump(v, right, baseId+eqs, addrNxt);
+						if (endAffs)
+							if (right->CompareAffinity((AFF)endAffs[eqs]) == AFF_NONE || right->NeedsNoAffinityChange((AFF)endAffs[eqs]))
+								endAffs[eqs] = AFF_NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
+
+						CodeApplyAffinity(parse, baseId, eqs+1, endAffs);
+						constraints++;
+						ASSERTCOVERAGE(rangeEnd->wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
 					}
-					sqlite3DbFree(parse->db, zStartAff);
-					sqlite3DbFree(parse->db, zEndAff);
+					SysEx::TagFree(parse->Ctx, startAffs);
+					SysEx::TagFree(parse->Ctx, endAffs);
 
-					/* Top of the loop body */
-					level->p2 = sqlite3VdbeCurrentAddr(v);
+					// Top of the loop body
+					level->P2 = v->CurrentAddr();
 
-					/* Check if the index cursor is past the end of the range. */
-					op = _endOps[(pRangeEnd || eqs) * (1 + bRev)];
-					testcase( op==OP_Noop );
-					testcase( op==OP_IdxGE );
-					testcase( op==OP_IdxLT );
-					if( op!=OP_Noop ){
-						sqlite3VdbeAddOp4Int(v, op, iIdxCur, addrNxt, baseId, nConstraint);
-						sqlite3VdbeChangeP5(v, endEq!=bRev ?1:0);
+					// Check if the index cursor is past the end of the range.
+					op = _endOps[(rangeEnd || eqs) * (1 + rev)];
+					ASSERTCOVERAGE(op == OP_Noop);
+					ASSERTCOVERAGE(op == OP_IdxGE);
+					ASSERTCOVERAGE(op == OP_IdxLT);
+					if (op != OP_Noop)
+					{
+						v->AddOp4Int(op, idxCur, addrNxt, baseId, constraints);
+						v->ChangeP5(endEq != rev ? 1 : 0);
 					}
 
-					/* If there are inequality constraints, check that the value
-					** of the table column that the inequality contrains is not NULL.
-					** If it is, jump to the next iteration of the loop.
-					*/
-					r1 = sqlite3GetTempReg(parse);
-					testcase( level->plan.wsFlags & WHERE_BTM_LIMIT );
-					testcase( level->plan.wsFlags & WHERE_TOP_LIMIT );
-					if( (level->plan.wsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT))!=0 ){
-						sqlite3VdbeAddOp3(v, OP_Column, iIdxCur, eqs, r1);
-						sqlite3VdbeAddOp2(v, OP_IsNull, r1, addrCont);
+					// If there are inequality constraints, check that the value of the table column that the inequality contrains is not NULL.
+					// If it is, jump to the next iteration of the loop.
+					int r1 = parse->GetTempReg(); // Temp register
+					ASSERTCOVERAGE(level->Plan.WsFlags & WHERE_BTM_LIMIT);
+					ASSERTCOVERAGE(level->Plan.WsFlags & WHERE_TOP_LIMIT);
+					if ((level->Plan.WsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT)) != 0)
+					{
+						v->AddOp3(OP_Column, idxCur, eqs, r1);
+						v->AddOp2(OP_IsNull, r1, addrCont);
 					}
-					sqlite3ReleaseTempReg(parse, r1);
+					parse->ReleaseTempReg(r1);
 
-					/* Seek the table cursor, if required */
-					disableTerm(level, pRangeStart);
-					disableTerm(level, pRangeEnd);
-					if( !omitTable ){
-						rowidRegId = releaseRegId = sqlite3GetTempReg(parse);
-						sqlite3VdbeAddOp2(v, OP_IdxRowid, iIdxCur, rowidRegId);
-						sqlite3ExprCacheStore(parse, cur, -1, rowidRegId);
-						sqlite3VdbeAddOp2(v, OP_Seek, cur, rowidRegId);  /* Deferred seek */
+					// Seek the table cursor, if required
+					DisableTerm(level, rangeStart);
+					DisableTerm(level, rangeEnd);
+					if (!omitTable)
+					{
+						rowidRegId = releaseRegId = parse->GetTempReg();
+						v->AddOp2(OP_IdxRowid, idxCur, rowidRegId);
+						Expr::CacheStore(parse, cur, -1, rowidRegId);
+						v->AddOp2(OP_Seek, cur, rowidRegId); // Deferred seek
 					}
 
-					/* Record the instruction used to terminate the loop. Disable 
-					** WHERE clause terms made redundant by the index range scan.
-					*/
-					if( level->plan.wsFlags & WHERE_UNIQUE ){
-						level->op = OP_Noop;
-					}else if( bRev ){
-						level->op = OP_Prev;
-					}else{
-						level->op = OP_Next;
-					}
-					level->p1 = iIdxCur;
-					if( level->plan.wsFlags & WHERE_COVER_SCAN ){
-						level->p5 = SQLITE_STMTSTATUS_FULLSCAN_STEP;
-					}else{
-						assert( level->p5==0 );
-					}
-				}else
-
+					// Record the instruction used to terminate the loop. Disable WHERE clause terms made redundant by the index range scan.
+					if (level->Plan.WsFlags & WHERE_UNIQUE) level->OP = OP_Noop;
+					else if (rev) level->OP = OP_Prev;
+					else level->OP = OP_Next;
+					level->P1 = idxCur;
+					if (level->Plan.WsFlags & WHERE_COVER_SCAN)
+						level->P5 = STMTSTATUS_FULLSCAN_STEP;
+					else
+						_assert(level->P5 == 0);
+				}
+				else
 #ifndef OMIT_OR_OPTIMIZATION
-					if( level->plan.wsFlags & WHERE_MULTI_OR ){
-						/* Case 4:  Two or more separately indexed terms connected by OR
-						**
-						** Example:
-						**
-						**   CREATE TABLE t1(a,b,c,d);
-						**   CREATE INDEX i1 ON t1(a);
-						**   CREATE INDEX i2 ON t1(b);
-						**   CREATE INDEX i3 ON t1(c);
-						**
-						**   SELECT * FROM t1 WHERE a=5 OR b=7 OR (c=11 AND d=13)
-						**
-						** In the example, there are three indexed terms connected by OR.
-						** The top of the loop looks like this:
-						**
-						**          Null       1                # Zero the rowset in reg 1
-						**
-						** Then, for each indexed term, the following. The arguments to
-						** RowSetTest are such that the rowid of the current row is inserted
-						** into the RowSet. If it is already present, control skips the
-						** Gosub opcode and jumps straight to the code generated by WhereEnd().
-						**
-						**        sqlite3WhereBegin(<term>)
-						**          RowSetTest                  # Insert rowid into rowset
-						**          Gosub      2 A
-						**        sqlite3WhereEnd()
-						**
-						** Following the above, code to terminate the loop. Label A, the target
-						** of the Gosub above, jumps to the instruction right after the Goto.
-						**
-						**          Null       1                # Zero the rowset in reg 1
-						**          Goto       B                # The loop is finished.
-						**
-						**       A: <loop body>                 # Return data, whatever.
-						**
-						**          Return     2                # Jump back to the Gosub
-						**
-						**       B: <after the loop>
-						**
-						*/
-						WhereClause *pOrWc;    /* The OR-clause broken out into subterms */
-						SrcList *pOrTab;       /* Shortened table list or OR-clause generation */
-						Index *pCov = 0;             /* Potential covering index (or NULL) */
-						int iCovCur = parse->nTab++;  /* Cursor used for index scans (if any) */
+					if (level->Plan.WsFlags & WHERE_MULTI_OR)
+					{
+						// Case 4:  Two or more separately indexed terms connected by OR
+						//
+						// Example:
+						//
+						//   CREATE TABLE t1(a,b,c,d);
+						//   CREATE INDEX i1 ON t1(a);
+						//   CREATE INDEX i2 ON t1(b);
+						//   CREATE INDEX i3 ON t1(c);
+						//
+						//   SELECT * FROM t1 WHERE a=5 OR b=7 OR (c=11 AND d=13)
+						//
+						// In the example, there are three indexed terms connected by OR. The top of the loop looks like this:
+						//
+						//          Null       1                # Zero the rowset in reg 1
+						//
+						// Then, for each indexed term, the following. The arguments to RowSetTest are such that the rowid of the current row is inserted
+						// into the RowSet. If it is already present, control skips the Gosub opcode and jumps straight to the code generated by WhereEnd().
+						//
+						//        sqlite3WhereBegin(<term>)
+						//          RowSetTest                  # Insert rowid into rowset
+						//          Gosub      2 A
+						//        sqlite3WhereEnd()
+						//
+						// Following the above, code to terminate the loop. Label A, the target of the Gosub above, jumps to the instruction right after the Goto.
+						//
+						//          Null       1                # Zero the rowset in reg 1
+						//          Goto       B                # The loop is finished.
+						//
+						//       A: <loop body>                 # Return data, whatever.
+						//
+						//          Return     2                # Jump back to the Gosub
+						//
+						//       B: <after the loop>
 
-						int regReturn = ++parse->nMem;           /* Register used with OP_Gosub */
-						int regRowset = 0;                        /* Register for RowSet object */
-						int regRowid = 0;                         /* Register holding rowid */
-						int iLoopBody = sqlite3VdbeMakeLabel(v);  /* Start of loop body */
-						int iRetInit;                             /* Address of regReturn init */
-						int untestedTerms = 0;             /* Some terms not completely tested */
-						int ii;                            /* Loop counter */
-						Expr *pAndExpr = 0;                /* An ".. AND (...)" expression */
+						int regReturn = ++parse->Mems; // Register used with OP_Gosub
+						int regRowset = 0; // Register for RowSet object
+						int regRowid = 0;  // Register holding rowid
 
 						term = level->Plan.u.Term;
-						assert( term!=0 );
-						assert( term->EOperator & WO_OR );
-						assert( (term->WtFlags & TERM_ORINFO)!=0 );
-						pOrWc = &term->u.pOrInfo->wc;
-						level->op = OP_Return;
-						level->p1 = regReturn;
+						_assert(term != nullptr);
+						_assert(term->EOperator & WO_OR);
+						_assert((term->WtFlags & TERM_ORINFO) != 0);
+						WhereClause *pOrWc = &term->u.OrInfo->WC; // The OR-clause broken out into subterms
+						level->OP = OP_Return;
+						level->P1 = regReturn;
 
-						/* Set up a new SrcList in pOrTab containing the table being scanned
-						** by this loop in the a[0] slot and all notReady tables in a[1..] slots.
-						** This becomes the SrcList in the recursive call to sqlite3WhereBegin().
-						*/
-						if( winfo->nLevel>1 ){
-							int nNotReady;                 /* The number of notReady tables */
-							struct SrcList_item *origSrc;     /* Original list of tables */
-							nNotReady = winfo->nLevel - iLevel - 1;
-							pOrTab = sqlite3StackAllocRaw(parse->db,
-								sizeof(*pOrTab)+ nNotReady*sizeof(pOrTab->a[0]));
-							if( pOrTab==0 ) return notReady;
-							pOrTab->nAlloc = (i16)(nNotReady + 1);
-							pOrTab->nSrc = pOrTab->nAlloc;
-							memcpy(pOrTab->a, item, sizeof(*item));
-							origSrc = winfo->pTabList->a;
-							for(k=1; k<=nNotReady; k++){
-								memcpy(&pOrTab->a[k], &origSrc[level[k].iFrom], sizeof(pOrTab->a[k]));
+						// Set up a new SrcList in orTab containing the table being scanned by this loop in the a[0] slot and all notReady tables in a[1..] slots.
+						// This becomes the SrcList in the recursive call to sqlite3WhereBegin().
+						SrcList *orTab; // Shortened table list or OR-clause generation
+						if (winfo->Levels > 1)
+						{
+							int notReadys = winfo->Levels - levelId - 1; // The number of notReady tables
+							orTab = SysEx::StackAllocRaw(parse->Ctx, sizeof(*orTab) + notReadys*sizeof(orTab->Ids[0]));
+							if (!orTab) return notReady;
+							orTab->Allocs = (int16)(notReadys + 1);
+							orTab->Srcs = orTab->Allocs;
+							_memcpy(orTab->Ids, item, sizeof(*item));
+							SrcList::SrcListItem *origSrc = winfo->TabList->Ids; // Original list of tables
+							for (k = 1; k <= notReadys; k++)
+								_memcpy(&orTab->Ids[k], &origSrc[level[k].From], sizeof(orTab->Ids[k]));
+						}
+						else
+							orTab = winfo->TabList;
+
+						// Initialize the rowset register to contain NULL. An SQL NULL is equivalent to an empty rowset.
+						//
+						// Also initialize regReturn to contain the address of the instruction immediately following the OP_Return at the bottom of the loop. This
+						// is required in a few obscure LEFT JOIN cases where control jumps over the top of the loop into the body of it. In this case the 
+						// correct response for the end-of-loop code (the OP_Return) is to fall through to the next instruction, just as an OP_Next does if
+						// called on an uninitialized cursor.
+						if ((wctrlFlags & WHERE_DUPLICATES_OK) == 0)
+						{
+							regRowset = ++parse->Mems;
+							regRowid = ++parse->Mems;
+							v->AddOp2(OP_Null, 0, regRowset);
+						}
+						int retInit = v->AddOp2(OP_Integer, 0, regReturn); // Address of regReturn init
+
+						// If the original WHERE clause is z of the form:  (x1 OR x2 OR ...) AND y Then for every term xN, evaluate as the subexpression: xN AND z
+						// That way, terms in y that are factored into the disjunction will be picked up by the recursive calls to sqlite3WhereBegin() below.
+						//
+						// Actually, each subexpression is converted to "xN AND w" where w is the "interesting" terms of z - terms that did not originate in the
+						// ON or USING clause of a LEFT JOIN, and terms that are usable as indices.
+						Expr *andExpr = nullptr;  // An ".. AND (...)" expression
+						if (wc->Terms > 1)
+						{
+							for (int termId = 0; termId < wc->Terms; termId++)
+							{
+								Expr *expr = wc->Slots[termId].Expr;
+								if (ExprHasProperty(expr, EP_FromJoin)) continue;
+								if (wc->Slots[termId].WtFlags & (TERM_VIRTUAL|TERM_ORINFO)) continue;
+								if ((wc->Slots[termId].EOperator & WO_ALL) == 0) continue;
+								expr = Expr::Dup(parse->Ctx, expr, 0);
+								andExpr = Expr::And(parse->Ctx, andExpr, expr);
 							}
-						}else{
-							pOrTab = winfo->pTabList;
+							if (andExpr)
+								andExpr = Expr::PExpr_(parse, TK_AND, 0, andExpr, 0);
 						}
 
-						/* Initialize the rowset register to contain NULL. An SQL NULL is 
-						** equivalent to an empty rowset.
-						**
-						** Also initialize regReturn to contain the address of the instruction 
-						** immediately following the OP_Return at the bottom of the loop. This
-						** is required in a few obscure LEFT JOIN cases where control jumps
-						** over the top of the loop into the body of it. In this case the 
-						** correct response for the end-of-loop code (the OP_Return) is to 
-						** fall through to the next instruction, just as an OP_Next does if
-						** called on an uninitialized cursor.
-						*/
-						if( (wctrlFlags & WHERE_DUPLICATES_OK)==0 ){
-							regRowset = ++parse->nMem;
-							regRowid = ++parse->nMem;
-							sqlite3VdbeAddOp2(v, OP_Null, 0, regRowset);
-						}
-						iRetInit = sqlite3VdbeAddOp2(v, OP_Integer, 0, regReturn);
-
-						/* If the original WHERE clause is z of the form:  (x1 OR x2 OR ...) AND y
-						** Then for every term xN, evaluate as the subexpression: xN AND z
-						** That way, terms in y that are factored into the disjunction will
-						** be picked up by the recursive calls to sqlite3WhereBegin() below.
-						**
-						** Actually, each subexpression is converted to "xN AND w" where w is
-						** the "interesting" terms of z - terms that did not originate in the
-						** ON or USING clause of a LEFT JOIN, and terms that are usable as 
-						** indices.
-						*/
-						if( wc->nTerm>1 ){
-							int iTerm;
-							for(iTerm=0; iTerm<wc->nTerm; iTerm++){
-								Expr *pExpr = wc->a[iTerm].pExpr;
-								if( ExprHasProperty(pExpr, EP_FromJoin) ) continue;
-								if( wc->a[iTerm].wtFlags & (TERM_VIRTUAL|TERM_ORINFO) ) continue;
-								if( (wc->a[iTerm].eOperator & WO_ALL)==0 ) continue;
-								pExpr = sqlite3ExprDup(parse->db, pExpr, 0);
-								pAndExpr = sqlite3ExprAnd(parse->db, pAndExpr, pExpr);
-							}
-							if( pAndExpr ){
-								pAndExpr = sqlite3PExpr(parse, TK_AND, 0, pAndExpr, 0);
-							}
-						}
-
-						for(ii=0; ii<pOrWc->nTerm; ii++){
+						Index *cov = nullptr; // Potential covering index (or NULL)
+						int covCur = parse->Tabs++; // Cursor used for index scans (if any)
+						int loopBodyId = v->MakeLabel(); // Start of loop body
+						bool untestedTerms = false; // Some terms not completely tested
+						for (int ii = 0; ii < pOrWc->Terms; ii++)
+						{
 							WhereTerm *pOrTerm = &pOrWc->a[ii];
 							if( pOrTerm->leftCursor==cur || (pOrTerm->eOperator & WO_AND)!=0 ){
 								WhereInfo *pSubWInfo;          /* Info for single OR-term scan */
 								Expr *pOrExpr = pOrTerm->pExpr;
-								if( pAndExpr ){
-									pAndExpr->pLeft = pOrExpr;
-									pOrExpr = pAndExpr;
+								if( andExpr ){
+									andExpr->pLeft = pOrExpr;
+									pOrExpr = andExpr;
 								}
 								/* Loop through table entries that match term pOrTerm. */
 								pSubWInfo = sqlite3WhereBegin(parse, pOrTab, pOrExpr, 0, 0,
 									WHERE_OMIT_OPEN_CLOSE | WHERE_AND_ONLY |
-									WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY, iCovCur);
+									WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY, covCur);
 								assert( pSubWInfo || parse->nErr || parse->db->mallocFailed );
 								if( pSubWInfo ){
 									WhereLevel *pLvl;
 									explainOneScan(
-										parse, pOrTab, &pSubWInfo->a[0], iLevel, level->iFrom, 0
+										parse, pOrTab, &pSubWInfo->a[0], levelId, level->iFrom, 0
 										);
 									if( (wctrlFlags & WHERE_DUPLICATES_OK)==0 ){
 										int iSet = ((ii==pOrWc->nTerm-1)?-1:ii);
@@ -3390,7 +3324,7 @@ cancel:
 										sqlite3VdbeAddOp4Int(v, OP_RowSetTest, regRowset,
 											sqlite3VdbeCurrentAddr(v)+2, r, iSet);
 									}
-									sqlite3VdbeAddOp2(v, OP_Gosub, regReturn, iLoopBody);
+									sqlite3VdbeAddOp2(v, OP_Gosub, regReturn, loopBodyId);
 
 									/* The pSubWInfo->untestedTerms flag means that this OR term
 									** contained one or more AND term from a notReady table.  The
@@ -3407,19 +3341,19 @@ cancel:
 									** If the call to sqlite3WhereBegin() above resulted in a scan that
 									** uses an index, and this is either the first OR-connected term
 									** processed or the index is the same as that used by all previous
-									** terms, set pCov to the candidate covering index. Otherwise, set 
-									** pCov to NULL to indicate that no candidate covering index will 
+									** terms, set cov to the candidate covering index. Otherwise, set 
+									** cov to NULL to indicate that no candidate covering index will 
 									** be available.
 									*/
 									pLvl = &pSubWInfo->a[0];
 									if( (pLvl->plan.wsFlags & WHERE_INDEXED)!=0
 										&& (pLvl->plan.wsFlags & WHERE_TEMP_INDEX)==0
-										&& (ii==0 || pLvl->plan.u.Index == pCov)
+										&& (ii==0 || pLvl->plan.u.Index == cov)
 										){
-											assert( pLvl->iIdxCur==iCovCur );
-											pCov = pLvl->plan.u.Index;
+											assert( pLvl->IdxCur==covCur );
+											cov = pLvl->plan.u.Index;
 									}else{
-										pCov = 0;
+										cov = 0;
 									}
 
 									/* Finish the loop through table entries that match term pOrTerm. */
@@ -3427,15 +3361,15 @@ cancel:
 								}
 							}
 						}
-						level->u.pCovidx = pCov;
-						if( pCov ) level->iIdxCur = iCovCur;
-						if( pAndExpr ){
-							pAndExpr->pLeft = 0;
-							sqlite3ExprDelete(parse->db, pAndExpr);
+						level->u.pCovidx = cov;
+						if( cov ) level->IdxCur = covCur;
+						if( andExpr ){
+							andExpr->pLeft = 0;
+							sqlite3ExprDelete(parse->db, andExpr);
 						}
-						sqlite3VdbeChangeP1(v, iRetInit, sqlite3VdbeCurrentAddr(v));
+						sqlite3VdbeChangeP1(v, retInit, sqlite3VdbeCurrentAddr(v));
 						sqlite3VdbeAddOp2(v, OP_Goto, 0, level->addrBrk);
-						sqlite3VdbeResolveLabel(v, iLoopBody);
+						sqlite3VdbeResolveLabel(v, loopBodyId);
 
 						if( winfo->nLevel>1 ) sqlite3StackFree(parse->db, pOrTab);
 						if( !untestedTerms ) disableTerm(level, term);
@@ -3466,11 +3400,11 @@ cancel:
 					*/
 					for(term=wc->a, j=wc->nTerm; j>0; j--, term++){
 						Expr *pE;
-						testcase( term->wtFlags & TERM_VIRTUAL ); /* IMP: R-30575-11662 */
-						testcase( term->wtFlags & TERM_CODED );
+						ASSERTCOVERAGE( term->wtFlags & TERM_VIRTUAL ); /* IMP: R-30575-11662 */
+						ASSERTCOVERAGE( term->wtFlags & TERM_CODED );
 						if( term->wtFlags & (TERM_VIRTUAL|TERM_CODED) ) continue;
 						if( (term->prereqAll & notReady)!=0 ){
-							testcase( winfo->untestedTerms==0
+							ASSERTCOVERAGE( winfo->untestedTerms==0
 								&& (winfo->wctrlFlags & WHERE_ONETABLE_ONLY)!=0 );
 							winfo->untestedTerms = 1;
 							continue;
@@ -3493,8 +3427,8 @@ cancel:
 						VdbeComment((v, "record LEFT JOIN hit"));
 						sqlite3ExprCacheClear(parse);
 						for(term=wc->a, j=0; j<wc->nTerm; j++, term++){
-							testcase( term->wtFlags & TERM_VIRTUAL );  /* IMP: R-30575-11662 */
-							testcase( term->wtFlags & TERM_CODED );
+							ASSERTCOVERAGE( term->wtFlags & TERM_VIRTUAL );  /* IMP: R-30575-11662 */
+							ASSERTCOVERAGE( term->wtFlags & TERM_CODED );
 							if( term->wtFlags & (TERM_VIRTUAL|TERM_CODED) ) continue;
 							if( (term->prereqAll & notReady)!=0 ){
 								assert( winfo->untestedTerms );
