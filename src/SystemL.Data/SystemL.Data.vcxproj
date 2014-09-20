@@ -123,7 +123,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Trace.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\VTable.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\WalkerResolve.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker+Resolve.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Where.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
