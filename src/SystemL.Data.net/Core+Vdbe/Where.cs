@@ -1395,7 +1395,6 @@ namespace Core
         }
 #endif
 
-        #region NOTDONE
 
 #if !OMIT_VIRTUALTABLE
         static IIndexInfo AllocateIndexInfo(WhereBestIdx p)
@@ -3477,11 +3476,6 @@ namespace Core
             return notReady;
         }
 
-#if  TEST
-        static StringBuilder sqlite3_query_plan; // Text of the join
-        static int nQPlan = 0; // Next free slow in _query_plan[]
-#endif
-
         static void WhereInfoFree(Context ctx, WhereInfo winfo)
         {
             if (SysEx.ALWAYS(winfo != null))
@@ -3510,17 +3504,22 @@ namespace Core
             }
         }
 
+#if TEST
+        static StringBuilder _queryPlan; // Text of the join
+        static int _queryPlanIdx = 0; // Next free slow in _query_plan[]
+#endif
+
         public static WhereInfo Begin(Parse parse, SrcList tabList, Expr where, ref ExprList orderBy, ExprList distinct, ushort wctrlFlags, int idxCur)
         {
-            int i;
-            int nByteWInfo;            // Num. bytes allocated for WhereInfo struct
-            Vdbe v = parse.pVdbe;      // The virtual data_base engine
-            Bitmask notReady;          // Cursors that are not yet positioned
-            WhereClause wc = new WhereClause();               // Decomposition of the WHERE clause
-            SrcList_item pTabItem;     // A single entry from pTabList
-            WhereLevel pLevel;         // A single level in the pWInfo list
-            int iFrom;                 // First unused FROM clause element
-            int andFlags;              // AND-ed combination of all pWC.a[].wtFlags
+            int ii;
+            Vdbe v = parse.V; // The virtual data_base engine
+            Bitmask notReady; // Cursors that are not yet positioned
+            WhereClause wc = new WhereClause(); // Decomposition of the WHERE clause
+            SrcList.SrcListItem tabItem; // A single entry from pTabList
+
+            // Variable initialization
+            WhereBestIdx sWBI = new WhereBestIdx(); // Best index search context
+            sWBI.Parse = parse;
 
             // The number of tables in the FROM clause is limited by the number of bits in a Bitmask
             SysEx.ASSERTCOVERAGE(tabList.Srcs == BMS);
@@ -3538,14 +3537,8 @@ namespace Core
             // struct, the contents of WhereInfo.a[], the WhereClause structure and the WhereMaskSet structure. Since WhereClause contains an 8-byte
             // field (type Bitmask) it must be aligned on an 8-byte boundary on some architectures. Hence the ROUND8() below.
             Context ctx = parse.Ctx; // Data_base connection
-            WhereInfo winfo = new WhereInfo(); // Will become the return value of this function
-            //nByteWInfo = ROUND8(sizeof(WhereInfo)+(nTabList-1)*sizeof(WhereLevel));
-            //pWInfo = sqlite3DbMallocZero( db,
-            //    nByteWInfo +
-            //    sizeof( WhereClause ) +
-            //    sizeof( WhereMaskSet )
-            //);
-            winfo.Data = new WhereLevel[tabList.Srcs];
+            //: int bytesWInfo = SysEx_ROUND8(sizeof(WhereInfo) + (tabListLength - 1) * sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
+            WhereInfo winfo = new WhereInfo { Data = new WhereLevel[tabList.Srcs] }; // Will become the return value of this function
             for (int ai = 0; ai < winfo.Data.Length; ai++)
                 winfo.Data[ai] = new WhereLevel();
             if (ctx.MallocFailed)
@@ -3558,16 +3551,19 @@ namespace Core
             winfo.Parse = parse;
             winfo.TabList = tabList;
             winfo.BreakId = v.MakeLabel();
-            winfo.WC = wc = new WhereClause(); // (WhereClause)((uint8)winfo)[byteWInfos];
+            winfo.WC = sWBI.WC = new WhereClause();
             winfo.WctrlFlags = wctrlFlags;
             winfo.SavedNQueryLoop = parse.QueryLoops;
-            //maskSet = (WhereMaskSet)wc[1];
+            WhereMaskSet maskSet = new WhereMaskSet(); // The expression mask set
+            sWBI.Levels = winfo.Data;
+
+            // Disable the DISTINCT optimization if SQLITE_DistinctOpt is set via sqlite3_test_ctrl(SQLITE_TESTCTRL_OPTIMIZATIONS,...)
+            if (E.CtxOptimizationDisabled(ctx, SQLITE_DistinctOpt)) distinct = null;
 
             // Split the WHERE clause into separate subexpressions where each subexpression is separated by an AND operator.
-            WhereMaskSet maskSet = new WhereMaskSet(); // The expression mask set //: InitMaskSet(maskSet);
             WhereClauseInit(wc, parse, maskSet);
             Expr.CodeConstants(parse, where);
-            WhereSplit(wc, where, TK.AND); // IMP: R-15842-53296
+            WhereSplit(sWBI.WC, where, TK.AND); // IMP: R-15842-53296
 
             // Special case: a WHERE clause that is constant.  Evaluate the expression and either jump over all of the code or fall thru.
             if (where != null && (tabListLength == 0 || where.IsConstantNotJoin()))
@@ -3576,501 +3572,404 @@ namespace Core
                 where = null;
             }
 
-            /* Assign a bit from the bitmask to every term in the FROM clause.
-            **
-            ** When assigning bitmask values to FROM clause cursors, it must be
-            ** the case that if X is the bitmask for the N-th FROM clause term then
-            ** the bitmask for all FROM clause terms to the left of the N-th term
-            ** is (X-1).   An expression from the ON clause of a LEFT JOIN can use
-            ** its Expr.iRightJoinTable value to find the bitmask of the right table
-            ** of the join.  Subtracting one from the right table bitmask gives a
-            ** bitmask for all tables to the left of the join.  Knowing the bitmask
-            ** for all tables to the left of a left join is important.  Ticket #3015.
-            **
-            ** Configure the WhereClause.vmask variable so that bits that correspond
-            ** to virtual table cursors are set. This is used to selectively disable
-            ** the OR-to-IN transformation in exprAnalyzeOrTerm(). It is not helpful
-            ** with virtual tables.
-            **
-            ** Note that bitmasks are created for all pTabList.nSrc tables in
-            ** pTabList, not just the first nTabList tables.  nTabList is normally
-            ** equal to pTabList.nSrc but might be shortened to 1 if the
-            ** WHERE_ONETABLE_ONLY flag is set.
-            */
+            // Assign a bit from the bitmask to every term in the FROM clause.
+            //
+            // When assigning bitmask values to FROM clause cursors, it must be the case that if X is the bitmask for the N-th FROM clause term then
+            // the bitmask for all FROM clause terms to the left of the N-th term is (X-1).   An expression from the ON clause of a LEFT JOIN can use
+            // its Expr.iRightJoinTable value to find the bitmask of the right table of the join.  Subtracting one from the right table bitmask gives a
+            // bitmask for all tables to the left of the join.  Knowing the bitmask for all tables to the left of a left join is important.  Ticket #3015.
+            //
+            // Note that bitmasks are created for all tabList->nSrc tables in tabList, not just the first tabListLength tables.  tabListLength is normally
+            // equal to tabList->nSrc but might be shortened to 1 if the WHERE_ONETABLE_ONLY flag is set.
             Debug.Assert(wc.vmask == 0 && maskSet.n == 0);
-            for (i = 0; i < tabList.nSrc; i++)
-            {
-                createMask(maskSet, tabList.a[i].iCursor);
-#if !SQLITE_OMIT_VIRTUALTABLE
-                if (ALWAYS(tabList.a[i].pTab) && IsVirtual(tabList.a[i].pTab))
-                {
-                    wc.vmask |= ((Bitmask)1 << i);
-                }
-#endif
-            }
-#if  !NDEBUG
+            for (ii = 0; ii < tabList.Srcs; ii++)
+                CreateMask(maskSet, tabList.Ids[ii].Cursor);
+#if DEBUG
             {
                 Bitmask toTheLeft = 0;
-                for (i = 0; i < tabList.nSrc; i++)
+                for (ii = 0; ii < tabList.Srcs; ii++)
                 {
-                    Bitmask m = getMask(maskSet, tabList.a[i].iCursor);
+                    Bitmask m = GetMask(maskSet, tabList.Ids[ii].Cursor);
                     Debug.Assert((m - 1) == toTheLeft);
                     toTheLeft |= m;
                 }
             }
 #endif
 
-            /* Analyze all of the subexpressions.  Note that exprAnalyze() might
-** add new virtual terms onto the end of the WHERE clause.  We do not
-** want to analyze these virtual terms, so start analyzing at the end
-** and work forward so that the added virtual terms are never processed.
-*/
-            exprAnalyzeAll(tabList, wc);
-            //if ( db.mallocFailed != 0 )
-            //{
-            //  goto whereBeginError;
-            //}
+            // Analyze all of the subexpressions.  Note that exprAnalyze() might add new virtual terms onto the end of the WHERE clause.  We do not
+            // want to analyze these virtual terms, so start analyzing at the end and work forward so that the added virtual terms are never processed.
+            ExprAnalyzeAll(tabList, sWBI.WC);
+            if (ctx.MallocFailed)
+                goto whereBeginError;
 
-            /* Chose the best index to use for each table in the FROM clause.
-            **
-            ** This loop fills in the following fields:
-            **
-            **   pWInfo.a[].pIdx      The index to use for this level of the loop.
-            **   pWInfo.a[].wsFlags   WHERE_xxx flags Debug.Associated with pIdx
-            **   pWInfo.a[].nEq       The number of == and IN constraints
-            **   pWInfo.a[].iFrom     Which term of the FROM clause is being coded
-            **   pWInfo.a[].iTabCur   The VDBE cursor for the data_base table
-            **   pWInfo.a[].iIdxCur   The VDBE cursor for the index
-            **   pWInfo.a[].pTerm     When wsFlags==WO_OR, the OR-clause term
-            **
-            ** This loop also figures out the nesting order of tables in the FROM
-            ** clause.
-            */
-            notReady = ~(Bitmask)0;
-            andFlags = ~0;
-#if (SQLITE_TEST) && (SQLITE_DEBUG)
-      WHERETRACE( "*** Optimizer Start ***\n" );
-#endif
-            for (i = iFrom = 0; i < tabListLength; i++)//, pLevel++ )
+            // Check if the DISTINCT qualifier, if there is one, is redundant. If it is, then set pDistinct to NULL and WhereInfo.eDistinct to
+            // WHERE_DISTINCT_UNIQUE to tell the caller to ignore the DISTINCT.
+            if (distinct != null && IsDistinctRedundant(parse, tabList, sWBI.WC, distinct))
             {
-                pLevel = winfo.Data[i];
-                WhereCost bestPlan;         /* Most efficient plan seen so far */
-                Index pIdx;                 /* Index for FROM table at pTabItem */
-                int j;                      /* For looping over FROM tables */
-                int bestJ = -1;             /* The value of j */
-                Bitmask m;                  /* Bitmask value for j or bestJ */
-                int isOptimal;              /* Iterator for optimal/non-optimal search */
-                int nUnconstrained;         /* Number tables without INDEXED BY */
-                Bitmask notIndexed;         /* Mask of tables that cannot use an index */
+                distinct = null;
+                winfo.EDistinct = WHERE_DISTINCT_UNIQUE;
+            }
 
-                bestPlan = new WhereCost();// memset( &bestPlan, 0, sizeof( bestPlan ) );
-                bestPlan.rCost = SQLITE_BIG_DBL;
-#if  (SQLITE_TEST) && (SQLITE_DEBUG)
-        WHERETRACE( "*** Begin search for loop %d ***\n", i );
-#endif
+            // Chose the best index to use for each table in the FROM clause.
+            // This loop fills in the following fields:
+            //   winfo->a[].pIdx      The index to use for this level of the loop.
+            //   winfo->a[].wsFlags   WHERE_xxx flags associated with pIdx
+            //   winfo->a[].nEq       The number of == and IN constraints
+            //   winfo->a[].From     Which term of the FROM clause is being coded
+            //   winfo->a[].iTabCur   The VDBE cursor for the database table
+            //   winfo->a[].iIdxCur   The VDBE cursor for the index
+            //   winfo->a[].pTerm     When wsFlags==WO_OR, the OR-clause term
+            // This loop also figures out the nesting order of tables in the FROM clause.
+            sWBI.NotValid = ~(Bitmask)0;
+            sWBI.OrderBy = orderBy;
+            sWBI.n = tabListLength;
+            sWBI.Distinct = distinct;
+            int andFlags = ~0; // AND-ed combination of all pWC->a[].wtFlags
+            WHERETRACE("*** Optimizer Start ***\n");
+            int fromId; // First unused FROM clause element
+            WhereLevel level; // A single level in the pWInfo list
+            for (sWBI.i = fromId = 0; sWBI.i < tabListLength; sWBI.i++)
+            {
+                level = winfo.Data[ii];
+                int j;                      // For looping over FROM tables
+                int bestJ = -1;             // The value of j
 
-                /* Loop through the remaining entries in the FROM clause to find the
-** next nested loop. The loop tests all FROM clause entries
-** either once or twice. 
-**
-** The first test is always performed if there are two or more entries
-** remaining and never performed if there is only one FROM clause entry
-** to choose from.  The first test looks for an "optimal" scan.  In
-** this context an optimal scan is one that uses the same strategy
-** for the given FROM clause entry as would be selected if the entry
-** were used as the innermost nested loop.  In other words, a table
-** is chosen such that the cost of running that table cannot be reduced
-** by waiting for other tables to run first.  This "optimal" test works
-** by first assuming that the FROM clause is on the inner loop and finding
-** its query plan, then checking to see if that query plan uses any
-** other FROM clause terms that are notReady.  If no notReady terms are
-** used then the "optimal" query plan works.
-**
-** Note that the WhereCost.nRow parameter for an optimal scan might
-** not be as small as it would be if the table really were the innermost
-** join.  The nRow value can be reduced by WHERE clause constraints
-** that do not use indices.  But this nRow reduction only happens if the
-** table really is the innermost join.  
-**
-** The second loop iteration is only performed if no optimal scan
-** strategies were found by the first iteration. This second iteration
-** is used to search for the lowest cost scan overall.
-**
-** Previous versions of SQLite performed only the second iteration -
-** the next outermost loop was always that with the lowest overall
-** cost. However, this meant that SQLite could select the wrong plan
-** for scripts such as the following:
-**   
-**   CREATE TABLE t1(a, b); 
-**   CREATE TABLE t2(c, d);
-**   SELECT * FROM t2, t1 WHERE t2.rowid = t1.a;
-**
-** The best strategy is to iterate through table t1 first. However it
-** is not possible to determine this with a simple greedy algorithm.
-** Since the cost of a linear scan through table t2 is the same 
-** as the cost of a linear scan through table t1, a simple greedy 
-** algorithm may choose to use t2 for the outer loop, which is a much
-** costlier approach.
-*/
-                nUnconstrained = 0;
-                notIndexed = 0;
-                for (isOptimal = (iFrom < tabListLength - 1) ? 1 : 0; isOptimal >= 0 && bestJ < 0; isOptimal--)
+
+                WhereCost bestPlan = new WhereCost(); // Most efficient plan seen so far
+                bestPlan.Cost = BIG_DOUBLE;
+                WHERETRACE("*** Begin search for loop %d ***\n", sWBI.i);
+
+                // Loop through the remaining entries in the FROM clause to find the next nested loop. The loop tests all FROM clause entries
+                // either once or twice. 
+                //
+                // The first test is always performed if there are two or more entries remaining and never performed if there is only one FROM clause entry
+                // to choose from.  The first test looks for an "optimal" scan.  In this context an optimal scan is one that uses the same strategy
+                // for the given FROM clause entry as would be selected if the entry were used as the innermost nested loop.  In other words, a table
+                // is chosen such that the cost of running that table cannot be reduced by waiting for other tables to run first.  This "optimal" test works
+                // by first assuming that the FROM clause is on the inner loop and finding its query plan, then checking to see if that query plan uses any
+                // other FROM clause terms that are sWBI.notValid.  If no notValid terms are used then the "optimal" query plan works.
+                //
+                // Note that the WhereCost.nRow parameter for an optimal scan might not be as small as it would be if the table really were the innermost
+                // join.  The nRow value can be reduced by WHERE clause constraints that do not use indices.  But this nRow reduction only happens if the
+                // table really is the innermost join.  
+                //
+                // The second loop iteration is only performed if no optimal scan strategies were found by the first iteration. This second iteration
+                // is used to search for the lowest cost scan overall.
+                //
+                // Without the optimal scan step (the first iteration) a suboptimal plan might be chosen for queries like this:
+                //   CREATE TABLE t1(a, b); 
+                //   CREATE TABLE t2(c, d);
+                //   SELECT * FROM t2, t1 WHERE t2.rowid = t1.a;
+                //
+                // The best strategy is to iterate through table t1 first. However it is not possible to determine this with a simple greedy algorithm.
+                // Since the cost of a linear scan through table t2 is the same as the cost of a linear scan through table t1, a simple greedy 
+                // algorithm may choose to use t2 for the outer loop, which is a much costlier approach.
+                int unconstrained = 0; // Number tables without INDEXED BY
+                Bitmask notIndexed = 0; // Mask of tables that cannot use an index
+
+                // The optimal scan check only occurs if there are two or more tables available to be reordered
+                Bitmask m; // Bitmask value for j or bestJ
+                int ckOptimal; // Do the optimal scan check
+                if (fromId == tabListLength - 1)
+                    ckOptimal = 0; // Common case of just one table in the FROM clause
+                else
                 {
-                    Bitmask mask;  /* Mask of tables not yet ready */
-                    for (j = iFrom; j < tabListLength; j++)//, pTabItem++)
+                    ckOptimal = -1;
+                    for (j = fromId, sWBI.Src = tabList.Ids[j]; j < tabListLength; j++, sWBI.Src++)
                     {
-                        pTabItem = tabList.a[j];
+                        m = GetMask(maskSet, sWBI.Src.Cursor);
+                        if ((m & sWBI.NotValid) == 0)
+                        {
+                            if (j == fromId) fromId++;
+                            continue;
+                        }
+                        if (j > fromId && (sWBI.Src.Jointype & (JT.LEFT | JT.CROSS)) != 0) break;
+                        if (++ckOptimal) break;
+                        if ((sWBI.Src.Jointype & JT.LEFT) != 0) break;
+                    }
+                }
+                Debug.Assert(ckOptimal == 0 || ckOptimal == 1);
+                Bitmask mask;  // Mask of tables not yet ready
+                for (int isOptimal = ckOptimal; isOptimal >= 0 && bestJ < 0; isOptimal--)
+                {
+                    for (j = fromId; j < tabListLength; j++)
+                    {
+                        sWBI.Src = tabList.Ids[j];
+
                         int doNotReorder;       /* True if this table should not be reordered */
                         WhereCost sCost = new WhereCost(); /* Cost information from best[Virtual]Index() */
                         ExprList pOrderBy;      /* ORDER BY clause for index to optimize */
+                        doNotReorder = (tabItem.jointype & (JT_LEFT | JT_CROSS)) != 0 ? 1 : 0;
 
-                        doNotReorder = (pTabItem.jointype & (JT_LEFT | JT_CROSS)) != 0 ? 1 : 0;
-                        if ((j != iFrom && doNotReorder != 0))
+                        // This break and one like it in the ckOptimal computation loop above prevent table reordering across LEFT and CROSS JOINs.
+                        // The LEFT JOIN case is necessary for correctness.  The prohibition against reordering across a CROSS JOIN is an SQLite feature that
+                        // allows the developer to control table reordering
+                        if (j != fromId && (sWBI.Src.Jointype & (JT.LEFT | JT.CROSS)) != 0)
                             break;
-                        m = getMask(maskSet, pTabItem.iCursor);
-                        if ((m & notReady) == 0)
+                        m = GetMask(maskSet, sWBI.Src.Cursor);
+                        if ((m & sWBI.NotValid) == 0)
                         {
-                            if (j == iFrom)
-                                iFrom++;
+                            Debug.Assert(j > fromId);
                             continue;
                         }
-                        mask = (isOptimal != 0 ? m : notReady);
-                        pOrderBy = ((i == 0 && orderBy != null) ? orderBy : null);
-                        if (pTabItem.pIndex == null)
-                            nUnconstrained++;
+                        sWBI.NotReady = (isOptimal ? m : sWBI.NotValid);
+                        if (sWBI.Src.Index == null) unconstrained++;
 
-#if  (SQLITE_TEST) && (SQLITE_DEBUG)
-            WHERETRACE( "=== trying table %d with isOptimal=%d ===\n",
-            j, isOptimal );
-#endif
-                        Debug.Assert(pTabItem.pTab != null);
-#if  !SQLITE_OMIT_VIRTUALTABLE
-                        if (IsVirtual(pTabItem.pTab))
+                        WHERETRACE("   === trying table %d (%s) with isOptimal=%d ===\n", j, sWBI.Src.Table.Name, isOptimal);
+                        Debug.Assert(sWBI.Src.Table != null);
+#if !OMIT_VIRTUALTABLE
+                        if (IsVirtual(sWBI.Src.Table))
                         {
-                            sqlite3_index_info pp = winfo.Data[j].pIdxInfo;
-                            bestVirtualIndex(parse, wc, pTabItem, mask, notReady, pOrderBy,
-                             ref sCost, ref pp);
+                            sWBI.IdxInfo = winfo.Data[j].IndexInfo;
+                            BestVirtualIndex(sWBI);
                         }
                         else
 #endif
-                        {
-                            BestBtreeIndex(parse, wc, pTabItem, mask, notReady, pOrderBy,
-                            ref sCost);
-                        }
-                        Debug.Assert(isOptimal != 0 || (sCost.used & notReady) == 0);
+                            BestBtreeIndex(sWBI);
+                        Debug.Assert(isOptimal != 0 || (sWBI.Cost.Used & sWBI.NotValid) == 0);
 
-                        /* If an INDEXED BY clause is present, then the plan must use that
-                        ** index if it uses any index at all */
-                        Debug.Assert(pTabItem.pIndex == null
-                        || (sCost.plan.wsFlags & WHERE_NOT_FULLSCAN) == 0
-                        || sCost.plan.u.pIdx == pTabItem.pIndex);
+                        // If an INDEXED BY clause is present, then the plan must use that index if it uses any index at all
+                        Debug.Assert(sWBI.Src.Index == null || (sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) == 0 || sWBI.Cost.Plan.u.Index == sWBI.Src.Index);
 
-                        if (isOptimal != 0 && (sCost.plan.wsFlags & WHERE_NOT_FULLSCAN) == 0)
-                        {
+                        if (isOptimal != 0 && (sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) == 0)
                             notIndexed |= m;
+                        if (isOptimal != 0)
+                            winfo.Data[j].OptCost = sWBI.Cost.Cost;
+                        else if (ckOptimal != 0)
+                        {
+                            // If two or more tables have nearly the same outer loop cost, but very different inner loop (optimal) cost, we want to choose
+                            // for the outer loop that table which benefits the least from being in the inner loop.  The following code scales the 
+                            // outer loop cost estimate to accomplish that.
+                            WHERETRACE("   scaling cost from %.1f to %.1f\n", sWBI.Cost.Cost, sWBI.Cost.Cost / winfo.Data[j].OptCost);
+                            sWBI.Cost.Cost /= winfo.Data[j].OptCost;
                         }
 
-                        /* Conditions under which this table becomes the best so far:
-                        **
-                        **   (1) The table must not depend on other tables that have not
-                        **       yet run.
-                        **
-                        **   (2) A full-table-scan plan cannot supercede indexed plan unless
-                        **       the full-table-scan is an "optimal" plan as defined above.
-                        **
-                        **   (3) All tables have an INDEXED BY clause or this table lacks an
-                        **       INDEXED BY clause or this table uses the specific
-                        **       index specified by its INDEXED BY clause.  This rule ensures
-                        **       that a best-so-far is always selected even if an impossible
-                        **       combination of INDEXED BY clauses are given.  The error
-                        **       will be detected and relayed back to the application later.
-                        **       The NEVER() comes about because rule (2) above prevents
-                        **       An indexable full-table-scan from reaching rule (3).
-                        **
-                        **   (4) The plan cost must be lower than prior plans or else the
-                        **       cost must be the same and the number of rows must be lower.
-                        */
-                        if ((sCost.used & notReady) == 0                       /* (1) */
-                            && (bestJ < 0 || (notIndexed & m) != 0               /* (2) */
-                                || (bestPlan.plan.wsFlags & WHERE_NOT_FULLSCAN) == 0
-                                || (sCost.plan.wsFlags & WHERE_NOT_FULLSCAN) != 0)
-                            && (nUnconstrained == 0 || pTabItem.pIndex == null   /* (3) */
-                            || NEVER((sCost.plan.wsFlags & WHERE_NOT_FULLSCAN) != 0))
-                        && (bestJ < 0 || sCost.rCost < bestPlan.rCost          /* (4) */
-                        || (sCost.rCost <= bestPlan.rCost
-                        && sCost.plan.nRow < bestPlan.plan.nRow))
-                        )
+                        // Conditions under which this table becomes the best so far:
+                        //   (1) The table must not depend on other tables that have not yet run.  (In other words, it must not depend on tables in inner loops.)
+                        //   (2) (This rule was removed on 2012-11-09.  The scaling of the cost using the optimal scan cost made this rule obsolete.)
+                        //   (3) All tables have an INDEXED BY clause or this table lacks an INDEXED BY clause or this table uses the specific
+                        //       index specified by its INDEXED BY clause.  This rule ensures that a best-so-far is always selected even if an impossible
+                        //       combination of INDEXED BY clauses are given.  The error will be detected and relayed back to the application later.
+                        //       The NEVER() comes about because rule (2) above prevents An indexable full-table-scan from reaching rule (3).
+                        //   (4) The plan cost must be lower than prior plans, where "cost" is defined by the compareCost() function above. 
+                        if ((sWBI.Cost.Used & sWBI.NotValid) == 0 && // (1)
+                            (unconstrained == 0 || sWBI.Src.Index == null || SysEx.NEVER((sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) != 0)) && // (3)
+                            (bestJ < 0 || CompareCost(sWBI.Cost, bestPlan))) // (4)
                         {
-#if  (SQLITE_TEST) && (SQLITE_DEBUG)
-              WHERETRACE( "=== table %d is best so far" +
-              " with cost=%g and nRow=%g\n",
-              j, sCost.rCost, sCost.plan.nRow );
-#endif
-                            bestPlan = sCost;
+                            WHERETRACE("   === table %d (%s) is best so far\n       cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=%08x\n",
+                                j, sWBI.Src.Table.Name,
+                                sWBI.Cost.Cost, sWBI.Cost.Plan.Rows,
+                                sWBI.Cost.Plan.OBSats, sWBI.Cost.Plan.WsFlags);
+                            bestPlan = sWBI.Cost;
                             bestJ = j;
                         }
-                        if (doNotReorder != 0)
-                            break;
+
+                        // In a join like "w JOIN x LEFT JOIN y JOIN z"  make sure that table y (and not table z) is always the next inner loop inside of table x.
+                        if ((sWBI.Src.Jointype & JT.LEFT) != 0) break;
                     }
                 }
                 Debug.Assert(bestJ >= 0);
-                Debug.Assert((notReady & getMask(maskSet, tabList.a[bestJ].iCursor)) != 0);
-#if (SQLITE_TEST) && (SQLITE_DEBUG)
-        WHERETRACE( "*** Optimizer selects table %d for loop %d" +
-        " with cost=%g and nRow=%g\n",
-        bestJ, i,//pLevel-pWInfo.a,
-        bestPlan.rCost, bestPlan.plan.nRow );
-#endif
-                if ((bestPlan.plan.wsFlags & WHERE_ORDERBY) != 0)
+                Debug.Assert((sWBI.NotValid & GetMask(maskSet, tabList.Ids[bestJ].Cursor)) != 0);
+                Debug.Assert(bestJ == fromId || (tabList.Ids[fromId].Jointype & JT.LEFT) == 0);
+                SysEx.ASSERTCOVERAGE(bestJ > fromId && (tabList.Ids[fromId].Jointype & JT.CROSS) != 0);
+                SysEx.ASSERTCOVERAGE(bestJ > fromId && bestJ < tabListLength - 1 && (tabList.Ids[bestJ + 1].Jointype & JT.LEFT) != 0);
+                WHERETRACE("*** Optimizer selects table %d (%s) for loop %d with:\n    cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=0x%08x\n",
+                    bestJ, tabList.Ids[bestJ].Table.Name,
+                    level - winfo.Data, bestPlan.Cost, bestPlan.Plan.Rows,
+                    bestPlan.Plan.OBSats, bestPlan.Plan.WsFlags);
+                if ((bestPlan.Plan.WsFlags & WHERE_ORDERBY) != 0)
                 {
-                    orderBy = null;
+                    Debug.Assert(winfo.EDistinct == 0);
+                    winfo.EDistinct = WHERE_DISTINCT_ORDERED;
                 }
-                andFlags = (int)(andFlags & bestPlan.plan.wsFlags);
-                pLevel.plan = bestPlan.plan;
-                testcase(bestPlan.plan.wsFlags & WHERE_INDEXED);
-                testcase(bestPlan.plan.wsFlags & WHERE_TEMP_INDEX);
-                if ((bestPlan.plan.wsFlags & (WHERE_INDEXED | WHERE_TEMP_INDEX)) != 0)
-                {
-                    pLevel.iIdxCur = parse.nTab++;
-                }
+                andFlags &= bestPlan.Plan.WsFlags;
+                level.Plan = bestPlan.Plan;
+                level.TabCur = tabList.Ids[bestJ].Cursor;
+                SysEx.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_INDEXED);
+                SysEx.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_TEMP_INDEX);
+                if ((bestPlan.Plan.WsFlags & (WHERE_INDEXED | WHERE_TEMP_INDEX)) != 0)
+                    level.IdxCur = ((wctrlFlags & WHERE_ONETABLE_ONLY) && (bestPlan.Plan.WsFlags & WHERE_TEMP_INDEX) == 0 ? idxCur : parse.Tabs++);
                 else
-                {
-                    pLevel.iIdxCur = -1;
-                }
-                notReady &= ~getMask(maskSet, tabList.a[bestJ].iCursor);
-                pLevel.iFrom = (u8)bestJ;
-                if (bestPlan.plan.nRow >= (double)1)
-                {
-                    parse.nQueryLoop *= bestPlan.plan.nRow;
-                }
+                    level.IdxCur = -1;
+                sWBI.NotValid &= ~GetMask(maskSet, tabList->Ids[bestJ].Cursor);
+                level.From = (byte)bestJ;
+                if (bestPlan.Plan.Rows >= (double)1)
+                    parse.QueryLoops *= bestPlan.Plan.Rows;
 
-                /* Check that if the table scanned by this loop iteration had an
-                ** INDEXED BY clause attached to it, that the named index is being
-                ** used for the scan. If not, then query compilation has failed.
-                ** Return an error.
-                */
-                pIdx = tabList.a[bestJ].pIndex;
-                if (pIdx != null)
-                {
-                    if ((bestPlan.plan.wsFlags & WHERE_INDEXED) == 0)
+                // Check that if the table scanned by this loop iteration had an INDEXED BY clause attached to it, that the named index is being
+                // used for the scan. If not, then query compilation has failed. Return an error.
+                Index index = tabList.Ids[bestJ].Index; // Index for FROM table at pTabItem
+                if (index != null)
+                    if ((bestPlan.Plan.WsFlags & WHERE_INDEXED) == 0)
                     {
-                        sqlite3ErrorMsg(parse, "cannot use index: %s", pIdx.zName);
+                        parse.ErrorMsg("cannot use index: %s", index.Name);
                         goto whereBeginError;
                     }
-                    else
-                    {
-                        /* If an INDEXED BY clause is used, the bestIndex() function is
-                        ** guaranteed to find the index specified in the INDEXED BY clause
-                        ** if it find an index at all. */
-                        Debug.Assert(bestPlan.plan.u.pIdx == pIdx);
-                    }
-                }
+                    else  // If an INDEXED BY clause is used, the bestIndex() function is guaranteed to find the index specified in the INDEXED BY clause if it find an index at all.
+                        Debug.Assert(bestPlan.Plan.u.Index == index);
             }
-#if (SQLITE_TEST) && (SQLITE_DEBUG)
-      WHERETRACE( "*** Optimizer Finished ***\n" );
-#endif
-            if (parse.nErr != 0 /*|| db.mallocFailed != 0 */ )
-            {
+            WHERETRACE("*** Optimizer Finished ***\n");
+            if (parse.Errs != 0 || ctx.MallocFailed)
                 goto whereBeginError;
+            if (tabListLength != 0)
+            {
+                level--;
+                winfo.OBSats = level.Plan.OBSats;
             }
+            else
+                winfo.OBSats = 0;
 
-            /* If the total query only selects a single row, then the ORDER BY
-            ** clause is irrelevant.
-            */
+            // If the total query only selects a single row, then the ORDER BY clause is irrelevant.
             if ((andFlags & WHERE_UNIQUE) != 0 && orderBy != null)
             {
-                orderBy = null;
+                Debug.Assert(tabListLength == 0 || (level.Plan.WsFlags & WHERE_ALL_UNIQUE) != 0);
+                winfo.OBSats = orderBy.Exprs;
             }
 
-            /* If the caller is an UPDATE or DELETE statement that is requesting
-            ** to use a one-pDebug.Ass algorithm, determine if this is appropriate.
-            ** The one-pass algorithm only works if the WHERE clause constraints
-            ** the statement to update a single row.
-            */
-            Debug.Assert((wctrlFlags & WHERE_ONEPASS_DESIRED) == 0 || winfo.nLevel == 1);
+            // If the caller is an UPDATE or DELETE statement that is requesting to use a one-pass algorithm, determine if this is appropriate.
+            // The one-pass algorithm only works if the WHERE clause constraints the statement to update a single row.
+            Debug.Assert((wctrlFlags & WHERE_ONEPASS_DESIRED) == 0 || winfo.Levels == 1);
             if ((wctrlFlags & WHERE_ONEPASS_DESIRED) != 0 && (andFlags & WHERE_UNIQUE) != 0)
             {
-                winfo.okOnePass = 1;
-                winfo.Data[0].plan.wsFlags = (u32)(winfo.Data[0].plan.wsFlags & ~WHERE_IDX_ONLY);
+                winfo.OkOnePass = true;
+                winfo.Data[0].Plan.WsFlags &= ~WHERE_IDX_ONLY;
             }
 
-            /* Open all tables in the pTabList and any indices selected for
-            ** searching those tables.
-            */
-            sqlite3CodeVerifySchema(parse, -1); /* Insert the cookie verifier Goto */
+            // Open all tables in the tabList and any indices selected for searching those tables.
+            sqlite3CodeVerifySchema(parse, -1); // Insert the cookie verifier Goto
             notReady = ~(Bitmask)0;
-            winfo.nRowOut = (double)1;
-            for (i = 0; i < tabListLength; i++)//, pLevel++ )
+            winfo.RowOuts = (double)1;
+            for (ii = 0; ii < tabListLength; ii++)//, pLevel++ )
             {
-                pLevel = winfo.Data[i];
-                Table pTab;     /* Table to open */
-                int iDb;         /* Index of data_base containing table/index */
-
-                pTabItem = tabList.a[pLevel.iFrom];
-                pTab = pTabItem.pTab;
-                pLevel.iTabCur = pTabItem.iCursor;
-                winfo.nRowOut *= pLevel.plan.nRow;
-                iDb = sqlite3SchemaToIndex(ctx, pTab.pSchema);
-                if ((pTab.tabFlags & TF_Ephemeral) != 0 || pTab.pSelect != null)
-                {
-                    /* Do nothing */
-                }
+                level = winfo.Data[ii];
+                SrcList.SrcListItem tabItem = tabList.Ids[level.From];
+                Table table = tabItem.Table; // Table to open
+                winfo.RowOuts *= level.Plan.Rows;
+                int db = sqlite3SchemaToIndex(ctx, table.Schema); // Index of database containing table/index
+                if ((table.TabFlags & TF.Ephemeral) != 0 || table.Select != null) { } // Do nothing
                 else
-#if  !SQLITE_OMIT_VIRTUALTABLE
-                    if ((pLevel.plan.wsFlags & WHERE_VIRTUALTABLE) != 0)
+#if !OMIT_VIRTUALTABLE
+                    if ((level.Plan.WsFlags & WHERE_VIRTUALTABLE) != 0)
                     {
-                        VTable pVTab = sqlite3GetVTable(ctx, pTab);
-                        int iCur = pTabItem.iCursor;
-                        sqlite3VdbeAddOp4(v, OP_VOpen, iCur, 0, 0,
-                        pVTab, P4_VTAB);
+                        VTable vtable = sqlite3GetVTable(ctx, table);
+                        int cur = tabItem.iCursor;
+                        v.AddOp4(OP.VOpen, cur, 0, 0, vtable, Vdbe.P4T.VTAB);
                     }
+                    else if (IsVirtual(table)) { } // noop
                     else
 #endif
-                        if ((pLevel.plan.wsFlags & WHERE_IDX_ONLY) == 0
-                        && (wctrlFlags & WHERE_OMIT_OPEN) == 0)
+                        if ((level.Plan.WsFlags & WHERE_IDX_ONLY) == 0 && (wctrlFlags & WHERE_OMIT_OPEN) == 0)
                         {
-                            int op = winfo.okOnePass != 0 ? OP_OpenWrite : OP_OpenRead;
-                            sqlite3OpenTable(parse, pTabItem.iCursor, iDb, pTab, op);
-                            testcase(pTab.nCol == BMS - 1);
-                            testcase(pTab.nCol == BMS);
-                            if (0 == winfo.okOnePass && pTab.nCol < BMS)
+                            OP op = (winfo.OkOnePass != 0 ? OP.OpenWrite : OP.OpenRead);
+                            sqlite3OpenTable(parse, tabItem.Cursor, db, table, op);
+                            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS - 1);
+                            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS);
+                            if (winfo.OkOnePass == 0 && table.Cols.length < BMS)
                             {
-                                Bitmask b = pTabItem.colUsed;
+                                Bitmask b = tabItem.ColUsed;
                                 int n = 0;
-                                for (; b != 0; b = b >> 1, n++)
-                                {
-                                }
-                                sqlite3VdbeChangeP4(v, sqlite3VdbeCurrentAddr(v) - 1,
-                                        n, P4_INT32);//SQLITE_INT_TO_PTR(n)
-                                Debug.Assert(n <= pTab.nCol);
+                                for (; b != 0; b = b >> 1, n++) { }
+                                v.ChangeP4(v.CurrentAddr() - 1, n, Vdbe.P4T.INT32);
+                                Debug.Assert(n <= table.Cols.length);
                             }
                         }
                         else
-                        {
-                            sqlite3TableLock(parse, iDb, pTab.tnum, 0, pTab.zName);
-                        }
-#if !SQLITE_OMIT_AUTOMATIC_INDEX
-                if ((pLevel.plan.wsFlags & WHERE_TEMP_INDEX) != 0)
-                {
-                    constructAutomaticIndex(parse, wc, pTabItem, notReady, pLevel);
-                }
+                            sqlite3TableLock(parse, db, table.Id, 0, table.Name);
+#if !OMIT_AUTOMATIC_INDEX
+                if ((level.Plan.WsFlags & WHERE_TEMP_INDEX) != 0)
+                    ConstructAutomaticIndex(parse, sWBI.WC, tabItem, notReady, level);
                 else
 #endif
-                    if ((pLevel.plan.wsFlags & WHERE_INDEXED) != 0)
+                    if ((level.Plan.WsFlags & WHERE_INDEXED) != 0)
                     {
-                        Index pIx = pLevel.plan.u.pIdx;
-                        KeyInfo pKey = sqlite3IndexKeyinfo(parse, pIx);
-                        int iIdxCur = pLevel.iIdxCur;
-                        Debug.Assert(pIx.pSchema == pTab.pSchema);
-                        Debug.Assert(iIdxCur >= 0);
-                        sqlite3VdbeAddOp4(v, OP_OpenRead, iIdxCur, pIx.tnum, iDb,
-                        pKey, P4_KEYINFO_HANDOFF);
-#if SQLITE_DEBUG
-            VdbeComment( v, "%s", pIx.zName );
-#endif
+                        Index index = level.Plan.u.Index;
+                        KeyInfo keyInfo = sqlite3IndexKeyinfo(parse, index);
+                        int indexCur = level.IdxCur;
+                        Debug.Assert(index.Schema == table.Schema);
+                        Debug.Assert(indexCur >= 0);
+                        v.AddOp4(OP.OpenRead, indexCur, index.Id, db, keyInfo, Vdbe.P4T.KEYINFO_HANDOFF);
+                        VdbeComment(v, "%s", index.Name);
                     }
-                sqlite3CodeVerifySchema(parse, iDb);
-                notReady &= ~getMask(wc.pMaskSet, pTabItem.iCursor);
+                sqlite3CodeVerifySchema(parse, db);
+                notReady &= ~GetMask(sWBI.WC.MaskSet, tabItem.Cursor);
             }
-            winfo.TopId = sqlite3VdbeCurrentAddr(v);
-            //if( db.mallocFailed ) goto whereBeginError;
+            winfo.TopId = v.CurrentAddr();
+            if (ctx.MallocFailed) goto whereBeginError;
 
-            /* Generate the code to do the search.  Each iteration of the for
-            ** loop below generates code for a single nested loop of the VM
-            ** program.
-            */
+            // Generate the code to do the search.  Each iteration of the for loop below generates code for a single nested loop of the VM program.
             notReady = ~(Bitmask)0;
-            for (i = 0; i < tabListLength; i++)
+            for (ii = 0; ii < tabListLength; ii++)
             {
-                pLevel = winfo.Data[i];
-                ExplainOneScan(parse, tabList, pLevel, i, pLevel.iFrom, wctrlFlags);
-                notReady = CodeOneLoopStart(winfo, i, wctrlFlags, notReady);
-                winfo.ContinueId = pLevel.addrCont;
+                level = winfo.Data[ii];
+                ExplainOneScan(parse, tabList, level, ii, level.From, wctrlFlags);
+                notReady = CodeOneLoopStart(winfo, ii, wctrlFlags, notReady);
+                winfo.ContinueId = level.AddrCont;
             }
+            // For testing and debugging use only
+#if TEST
+            // Record in the query plan information about the current table and the index used to access it (if any).  If the table itself
+            // is not used, its name is just '{}'.  If no index is used the index is listed as "{}".  If the primary key is used the index name is '*'.
+            for (ii = 0; ii < tabListLength; ii++)
+            {
+                level = winfo.Data[i];
+                int w = level.Plan.WsFlags;
+                tabItem = tabList.Ids[level.From];
+                string z = tabItem.Alias;
+                if (z == null) z = tabItem.Table.Name;
+                int n = z.Length;
+                if (true) //: (n + _queryPlanIdx < sizeof(_queryPlan)-10)
+                {
+                    if ((w & WHERE_IDX_ONLY) != 0)
+                    {
+                        _queryPlan.Append("{}"); //: _memcpy(&_queryPlan[_queryPlanIdx], "{}", 2);
+                        _queryPlanIdx += 2;
+                    }
+                    else
+                    {
+                        _queryPlan.Append(z); //: _memcpy(&_queryPlan[_queryPlanIdx], z, n);
+                        _queryPlanIdx += n;
+                    }
+                    _queryPlan.Append(" "); _queryPlanIdx++; //: _queryPlan[_queryPlanIdx++] = ' ';
+                }
+                SysEx.ASSERTCOVERAGE(w & WHERE_ROWID_EQ);
+                SysEx.ASSERTCOVERAGE(w & WHERE_ROWID_RANGE);
+                if ((w & (WHERE_ROWID_EQ | WHERE_ROWID_RANGE)) != 0)
+                {
+                    _queryPlan.Append("* "); //: _memcpy(&_queryPlan[_queryPlanIdx], "* ", 2);
+                    _queryPlanIdx += 2;
+                }
+                else if ((w & WHERE_INDEXED) != 0 && (w & WHERE_COVER_SCAN) == 0)
+                {
+                    n = level.Plan.u.Index.Name.Length;
+                    if (true) //: (n + _queryPlanIdx < sizeof(_queryPlan)-2)
+                    {
+                        _queryPlan.Append(level.Plan.u.Index.Name); //: _memcpy(&_queryPlan[_queryPlanIdx], level->Plan.u.Index->Name, n);
+                        _queryPlanIdx += n;
+                        _queryPlan.Append(" "); _queryPlanIdx++; //: _queryPlan[_queryPlanIdx++] = ' ';
+                    }
+                }
+                else
+                {
+                    _queryPlan.Append("{} "); //: _memcpy(&_queryPlan[_queryPlanIdx], "{} ", 3);
+                    _queryPlanIdx += 3;
+                }
+            }
+            
+            //while (_queryPlanIdx > 0 && _queryPlan[_queryPlanIdx - 1] == ' ')
+            //    _queryPlan[--_queryPlanIdx] = 0;
+            //_queryPlan[_queryPlanIdx] = 0;
+            _queryPlan = new StringBuilder(_queryPlan.ToString().Trim());
+            _queryPlanIdx = 0;
 
-#if SQLITE_TEST  //* For testing and debugging use only */
-      /* Record in the query plan information about the current table
-** and the index used to access it (if any).  If the table itself
-** is not used, its name is just '{}'.  If no index is used
-** the index is listed as "{}".  If the primary key is used the
-** index name is '*'.
-*/
-#if !TCLSH
-      sqlite3_query_plan.Length = 0;
-#else
-      sqlite3_query_plan.sValue = "";
-#endif
-      for ( i = 0; i < nTabList; i++ )
-      {
-        string z;
-        int n;
-        pLevel = pWInfo.a[i];
-        pTabItem = pTabList.a[pLevel.iFrom];
-        z = pTabItem.zAlias;
-        if ( z == null )
-          z = pTabItem.pTab.zName;
-        n = sqlite3Strlen30( z );
-        if ( true ) //n+nQPlan < sizeof(sqlite3_query_plan)-10 )
-        {
-          if ( ( pLevel.plan.wsFlags & WHERE_IDX_ONLY ) != 0 )
-          {
-            sqlite3_query_plan.Append( "{}" ); //memcpy( &sqlite3_query_plan[nQPlan], "{}", 2 );
-            nQPlan += 2;
-          }
-          else
-          {
-            sqlite3_query_plan.Append( z ); //memcpy( &sqlite3_query_plan[nQPlan], z, n );
-            nQPlan += n;
-          }
-          sqlite3_query_plan.Append( " " );
-          nQPlan++; //sqlite3_query_plan[nQPlan++] = ' ';
-        }
-        testcase( pLevel.plan.wsFlags & WHERE_ROWID_EQ );
-        testcase( pLevel.plan.wsFlags & WHERE_ROWID_RANGE );
-        if ( ( pLevel.plan.wsFlags & ( WHERE_ROWID_EQ | WHERE_ROWID_RANGE ) ) != 0 )
-        {
-          sqlite3_query_plan.Append( "* " ); //memcpy(&sqlite3_query_plan[nQPlan], "* ", 2);
-          nQPlan += 2;
-        }
-        else if ( ( pLevel.plan.wsFlags & WHERE_INDEXED ) != 0 )
-        {
-          n = sqlite3Strlen30( pLevel.plan.u.pIdx.zName );
-          if ( true ) //n+nQPlan < sizeof(sqlite3_query_plan)-2 )//if( n+nQPlan < sizeof(sqlite3_query_plan)-2 )
-          {
-            sqlite3_query_plan.Append( pLevel.plan.u.pIdx.zName ); //memcpy(&sqlite3_query_plan[nQPlan], pLevel.plan.u.pIdx.zName, n);
-            nQPlan += n;
-            sqlite3_query_plan.Append( " " ); //sqlite3_query_plan[nQPlan++] = ' ';
-          }
-        }
-        else
-        {
-          sqlite3_query_plan.Append( "{} " ); //memcpy( &sqlite3_query_plan[nQPlan], "{} ", 3 );
-          nQPlan += 3;
-        }
-      }
-      //while( nQPlan>0 && sqlite3_query_plan[nQPlan-1]==' ' ){
-      //  sqlite3_query_plan[--nQPlan] = 0;
-      //}
-      //sqlite3_query_plan[nQPlan] = 0;
-#if !TCLSH
-      sqlite3_query_plan = new StringBuilder( sqlite3_query_plan.ToString().Trim() );
-#else
-      sqlite3_query_plan.Trim();
-#endif
-      nQPlan = 0;
-#endif //* SQLITE_TEST // Testing and debugging use only */
-
-            /* Record the continuation address in the WhereInfo structure.  Then
-** clean up and return.
-*/
+            // Record the continuation address in the WhereInfo structure.  Then clean up and return.
             return winfo;
 
-        /* Jump here if malloc fails */
+        // Jump here if malloc fails
         whereBeginError:
             if (winfo != null)
             {
-                parse.nQueryLoop = winfo.savedNQueryLoop;
-                whereInfoFree(ctx, winfo);
+                parse.QueryLoops = winfo.SavedNQueryLoop;
+                WhereInfoFree(ctx, winfo);
             }
             return null;
         }
@@ -4229,6 +4128,5 @@ namespace Core
             return;
         }
     }
-        #endregion
 
 }
