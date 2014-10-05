@@ -221,11 +221,11 @@ namespace Core
             while (stepList != null)
             {
                 stepList.Trig = trig;
-                stepList = stepList.pNext;
+                stepList = stepList.Next;
             }
             nameToken.data = trig.Name;
             nameToken.length = nameToken.data.Length;
-            if (sqlite3FixInit(sFix, parse, db, "trigger", nameToken) != 0 && sqlite3FixTriggerStep(sFix, trig.step_list) != 0)
+            if (sqlite3FixInit(sFix, parse, db, "trigger", nameToken) != 0 && sqlite3FixTriggerStep(sFix, trig.StepList) != 0)
                 goto triggerfinish_cleanup;
 
             // if we are not initializing, build the sqlite_master entry
@@ -275,7 +275,7 @@ namespace Core
             }
             triggerStep.OP = TK.SELECT;
             triggerStep.Select spSelect;
-            triggerStep.orconf = OE.Default;
+            triggerStep.Orconf = OE.Default;
             return triggerStep;
         }
 
@@ -529,7 +529,7 @@ namespace Core
             Debug.Assert(parse.TriggerTab != null && parse.Toplevel != null);
             Debug.Assert(stepList != null);
             Debug.Assert(v != null);
-            for (TriggerStep step = stepList; step != null; step = step.pNext)
+            for (TriggerStep step = stepList; step != null; step = step.Next)
             {
                 // Figure out the ON CONFLICT policy that will be used for this step of the trigger program. If the statement that caused this trigger
                 // to fire had an explicit ON CONFLICT, then use it. Otherwise, use the ON CONFLICT policy that was specified as part of the trigger
@@ -541,7 +541,7 @@ namespace Core
                 //
                 //   INSERT INTO t1 ... ;            -- insert into t2 uses REPLACE policy
                 //   INSERT OR IGNORE INTO t1 ... ;  -- insert into t2 uses IGNORE policy
-                parse.Orconf = (orconf == OE.Default ? step.orconf : (OE)orconf);
+                parse.Orconf = (orconf == OE.Default ? step.Orconf : (OE)orconf);
                 switch (step.OP)
                 {
                     case TK.UPDATE:
@@ -666,7 +666,7 @@ namespace Core
                 // OP_Halt inserted at the end of the program.
                 if (trigger.When != null)
                 {
-                    Expr when = sqlite3ExprDup(ctx, trigger.pWhen, 0); // Duplicate of trigger WHEN expression
+                    Expr when = sqlite3ExprDup(ctx, trigger.When, 0); // Duplicate of trigger WHEN expression
                     if (ResolveExprNames(sNC, ref when) == RC.OK && !ctx.MallocFailed)
                     {
                         endTrigger = v.MakeLabel();
@@ -763,7 +763,7 @@ namespace Core
             TK op = (changes != null ? TK.UPDATE : TK.DELETE);
             int isNewId = (isNew ? 1 : 0);
             uint32 mask = 0;
-            for (Trigger p = trigger; p != null; p = p.pNext)
+            for (Trigger p = trigger; p != null; p = p.Next)
                 if (p.OP == op && (tr_tm & p.tr_tm) != 0 && CheckColumnOverlap(p.Columns, changes))
                 {
                     TriggerPrg prg = GetRowTrigger(parse, p, table, orconf);

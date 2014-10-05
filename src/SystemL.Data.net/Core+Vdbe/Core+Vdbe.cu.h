@@ -433,7 +433,8 @@ namespace Core
 		{
 			struct
 			{
-				array_t<InLoop> InLoops; // Information about each nested IN operator
+				InLoop *InLoops; // Information about each nested IN operator
+				int InLoopsLength;
 			} in;						// Used when plan.wsFlags&WHERE_IN_ABLE
 			Index *Covidx;				// Possible covering index for WHERE_MULTI_OR
 		} u;							// Information that depends on plan.wsFlags
@@ -1383,6 +1384,69 @@ namespace Core
 		char *Name;				// Savepoint name (nul-terminated)
 		int64 DeferredCons;		// Number of deferred fk violations
 		Savepoint *Next;		// Parent savepoint (if any)
+	};
+
+#pragma endregion
+
+#pragma region Trigger
+
+	enum TRIGGER : uint8
+	{
+		TRIGGER_BEFORE = 1,
+		TRIGGER_AFTER = 2,
+	};
+
+	struct Trigger
+	{
+		char *Name;				// The name of the trigger
+		char *Table;            // The table or view to which the trigger applies
+		uint8 OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT
+		TRIGGER TRtm;           // One of TRIGGER_BEFORE, TRIGGER_AFTER
+		Expr *When;				// The WHEN clause of the expression (may be NULL)
+		IdList *Columns;		// If this is an UPDATE OF <column-list> trigger, the <column-list> is stored here
+		Schema *Schema;			// Schema containing the trigger
+		Core::Schema *TabSchema; // Schema containing the table
+		TriggerStep *StepList;	// Link list of trigger program steps
+		Trigger *Next;			// Next trigger associated with the table
+	};
+
+	struct TriggerStep
+	{
+		uint8 OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
+		uint8 Orconf;           // OE_Rollback etc.
+		Trigger *Trig;			// The trigger that this step is a part of
+		Select *Select;			// SELECT statment or RHS of INSERT INTO .. SELECT ...
+		Token Target;			// Target table for DELETE, UPDATE, INSERT
+		Expr *Where;			// The WHERE clause for DELETE or UPDATE steps
+		ExprList *ExprList;		// SET clause for UPDATE.  VALUES clause for INSERT
+		IdList *IdList;			// Column names for INSERT
+		TriggerStep *Next;		// Next in the link-list
+		TriggerStep *Last;		// Last element in link-list. Valid for 1st elem only
+	};
+
+#pragma endregion
+
+#pragma region Attach
+
+	struct DbFixer
+	{
+		Parse *Parse;      // The parsing context.  Error messages written here
+		Schema *Schema;    // Fix items to this schema
+		const char *DB;    // Make sure all objects are contained in this database
+		const char *Type;  // Type of the container - used for error messages
+		const Token *Name; // Name of the container - used for error messages
+
+		__device__ bool FixInit(Core::Parse *parse, int db, const char *typeName, const Token *name);
+		__device__ bool FixSrcList(SrcList *list);
+#if !defined(OMIT_VIEW) || !defined(OMIT_TRIGGER)
+		__device__ bool FixSelect(Select *select);
+		__device__ bool FixExpr(Expr *expr);
+		__device__ bool FixExprList(ExprList *list);
+#endif
+
+#ifndef OMIT_TRIGGER
+		__device__ bool FixTriggerStep(TriggerStep *step);
+#endif
 	};
 
 #pragma endregion

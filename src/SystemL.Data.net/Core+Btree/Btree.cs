@@ -1172,7 +1172,7 @@ namespace Core
             return bt.Ctx.InvokeBusyHandler();
         }
 
-        static RC Open(VSystem vfs, string filename, BContext ctx, ref Btree btree, OPEN flags, VSystem.OPEN vfsFlags)
+        public static RC Open(VSystem vfs, string filename, BContext ctx, ref Btree btree, OPEN flags, VSystem.OPEN vfsFlags)
         {
             // True if opening an ephemeral, temporary database
             bool tempDB = string.IsNullOrEmpty(filename);

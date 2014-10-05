@@ -819,9 +819,10 @@ namespace Core
                 return;
             Debug.Assert(list.Ids != null || list.Exprs == 0);
             int i;
-            ExprList.ExprListItem item;
-            for (item = list.Ids[i], i = 0; i < list.Exprs; i++, item = list.Ids[i])
+            ExprList.ExprListItem item = list.Ids[0];
+            for (i = 0; i < list.Exprs; i++)
             {
+                item = list.Ids[i];
                 Delete(ctx, ref item.Expr);
                 SysEx.TagFree(ctx, ref item.Name);
                 SysEx.TagFree(ctx, ref item.Span);
@@ -915,7 +916,7 @@ namespace Core
         public bool CanBeNull()
         {
             Expr expr = this;
-            while (expr.OP == TK.UPLUS || expr.op == TK.UMINUS) expr = expr.pLeft;
+            while (expr.OP == TK.UPLUS || expr.OP == TK.UMINUS) expr = expr.Left;
             TK op = expr.OP;
             if (op == TK.REGISTER)
                 op = expr.OP2;

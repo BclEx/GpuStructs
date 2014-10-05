@@ -612,7 +612,7 @@ zulu_time:
 		uint64 n;
 		size_t i, j;
 		char *z;
-		const char *fmt = (const char *)sqlite3_value_text(argv[0]);
+		const char *fmt = (const char *)Mem_Text(argv[0]);
 		char buf[100];
 		if (!fmt || IsDate(funcCtx, argc-1, argv+1, &x)) return;
 		Context *ctx = sqlite3_context_db_handle(funcCtx);

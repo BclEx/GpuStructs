@@ -89,7 +89,7 @@ namespace Core
 		array_t<Vdbe> Vdbe;					// List of active virtual machines
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
 		int64 LastRowID;					// ROWID of most recent insert (see above)
-		unsigned int OpenFlags;				// Flags passed to sqlite3_vfs.xOpen()
+		VSystem::OPEN OpenFlags;			// Flags passed to sqlite3_vfs.xOpen()
 		RC ErrCode;							// Most recent error code (RC_*)
 		int ErrMask;						// & result codes with this before returning
 		void(*CollNeeded)(void *, Context *, int textRep, const char *);

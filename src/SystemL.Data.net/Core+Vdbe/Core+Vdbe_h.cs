@@ -332,6 +332,16 @@ namespace Core
             public int Idx;         // Index in some Table.aCol[] of a column named zName
         }
         public array_t<IdListItem> Ids;
+
+        internal IdList memcpy()
+        {
+            if (this == null)
+                return null;
+            IdList cp = (IdList)MemberwiseClone();
+            Ids.data.CopyTo(cp.Ids.data, 0);
+            cp.Ids.length = Ids.length;
+            return cp;
+        }
     }
 
     public enum JT : byte
@@ -438,7 +448,8 @@ namespace Core
         {
             public class _in
             {
-                public array_t<InLoop> InLoops; // Information about each nested IN operator
+                public InLoop[] InLoops; // Information about each nested IN operator
+                public int InLoopsLength;
             }
             public _in in_;						// Used when plan.wsFlags&WHERE_IN_ABLE
             public Index Covidx;				// Possible covering index for WHERE_MULTI_OR
@@ -636,7 +647,7 @@ namespace Core
         // Table for TK_COLUMN expressions.
         public Table Table;
 
-        public Expr memcpy(int flag = -1)
+        internal Expr memcpy(int flag = -1)
         {
             Expr p = new Expr();
             p.OP = OP;
@@ -1067,6 +1078,78 @@ namespace Core
         public string Name;			// Savepoint name (nul-terminated)
         public long DeferredCons;	// Number of deferred fk violations
         public Savepoint Next;		// Parent savepoint (if any)
+    }
+
+    #endregion
+
+    #region Trigger
+
+    public enum TRIGGER : byte
+    {
+        BEFORE = 1,
+        AFTER = 2,
+    }
+
+    public class Trigger
+    {
+        public string Name;             // The name of the trigger
+        public string Table;            // The table or view to which the trigger applies
+        public OP OP;                   // One of TK_DELETE, TK_UPDATE, TK_INSERT
+        public TRIGGER TRtm;            // One of TRIGGER_BEFORE, TRIGGER_AFTER
+        public Expr When;               // The WHEN clause of the expression (may be NULL)
+        public IdList Columns;          // If this is an UPDATE OF <column-list> trigger, the <column-list> is stored here
+        public Schema Schema;           // Schema containing the trigger
+        public Schema TabSchema;        // Schema containing the table
+        public TriggerStep StepList;    // Link list of trigger program steps
+        public Trigger Next;            // Next trigger associated with the table
+
+        public Trigger memcpy()
+        {
+            if (this == null)
+                return null;
+            Trigger cp = (Trigger)MemberwiseClone();
+            if (When != null) cp.When = When.memcpy();
+            if (Columns != null) cp.Columns = Columns.memcpy();
+            if (Schema != null) cp.Schema = Schema.memcpy();
+            if (TabSchema != null) cp.TabSchema = TabSchema.memcpy();
+            if (StepList != null) cp.StepList = StepList.memcpy();
+            if (Next != null) cp.Next = Next.memcpy();
+            return cp;
+        }
+    }
+
+    public class TriggerStep
+    {
+        public OP OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
+        public byte Orconf;         // OE_Rollback etc.
+        public Trigger Trig;        // The trigger that this step is a part of
+        public Select Select;       // SELECT statment or RHS of INSERT INTO .. SELECT ...
+        public Token Target = new Token(); // Target table for DELETE, UPDATE, INSERT
+        public Expr Where;          // The WHERE clause for DELETE or UPDATE steps
+        public ExprList ExprList;   // SET clause for UPDATE.  VALUES clause for INSERT
+        public IdList IdList;       // Column names for INSERT
+        public TriggerStep Next;    // Next in the link-list
+        public TriggerStep Last;    // Last element in link-list. Valid for 1st elem only
+
+        internal TriggerStep memcpy()
+        {
+            if (this == null)
+                return null;
+            TriggerStep cp = (TriggerStep)MemberwiseClone();
+            return cp;
+        }
+    };
+
+    #endregion
+
+    #region Attach
+
+    public partial class DbFixer
+    {
+        public Parse Parse; // The parsing context.  Error messages written here
+        public string DB; // Make sure all objects are contained in this database
+        public string Type; // Type of the container - used for error messages
+        public Token Name; // Name of the container - used for error messages
     }
 
     #endregion

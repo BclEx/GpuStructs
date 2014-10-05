@@ -1,665 +1,421 @@
+// attach.c
 using System;
 using System.Diagnostics;
 using System.Text;
 
-using u8 = System.Byte;
-using u32 = System.UInt32;
-
-namespace Community.CsharpSqlite
+#region OMIT_ATTACH
+#if !OMIT_ATTACH
+namespace Core.Command
 {
-  using sqlite3_value = Sqlite3.Mem;
-
-  public partial class Sqlite3
-  {
-/*
-** 2003 April 6
-**
-** The author disclaims copyright to this source code.  In place of
-** a legal notice, here is a blessing:
-**
-**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.
-**
-*************************************************************************
-** This file contains code used to implement the ATTACH and DETACH commands.
-*************************************************************************
-**  Included in SQLite3 port to C#-SQLite;  2008 Noah B Hart
-**  C#-SQLite is an independent reimplementation of the SQLite software library
-**
-**  SQLITE_SOURCE_ID: 2011-06-23 19:49:22 4374b7e83ea0a3fbc3691f9c0c936272862f32f2
-**
-*************************************************************************
-*/
-//#include "sqliteInt.h"
-
-#if !SQLITE_OMIT_ATTACH
-/*
-** Resolve an expression that was part of an ATTACH or DETACH statement. This
-** is slightly different from resolving a normal SQL expression, because simple
-** identifiers are treated as strings, not possible column names or aliases.
-**
-** i.e. if the parser sees:
-**
-**     ATTACH DATABASE abc AS def
-**
-** it treats the two expressions as literal strings 'abc' and 'def' instead of
-** looking for columns of the same name.
-**
-** This only applies to the root node of pExpr, so the statement:
-**
-**     ATTACH DATABASE abc||def AS 'db2'
-**
-** will fail because neither abc or def can be resolved.
-*/
-static int resolveAttachExpr( NameContext pName, Expr pExpr )
-{
-  int rc = SQLITE_OK;
-  if ( pExpr != null )
-  {
-    if ( pExpr.op != TK_ID )
+    public class Attach
     {
-      rc = sqlite3ResolveExprNames( pName, ref pExpr );
-      if ( rc == SQLITE_OK && sqlite3ExprIsConstant( pExpr ) == 0 )
-      {
-        sqlite3ErrorMsg( pName.pParse, "invalid name: \"%s\"", pExpr.u.zToken );
-        return SQLITE_ERROR;
-      }
-    }
-    else
-    {
-      pExpr.op = TK_STRING;
-    }
-  }
-  return rc;
-}
-
-/*
-** An SQL user-function registered to do the work of an ATTACH statement. The
-** three arguments to the function come directly from an attach statement:
-**
-**     ATTACH DATABASE x AS y KEY z
-**
-**     SELECT sqlite_attach(x, y, z)
-**
-** If the optional "KEY z" syntax is omitted, an SQL NULL is passed as the
-** third argument.
-*/
-static void attachFunc(
-sqlite3_context context,
-int NotUsed,
-sqlite3_value[] argv
-)
-{
-  int i;
-  int rc = 0;
-  sqlite3 db = sqlite3_context_db_handle( context );
-  string zName;
-  string zFile;
-  string zPath = "";
-  string zErr = "";
-  int flags;
-
-  Db aNew = null;
-  string zErrDyn = "";
-  sqlite3_vfs pVfs = null;
-
-  UNUSED_PARAMETER( NotUsed );
-
-  zFile = argv[0].z != null && ( argv[0].z.Length > 0 ) && argv[0].flags != MEM_Null ? sqlite3_value_text( argv[0] ) : "";
-  zName = argv[1].z != null && ( argv[1].z.Length > 0 ) && argv[1].flags != MEM_Null ? sqlite3_value_text( argv[1] ) : "";
-  //if( zFile==null ) zFile = "";
-  //if ( zName == null ) zName = "";
-
-
-  /* Check for the following errors:
-  **
-  **     * Too many attached databases,
-  **     * Transaction currently open
-  **     * Specified database name already being used.
-  */
-  if ( db.nDb >= db.aLimit[SQLITE_LIMIT_ATTACHED] + 2 )
-  {
-    zErrDyn = sqlite3MPrintf( db, "too many attached databases - max %d",
-    db.aLimit[SQLITE_LIMIT_ATTACHED]
-    );
-    goto attach_error;
-  }
-  if ( 0 == db.autoCommit )
-  {
-    zErrDyn = sqlite3MPrintf( db, "cannot ATTACH database within transaction" );
-    goto attach_error;
-  }
-  for ( i = 0; i < db.nDb; i++ )
-  {
-    string z = db.aDb[i].zName;
-    Debug.Assert( z != null && zName != null );
-    if ( z.Equals( zName, StringComparison.OrdinalIgnoreCase ) )
-    {
-      zErrDyn = sqlite3MPrintf( db, "database %s is already in use", zName );
-      goto attach_error;
-    }
-  }
-
-  /* Allocate the new entry in the db.aDb[] array and initialise the schema
-  ** hash tables.
-  */
-  /* Allocate the new entry in the db.aDb[] array and initialise the schema
-  ** hash tables.
-  */
-  //if( db.aDb==db.aDbStatic ){
-  //  aNew = sqlite3DbMallocRaw(db, sizeof(db.aDb[0])*3 );
-  //  if( aNew==0 ) return;
-  //  memcpy(aNew, db.aDb, sizeof(db.aDb[0])*2);
-  //}else {
-  if ( db.aDb.Length <= db.nDb )
-    Array.Resize( ref db.aDb, db.nDb + 1 );//aNew = sqlite3DbRealloc(db, db.aDb, sizeof(db.aDb[0])*(db.nDb+1) );
-  if ( db.aDb == null )
-    return;   // if( aNew==0 ) return;
-  //}
-  db.aDb[db.nDb] = new Db();//db.aDb = aNew;
-  aNew = db.aDb[db.nDb];//memset(aNew, 0, sizeof(*aNew));
-  //  memset(aNew, 0, sizeof(*aNew));
-
-  /* Open the database file. If the btree is successfully opened, use
-  ** it to obtain the database schema. At this point the schema may
-  ** or may not be initialised.
-  */
-  flags = (int)db.openFlags;
-  rc = sqlite3ParseUri( vfsList.zName, zFile, ref flags, ref pVfs, ref zPath, ref zErr );
-  if ( rc != SQLITE_OK )
-  {
-    //if ( rc == SQLITE_NOMEM )
-    //db.mallocFailed = 1;
-    sqlite3_result_error( context, zErr, -1 );
-    //sqlite3_free( zErr );
-    return;
-  }
-  Debug.Assert( pVfs != null);
-  flags |= SQLITE_OPEN_MAIN_DB;
-  rc = sqlite3BtreeOpen( pVfs, zPath, db, ref aNew.pBt, 0, (int)flags );
-  //sqlite3_free( zPath );
-
-  db.nDb++;
-  if ( rc == SQLITE_CONSTRAINT )
-  {
-    rc = SQLITE_ERROR;
-    zErrDyn = sqlite3MPrintf( db, "database is already attached" );
-  }
-  else if ( rc == SQLITE_OK )
-  {
-    Pager pPager;
-    aNew.pSchema = sqlite3SchemaGet( db, aNew.pBt );
-    //if ( aNew.pSchema == null )
-    //{
-    //  rc = SQLITE_NOMEM;
-    //}
-    //else 
-      if ( aNew.pSchema.file_format != 0 && aNew.pSchema.enc != ENC( db ) )
-    {
-      zErrDyn = sqlite3MPrintf( db,
-      "attached databases must use the same text encoding as main database" );
-      rc = SQLITE_ERROR;
-    }
-    pPager = sqlite3BtreePager( aNew.pBt );
-    sqlite3PagerLockingMode( pPager, db.dfltLockMode );
-    sqlite3BtreeSecureDelete( aNew.pBt,
-                             sqlite3BtreeSecureDelete( db.aDb[0].pBt, -1 ) );
-  }
-  aNew.safety_level = 3;
-  aNew.zName = zName;//sqlite3DbStrDup(db, zName);
-  //if( rc==SQLITE_OK && aNew.zName==0 ){
-  //  rc = SQLITE_NOMEM;
-  //}
-
-#if SQLITE_HAS_CODEC
-  if ( rc == SQLITE_OK )
-  {
-    //extern int sqlite3CodecAttach(sqlite3*, int, const void*, int);
-    //extern void sqlite3CodecGetKey(sqlite3*, int, void**, int*);
-    int nKey;
-    string zKey;
-    int t = sqlite3_value_type( argv[2] );
-    switch ( t )
-    {
-      case SQLITE_INTEGER:
-      case SQLITE_FLOAT:
-        zErrDyn = "Invalid key value"; //sqlite3DbStrDup( db, "Invalid key value" );
-        rc = SQLITE_ERROR;
-        break;
-
-      case SQLITE_TEXT:
-      case SQLITE_BLOB:
-        nKey = sqlite3_value_bytes( argv[2] );
-        zKey = sqlite3_value_blob( argv[2] ).ToString(); // (char *)sqlite3_value_blob(argv[2]);
-        rc = sqlite3CodecAttach( db, db.nDb - 1, zKey, nKey );
-        break;
-
-      case SQLITE_NULL:
-        /* No key specified.  Use the key from the main database */
-        sqlite3CodecGetKey( db, 0, out zKey, out nKey ); //sqlite3CodecGetKey(db, 0, (void**)&zKey, nKey);
-        if ( nKey > 0 || sqlite3BtreeGetReserve( db.aDb[0].pBt ) > 0 )
+        static RC ResolveAttachExpr(NameContext name, Expr expr)
         {
-          rc = sqlite3CodecAttach( db, db.nDb - 1, zKey, nKey );
+            RC rc = RC.OK;
+            if (expr != null)
+            {
+                if (expr.OP != TK.ID)
+                {
+                    rc = sqlite3ResolveExprNames(name, ref expr);
+                    if (rc == RC.OK && !expr.IsConstant())
+                    {
+                        name.Parse.ErrorMsg("invalid name: \"%s\"", expr.u.Token);
+                        return RC.ERROR;
+                    }
+                }
+                else
+                    expr.OP = TK.STRING;
+            }
+            return rc;
         }
-        break;
-    }
-  }
+
+        static void AttachFunc_(FuncContext fctx, int notUsed1, Mem[] argv)
+        {
+            Context ctx = sqlite3_context_db_handle(fctx);
+            string file = Mem_Text(argv[0]);
+            string name = Mem_Text(argv[1]);
+            if (file == null) file = "";
+            if (name == null) name = "";
+
+            // Check for the following errors:
+            //     * Too many attached databases,
+            //     * Transaction currently open
+            //     * Specified database name already being used.
+            RC rc = 0;
+            string errDyn = null;
+            if (ctx.DBs.length >= ctx.Limits[(int)LIMIT.ATTACHED] + 2)
+            {
+                errDyn = SysEx.Mprintf(ctx, "too many attached databases - max %d", ctx.Limits[(int)LIMIT.ATTACHED]);
+                goto attach_error;
+            }
+            if (!ctx.AutoCommit)
+            {
+                errDyn = SysEx.Mprintf(ctx, "cannot ATTACH database within transaction");
+                goto attach_error;
+            }
+            for (int i = 0; i < ctx.DBs.length; i++)
+            {
+                string z = ctx.DBs[i].Name;
+                Debug.Assert(z != null && name != null);
+                if (z.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    errDyn = SysEx.Mprintf(ctx, "database %s is already in use", name);
+                    goto attach_error;
+                }
+            }
+
+            // Allocate the new entry in the ctx->aDb[] array and initialize the schema hash tables.
+            //: Realloc
+            if (ctx.DBs.data.Length <= ctx.DBs.length)
+                Array.Resize(ref ctx.DBs.data, ctx.DBs.length + 1);
+            if (ctx.DBs.data == null) return;
+            ctx.DBs[ctx.DBs.length] = new Context.DB();
+            Context.DB newDB = ctx.DBs[ctx.DBs.length];
+            //: _memset(newDB, 0, sizeof(*newDB));
+
+            // Open the database file. If the btree is successfully opened, use it to obtain the database schema. At this point the schema may or may not be initialized.
+            VSystem.OPEN flags = ctx.OpenFlags;
+            VSystem vfs = null;
+            string path = string.Empty;
+            string err = string.Empty;
+            rc = sqlite3ParseUri(ctx.Vfs.Name, file, ref flags, ref vfs, ref path, ref err);
+            if (rc != RC.OK)
+            {
+                if (rc == RC.NOMEM) ctx.MallocFailed = true;
+                sqlite3_result_error(fctx, err, -1);
+                SysEx.Free(ref err);
+                return;
+            }
+            Debug.Assert(vfs != null);
+            flags |= VSystem.OPEN.MAIN_DB;
+            rc = Btree.Open(vfs, path, ctx, ref newDB.Bt, 0, flags);
+            SysEx.Free(ref path);
+
+            ctx.DBs.length++;
+            if (rc == RC.CONSTRAINT)
+            {
+                rc = RC.ERROR;
+                errDyn = SysEx.Mprintf(ctx, "database is already attached");
+            }
+            else if (rc == RC.OK)
+            {
+                newDB.Schema = sqlite3SchemaGet(ctx, newDB.Bt);
+                if (newDB.Schema == null)
+                    rc = RC.NOMEM;
+                else if (newDB.Schema.FileFormat != 0 && newDB.Schema.Encode != E.CTXENCODE(ctx))
+                {
+                    errDyn = SysEx.Mprintf(ctx, "attached databases must use the same text encoding as main database");
+                    rc = RC.ERROR;
+                }
+                Pager pager = newDB.Bt.get_Pager();
+                pager.LockingMode(ctx.DefaultLockMode);
+                newDB.Bt.SecureDelete(ctx.DBs[0].Bt.SecureDelete(true));
+            }
+            newDB.SafetyLevel = 3;
+            newDB.Name = name;
+            if (rc == RC.OK && newDB.Name == null)
+                rc = RC.NOMEM;
+
+#if HAS_CODEC
+            //extern int sqlite3CodecAttach(sqlite3*, int, const void*, int);
+            //extern void sqlite3CodecGetKey(sqlite3*, int, void**, int*);
+            if (rc == RC.OK)
+            {
+                int keyLength;
+                string key;
+                TYPE t = sqlite3_value_type(argv[2]);
+                switch (t)
+                {
+                    case TYPE.INTEGER:
+                    case TYPE.FLOAT:
+                        errDyn = "Invalid key value";
+                        rc = RC.ERROR;
+                        break;
+
+                    case TYPE.TEXT:
+                    case TYPE.BLOB:
+                        keyLength = Mem.Bytes(argv[2]);
+                        key = sqlite3_value_blob(argv[2]).ToString();
+                        rc = sqlite3CodecAttach(ctx, ctx.DBs.length - 1, key, keyLength);
+                        break;
+
+                    case TYPE.NULL:
+                        // No key specified.  Use the key from the main database
+                        sqlite3CodecGetKey(ctx, 0, out key, out keyLength);
+                        if (keyLength > 0 || ctx.DBs[0].Bt.GetReserve() > 0)
+                            rc = sqlite3CodecAttach(ctx, ctx.DBs.length - 1, key, keyLength);
+                        break;
+                }
+            }
 #endif
+            // If the file was opened successfully, read the schema for the new database.
+            // If this fails, or if opening the file failed, then close the file and remove the entry from the ctx->aDb[] array. i.e. put everything back the way we found it.
+            if (rc == RC.OK)
+            {
+                Btree.EnterAll(ctx);
+                rc = sqlite3Init(ctx, ref errDyn);
+                Btree.LeaveAll(ctx);
+            }
+            if (rc != 0)
+            {
+                int db = ctx.DBs.length - 1;
+                Debug.Assert(db >= 2);
+                if (ctx.DBs[db].Bt != null)
+                {
+                    ctx.DBs[db].Bt.Close();
+                    ctx.DBs[db].Bt = null;
+                    ctx.DBs[db].Schema = null;
+                }
+                sqlite3ResetInternalSchema(ctx, -1);
+                ctx.DBs.length = db;
+                if (rc == RC.NOMEM || rc == RC.IOERR_NOMEM)
+                {
+                    ctx.MallocFailed = true;
+                    SysEx.TagFree(ctx, ref errDyn);
+                    errDyn = SysEx.Mprintf(ctx, "out of memory");
+                }
+                else if (errDyn == null)
+                    errDyn = SysEx.Mprintf(ctx, "unable to open database: %s", file);
+                goto attach_error;
+            }
+            return;
 
-  /* If the file was opened successfully, read the schema for the new database.
-** If this fails, or if opening the file failed, then close the file and
-** remove the entry from the db.aDb[] array. i.e. put everything back the way
-** we found it.
-*/
-  if ( rc == SQLITE_OK )
-  {
-    sqlite3BtreeEnterAll( db );
-    rc = sqlite3Init( db, ref zErrDyn );
-    sqlite3BtreeLeaveAll( db );
-  }
-  if ( rc != 0 )
-  {
-    int iDb = db.nDb - 1;
-    Debug.Assert( iDb >= 2 );
-    if ( db.aDb[iDb].pBt != null )
-    {
-      sqlite3BtreeClose( ref db.aDb[iDb].pBt );
-      db.aDb[iDb].pBt = null;
-      db.aDb[iDb].pSchema = null;
-    }
-    sqlite3ResetInternalSchema( db, -1 );
-    db.nDb = iDb;
-    if ( rc == SQLITE_NOMEM || rc == SQLITE_IOERR_NOMEM )
-    {
-      ////        db.mallocFailed = 1;
-      sqlite3DbFree( db, ref zErrDyn );
-      zErrDyn = sqlite3MPrintf( db, "out of memory" );
-    }
-    else if ( zErrDyn == "" )
-    {
-      zErrDyn = sqlite3MPrintf( db, "unable to open database: %s", zFile );
-    }
-    goto attach_error;
-  }
+        attach_error:
+            // Return an error if we get here
+            if (errDyn != null)
+            {
+                sqlite3_result_error(fctx, errDyn, -1);
+                SysEx.TagFree(ctx, ref errDyn);
+            }
+            if (rc != 0) sqlite3_result_error_code(fctx, rc);
+        }
 
-  return;
+        static void DetachFunc_(FuncContext fctx, int notUsed1, Mem[] argv)
+        {
+            Context ctx = sqlite3_context_db_handle(fctx);
+            string name = Mem_Text(argv[0]);
+            if (name == null) name = string.Empty;
+            StringBuilder err = new StringBuilder(200);
 
-attach_error:
-  /* Return an error if we get here */
-  if ( zErrDyn != "" )
-  {
-    sqlite3_result_error( context, zErrDyn, -1 );
-    sqlite3DbFree( db, ref zErrDyn );
-  }
-  if ( rc != 0 )
-    sqlite3_result_error_code( context, rc );
-}
+            int i;
+            Context.DB db = null;
+            for (i = 0; i < ctx.DBs.length; i++)
+            {
+                db = ctx.DBs[i];
+                if (db.Bt == null) continue;
+                if (string.Equals(db.Name, name, StringComparison.OrdinalIgnoreCase)) break;
+            }
+            if (i >= ctx.DBs.length)
+            {
+                err.AppendFormat("no such database: %s", name);
+                goto detach_error;
+            }
+            if (i < 2)
+            {
+                err.AppendFormat("cannot detach database %s", name);
+                goto detach_error;
+            }
+            if (!ctx.AutoCommit)
+            {
+                err.Append("cannot DETACH database within transaction");
+                goto detach_error;
+            }
+            if (db.Bt.IsInReadTrans() || db.Bt.IsInBackup())
+            {
+                err.Append("database %s is locked", name);
+                goto detach_error;
+            }
+            db.Bt.Close();
+            db.Bt = null;
+            db.Schema = null;
+            sqlite3ResetInternalSchema(ctx, -1);
+            return;
 
-/*
-** An SQL user-function registered to do the work of an DETACH statement. The
-** three arguments to the function come directly from a detach statement:
-**
-**     DETACH DATABASE x
-**
-**     SELECT sqlite_detach(x)
-*/
-static void detachFunc(
-sqlite3_context context,
-int NotUsed,
-sqlite3_value[] argv
-)
-{
-  string zName = zName = argv[0].z != null && ( argv[0].z.Length > 0 ) ? sqlite3_value_text( argv[0] ) : "";//(sqlite3_value_text(argv[0]);
-  sqlite3 db = sqlite3_context_db_handle( context );
-  int i;
-  Db pDb = null;
-  StringBuilder zErr = new StringBuilder( 200 );
+        detach_error:
+            sqlite3_result_error(fctx, err.ToString(), -1);
+        }
 
-  UNUSED_PARAMETER( NotUsed );
+        static void CodeAttach(Parse parse, AUTH type, FuncDef func, Expr authArg, Expr filename, Expr dbName, Expr key)
+        {
+            Context ctx = parse.Ctx;
 
-  if ( zName == null )
-    zName = "";
-  for ( i = 0; i < db.nDb; i++ )
-  {
-    pDb = db.aDb[i];
-    if ( pDb.pBt == null )
-      continue;
-    if ( pDb.zName.Equals( zName, StringComparison.OrdinalIgnoreCase ) )
-      break;
-  }
+            NameContext sName;
+            sName = new NameContext();
+            sName.Parse = parse;
 
-  if ( i >= db.nDb )
-  {
-    sqlite3_snprintf( 200, zErr, "no such database: %s", zName );
-    goto detach_error;
-  }
-  if ( i < 2 )
-  {
-    sqlite3_snprintf( 200, zErr, "cannot detach database %s", zName );
-    goto detach_error;
-  }
-  if ( 0 == db.autoCommit )
-  {
-    sqlite3_snprintf( 200, zErr,
-    "cannot DETACH database within transaction" );
-    goto detach_error;
-  }
-  if ( sqlite3BtreeIsInReadTrans( pDb.pBt ) || sqlite3BtreeIsInBackup( pDb.pBt ) )
-  {
-    sqlite3_snprintf( 200, zErr, "database %s is locked", zName );
-    goto detach_error;
-  }
+            if (ResolveAttachExpr(sName, filename) != RC.OK || ResolveAttachExpr(sName, dbName) != RC.OK || ResolveAttachExpr(sName, key) != RC.OK)
+            {
+                parse.Errs++;
+                goto attach_end;
+            }
 
-  sqlite3BtreeClose( ref pDb.pBt );
-  pDb.pBt = null;
-  pDb.pSchema = null;
-  sqlite3ResetInternalSchema( db, -1 );
-  return;
-
-detach_error:
-  sqlite3_result_error( context, zErr.ToString(), -1 );
-}
-
-/*
-** This procedure generates VDBE code for a single invocation of either the
-** sqlite_detach() or sqlite_attach() SQL user functions.
-*/
-static void codeAttach(
-Parse pParse,       /* The parser context */
-int type,           /* Either SQLITE_ATTACH or SQLITE_DETACH */
-FuncDef pFunc,      /* FuncDef wrapper for detachFunc() or attachFunc() */
-Expr pAuthArg,      /* Expression to pass to authorization callback */
-Expr pFilename,     /* Name of database file */
-Expr pDbname,       /* Name of the database to use internally */
-Expr pKey           /* Database key for encryption extension */
-)
-{
-  NameContext sName;
-  Vdbe v;
-  sqlite3 db = pParse.db;
-  int regArgs;
-
-  sName = new NameContext();// memset( &sName, 0, sizeof(NameContext));
-  sName.pParse = pParse;
-
-  if (
-  SQLITE_OK != resolveAttachExpr( sName, pFilename ) ||
-  SQLITE_OK != resolveAttachExpr( sName, pDbname ) ||
-  SQLITE_OK != resolveAttachExpr( sName, pKey )
-  )
-  {
-    pParse.nErr++;
-    goto attach_end;
-  }
-
-#if !SQLITE_OMIT_AUTHORIZATION
-if( pAuthArg ){
-char *zAuthArg;
-if( pAuthArg->op==TK_STRING ){
-  zAuthArg = pAuthArg->u.zToken;
-}else{
-  zAuthArg = 0;
-}
-int rc = sqlite3AuthCheck(pParse, type, zAuthArg, 0, 0);
-if(rc!=SQLITE_OK ){
-goto attach_end;
-}
-}
-#endif //* SQLITE_OMIT_AUTHORIZATION */
-
-  v = sqlite3GetVdbe( pParse );
-  regArgs = sqlite3GetTempRange( pParse, 4 );
-  sqlite3ExprCode( pParse, pFilename, regArgs );
-  sqlite3ExprCode( pParse, pDbname, regArgs + 1 );
-  sqlite3ExprCode( pParse, pKey, regArgs + 2 );
-
-  Debug.Assert( v != null /*|| db.mallocFailed != 0 */ );
-  if ( v != null )
-  {
-    sqlite3VdbeAddOp3( v, OP_Function, 0, regArgs + 3 - pFunc.nArg, regArgs + 3 );
-    Debug.Assert( pFunc.nArg == -1 || ( pFunc.nArg & 0xff ) == pFunc.nArg );
-    sqlite3VdbeChangeP5( v, (u8)( pFunc.nArg ) );
-    sqlite3VdbeChangeP4( v, -1, pFunc, P4_FUNCDEF );
-
-    /* Code an OP_Expire. For an ATTACH statement, set P1 to true (expire this
-    ** statement only). For DETACH, set it to false (expire all existing
-    ** statements).
-    */
-    sqlite3VdbeAddOp1( v, OP_Expire, ( type == SQLITE_ATTACH ) ? 1 : 0 );
-  }
-
-attach_end:
-  sqlite3ExprDelete( db, ref pFilename );
-  sqlite3ExprDelete( db, ref pDbname );
-  sqlite3ExprDelete( db, ref pKey );
-}
-
-/*
-** Called by the parser to compile a DETACH statement.
-**
-**     DETACH pDbname
-*/
-static FuncDef detach_func = new FuncDef(
-1,                   /* nArg */
-SQLITE_UTF8,         /* iPrefEnc */
-0,                   /* flags */
-null,                /* pUserData */
-null,                /* pNext */
-detachFunc,          /* xFunc */
-null,                /* xStep */
-null,                /* xFinalize */
-"sqlite_detach",     /* zName */
-null,                /* pHash */
-null                 /* pDestructor */
-);
-static void sqlite3Detach( Parse pParse, Expr pDbname )
-{
-  codeAttach( pParse, SQLITE_DETACH, detach_func, pDbname, null, null, pDbname );
-}
-
-/*
-** Called by the parser to compile an ATTACH statement.
-**
-**     ATTACH p AS pDbname KEY pKey
-*/
-static FuncDef attach_func = new FuncDef(
-3,                /* nArg */
-SQLITE_UTF8,      /* iPrefEnc */
-0,                /* flags */
-null,             /* pUserData */
-null,             /* pNext */
-attachFunc,       /* xFunc */
-null,             /* xStep */
-null,             /* xFinalize */
-"sqlite_attach",  /* zName */
-null,                /* pHash */
-null                 /* pDestructor */
-);
-static void sqlite3Attach( Parse pParse, Expr p, Expr pDbname, Expr pKey )
-{
-  codeAttach( pParse, SQLITE_ATTACH, attach_func, p, p, pDbname, pKey );
-}
-#endif // * SQLITE_OMIT_ATTACH */
-
-/*
-** Initialize a DbFixer structure.  This routine must be called prior
-** to passing the structure to one of the sqliteFixAAAA() routines below.
-**
-** The return value indicates whether or not fixation is required.  TRUE
-** means we do need to fix the database references, FALSE means we do not.
-*/
-static int sqlite3FixInit(
-DbFixer pFix,       /* The fixer to be initialized */
-Parse pParse,       /* Error messages will be written here */
-int iDb,            /* This is the database that must be used */
-string zType,       /* "view", "trigger", or "index" */
-Token pName         /* Name of the view, trigger, or index */
-)
-{
-  sqlite3 db;
-
-  if ( NEVER( iDb < 0 ) || iDb == 1 )
-    return 0;
-  db = pParse.db;
-  Debug.Assert( db.nDb > iDb );
-  pFix.pParse = pParse;
-  pFix.zDb = db.aDb[iDb].zName;
-  pFix.zType = zType;
-  pFix.pName = pName;
-  return 1;
-}
-
-/*
-** The following set of routines walk through the parse tree and assign
-** a specific database to all table references where the database name
-** was left unspecified in the original SQL statement.  The pFix structure
-** must have been initialized by a prior call to sqlite3FixInit().
-**
-** These routines are used to make sure that an index, trigger, or
-** view in one database does not refer to objects in a different database.
-** (Exception: indices, triggers, and views in the TEMP database are
-** allowed to refer to anything.)  If a reference is explicitly made
-** to an object in a different database, an error message is added to
-** pParse.zErrMsg and these routines return non-zero.  If everything
-** checks out, these routines return 0.
-*/
-static int sqlite3FixSrcList(
-DbFixer pFix,       /* Context of the fixation */
-SrcList pList       /* The Source list to check and modify */
-)
-{
-  int i;
-  string zDb;
-  SrcList_item pItem;
-
-  if ( NEVER( pList == null ) )
-    return 0;
-  zDb = pFix.zDb;
-  for ( i = 0; i < pList.nSrc; i++ )
-  {//, pItem++){
-    pItem = pList.a[i];
-    if ( pItem.zDatabase == null )
-    {
-      pItem.zDatabase = zDb;// sqlite3DbStrDup( pFix.pParse.db, zDb );
-    }
-    else if ( !pItem.zDatabase.Equals( zDb ,StringComparison.OrdinalIgnoreCase )  )
-    {
-      sqlite3ErrorMsg( pFix.pParse,
-      "%s %T cannot reference objects in database %s",
-      pFix.zType, pFix.pName, pItem.zDatabase );
-      return 1;
-    }
-#if !SQLITE_OMIT_VIEW || !SQLITE_OMIT_TRIGGER
-    if ( sqlite3FixSelect( pFix, pItem.pSelect ) != 0 )
-      return 1;
-    if ( sqlite3FixExpr( pFix, pItem.pOn ) != 0 )
-      return 1;
+#if !OMIT_AUTHORIZATION
+            if (authArg != null)
+            {
+                string authArgToken = (authArg.OP == TK.STRING ? authArg.u.Token : null);
+                ARC arc = Auth.Check(parse, type, authArgToken, null, null);
+                if (arc != ARC.OK)
+                    goto attach_end;
+            }
 #endif
-  }
-  return 0;
-}
-#if !SQLITE_OMIT_VIEW || !SQLITE_OMIT_TRIGGER
-static int sqlite3FixSelect(
-DbFixer pFix,       /* Context of the fixation */
-Select pSelect      /* The SELECT statement to be fixed to one database */
-)
-{
-  while ( pSelect != null )
-  {
-    if ( sqlite3FixExprList( pFix, pSelect.pEList ) != 0 )
-    {
-      return 1;
+            Vdbe v = parse.GetVdbe();
+            int regArgs = Expr.GetTempRange(parse, 4);
+            Expr.Code(parse, filename, regArgs);
+            Expr.Code(parse, dbName, regArgs + 1);
+            Expr.Code(parse, key, regArgs + 2);
+
+            Debug.Assert(v != null || ctx.MallocFailed);
+            if (v != null)
+            {
+                v.AddOp3(OP.Function, 0, regArgs + 3 - func.Args, regArgs + 3);
+                Debug.Assert(func.Args == -1 || (func.Args & 0xff) == func.Args);
+                v.ChangeP5((byte)(func.Args));
+                v.ChangeP4(-1, func, Vdbe.P4T.FUNCDEF);
+
+                // Code an OP_Expire. For an ATTACH statement, set P1 to true (expire this statement only). For DETACH, set it to false (expire all existing statements).
+                v.AddOp1(OP.Expire, (type == AUTH.ATTACH ? 1 : 0));
+            }
+
+        attach_end:
+            Expr.Delete(ctx, ref filename);
+            Expr.Delete(ctx, ref dbName);
+            Expr.Delete(ctx, ref key);
+        }
+
+        static FuncDef _detachFuncDef = new FuncDef
+        {
+            1,                  // nArg
+            TEXTENCODE.UTF8,    // iPrefEnc
+            (FUNC)0,            // flags
+            null,               // pUserData
+            null,               // pNext
+            DetachFunc_,        // xFunc
+            null,               // xStep
+            null,               // xFinalize
+            "sqlite_detach",    // zName
+            null,               // pHash
+            null                // pDestructor
+        };
+        static void Attach_Detach(Parse parse, Expr dbName) { CodeAttach(parse, AUTH.DETACH, _detachFuncDef, dbName, null, null, dbName); }
+
+        static FuncDef _attachFuncDef = new FuncDef
+        {
+            3,                  // nArg
+            TEXTENCODE.UTF8,    // iPrefEnc
+            (FUNC)0,            // flags
+            null,               // pUserData
+            null,               // pNext
+            AttachFunc_,        // xFunc
+            null,               // xStep
+            null,               // xFinalize
+            "sqlite_attach",    // zName
+            null,               // pHash
+            null                // pDestructor
+        };
+        static void Attach_Attach(Parse parse, Expr p, Expr dbName, Expr key) { CodeAttach(parse, AUTH.ATTACH, _attachFuncDef, p, p, dbName, key); }
     }
-    if ( sqlite3FixSrcList( pFix, pSelect.pSrc ) != 0 )
-    {
-      return 1;
-    }
-    if ( sqlite3FixExpr( pFix, pSelect.pWhere ) != 0 )
-    {
-      return 1;
-    }
-    if ( sqlite3FixExpr( pFix, pSelect.pHaving ) != 0 )
-    {
-      return 1;
-    }
-    pSelect = pSelect.pPrior;
-  }
-  return 0;
-}
-static int sqlite3FixExpr(
-DbFixer pFix,     /* Context of the fixation */
-Expr pExpr        /* The expression to be fixed to one database */
-)
-{
-  while ( pExpr != null )
-  {
-    if ( ExprHasAnyProperty( pExpr, EP_TokenOnly ) )
-      break;
-    if ( ExprHasProperty( pExpr, EP_xIsSelect ) )
-    {
-      if ( sqlite3FixSelect( pFix, pExpr.x.pSelect ) != 0 )
-        return 1;
-    }
-    else
-    {
-      if ( sqlite3FixExprList( pFix, pExpr.x.pList ) != 0 )
-        return 1;
-    }
-    if ( sqlite3FixExpr( pFix, pExpr.pRight ) != 0 )
-    {
-      return 1;
-    }
-    pExpr = pExpr.pLeft;
-  }
-  return 0;
-}
-static int sqlite3FixExprList(
-DbFixer pFix,     /* Context of the fixation */
-ExprList pList    /* The expression to be fixed to one database */
-)
-{
-  int i;
-  ExprList_item pItem;
-  if ( pList == null )
-    return 0;
-  for ( i = 0; i < pList.nExpr; i++ )//, pItem++ )
-  {
-    pItem = pList.a[i];
-    if ( sqlite3FixExpr( pFix, pItem.pExpr ) != 0 )
-    {
-      return 1;
-    }
-  }
-  return 0;
 }
 #endif
+#endregion
 
-#if !SQLITE_OMIT_TRIGGER
-static int sqlite3FixTriggerStep(
-DbFixer pFix,     /* Context of the fixation */
-TriggerStep pStep /* The trigger step be fixed to one database */
-)
+namespace Core
 {
-  while ( pStep != null )
-  {
-    if ( sqlite3FixSelect( pFix, pStep.pSelect ) != 0 )
+    public partial class DbFixer
     {
-      return 1;
-    }
-    if ( sqlite3FixExpr( pFix, pStep.pWhere ) != 0 )
-    {
-      return 1;
-    }
-    if ( sqlite3FixExprList( pFix, pStep.pExprList ) != 0 )
-    {
-      return 1;
-    }
-    pStep = pStep.pNext;
-  }
-  return 0;
-}
+        public bool FixInit(Parse parse, int db, string type, Token name)
+        {
+            if (SysEx.NEVER(db < 0) || db == 1) return false;
+            Context ctx = parse.Ctx;
+            Debug.Assert(ctx.DBs.length > db);
+            Parse = parse;
+            DB = ctx.DBs[db].Name;
+            Schema = ctx.DBs[db].Schema;
+            Type = type;
+            Name = name;
+            return true;
+        }
+
+        public bool FixSrcList(SrcList list)
+        {
+            if (NEVER(list == null)) return false;
+            string db = DB;
+            int i;
+            SrcList.SrcListItem item;
+            for (i = 0; i < list.Srcs; i++)
+            {
+                item = list.Ids[i];
+                if (item.Database != null && !string.Equals(item.Database, db, StringComparison.OrdinalIgnoreCase))
+                {
+                    Parse.ErrorMsg("%s %T cannot reference objects in database %s", Type, Name, item.Database);
+                    return true;
+                }
+                item.Database = null;
+                item.Schema = Schema;
+#if !OMIT_VIEW || !OMIT_TRIGGER
+                if (FixSelect(item.Select) || FixExpr(item.On)) return true;
+#endif
+            }
+            return false;
+        }
+
+#if !OMIT_VIEW || !OMIT_TRIGGER
+        public bool FixSelect(Select select)
+        {
+            while (select != null)
+            {
+                if (FixExprList(select.EList) || FixSrcList(select.Src) || FixExpr(select.Where) || FixExpr(select.Having))
+                    return true;
+                select = select.Prior;
+            }
+            return false;
+        }
+
+        public bool FixExpr(Expr expr)
+        {
+            while (expr != null)
+            {
+                if (E.ExprHasAnyProperty(expr, EP.TokenOnly)) break;
+                if (E.ExprHasProperty(expr, EP.xIsSelect))
+                {
+                    if (FixSelect(expr.x.Select)) return true;
+                }
+                else
+                {
+                    if (FixExprList(expr.x.List)) return true;
+                }
+                if (FixExpr(expr.Right))
+                    return true;
+                expr = expr.Left;
+            }
+            return false;
+        }
+
+        public int FixExprList(ExprList list)
+        {
+            if (list == null) return false;
+            int i;
+            ExprList.ExprListItem item;
+            for (i = 0; i < list.Exprs; i++)
+            {
+                item = list.Ids[i];
+                if (FixExpr(item.Expr))
+                    return true;
+            }
+            return false;
+        }
 #endif
 
-  }
+#if !OMIT_TRIGGER
+        public int FixTriggerStep(TriggerStep step)
+        {
+            while (step != null)
+            {
+                if (FixSelect(step.Select) || FixExpr(step.Where) || FixExprList(step.ExprList))
+                    return true;
+                step = step.Next;
+            }
+            return false;
+        }
+#endif
+    }
 }

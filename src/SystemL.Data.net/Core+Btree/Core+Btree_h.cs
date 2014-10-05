@@ -48,6 +48,27 @@ namespace Core
         public TEXTENCODE Encode;		// Text encoding used by this database
         public SCHEMA Flags;			// Flags associated with this schema
         public int CacheSize;			// Number of pages to use in the cache
+
+        internal Schema memcpy()
+        {
+            if (this == null)
+                return null;
+            Schema cp = (Schema)MemberwiseClone();
+            return cp;
+        }
+
+        internal void memset()
+        {
+            if (this != null)
+            {
+                SchemaCookie = 0;
+                TableHash = new Hash();
+                IndexHash = new Hash();
+                TriggerHash = new Hash();
+                FKeyHash = new Hash();
+                SeqTable = null;
+            }
+        }
     }
 
     #endregion

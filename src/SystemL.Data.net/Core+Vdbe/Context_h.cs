@@ -92,7 +92,7 @@ namespace Core
         public array_t<Vdbe> Vdbe;			// List of active virtual machines
         public CollSeq DefaultColl;		    // The default collating sequence (BINARY)
         public long LastRowID;				// ROWID of most recent insert (see above)
-        public uint OpenFlags;		        // Flags passed to sqlite3_vfs.xOpen()
+        public VSystem.OPEN OpenFlags;		// Flags passed to sqlite3_vfs.xOpen()
         public RC ErrCode;					// Most recent error code (RC_*)
         public int ErrMask;					// & result codes with this before returning
         public Action<object, Context, TEXTENCODE, string> CollNeeded;
