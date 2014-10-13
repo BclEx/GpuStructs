@@ -6,7 +6,7 @@ namespace Core
     public abstract partial class VSystem
     {
         internal static VSystem _vfsList;
-        internal static bool isInit = false;
+        internal static bool _isInit = false;
 
         public enum OPEN : uint
         {
@@ -73,8 +73,6 @@ namespace Core
 
         public static VSystem FindVfs(string name)
         {
-            if (string.IsNullOrEmpty(name))
-                return null;
             VSystem vfs = null;
             var mutex = MutexEx.Alloc(MutexEx.MUTEX.STATIC_MASTER);
             MutexEx.Enter(mutex);
@@ -99,13 +97,13 @@ namespace Core
             }
         }
 
-        public static RC RegisterVfs(VSystem vfs, bool @default, Func<VFile> createOsFile)
+        public static RC RegisterVfs(VSystem vfs, bool default_, Func<VFile> createOsFile)
         {
             var mutex = MutexEx.Alloc(MutexEx.MUTEX.STATIC_MASTER);
             MutexEx.Enter(mutex);
             UnlinkVfs(vfs);
             vfs.CreateOsFile = createOsFile;
-            if (@default || _vfsList == null)
+            if (default_ || _vfsList == null)
             {
                 vfs.Next = _vfsList;
                 _vfsList = vfs;

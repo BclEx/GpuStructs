@@ -30,7 +30,7 @@ namespace Core
         public T this[int i] { get { return data[i]; } set { data[i] = value; } }
     };
 
-    public static class cs
+    public static class C
     {
         public const double BIG_DOUBLE = 1e99;
 

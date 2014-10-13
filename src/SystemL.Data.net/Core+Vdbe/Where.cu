@@ -458,9 +458,6 @@ findTerm_success:
 
 		if (!Func::IsLikeFunction(ctx, expr, noCase, wc))
 			return 0;
-#ifdef EBCDIC
-		if (*noCase) return 0;
-#endif
 		ExprList *list = expr->x.List; // List of operands to the LIKE operator
 		Expr *left = list->Ids[1].Expr; // Right and left size of LIKE operator
 		if (left->OP != TK_COLUMN || left->Affinity() != AFF_TEXT || IsVirtual(left->Table))

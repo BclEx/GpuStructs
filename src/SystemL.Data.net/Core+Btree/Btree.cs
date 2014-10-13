@@ -1643,13 +1643,13 @@ namespace Core
             Pid pages = pagesHeader = ConvertEx.Get4(page1.Data, 28); // Number of pages in the database
             Pid pagesFile = 0; // Number of pages in the database file
             bt.Pager.Pages(out pagesFile);
-            if (pages == 0 || cs.memcmp(page1.Data, 24, page1.Data, 92, 4) != 0)
+            if (pages == 0 || C.memcmp(page1.Data, 24, page1.Data, 92, 4) != 0)
                 pages = pagesFile;
             if (pages > 0)
             {
                 var page1Data = page1.Data;
                 rc = RC.NOTADB;
-                if (cs.memcmp(page1Data, _magicHeader, 16) != 0)
+                if (C.memcmp(page1Data, _magicHeader, 16) != 0)
                     goto page1_init_failed;
 
 #if OMIT_WAL
@@ -1682,7 +1682,7 @@ namespace Core
 
                 // The maximum embedded fraction must be exactly 25%.  And the minimum embedded fraction must be 12.5% for both leaf-data and non-leaf-data.
                 // The original design allowed these amounts to vary, but as of version 3.6.0, we require them to be fixed.
-                if (cs.memcmp(page1Data, 21, "\x0040\x0020\x0020", 3) != 0) // "\100\040\040"
+                if (C.memcmp(page1Data, 21, "\x0040\x0020\x0020", 3) != 0) // "\100\040\040"
                     goto page1_init_failed;
                 uint pageSize = (uint)((page1Data[16] << 8) | (page1Data[17] << 16));
                 if (((pageSize - 1) & pageSize) != 0 ||

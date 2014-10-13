@@ -61,7 +61,7 @@ namespace Core
 		__device__ static RC Initialize();
 		__device__ static void Shutdown();
 
-		__device__ static VSystem *Find(const char *name);
+		__device__ static VSystem *FindVfs(const char *name);
 		__device__ static int RegisterVfs(VSystem *vfs, bool _default);
 		__device__ static int UnregisterVfs(VSystem *vfs);
 

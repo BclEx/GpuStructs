@@ -4,7 +4,7 @@
 namespace Core { namespace Command
 {
 
-	Table *Delete::SrcListLookup(Parse *parse, SrcList *src)
+	__device__ Table *Delete::SrcListLookup(Parse *parse, SrcList *src)
 	{
 		SrcList::SrcListItem *item = src->Ids;
 		_assert(item && src->Srcs == 1);
@@ -18,7 +18,7 @@ namespace Core { namespace Command
 		return table;
 	}
 
-	bool Delete::IsReadOnly(Parse *parse, Table *table, bool viewOk)
+	__device__ bool Delete::IsReadOnly(Parse *parse, Table *table, bool viewOk)
 	{
 		// A table is not writable under the following circumstances:
 		//   1) It is a virtual table and no implementation of the xUpdate method has been provided, or
@@ -44,7 +44,7 @@ namespace Core { namespace Command
 
 
 #if !defined(OMIT_VIEW) && !defined(OMIT_TRIGGER)
-	void Delete::MaterializeView(Parse *parse, Table *view, Expr *where_, int curId)
+	__device__ void Delete::MaterializeView(Parse *parse, Table *view, Expr *where_, int curId)
 	{
 		Context *ctx = parse->Ctx;
 		int db = sqlite3SchemaToIndex(ctx, view->Schema);
@@ -72,7 +72,7 @@ namespace Core { namespace Command
 #endif
 
 #if 1 || defined(ENABLE_UPDATE_DELETE_LIMIT) && !defined(OMIT_SUBQUERY)
-	Expr *Delete::LimitWhere(Parse *parse, SrcList *src, Expr *where_, ExprList *orderBy, Expr *limit, Expr *offset, char *stmtType)
+	__device__ Expr *Delete::LimitWhere(Parse *parse, SrcList *src, Expr *where_, ExprList *orderBy, Expr *limit, Expr *offset, char *stmtType)
 	{
 		// Check that there isn't an ORDER BY without a LIMIT clause.
 		if (orderBy && (limit == 0))
@@ -136,7 +136,7 @@ limit_where_cleanup_2:
 	}
 #endif
 
-	void Delete::DeleteFrom(Parse *parse, SrcList *tabList, Expr *where_)
+	__device__ void Delete::DeleteFrom(Parse *parse, SrcList *tabList, Expr *where_)
 	{
 		AuthContext sContext; // Authorization context
 		_memset(&sContext, 0, sizeof(sContext));
@@ -312,7 +312,7 @@ delete_from_cleanup:
 #undef trigger
 #endif
 
-	void Delete::GenerateRowDelete(Parse *parse, Table *table, int curId, int rowid, int count, Trigger *trigger, OE onconf)
+	__device__ void Delete::GenerateRowDelete(Parse *parse, Table *table, int curId, int rowid, int count, Trigger *trigger, OE onconf)
 	{
 		// Vdbe is guaranteed to have been allocated by this stage.
 		Vdbe *v = parse->V;
@@ -336,14 +336,14 @@ delete_from_cleanup:
 			v->AddOp2(OP_Copy, rowid, oldId);
 			for (int col = 0; col < table->Cols.length; col++) // Iterator used while populating OLD.*
 				if (mask == 0xffffffff || mask & (1<<col))
-					sqlite3ExprCodeGetColumnOfTable(v, table, curId, col, oldId + col+1);
+					Expr::CodeGetColumnOfTable(v, table, curId, col, oldId + col+1);
 
 			// Invoke BEFORE DELETE trigger programs.
 			sqlite3CodeRowTrigger(parse, trigger, TK_DELETE, 0, TRIGGER_BEFORE, table, oldId, onconf, label);
 
 			// Seek the cursor to the row to be deleted again. It may be that the BEFORE triggers coded above have already removed the row
 			// being deleted. Do not attempt to delete the row a second time, and do not fire AFTER triggers.
-			v->AddOp3(v, OP_NotExists, curId, label, rowid);
+			v->AddOp3(OP_NotExists, curId, label, rowid);
 
 			// Do FK processing. This call checks that any FK constraints that refer to this table (i.e. constraints attached to other tables) are not violated by deleting this row.
 			FKey::FkCheck(parse, table, oldId, 0);
@@ -368,7 +368,7 @@ delete_from_cleanup:
 		v->ResolveLabel(label);
 	}
 
-	void Delete::GenerateRowIndexDelete(Parse *parse, Table *table, int curId, int *regIdxs)
+	__device__ void Delete::GenerateRowIndexDelete(Parse *parse, Table *table, int curId, int *regIdxs)
 	{
 		int i;
 		Index *idx;
@@ -380,13 +380,13 @@ delete_from_cleanup:
 		}
 	}
 
-	int Delete::GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec)
+	__device__ int Delete::GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec)
 	{
 		Vdbe *v = parse->V;
 		Table *table = idx->Table;
 
 		int cols = idx->Columns.length;
-		int regBase = parse->GetTempRange(cols+1);
+		int regBase = Expr::GetTempRange(parse, cols+1);
 		v->AddOp2(OP_Rowid, curId, regBase+cols);
 		for (int j = 0; j < cols; j++)
 		{
@@ -401,11 +401,11 @@ delete_from_cleanup:
 		}
 		if (doMakeRec)
 		{
-			const char *affName = (table->Select || OptimizationDisabled(parse->Ctx, SQLITE_IdxRealAsInt) ? nullptr : sqlite3IndexAffinityStr(v, idx));
+			const char *affName = (table->Select || CtxOptimizationDisabled(parse->Ctx, SQLITE_IdxRealAsInt) ? nullptr : sqlite3IndexAffinityStr(v, idx));
 			v->AddOp3(OP_MakeRecord, regBase, cols+1, regOut);
 			v->ChangeP4(-1, affName, Vdbe::P4T_TRANSIENT);
 		}
-		parse->ReleaseTempRange(regBase, cols+1);
+		Expr::ReleaseTempRange(parse, regBase, cols+1);
 		return regBase;
 	}
 

@@ -1,4 +1,5 @@
 ﻿// os.h
+#include <malloc.h>
 namespace Core
 {
 #pragma region Log & Trace
@@ -37,7 +38,6 @@ namespace Core
 
 #define SysEx_VERSION_NUMBER 3007016
 
-#include <malloc.h>
 	class SysEx
 	{
 	public:
@@ -131,26 +131,38 @@ namespace Core
 #ifndef OMIT_BLOB_LITERAL
 		__device__ static void *HexToBlob(void *tag, const char *z, size_t size);
 #endif
+		// UTF
+		__device__ static uint32 Utf8Read(const unsigned char **z);
+		__device__ static int Utf8CharLen(const char *z, int bytes);
+#if defined(TEST) && defined(_DEBUG)
+		__device__ static int Utf8To8(unsigned char *z);
+#endif
+		__device__ static int Utf16ByteLen(const void *z, int chars);
+#if defined(TEST)
+		__device__ static void UtfSelfTest();
+#endif
 
 		//////////////////////
 		// MPRINTF
 #pragma region MPRINTF
 
-		inline __device__ static char *Mprintf(void *tag, const char *fmt) { _snprintf(nullptr, 0, fmt); return nullptr; }
-		template <typename T1> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1) { _snprintf(nullptr, 0, fmt, arg1); return nullptr; }
-		template <typename T1, typename T2> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2) { _snprintf(nullptr, 0, fmt, arg1, arg2); return nullptr; }
-		template <typename T1, typename T2, typename T3> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); return nullptr; }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { _snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); return nullptr; }
+		inline __device__ static char *Mprintf(void *tag, const char *fmt) { __snprintf(nullptr, 0, fmt); return nullptr; }
+		template <typename T1> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1) { __snprintf(nullptr, 0, fmt, arg1); return nullptr; }
+		template <typename T1, typename T2> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2) { __snprintf(nullptr, 0, fmt, arg1, arg2); return nullptr; }
+		template <typename T1, typename T2, typename T3> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); return nullptr; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); return nullptr; }
 
 #pragma endregion
 
 	};
+
+#define SKIP_UTF8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
 
 #define SysEx_ALWAYS(X) (X)
 #define SysEx_NEVER(X) (X)

@@ -5,7 +5,7 @@ namespace Core
 {
 	__device__ static VSystem *_vfsList = nullptr;
 
-	__device__ VSystem *VSystem::Find(const char *name)
+	__device__ VSystem *VSystem::FindVfs(const char *name)
 	{
 		VSystem *vfs = nullptr;
 		MutexEx mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_MASTER);
@@ -31,12 +31,12 @@ namespace Core
 		}
 	}
 
-	__device__ int VSystem::RegisterVfs(VSystem *vfs, bool _default)
+	__device__ int VSystem::RegisterVfs(VSystem *vfs, bool default_)
 	{
 		MutexEx mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_MASTER);
 		MutexEx::Enter(mutex);
 		UnlinkVfs(vfs);
-		if (_default || !_vfsList)
+		if (default_ || !_vfsList)
 		{
 			vfs->Next = _vfsList;
 			_vfsList = vfs;

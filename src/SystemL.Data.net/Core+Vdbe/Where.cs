@@ -1577,7 +1577,7 @@ namespace Core
                 idxInfo.NeedToFreeIdxStr = false;
                 idxInfo.OrderByConsumed = false;
                 // ((double)2) In case of SQLITE_OMIT_FLOATING_POINT...
-                idxInfo.EstimatedCost = cs.BIG_DOUBLE / ((double)2);
+                idxInfo.EstimatedCost = C.BIG_DOUBLE / ((double)2);
                 orderBys = idxInfo.OrderBys.length;
                 if (p.OrderBy == null)
                     idxInfo.OrderBys.length = 0;
@@ -1616,7 +1616,7 @@ namespace Core
                 cost += EstLog(cost) * cost;
             // The cost is not allowed to be larger than SQLITE_BIG_DBL (the inital value of lowestCost in this loop. If it is, then the (cost<lowestCost) test below will never be true.
             // Use "(double)2" instead of "2.0" in case OMIT_FLOATING_POINT is defined.
-            p.Cost.Cost = ((cs.BIG_DOUBLE / ((double)2)) < cost ? (cs.BIG_DOUBLE / ((double)2)) : cost);
+            p.Cost.Cost = ((C.BIG_DOUBLE / ((double)2)) < cost ? (C.BIG_DOUBLE / ((double)2)) : cost);
             p.Cost.Plan.u.VTableIndex = idxInfo;
             if (idxInfo.OrderByConsumed)
             {

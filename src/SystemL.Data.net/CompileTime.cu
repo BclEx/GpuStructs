@@ -342,7 +342,7 @@ namespace Core
 #endif
 	};
 
-	__device__ bool CompileTime::OptionUsed(const char *optName)
+	__device__ bool CompileTimeOptionUsed(const char *optName)
 	{
 		if (!_strncmp(optName, "", 7)) optName += 7;
 		int length = _strlen30(optName);
@@ -353,7 +353,7 @@ namespace Core
 		return false;
 	}
 
-	__device__ const char *CompileTime::Get(int id)
+	__device__ const char *CompileTimeGet(int id)
 	{
 		return (id >= 0 && id < __arrayStaticLength(_compileOpt) ? _compileOpt[id] : nullptr);
 	}

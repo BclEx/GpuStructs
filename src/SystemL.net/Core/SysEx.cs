@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 namespace Core
 {
-    public class SysEx
+    public partial class SysEx
     {
         #region Log & Trace
 
@@ -131,6 +131,22 @@ namespace Core
         //    return rc;
         //}
 
+        public static void SKIP_UTF8(string z, ref int idx)
+        {
+            idx++;
+            if (idx < z.Length && z[idx - 1] >= 0xC0)
+                while (idx < z.Length && (z[idx] & 0xC0) == 0x80)
+                    idx++;
+        }
+        public static void SKIP_UTF8(byte[] z, ref int idx)
+        {
+            idx++;
+            if (idx < z.Length && z[idx - 1] >= 0xC0)
+                while (idx < z.Length && (z[idx] & 0xC0) == 0x80)
+                    idx++;
+        }
+
+
         public static bool ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
         public static bool NEVER(bool x) { return x; }
 
@@ -167,12 +183,6 @@ namespace Core
         internal static RC MISUSE_BKPT() { return RC.MISUSE; }
         internal static RC CANTOPEN_BKPT() { return RC.CANTOPEN; }
 #endif
-
-        internal static void MakeRandomness(int size, ref uint ChecksumInit)
-        {
-            throw new NotImplementedException();
-        }
-
 
         #region For C#
 

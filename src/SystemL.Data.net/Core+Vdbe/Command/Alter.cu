@@ -404,7 +404,7 @@ exit_rename_table:
 		ctx->Flags = savedDbFlags;
 	}
 
-	__device__ void Attach::MinimumFileFormat(Parse *parse, int db, int minFormat)
+	__device__ void Alter::MinimumFileFormat(Parse *parse, int db, int minFormat)
 	{
 		Vdbe *v = parse->GetVdbe();
 		// The VDBE should have been allocated before this routine is called. If that allocation failed, we would have quit before reaching this point

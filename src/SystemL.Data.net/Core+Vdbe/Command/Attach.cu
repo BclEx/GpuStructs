@@ -288,7 +288,7 @@ attach_end:
 		Expr::Delete(ctx, key);
 	}
 
-	static const FuncDef _detachFuncDef = {
+	__device__ static const FuncDef _detachFuncDef = {
 		1,					// nArg
 		TEXTENCODE_UTF8,    // iPrefEnc
 		0,					// flags
@@ -301,9 +301,12 @@ attach_end:
 		0,                // pHash
 		0                 // pDestructor
 	};
-	void Attach_Detach(Parse *parse, Expr *dbName) { CodeAttach(parse, AUTH_DETACH, &_detachFuncDef, dbName, 0, 0, dbName); }
+	__device__ void Attach::Detach(Parse *parse, Expr *dbName)
+	{
+		CodeAttach(parse, AUTH_DETACH, &_detachFuncDef, dbName, 0, 0, dbName);
+	}
 
-	static const FuncDef _attachFuncDef = {
+	__device__ static const FuncDef _attachFuncDef = {
 		3,					// nArg
 		TEXTENCODE_UTF8,	// iPrefEnc
 		0,					// flags
@@ -316,7 +319,10 @@ attach_end:
 		0,					// pHash
 		0					// pDestructor
 	};
-	void Attach_Attach(Parse *parse, Expr *p, Expr *dbName, Expr *key) { CodeAttach(parse, AUTH_ATTACH, &_attachFuncDef, p, p, dbName, key); }
+	__device__ void Attach::Attach_(Parse *parse, Expr *p, Expr *dbName, Expr *key)
+	{
+		CodeAttach(parse, AUTH_ATTACH, &_attachFuncDef, p, p, dbName, key);
+	}
 }}
 #endif
 #pragma endregion

@@ -2,49 +2,88 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
+    <ClCompile Include="..\SystemL.net\Core\Bitvec.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\ConvertEx.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\Hash.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\WinVSystem.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\StatusEx.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\SysEx.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\VSystem.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu">
+      <Filter>Core\IO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu">
+      <Filter>Core\IO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu">
+      <Filter>Core\IO</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu">
+      <Filter>Core\Text</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\SystemL.net\Core\IO\30.VFile.cu.h">
-      <Filter>Core\IO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\Text\00.StringBuilder.cu.h">
-      <Filter>Core\Text</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\00.Bitvec.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\10.ConvertEx.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\20.MutexEx.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\30.RC.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\40.StatusEx.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\45.VAlloc.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\50.SysEx.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\50.VSystem.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\60.MathEx.cu.h">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\05.Hash.cu.h">
+    <ClInclude Include="..\SystemL.net\Core\Bitvec.cu.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\Hash.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\ConvertEx.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\MutexEx.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\RC.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\StatusEx.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\VAlloc.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\SysEx.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\VSystem.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\MathEx.cu.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu.h">
+      <Filter>Core\Text</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h">
+      <Filter>Core\IO</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -57,41 +96,5 @@
     <Filter Include="Core\Text">
       <UniqueIdentifier>{1ed0b226-75ce-454b-8c44-f1d6df5a5ffa}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="Program.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\55.GpuVSystem.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\05.Hash.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\10.ConvertEx.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\40.StatusEx.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\50.VSystem.cu">
-      <Filter>Core</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu">
-      <Filter>Core\IO</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu">
-      <Filter>Core\IO</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\IO\30.VFile.cu">
-      <Filter>Core\IO</Filter>
-    </CudaCompile>
-    <CudaCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu">
-      <Filter>Core\Text</Filter>
-    </CudaCompile>
   </ItemGroup>
 </Project>

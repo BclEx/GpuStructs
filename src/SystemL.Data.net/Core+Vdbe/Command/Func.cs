@@ -2,21 +2,27 @@
 using System;
 using System.Diagnostics;
 using System.Text;
+using SystemStringBuilder = System.Text.StringBuilder;
 
 namespace Core.Command
 {
     public static class Func
     {
-        static CollSeq sqlite3GetFuncCollSeq(FuncContext fctx)
+        public static CollSeq GetFuncCollSeq(FuncContext fctx)
         {
             return fctx.Coll;
         }
 
-        static void minmaxFunc(FuncContext fctx, int argc, Mem[] argv)
+        public static void SkipAccumulatorLoad(FuncContext fctx)
+        {
+            fctx.SkipFlag = true;
+        }
+
+        static void MinMaxFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc > 1);
             int mask = (sqlite3_user_data(fctx) == 0 ? 0 : -1); // 0 for min() or 0xffffffff for max()
-            CollSeq coll = sqlite3GetFuncCollSeq(fctx);
+            CollSeq coll = GetFuncCollSeq(fctx);
             Debug.Assert(coll != null);
             Debug.Assert(mask == -1 || mask == 0);
             SysEx.ASSERTCOVERAGE(mask == 0);
@@ -34,7 +40,7 @@ namespace Core.Command
             sqlite3_result_value(fctx, argv[best]);
         }
 
-        static void typeofFunc(FuncContext fctx, int notUsed1, Mem[] argv)
+        static void TypeofFunc(FuncContext fctx, int notUsed1, Mem[] argv)
         {
             string z;
             switch (sqlite3_value_type(argv[0]))
@@ -49,7 +55,7 @@ namespace Core.Command
         }
 
 
-        static void lengthFunc(FuncContext fctx, int argc, Mem[] argv)
+        static void LengthFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             int len;
             Debug.Assert(argc == 1);
@@ -84,7 +90,7 @@ namespace Core.Command
             }
         }
 
-        static void absFunc(FuncContext fctx, int argc, Mem[] argv)
+        static void AbsFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
             switch (sqlite3_value_type(argv[0]))
@@ -124,7 +130,7 @@ namespace Core.Command
             }
         }
 
-        static void instrFunc(FuncContext fctx, int argc, Mem[] argv)
+        static void InstrFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             TYPE typeHaystack = sqlite3_value_type(argv[0]);
             TYPE typeNeedle = sqlite3_value_type(argv[1]);
@@ -160,7 +166,7 @@ namespace Core.Command
             sqlite3_result_int(fctx, n);
         }
 
-        static void substrFunc(FuncContext fctx, int argc, Mem[] argv)
+        static void SubstrFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 3 || argc == 2);
             if (sqlite3_value_type(argv[1]) == TYPE.NULL || (argc == 3 && sqlite3_value_type(argv[2]) == TYPE.NULL))
@@ -168,15 +174,15 @@ namespace Core.Command
             TYPE p0type = sqlite3_value_type(argv[0]);
             int p1 = sqlite3_value_int(argv[1]);
             int len;
-            string z = "";
+            string z = string.Empty;
             string z2;
-            byte[] zBLOB = null;
+            byte[] zAsBlob_ = null;
             if (p0type == TYPE.BLOB)
             {
                 len = sqlite3_value_bytes(argv[0]);
-                zBLOB = argv[0].zBLOB;
-                if (zBLOB == null) return;
-                Debug.Assert(len == zBLOB.Length);
+                zAsBlob_ = argv[0].zBLOB;
+                if (zAsBlob_ == null) return;
+                //Debug.Assert(len == zAsBlob_.Length);
             }
             else
             {
@@ -184,11 +190,8 @@ namespace Core.Command
                 if (z == null) return;
                 len = 0;
                 if (p1 < 0)
-                {
-                    len = z.Length;
-                    for (z2 = z; z2 != ""; len++)
+                    for (z2 = z; z2 != string.Empty; len++)
                         SQLITE_SKIP_UTF8(ref z2);
-                }
             }
             long p2;
             bool negP2 = false;
@@ -219,7 +222,7 @@ namespace Core.Command
                 p2--;
             if (negP2)
             {
-                p1 -= p2;
+                p1 -= (int)p2;
                 if (p1 < 0)
                 {
                     p2 += p1;
@@ -243,21 +246,20 @@ namespace Core.Command
                 if (p1 + p2 > len)
                 {
                     p2 = len - p1;
-                    if (p2 < 0)
-                        p2 = 0;
+                    if (p2 < 0) p2 = 0;
                 }
-                StringBuilder sb = new StringBuilder(zBLOB.Length);
-                if (zBLOB.Length == 0 || p1 > zBLOB.Length)
+                StringBuilder sb = new StringBuilder(zAsBlob_.Length);
+                if (zAsBlob_.Length == 0 || p1 > zAsBlob_.Length)
                     sb.Length = 0;
                 else
                     for (int i = p1; i < p1 + p2; i++)
-                        sb.Append((char)zBLOB[i]);
+                        sb.Append((char)zAsBlob_[i]);
                 sqlite3_result_blob(fctx, sb.ToString(), (int)p2, SQLITE_TRANSIENT);
             }
         }
 
 #if !OMIT_FLOATING_POINT
-        static void roundFunc(FuncContext fctx, int argc, Mem[] argv)
+        static void RoundFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1 || argc == 2);
             int n = 0;
@@ -291,742 +293,388 @@ namespace Core.Command
         }
 #endif
 
-        //static void* contextMalloc( FuncContext* context, i64 nByte )
-        //{
-        //  char* z;
-        //  sqlite3* db = sqlite3_context_db_handle( context );
-        //  assert( nByte > 0 );
-        //  testcase( nByte == db->aLimit[SQLITE_LIMIT_LENGTH] );
-        //  testcase( nByte == db->aLimit[SQLITE_LIMIT_LENGTH] + 1 );
-        //  if ( nByte > db->aLimit[SQLITE_LIMIT_LENGTH] )
-        //  {
-        //    sqlite3_result_error_toobig( context );
-        //    z = 0;
-        //  }
-        //  else
-        //  {
-        //    z = sqlite3Malloc( (int)nByte );
-        //    if ( !z )
-        //    {
-        //      sqlite3_result_error_nomem( context );
-        //    }
-        //  }
-        //  return z;
-        //}
-
-        /*
-        ** Implementation of the upper() and lower() SQL functions.
-        */
-        static void upperFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static T[] ContextMalloc<T>(FuncContext fctx, long bytes)
+            where T : struct
         {
-            string z1;
-            string z2;
-            int i, n;
-            UNUSED_PARAMETER(argc);
-            z2 = sqlite3_value_text(argv[0]);
-            n = sqlite3_value_bytes(argv[0]);
-            /* Verify that the call to _bytes() does not invalidate the _text() pointer */
-            //Debug.Assert( z2 == sqlite3_value_text( argv[0] ) );
-            if (z2 != null)
+            Context ctx = sqlite3_context_db_handle(fctx);
+            Debug.Assert(bytes > 0);
+            SysEx.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH]);
+            SysEx.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH] + 1);
+            T[] z;
+            if (bytes > ctx.Limits[(int)LIMIT.LENGTH])
             {
-                //z1 = new byte[n];// contextMalloc(context, ((i64)n)+1);
-                //if ( z1 !=null)
-                //{
-                //  memcpy( z1, z2, n + 1 );
-                //for ( i = 0 ; i< z1.Length ; i++ )
-                //{
-                //(char)sqlite3Toupper( z1[i] );
-                //}
-                sqlite3_result_text(context, z2.Length == 0 ? "" : z2.Substring(0, n).ToUpper(), -1, null); //sqlite3_free );
-                // }
-            }
-        }
-
-        static void lowerFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
-        {
-            string z1;
-            string z2;
-            int i, n;
-            UNUSED_PARAMETER(argc);
-            z2 = sqlite3_value_text(argv[0]);
-            n = sqlite3_value_bytes(argv[0]);
-            /* Verify that the call to _bytes() does not invalidate the _text() pointer */
-            //Debug.Assert( z2 == sqlite3_value_text( argv[0] ) );
-            if (z2 != null)
-            {
-                //z1 = contextMalloc(context, ((i64)n)+1);
-                //if ( z1 )
-                //{
-                //  memcpy( z1, z2, n + 1 );
-                //  for ( i = 0 ; z1[i] ; i++ )
-                //  {
-                //    z1[i] = (char)sqlite3Tolower( z1[i] );
-                //  }
-                sqlite3_result_text(context, z2.Length == 0 ? "" : z2.Substring(0, n).ToLower(), -1, null);//sqlite3_free );
-                //}
-            }
-        }
-
-#if FALSE  //* This function is never used. */
-/*
-** The COALESCE() and IFNULL() functions used to be implemented as shown
-** here.  But now they are implemented as VDBE code so that unused arguments
-** do not have to be computed.  This legacy implementation is retained as
-** comment.
-*/
-/*
-** Implementation of the IFNULL(), NVL(), and COALESCE() functions.
-** All three do the same thing.  They return the first non-NULL
-** argument.
-*/
-static void ifnullFunc(
-FuncContext context,
-int argc,
-sqlite3_value[] argv
-)
-{
-int i;
-for ( i = 0 ; i < argc ; i++ )
-{
-if ( SQLITE_NULL != sqlite3_value_type( argv[i] ) )
-{
-sqlite3_result_value( context, argv[i] );
-break;
-}
-}
-}
-#endif //* NOT USED */
-        //#define ifnullFunc versionFunc   /* Substitute function - never called */
-
-        /*
-        ** Implementation of random().  Return a random integer.
-        */
-        static void randomFunc(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
-        )
-        {
-            sqlite_int64 r = 0;
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            sqlite3_randomness(sizeof(sqlite_int64), ref r);
-            if (r < 0)
-            {
-                /* We need to prevent a random number of 0x8000000000000000
-                ** (or -9223372036854775808) since when you do abs() of that
-                ** number of you get the same value back again.  To do this
-                ** in a way that is testable, mask the sign bit off of negative
-                ** values, resulting in a positive value.  Then take the
-                ** 2s complement of that positive value.  The end result can
-                ** therefore be no less than -9223372036854775807.
-                */
-                r = -(r ^ (((sqlite3_int64)1) << 63));
-            }
-            sqlite3_result_int64(context, r);
-        }
-
-        /*
-        ** Implementation of randomblob(N).  Return a random blob
-        ** that is N bytes long.
-        */
-        static void randomBlob(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
-        {
-            int n;
-            char[] p;
-            Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            n = sqlite3_value_int(argv[0]);
-            if (n < 1)
-            {
-                n = 1;
-            }
-            if (n > sqlite3_context_db_handle(context).aLimit[SQLITE_LIMIT_LENGTH])
-            {
-                sqlite3_result_error_toobig(context);
-                p = null;
+                sqlite3_result_error_toobig(fctx);
+                z = null;
             }
             else
             {
-                p = new char[n]; //contextMalloc( context, n );
+                z = new T[(int)bytes];
+                if (z == null)
+                    sqlite3_result_error_nomem(fctx);
             }
+            return z;
+        }
+
+        static void UpperFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            string z2 = sqlite3_value_text(argv[0]);
+            int n = sqlite3_value_bytes(argv[0]);
+            // Verify that the call to _bytes() does not invalidate the _text() pointer
+            Debug.Assert(z2 == sqlite3_value_text(argv[0]));
+            if (z2 != null)
+            {
+                string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToUpperInvariant()); //: Many
+                sqlite3_result_text(fctx, z1, -1, null); //: SysEx::Free
+            }
+        }
+
+        static void LowerFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            string z2 = sqlite3_value_text(argv[0]);
+            int n = sqlite3_value_bytes(argv[0]);
+            // Verify that the call to _bytes() does not invalidate the _text() pointer
+            Debug.Assert(z2 == sqlite3_value_text(argv[0]));
+            if (z2 != null)
+            {
+                string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToLowerInvariant());
+                sqlite3_result_text(fctx, z1, -1, null); //: SysEx::Free
+            }
+        }
+
+        //: #define ifnullFunc versionFunc // Substitute function - never called
+
+        static void RandomFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
+        {
+            long r = 0;
+            sqlite3_randomness(sizeof(long), ref r);
+            if (r < 0)
+            {
+                // We need to prevent a random number of 0x8000000000000000 (or -9223372036854775808) since when you do abs() of that
+                // number of you get the same value back again.  To do this in a way that is testable, mask the sign bit off of negative
+                // values, resulting in a positive value.  Then take the 2s complement of that positive value.  The end result can
+                // therefore be no less than -9223372036854775807.
+                r = -(r ^ (((long)1) << 63));
+            }
+            sqlite3_result_int64(fctx, r);
+        }
+
+        static void RandomBlob(FuncContext fctx, int argc, Mem[] argv)
+        {
+            Debug.Assert(argc == 1);
+            int n = sqlite3_value_int(argv[0]);
+            if (n < 1)
+                n = 1;
+            char[] p = ContextMalloc<char>(fctx, n);
             if (p != null)
             {
-                i64 _p = 0;
+                long p_ = 0;
                 for (int i = 0; i < n; i++)
                 {
-                    sqlite3_randomness(sizeof(u8), ref _p);
-                    p[i] = (char)(_p & 0x7F);
+                    sqlite3_randomness(sizeof(char), ref p_);
+                    p[i] = (char)(p_ & 0x7F);
                 }
-                sqlite3_result_blob(context, new string(p), n, null);//sqlite3_free );
+                sqlite3_result_blob(fctx, new string(p), n, null); //: SysEx::Free
             }
         }
 
-        /*
-        ** Implementation of the last_insert_rowid() SQL function.  The return
-        ** value is the same as the sqlite3_last_insert_rowid() API function.
-        */
-        static void last_insert_rowid(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
+        static void LastInsertRowid(FuncContext fctx, int notUsed1, Mem[] notUsed2
         )
         {
-            sqlite3 db = sqlite3_context_db_handle(context);
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            /* IMP: R-51513-12026 The last_insert_rowid() SQL function is a
-            ** wrapper around the sqlite3_last_insert_rowid() C/C++ interface
-            ** function. */
-            sqlite3_result_int64(context, sqlite3_last_insert_rowid(db));
+            Context ctx = sqlite3_context_db_handle(fctx);
+            // IMP: R-51513-12026 The last_insert_rowid() SQL function is a wrapper around the sqlite3_last_insert_rowid() C/C++ interface function.
+            sqlite3_result_int64(fctx, sqlite3_last_insert_rowid(ctx));
         }
 
-        /*
-        ** Implementation of the changes() SQL function.
-        **
-        ** IMP: R-62073-11209 The changes() SQL function is a wrapper
-        ** around the sqlite3_changes() C/C++ function and hence follows the same
-        ** rules for counting changes.
-        */
-        static void changes(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
-        )
+        static void Changes(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
-            sqlite3 db = sqlite3_context_db_handle(context);
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            sqlite3_result_int(context, sqlite3_changes(db));
+            Context ctx = sqlite3_context_db_handle(fctx);
+            sqlite3_result_int(fctx, sqlite3_changes(ctx));
         }
 
-        /*
-        ** Implementation of the total_changes() SQL function.  The return value is
-        ** the same as the sqlite3_total_changes() API function.
-        */
-        static void total_changes(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
-        )
+        static void TotalChanges(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
-            sqlite3 db = (sqlite3)sqlite3_context_db_handle(context);
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            /* IMP: R-52756-41993 This function is a wrapper around the
-            ** sqlite3_total_changes() C/C++ interface. */
-            sqlite3_result_int(context, sqlite3_total_changes(db));
+            Context ctx = sqlite3_context_db_handle(fctx);
+            // IMP: R-52756-41993 This function is a wrapper around the sqlite3_total_changes() C/C++ interface.
+            sqlite3_result_int(fctx, sqlite3_total_changes(ctx));
         }
 
-        /*
-        ** A structure defining how to do GLOB-style comparisons.
-        */
-        struct compareInfo
+        struct CompareInfo
         {
-            public char matchAll;
-            public char matchOne;
-            public char matchSet;
-            public bool noCase;
-            public compareInfo(char matchAll, char matchOne, char matchSet, bool noCase)
-            {
-                this.matchAll = matchAll;
-                this.matchOne = matchOne;
-                this.matchSet = matchSet;
-                this.noCase = noCase;
-            }
+            public char MatchAll;
+            public char MatchOne;
+            public char MatchSet;
+            public bool NoCase;
         };
 
-        /*
-        ** For LIKE and GLOB matching on EBCDIC machines, assume that every
-        ** character is exactly one byte in size.  Also, all characters are
-        ** able to participate in upper-case-to-lower-case mappings in EBCDIC
-        ** whereas only characters less than 0x80 do in ASCII.
-        */
-        //#if defined(SQLITE_EBCDIC)
-        //# define sqlite3Utf8Read(A,C)  (*(A++))
-        //# define GlogUpperToLower(A)   A = sqlite3UpperToLower[A]
-        //#else
-        //# define GlogUpperToLower(A)   if( !((A)&~0x7f) ){ A = sqlite3UpperToLower[A]; }
-        //#endif
+        static CompareInfo _globInfo = new CompareInfo { MatchAll = '*', MatchOne = '?', MatchSet = '[', NoCase = false };
+        static CompareInfo _likeInfoNorm = new CompareInfo { MatchAll = '%', MatchOne = '_', MatchSet = '\0', NoCase = true }; // The correct SQL-92 behavior is for the LIKE operator to ignore case.  Thus  'a' LIKE 'A' would be true.
+        static CompareInfo _likeInfoAlt = new CompareInfo { MatchAll = '%', MatchOne = '_', MatchSet = '\0', NoCase = false }; // If SQLITE_CASE_SENSITIVE_LIKE is defined, then the LIKE operator is case sensitive causing 'a' LIKE 'A' to be false
 
-        static compareInfo globInfo = new compareInfo('*', '?', '[', false);
-        /* The correct SQL-92 behavior is for the LIKE operator to ignore
-        ** case.  Thus  'a' LIKE 'A' would be true. */
-        static compareInfo likeInfoNorm = new compareInfo('%', '_', '\0', true);
-        /* If SQLITE_CASE_SENSITIVE_LIKE is defined, then the LIKE operator
-        ** is case sensitive causing 'a' LIKE 'A' to be false */
-        static compareInfo likeInfoAlt = new compareInfo('%', '_', '\0', false);
-
-        /*
-        ** Compare two UTF-8 strings for equality where the first string can
-        ** potentially be a "glob" expression.  Return true (1) if they
-        ** are the same and false (0) if they are different.
-        **
-        ** Globbing rules:
-        **
-        **      '*'       Matches any sequence of zero or more characters.
-        **
-        **      '?'       Matches exactly one character.
-        **
-        **     [...]      Matches one character from the enclosed list of
-        **                characters.
-        **
-        **     [^...]     Matches one character not in the enclosed list.
-        **
-        ** With the [...] and [^...] matching, a ']' character can be included
-        ** in the list by making it the first character after '[' or '^'.  A
-        ** range of characters can be specified using '-'.  Example:
-        ** "[a-z]" matches any single lower-case letter.  To match a '-', make
-        ** it the last character in the list.
-        **
-        ** This routine is usually quick, but can be N**2 in the worst case.
-        **
-        ** Hints: to match '*' or '?', put them in "[]".  Like this:
-        **
-        **         abc[*]xyz        Matches "abc*xyz" only
-        */
-        static bool patternCompare(
-        string zPattern,            /* The glob pattern */
-        string zString,             /* The string to compare against the glob */
-        compareInfo pInfo,          /* Information about how to do the compare */
-        u32 esc                     /* The escape character */
-        )
+        static bool PatternCompare(string pattern, string string_, CompareInfo info, uint escape)
         {
-            u32 c, c2;
+            uint c, c2;
             int invert;
             int seen;
-            int matchOne = (int)pInfo.matchOne;
-            int matchAll = (int)pInfo.matchAll;
-            int matchSet = (int)pInfo.matchSet;
-            bool noCase = pInfo.noCase;
-            bool prevEscape = false;     /* True if the previous character was 'escape' */
-            string inPattern = zPattern; //Entered Pattern
+            int matchOne = (int)info.MatchOne;
+            int matchAll = (int)info.MatchAll;
+            int matchSet = (int)info.MatchSet;
+            bool noCase = info.NoCase;
+            bool prevEscape = false; // True if the previous character was 'escape'
 
-            while ((c = sqlite3Utf8Read(zPattern, ref zPattern)) != 0)
+            string inPattern = pattern; // Entered Pattern
+
+            while ((c = SysEx.Utf8Read(pattern, ref pattern)) != 0)
             {
-                if (!prevEscape && c == matchAll)
+                if (c == matchAll && !prevEscape)
                 {
-                    while ((c = sqlite3Utf8Read(zPattern, ref zPattern)) == matchAll
-                    || c == matchOne)
-                    {
-                        if (c == matchOne && sqlite3Utf8Read(zString, ref zString) == 0)
-                        {
+                    while ((c = SysEx.Utf8Read(pattern, ref pattern)) == matchAll || c == matchOne)
+                        if (c == matchOne && SysEx.Utf8Read(string_, ref string_) == 0)
                             return false;
-                        }
-                    }
                     if (c == 0)
-                    {
                         return true;
-                    }
-                    else if (c == esc)
+                    else if (c == escape)
                     {
-                        c = sqlite3Utf8Read(zPattern, ref zPattern);
+                        c = SysEx.Utf8Read(pattern, ref pattern);
                         if (c == 0)
-                        {
                             return false;
-                        }
                     }
                     else if (c == matchSet)
                     {
-                        Debug.Assert(esc == 0);         /* This is GLOB, not LIKE */
-                        Debug.Assert(matchSet < 0x80);  /* '[' is a single-byte character */
-                        int len = 0;
-                        while (len < zString.Length && patternCompare(inPattern.Substring(inPattern.Length - zPattern.Length - 1), zString.Substring(len), pInfo, esc) == false)
-                        {
-                            SQLITE_SKIP_UTF8(zString, ref len);
-                        }
-                        return len < zString.Length;
+                        Debug.Assert(escape == 0); // This is GLOB, not LIKE
+                        Debug.Assert(matchSet < 0x80); // '[' is a single-byte character
+                        int stringIdx = 0;
+                        while (stringIdx < string_.Length && !PatternCompare(inPattern.Substring(inPattern.Length - pattern.Length - 1), string_.Substring(stringIdx), info, escape))
+                            SysEx.SKIP_UTF8(string_, ref stringIdx);
+                        return (stringIdx < string_.Length);
                     }
-                    while ((c2 = sqlite3Utf8Read(zString, ref zString)) != 0)
+                    while ((c2 = SysEx.Utf8Read(string_, ref string_)) != 0)
                     {
                         if (noCase)
                         {
-                            if (0 == ((c2) & ~0x7f))
-                                c2 = (u32)sqlite3UpperToLower[c2]; //GlogUpperToLower(c2);
-                            if (0 == ((c) & ~0x7f))
-                                c = (u32)sqlite3UpperToLower[c]; //GlogUpperToLower(c);
+                            c2 = (uint)char.ToLowerInvariant((char)c2);
+                            c = (uint)char.ToLowerInvariant((char)c);
                             while (c2 != 0 && c2 != c)
                             {
-                                c2 = sqlite3Utf8Read(zString, ref zString);
-                                if (0 == ((c2) & ~0x7f))
-                                    c2 = (u32)sqlite3UpperToLower[c2]; //GlogUpperToLower(c2);
+                                c2 = SysEx.Utf8Read(string_, ref string_);
+                                c2 = (uint)char.ToLowerInvariant((char)c2);
                             }
                         }
                         else
                         {
                             while (c2 != 0 && c2 != c)
-                            {
-                                c2 = sqlite3Utf8Read(zString, ref zString);
-                            }
+                                c2 = SysEx.Utf8Read(string_, ref string_);
                         }
-                        if (c2 == 0)
-                            return false;
-                        if (patternCompare(zPattern, zString, pInfo, esc))
-                            return true;
+                        if (c2 == 0) return false;
+                        if (PatternCompare(pattern, string_, info, escape)) return true;
                     }
                     return false;
                 }
-                else if (!prevEscape && c == matchOne)
+                else if (c == matchOne && !prevEscape)
                 {
-                    if (sqlite3Utf8Read(zString, ref zString) == 0)
-                    {
+                    if (SysEx.Utf8Read(string_, ref string_) == 0)
                         return false;
-                    }
                 }
                 else if (c == matchSet)
                 {
-                    u32 prior_c = 0;
-                    Debug.Assert(esc == 0);    /* This only occurs for GLOB, not LIKE */
+                    uint prior_c = 0;
+                    Debug.Assert(escape == 0); // This only occurs for GLOB, not LIKE
                     seen = 0;
                     invert = 0;
-                    c = sqlite3Utf8Read(zString, ref zString);
-                    if (c == 0)
-                        return false;
-                    c2 = sqlite3Utf8Read(zPattern, ref zPattern);
+                    c = SysEx.Utf8Read(string_, ref string_);
+                    if (c == 0) return false;
+                    c2 = SysEx.Utf8Read(pattern, ref pattern);
                     if (c2 == '^')
                     {
                         invert = 1;
-                        c2 = sqlite3Utf8Read(zPattern, ref zPattern);
+                        c2 = SysEx.Utf8Read(pattern, ref pattern);
                     }
                     if (c2 == ']')
                     {
-                        if (c == ']')
-                            seen = 1;
-                        c2 = sqlite3Utf8Read(zPattern, ref zPattern);
+                        if (c == ']') seen = 1;
+                        c2 = SysEx.Utf8Read(pattern, ref pattern);
                     }
                     while (c2 != 0 && c2 != ']')
                     {
-                        if (c2 == '-' && zPattern[0] != ']' && zPattern[0] != 0 && prior_c > 0)
+                        if (c2 == '-' && pattern[0] != ']' && pattern[0] != 0 && prior_c > 0)
                         {
-                            c2 = sqlite3Utf8Read(zPattern, ref zPattern);
-                            if (c >= prior_c && c <= c2)
-                                seen = 1;
+                            c2 = SysEx.Utf8Read(pattern, ref pattern);
+                            if (c >= prior_c && c <= c2) seen = 1;
                             prior_c = 0;
                         }
                         else
                         {
                             if (c == c2)
-                            {
                                 seen = 1;
-                            }
                             prior_c = c2;
                         }
-                        c2 = sqlite3Utf8Read(zPattern, ref zPattern);
+                        c2 = SysEx.Utf8Read(pattern, ref pattern);
                     }
                     if (c2 == 0 || (seen ^ invert) == 0)
-                    {
                         return false;
-                    }
                 }
-                else if (esc == c && !prevEscape)
-                {
+                else if (escape == c && !prevEscape)
                     prevEscape = true;
-                }
                 else
                 {
-                    c2 = sqlite3Utf8Read(zString, ref zString);
+                    c2 = SysEx.Utf8Read(string_, ref string_);
                     if (noCase)
                     {
-                        if (c < 0x80)
-                            c = (u32)sqlite3UpperToLower[c]; //GlogUpperToLower(c);
-                        if (c2 < 0x80)
-                            c2 = (u32)sqlite3UpperToLower[c2]; //GlogUpperToLower(c2);
+                        c = (uint)char.ToLowerInvariant((char)c);
+                        c2 = (uint)char.ToLowerInvariant((char)c2);
                     }
                     if (c != c2)
-                    {
                         return false;
-                    }
                     prevEscape = false;
                 }
             }
-            return zString.Length == 0;
+            return (string_.Length == 0);
         }
 
-        /*
-        ** Count the number of times that the LIKE operator (or GLOB which is
-        ** just a variation of LIKE) gets called.  This is used for testing
-        ** only.
-        */
-#if SQLITE_TEST
-#if !TCLSH
-    static int sqlite3_like_count = 0;
-#else
-    static tcl.lang.Var.SQLITE3_GETSET sqlite3_like_count = new tcl.lang.Var.SQLITE3_GETSET( "sqlite3_like_count" );
-#endif
+
+#if TEST
+        static int _likeCount = 0;
 #endif
 
-
-        /*
-** Implementation of the like() SQL function.  This function implements
-** the build-in LIKE operator.  The first argument to the function is the
-** pattern and the second argument is the string.  So, the SQL statements:
-**
-**       A LIKE B
-**
-** is implemented as like(B,A).
-**
-** This same function (with a different compareInfo structure) computes
-** the GLOB operator.
-*/
-        static void likeFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void LikeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string zA, zB;
-            u32 escape = 0;
-            int nPat;
-            sqlite3 db = sqlite3_context_db_handle(context);
+            uint escape = 0;
+            Context ctx = sqlite3_context_db_handle(fctx);
 
-            zB = sqlite3_value_text(argv[0]);
-            zA = sqlite3_value_text(argv[1]);
+            string zB = sqlite3_value_text(argv[0]);
+            string zA = sqlite3_value_text(argv[1]);
 
-            /* Limit the length of the LIKE or GLOB pattern to avoid problems
-            ** of deep recursion and N*N behavior in patternCompare().
-            */
-            nPat = sqlite3_value_bytes(argv[0]);
-            testcase(nPat == db.aLimit[SQLITE_LIMIT_LIKE_PATTERN_LENGTH]);
-            testcase(nPat == db.aLimit[SQLITE_LIMIT_LIKE_PATTERN_LENGTH] + 1);
-            if (nPat > db.aLimit[SQLITE_LIMIT_LIKE_PATTERN_LENGTH])
+            // Limit the length of the LIKE or GLOB pattern to avoid problems of deep recursion and N*N behavior in patternCompare().
+            int pats = sqlite3_value_bytes(argv[0]);
+            SysEx.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH]);
+            SysEx.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH] + 1);
+            if (pats > ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH])
             {
-                sqlite3_result_error(context, "LIKE or GLOB pattern too complex", -1);
+                sqlite3_result_error(fctx, "LIKE or GLOB pattern too complex", -1);
                 return;
             }
-            //Debug.Assert( zB == sqlite3_value_text( argv[0] ) );  /* Encoding did not change */
+            Debug.Assert(zB == sqlite3_value_text(argv[0])); // Encoding did not change
 
             if (argc == 3)
             {
-                /* The escape character string must consist of a single UTF-8 character.
-                ** Otherwise, return an error.
-                */
-                string zEsc = sqlite3_value_text(argv[2]);
-                if (zEsc == null)
-                    return;
-                if (sqlite3Utf8CharLen(zEsc, -1) != 1)
+                // The escape character string must consist of a single UTF-8 character. Otherwise, return an error.
+                string zEscape = sqlite3_value_text(argv[2]);
+                if (zEscape == null) return;
+                if (SysEx.Utf8CharLen(zEscape, -1) != 1)
                 {
-                    sqlite3_result_error(context,
-                    "ESCAPE expression must be a single character", -1);
+                    sqlite3_result_error(fctx, "ESCAPE expression must be a single character", -1);
                     return;
                 }
-                escape = sqlite3Utf8Read(zEsc, ref zEsc);
+                escape = SysEx.Utf8Read(zEscape, ref zEscape);
             }
             if (zA != null && zB != null)
             {
-                compareInfo pInfo = (compareInfo)sqlite3_user_data(context);
-#if SQLITE_TEST
-#if !TCLSH
-        sqlite3_like_count++;
-#else
-        sqlite3_like_count.iValue++;
+                CompareInfo info = (CompareInfo)sqlite3_user_data(fctx);
+#if TEST
+                _likeCount++;
 #endif
+                sqlite3_result_int(fctx, PatternCompare(zB, zA, info, escape) ? 1 : 0);
+            }
+        }
+
+        static void NullifFunc(FuncContext fctx, int ntUsed1, Mem[] argv)
+        {
+            CollSeq coll = GetFuncCollSeq(fctx);
+            if (sqlite3MemCompare(argv[0], argv[1], coll) != 0)
+                sqlite3_result_value(fctx, argv[0]);
+        }
+
+        static void versionFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
+        {
+            // IMP: R-48699-48617 This function is an SQL wrapper around the sqlite3_libversion() C-interface.
+            sqlite3_result_text(fctx, sqlite3_libversion(), -1, SysEx.DESTRUCTOR_STATIC);
+        }
+
+        static void SourceidFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
+        {
+            // IMP: R-24470-31136 This function is an SQL wrapper around the sqlite3_sourceid() C interface.
+            sqlite3_result_text(fctx, sqlite3_sourceid(), -1, SysEx.DESTRUCTOR_STATIC);
+        }
+
+        static void ErrlogFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            SysEx.LOG(sqlite3_value_int(argv[0]), "%s", sqlite3_value_text(argv[1]));
+        }
+
+#if !OMIT_COMPILEOPTION_DIAGS
+        static void CompileoptionusedFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            Debug.Assert(argc == 1);
+            // IMP: R-39564-36305 The sqlite_compileoption_used() SQL function is a wrapper around the sqlite3_compileoption_used() C/C++ function.
+            string optName;
+            if ((optName = sqlite3_value_text(argv[0])) != null)
+                sqlite3_result_int(fctx, CompileTimeOptionUsed(optName));
+        }
+        static void CompileoptiongetFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            Debug.Assert(argc == 1);
+            // IMP: R-04922-24076 The sqlite_compileoption_get() SQL function is a wrapper around the sqlite3_compileoption_get() C/C++ function.
+            int n = sqlite3_value_int(argv[0]);
+            sqlite3_result_text(fctx, CompileTimeGet(n), -1, SysEx.DESTRUCTOR_STATIC);
+        }
 #endif
-                sqlite3_result_int(context, patternCompare(zB, zA, pInfo, escape) ? 1 : 0);
-            }
-        }
 
-        /*
-        ** Implementation of the NULLIF(x,y) function.  The result is the first
-        ** argument if the arguments are different.  The result is NULL if the
-        ** arguments are equal to each other.
-        */
-        static void nullifFunc(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] argv
-        )
-        {
-            CollSeq pColl = sqlite3GetFuncCollSeq(context);
-            UNUSED_PARAMETER(NotUsed);
-            if (sqlite3MemCompare(argv[0], argv[1], pColl) != 0)
-            {
-                sqlite3_result_value(context, argv[0]);
-            }
-        }
+        static char[] _hexdigits = new char[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
-        /*
-        ** Implementation of the sqlite_version() function.  The result is the version
-        ** of the SQLite library that is running.
-        */
-        static void versionFunc(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
-        )
-        {
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            /* IMP: R-48699-48617 This function is an SQL wrapper around the
-            ** sqlite3_libversion() C-interface. */
-            sqlite3_result_text(context, sqlite3_libversion(), -1, SQLITE_STATIC);
-        }
-
-        /*
-        ** Implementation of the sqlite_source_id() function. The result is a string
-        ** that identifies the particular version of the source code used to build
-        ** SQLite.
-        */
-        static void sourceidFunc(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] NotUsed2
-        )
-        {
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            /* IMP: R-24470-31136 This function is an SQL wrapper around the
-            ** sqlite3_sourceid() C interface. */
-            sqlite3_result_text(context, sqlite3_sourceid(), -1, SQLITE_STATIC);
-        }
-
-        /*
-        ** Implementation of the sqlite_log() function.  This is a wrapper around
-        ** sqlite3_log().  The return value is NULL.  The function exists purely for
-        ** its side-effects.
-        */
-        static void errlogFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
-        {
-            UNUSED_PARAMETER(argc);
-            UNUSED_PARAMETER(context);
-            sqlite3_log(sqlite3_value_int(argv[0]), "%s", sqlite3_value_text(argv[1]));
-        }
-
-        /*
-        ** Implementation of the sqlite_compileoption_used() function.
-        ** The result is an integer that identifies if the compiler option
-        ** was used to build SQLite.
-        */
-#if !SQLITE_OMIT_COMPILEOPTION_DIAGS
-        static void compileoptionusedFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
-        {
-            string zOptName;
-            Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            /* IMP: R-39564-36305 The sqlite_compileoption_used() SQL
-            ** function is a wrapper around the sqlite3_compileoption_used() C/C++
-            ** function.
-            */
-            if ((zOptName = sqlite3_value_text(argv[0])) != null)
-            {
-                sqlite3_result_int(context, sqlite3_compileoption_used(zOptName));
-            }
-        }
-#endif //* SQLITE_OMIT_COMPILEOPTION_DIAGS */
-
-
-        /*
-** Implementation of the sqlite_compileoption_get() function. 
-** The result is a string that identifies the compiler options 
-** used to build SQLite.
-*/
-#if !SQLITE_OMIT_COMPILEOPTION_DIAGS
-        static void compileoptiongetFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
-        {
-            int n;
-            Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            /* IMP: R-04922-24076 The sqlite_compileoption_get() SQL function
-            ** is a wrapper around the sqlite3_compileoption_get() C/C++ function.
-            */
-            n = sqlite3_value_int(argv[0]);
-            sqlite3_result_text(context, sqlite3_compileoption_get(n), -1, SQLITE_STATIC);
-        }
-#endif //* SQLITE_OMIT_COMPILEOPTION_DIAGS */
-
-        /* Array for converting from half-bytes (nybbles) into ASCII hex
-** digits. */
-        static char[] hexdigits = new char[]  {
-'0', '1', '2', '3', '4', '5', '6', '7',
-'8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
-};
-
-        /*
-        ** EXPERIMENTAL - This is not an official function.  The interface may
-        ** change.  This function may disappear.  Do not write code that depends
-        ** on this function.
-        **
-        ** Implementation of the QUOTE() function.  This function takes a single
-        ** argument.  If the argument is numeric, the return value is the same as
-        ** the argument.  If the argument is NULL, the return value is the string
-        ** "NULL".  Otherwise, the argument is enclosed in single quotes with
-        ** single-quote escapes.
-        */
-        static void quoteFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        // [EXPERIMENTAL]
+        static void QuoteFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-
             switch (sqlite3_value_type(argv[0]))
             {
-                case SQLITE_INTEGER:
-                case SQLITE_FLOAT:
+                case TYPE.FLOAT:
                     {
-                        sqlite3_result_value(context, argv[0]);
+                        SystemStringBuilder b = new SystemStringBuilder(50);
+                        b.AppendFormat("%!.15g", r1);
+                        double r1 = sqlite3_value_double(argv[0]);
+                        double r2;
+                        ConvertEx.Atof(b.ToString(), ref r2, 20, TEXTENCODE.UTF8);
+                        b.Length = 0;
+                        if (r1 != r2)
+                            b.AppendFormat("%!.20e", r1);
+                        sqlite3_result_text(fctx, b.ToString(), -1, DESTRUCTOR_TRANSIENT);
                         break;
                     }
-                case SQLITE_BLOB:
+                case TYPE.INTEGER:
                     {
-                        StringBuilder zText;
-                        byte[] zBlob = sqlite3_value_blob(argv[0]);
-                        int nBlob = sqlite3_value_bytes(argv[0]);
-                        Debug.Assert(zBlob.Length == sqlite3_value_blob(argv[0]).Length); /* No encoding change */
-                        zText = new StringBuilder(2 * nBlob + 4);//(char*)contextMalloc(context, (2*(i64)nBlob)+4);
-                        zText.Append("X'");
-                        if (zText != null)
+                        sqlite3_result_value(fctx, argv[0]);
+                        break;
+                    }
+                case TYPE.BLOB:
+                    {
+                        byte[] blob = sqlite3_value_blob(argv[0]);
+                        int blobLength = sqlite3_value_bytes(argv[0]);
+                        Debug.Assert(blob.Length == sqlite3_value_blob(argv[0]).Length); // No encoding change
+                        SystemStringBuilder z = new StringBuilder(2 * blobLength + 4); //: ContextMalloc(fctx, (2*(int64)blobLength)+4);
+                        if (z != null)
                         {
-                            int i;
-                            for (i = 0; i < nBlob; i++)
+                            for (int i = 0; i < blobLength; i++)
                             {
-                                zText.Append(hexdigits[(zBlob[i] >> 4) & 0x0F]);
-                                zText.Append(hexdigits[(zBlob[i]) & 0x0F]);
+                                z.Append(_hexdigits[(blob[i] >> 4) & 0x0F]);
+                                z.Append(_hexdigits[(blob[i]) & 0x0F]);
                             }
-                            zText.Append("'");
-                            //zText[( nBlob * 2 ) + 2] = '\'';
-                            //zText[( nBlob * 2 ) + 3] = '\0';
-                            //zText[0] = 'X';
-                            //zText[1] = '\'';
-                            sqlite3_result_text(context, zText, -1, SQLITE_TRANSIENT);
-                            //sqlite3_free( zText );
+                            z.Append[(blobLength * 2) + 2] = '\'';
+                            z.Append[(blobLength * 2) + 3] = '\0';
+                            z.Append[0] = 'X';
+                            z.Append[1] = '\'';
+                            sqlite3_result_text(fctx, z, -1, SysEx.DESTRUCTOR_TRANSIENT);
+                            SysEx.Free(ref z);
                         }
                         break;
                     }
-                case SQLITE_TEXT:
+                case TYPE.TEXT:
                     {
-                        int i, j;
-                        int n;
-                        string zArg = sqlite3_value_text(argv[0]);
-                        StringBuilder z;
 
-                        if (zArg == null || zArg.Length == 0)
-                            return;
-                        for (i = 0, n = 0; i < zArg.Length; i++)
-                        {
-                            if (zArg[i] == '\'')
-                                n++;
-                        }
-                        z = new StringBuilder(i + n + 3);// contextMalloc(context, ((i64)i)+((i64)n)+3);
+                        string zArg = sqlite3_value_text(argv[0]);
+                        if (zArg == null || zArg.Length == 0) return;
+                        int i, j;
+                        ulong n;
+                        for (i = 0, n = 0; i < zArg.Length; i++) { if (zArg[i] == '\'') n++; }
+                        StringBuilder z = new StringBuilder(i + n + 3); //: ContextMalloc(fctx, ((int64)i)+((int64)n)+3);
                         if (z != null)
                         {
                             z.Append('\'');
@@ -1042,221 +690,157 @@ break;
                             }
                             z.Append('\'');
                             j++;
-                            //z[j] = '\0'; ;
-                            sqlite3_result_text(context, z, j, null);//sqlite3_free );
+                            //: z[j] = 0;
+                            sqlite3_result_text(fctx, z, j, null); //: SysEx.Free
                         }
                         break;
                     }
                 default:
                     {
                         Debug.Assert(sqlite3_value_type(argv[0]) == SQLITE_NULL);
-                        sqlite3_result_text(context, "NULL", 4, SQLITE_STATIC);
+                        sqlite3_result_text(fctx, "NULL", 4, SQLITE_STATIC);
                         break;
                     }
             }
         }
 
-        /*
-        ** The hex() function.  Interpret the argument as a blob.  Return
-        ** a hexadecimal rendering as text.
-        */
-        static void hexFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+
+        static void UnicodeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            int i, n;
-            byte[] pBlob;
-            //string zHex, z;
+            string z = sqlite3_value_text(argv[0]);
+            if (z != null && z[0] != 0) sqlite3_result_int(fctx, SysEx.Utf8Read(z, ref z));
+        }
+
+        //static void CharFunc(FuncContext fctx, int argc, Mem[] argv)
+        //{
+        //    string z, z2;
+        //    z = z2 = sqlite3_malloc(argc * 4);
+        //    if (z == null)
+        //    {
+        //        sqlite3_result_error_nomem(fctx);
+        //        return;
+        //    }
+        //    for (int i = 0; i < argc; i++)
+        //    {
+        //        long x = sqlite3_value_int64(argv[i]);
+        //        if (x < 0 || x > 0x10ffff) x = 0xfffd;
+        //        ulong c = (ulong)(x & 0x1fffff);
+        //        if (c < 0x00080)
+        //            *z2++ = (uint8)(c & 0xFF);
+        //        else if (c < 0x00800)
+        //        {
+        //            *z2++ = 0xC0 + (uint8)((c >> 6) & 0x1F);
+        //            *z2++ = 0x80 + (uint8)(c & 0x3F);
+        //        }
+        //        else if (c < 0x10000)
+        //        {
+        //            *z2++ = 0xE0 + (uint8)((c >> 12) & 0x0F);
+        //            *z2++ = 0x80 + (uint8)((c >> 6) & 0x3F);
+        //            *z2++ = 0x80 + (uint8)(c & 0x3F);
+        //        }
+        //        else
+        //        {
+        //            *z2++ = 0xF0 + (uint8)((c >> 18) & 0x07);
+        //            *z2++ = 0x80 + (uint8)((c >> 12) & 0x3F);
+        //            *z2++ = 0x80 + (uint8)((c >> 6) & 0x3F);
+        //            *z2++ = 0x80 + (uint8)(c & 0x3F);
+        //        }
+        //    }
+        //    sqlite3_result_text(fctx, (char*)z, (int)(z2 - z), null); // SysEx::Free
+        //}
+
+        static void HexFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
             Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            pBlob = sqlite3_value_blob(argv[0]);
-            n = sqlite3_value_bytes(argv[0]);
-            Debug.Assert(n == (pBlob == null ? 0 : pBlob.Length));  /* No encoding change */
-            StringBuilder zHex = new StringBuilder(n * 2 + 1);
-            //  z = zHex = contextMalloc(context, ((i64)n)*2 + 1);
+            byte[] blob = sqlite3_value_blob(argv[0]);
+            int n = sqlite3_value_bytes(argv[0]);
+            Debug.Assert(n == (blob == null ? 0 : blob.Length)); // No encoding change
+            StringBuilder zHex = new StringBuilder(n * 2 + 1); //: ContextMalloc(fctx, ((int64)n)*2 + 1);
             if (zHex != null)
             {
-                for (i = 0; i < n; i++)
-                {//, pBlob++){
-                    byte c = pBlob[i];
+                for (int i = 0; i < n; i++)
+                {
+                    byte c = blob[i];
                     zHex.Append(hexdigits[(c >> 4) & 0xf]);
                     zHex.Append(hexdigits[c & 0xf]);
                 }
-                sqlite3_result_text(context, zHex, n * 2, null); //sqlite3_free );
+                //: *z = 0;
+                sqlite3_result_text(fctx, zHex, n * 2, null); //: SysEx.Free
             }
         }
 
-        /*
-        ** The zeroblob(N) function returns a zero-filled blob of size N bytes.
-        */
-        static void zeroblobFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void ZeroblobFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            i64 n;
-            sqlite3 db = sqlite3_context_db_handle(context);
+            Context ctx = sqlite3_context_db_handle(fctx);
             Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            n = sqlite3_value_int64(argv[0]);
-            testcase(n == db.aLimit[SQLITE_LIMIT_LENGTH]);
-            testcase(n == db.aLimit[SQLITE_LIMIT_LENGTH] + 1);
-            if (n > db.aLimit[SQLITE_LIMIT_LENGTH])
-            {
-                sqlite3_result_error_toobig(context);
-            }
+            long n = sqlite3_value_int64(argv[0]);
+            SysEx.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH]);
+            SysEx.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH] + 1);
+            if (n > ctx.Limits[(int)LIMIT.LENGTH])
+                sqlite3_result_error_toobig(fctx);
             else
-            {
-                sqlite3_result_zeroblob(context, (int)n);/* IMP: R-00293-64994 */
-            }
+                sqlite3_result_zeroblob(fctx, (int)n); // IMP: R-00293-64994
         }
 
-        /*
-        ** The replace() function.  Three arguments are all strings: call
-        ** them A, B, and C. The result is also a string which is derived
-        ** from A by replacing every occurance of B with C.  The match
-        ** must be exact.  Collating sequences are not used.
-        */
-        static void replaceFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void ReplaceFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string zStr;        /* The input string A */
-            string zPattern;    /* The pattern string B */
-            string zRep;        /* The replacement string C */
-            string zOut = null; /* The output */
-            int nStr;           /* Size of zStr */
-            int nPattern;       /* Size of zPattern */
-            int nRep;           /* Size of zRep */
-            int nOut;           /* Maximum size of zOut */
-            //int loopLimit;    /* Last zStr[] that might match zPattern[] */
-            int i, j = 0;       /* Loop counters */
-
+            //int loopLimit;    // Last zStr[] that might match zPattern[]
             Debug.Assert(argc == 3);
-            UNUSED_PARAMETER(argc);
-            zStr = sqlite3_value_text(argv[0]);
-            if (zStr == null)
-                return;
-            nStr = sqlite3_value_bytes(argv[0]);
-            Debug.Assert(zStr == sqlite3_value_text(argv[0]));  /* No encoding change */
-            zPattern = sqlite3_value_text(argv[1]);
-            if (zPattern == null)
+            string string_ = sqlite3_value_text(argv[0]); // The input string A
+            if (string_ == null) return;
+            int stringLength = sqlite3_value_bytes(argv[0]); // Size of zStr
+            Debug.Assert(string_ == sqlite3_value_text(argv[0]));  /* No encoding change */
+            string pattern = sqlite3_value_text(argv[1]); // The pattern string B
+            if (pattern == null)
             {
-                Debug.Assert(sqlite3_value_type(argv[1]) == SQLITE_NULL
-                    //|| sqlite3_context_db_handle( context ).mallocFailed != 0
-                );
+                Debug.Assert(sqlite3_value_type(argv[1]) == TYPE.NULL || sqlite3_context_db_handle(fctx).MallocFailed);
                 return;
             }
-            if (zPattern == "")
+            if (pattern == string.Empty)
             {
-                Debug.Assert(sqlite3_value_type(argv[1]) != SQLITE_NULL);
-                sqlite3_result_value(context, argv[0]);
+                Debug.Assert(sqlite3_value_type(argv[1]) != TYPE.NULL);
+                sqlite3_result_value(fctx, argv[0]);
                 return;
             }
-            nPattern = sqlite3_value_bytes(argv[1]);
-            Debug.Assert(zPattern == sqlite3_value_text(argv[1]));  /* No encoding change */
-            zRep = sqlite3_value_text(argv[2]);
-            if (zRep == null)
-                return;
-            nRep = sqlite3_value_bytes(argv[2]);
-            Debug.Assert(zRep == sqlite3_value_text(argv[2]));
-            nOut = nStr + 1;
-            Debug.Assert(nOut < SQLITE_MAX_LENGTH);
-            if (nOut <= sqlite3_context_db_handle(context).aLimit[SQLITE_LIMIT_LENGTH])
-            {
-                //zOut = contextMalloc(context, (i64)nOut);
-                //if( zOut==0 ){
-                //  return;
-                //}
-                //loopLimit = nStr - nPattern;
-                //for(i=j=0; i<=loopLimit; i++){
-                //  if( zStr[i]!=zPattern[0] || memcmp(&zStr[i], zPattern, nPattern) ){
-                //    zOut[j++] = zStr[i];
-                //  }else{
-                //    u8 *zOld;
-                // sqlite3 db = sqlite3_context_db_handle( context );
-                //    nOut += nRep - nPattern;
-                //testcase( nOut-1==db->aLimit[SQLITE_LIMIT_LENGTH] );
-                //testcase( nOut-2==db->aLimit[SQLITE_LIMIT_LENGTH] );
-                //if( nOut-1>db->aLimit[SQLITE_LIMIT_LENGTH] ){
-                //      sqlite3_result_error_toobig(context);
-                //      sqlite3_free(zOut);
-                //      return;
-                //    }
-                //    zOld = zOut;
-                //    zOut = sqlite3_realloc(zOut, (int)nOut);
-                //    if( zOut==0 ){
-                //      sqlite3_result_error_nomem(context);
-                //      sqlite3_free(zOld);
-                //      return;
-                //    }
-                //    memcpy(&zOut[j], zRep, nRep);
-                //    j += nRep;
-                //    i += nPattern-1;
-                //  }
-                //}
-                //Debug.Assert( j+nStr-i+1==nOut );
-                //memcpy(&zOut[j], zStr[i], nStr-i);
-                //j += nStr - i;
-                //Debug.Assert( j<=nOut );
-                //zOut[j] = 0;
-                try
-                {
-                    zOut = zStr.Replace(zPattern, zRep);
-                    j = zOut.Length;
-                }
-                catch
-                {
-                    j = 0;
-                }
-            }
-            if (j == 0 || j > sqlite3_context_db_handle(context).aLimit[SQLITE_LIMIT_LENGTH])
-            {
-                sqlite3_result_error_toobig(context);
-            }
+            int patternLength = sqlite3_value_bytes(argv[1]); // Size of zPattern
+            Debug.Assert(pattern == sqlite3_value_text(argv[1]));  /* No encoding change */
+            string replacement = sqlite3_value_text(argv[2]); // The replacement string C
+            if (replacement == null) return;
+            int replacementLength = sqlite3_value_bytes(argv[2]); // Size of zRep
+            Debug.Assert(replacement == sqlite3_value_text(argv[2]));
+            long outLength = stringLength + 1; // Maximum size of zOut
+            Debug.Assert(outLength < SQLITE_MAX_LENGTH);
+            string out_ = null; // The output
+            if (outLength <= sqlite3_context_db_handle(fctx).LimitS[(int)LIMIT.LENGTH])
+                try { out_ = string_.Replace(pattern, replacement); j = out_.Length; }
+                catch { j = 0; }
+            if (j == 0 || j > sqlite3_context_db_handle(fctx).Limits[(int)LIMIT.LENGTH])
+                sqlite3_result_error_toobig(fctx);
             else
-            {
-                sqlite3_result_text(context, zOut, j, null);//sqlite3_free );
-            }
+                sqlite3_result_text(fctx, out_, j, null); //: SysEx::Free
         }
 
-        /*
-        ** Implementation of the TRIM(), LTRIM(), and RTRIM() functions.
-        ** The userdata is 0x1 for left trim, 0x2 for right trim, 0x3 for both.
-        */
-        static void trimFunc(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void TrimFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string zIn;           /* Input string */
-            string zCharSet;      /* Set of characters to trim */
-            int nIn;              /* Number of bytes in input */
-            int izIn = 0;         /* C# string pointer */
-            int flags;            /* 1: trimleft  2: trimright  3: trim */
-            int i;                /* Loop counter */
-            int[] aLen = null;    /* Length of each character in zCharSet */
-            byte[][] azChar = null; /* Individual characters in zCharSet */
-            int nChar = 0;          /* Number of characters in zCharSet */
+            in_;
+            string charSet; // Set of characters to trim
+            int inLength;
+            int izIn = 0;         // C# string pointer
+            int flags;            // 1: trimleft  2: trimright  3: trim
+            int i;                // Loop counter
+            int[] aLen = null;    // Length of each character in zCharSet
+            byte[][] azChar = null; // Individual characters in zCharSet
+            int nChar = 0;          // Number of characters in zCharSet
             byte[] zBytes = null;
-            byte[] zBlob = null;
 
-            if (sqlite3_value_type(argv[0]) == SQLITE_NULL)
-            {
+            if (sqlite3_value_type(argv[0]) == TYPE.NULL)
                 return;
-            }
-            zIn = sqlite3_value_text(argv[0]);
-            if (zIn == null)
-                return;
-            nIn = sqlite3_value_bytes(argv[0]);
-            zBlob = sqlite3_value_blob(argv[0]);
-            //Debug.Assert( zIn == sqlite3_value_text( argv[0] ) );
+            string in_ = sqlite3_value_text(argv[0]); // Input string
+            if (in_ == null) return;
+            int inLength = sqlite3_value_bytes(argv[0]); // Number of bytes in input
+            //? Debug.Assert(in_ == sqlite3_value_text(argv[0]));
+            byte[] zBlob = sqlite3_value_blob(argv[0]);
+
             if (argc == 1)
             {
                 int[] lenOne = new int[] { 1 };
@@ -1265,9 +849,9 @@ break;
                 aLen = lenOne;
                 azChar = new byte[1][];
                 azChar[0] = azOne;
-                zCharSet = null;
+                charSet = null;
             }
-            else if ((zCharSet = sqlite3_value_text(argv[1])) == null)
+            else if ((charSet = sqlite3_value_text(argv[1])) == null)
             {
                 return;
             }
@@ -1304,49 +888,49 @@ break;
             }
             if (nChar > 0)
             {
-                flags = (int)sqlite3_user_data(context); // flags = SQLITE_PTR_TO_INT(sqlite3_user_data(context));
+                flags = (int)sqlite3_user_data(fctx); // flags = SQLITE_PTR_TO_INT(sqlite3_user_data(context));
                 if ((flags & 1) != 0)
                 {
-                    while (nIn > 0)
+                    while (inLength > 0)
                     {
                         int len = 0;
                         for (i = 0; i < nChar; i++)
                         {
                             len = aLen[i];
-                            if (len <= nIn && memcmp(zBlob, izIn, azChar[i], len) == 0)
+                            if (len <= inLength && memcmp(zBlob, izIn, azChar[i], len) == 0)
                                 break;
                         }
                         if (i >= nChar)
                             break;
                         izIn += len;
-                        nIn -= len;
+                        inLength -= len;
                     }
                 }
                 if ((flags & 2) != 0)
                 {
-                    while (nIn > 0)
+                    while (inLength > 0)
                     {
                         int len = 0;
                         for (i = 0; i < nChar; i++)
                         {
                             len = aLen[i];
-                            if (len <= nIn && memcmp(zBlob, izIn + nIn - len, azChar[i], len) == 0)
+                            if (len <= inLength && memcmp(zBlob, izIn + inLength - len, azChar[i], len) == 0)
                                 break;
                         }
                         if (i >= nChar)
                             break;
-                        nIn -= len;
+                        inLength -= len;
                     }
                 }
-                if (zCharSet != null)
+                if (charSet != null)
                 {
                     //sqlite3_free( ref azChar );
                 }
             }
-            StringBuilder sb = new StringBuilder(nIn);
-            for (i = 0; i < nIn; i++)
+            StringBuilder sb = new StringBuilder(inLength);
+            for (i = 0; i < inLength; i++)
                 sb.Append((char)zBlob[izIn + i]);
-            sqlite3_result_text(context, sb, nIn, SQLITE_TRANSIENT);
+            sqlite3_result_text(fctx, sb, inLength, SQLITE_TRANSIENT);
         }
 
         /* IMP: R-25361-16150 This function is omitted from SQLite by default. It
@@ -1658,7 +1242,7 @@ sqlite3_result_text(context, "?000", 4, SQLITE_STATIC);
             {
                 bool max;
                 int cmp;
-                CollSeq pColl = sqlite3GetFuncCollSeq(context);
+                CollSeq pColl = GetFuncCollSeq(context);
                 /* This step function is used for both the min() and max() aggregates,
                 ** the only difference between the two being that the sense of the
                 ** comparison is inverted. For the max() aggregate, the
@@ -1847,19 +1431,19 @@ sqlite3_result_text(context, "?000", 4, SQLITE_STATIC);
         */
         static void sqlite3RegisterLikeFunctions(sqlite3 db, int caseSensitive)
         {
-            compareInfo pInfo;
+            CompareInfo pInfo;
             if (caseSensitive != 0)
             {
-                pInfo = likeInfoAlt;
+                pInfo = _likeInfoAlt;
             }
             else
             {
-                pInfo = likeInfoNorm;
+                pInfo = _likeInfoNorm;
             }
             sqlite3CreateFunc(db, "like", 2, SQLITE_UTF8, pInfo, (dxFunc)likeFunc, null, null, null);
             sqlite3CreateFunc(db, "like", 3, SQLITE_UTF8, pInfo, (dxFunc)likeFunc, null, null, null);
             sqlite3CreateFunc(db, "glob", 2, SQLITE_UTF8,
-            globInfo, (dxFunc)likeFunc, null, null, null);
+            _globInfo, (dxFunc)likeFunc, null, null, null);
             setLikeOptFlag(db, "glob", SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE);
             setLikeOptFlag(db, "like",
             caseSensitive != 0 ? (SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE) : SQLITE_FUNC_LIKE);
@@ -1895,9 +1479,9 @@ sqlite3_result_text(context, "?000", 4, SQLITE_STATIC);
             ** Debug.Asserts() that follow verify that assumption
             */
             //memcpy( aWc, pDef.pUserData, 3 );
-            aWc[0] = ((compareInfo)pDef.pUserData).matchAll;
-            aWc[1] = ((compareInfo)pDef.pUserData).matchOne;
-            aWc[2] = ((compareInfo)pDef.pUserData).matchSet;
+            aWc[0] = ((CompareInfo)pDef.pUserData).MatchAll;
+            aWc[1] = ((CompareInfo)pDef.pUserData).MatchOne;
+            aWc[2] = ((CompareInfo)pDef.pUserData).MatchSet;
             // Debug.Assert((char*)&likeInfoAlt == (char*)&likeInfoAlt.matchAll);
             // Debug.Assert(&((char*)&likeInfoAlt)[1] == (char*)&likeInfoAlt.matchOne);
             // Debug.Assert(&((char*)&likeInfoAlt)[2] == (char*)&likeInfoAlt.matchSet);
@@ -1988,13 +1572,13 @@ AGGREGATE("count",             1, 0, 0, countStep,       countFinalize  ),
 AGGREGATE("group_concat",      1, 0, 0, groupConcatStep, groupConcatFinalize),
 AGGREGATE("group_concat",      2, 0, 0, groupConcatStep, groupConcatFinalize),
 
-LIKEFUNC("glob", 2, globInfo, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
+LIKEFUNC("glob", 2, _globInfo, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
 #if SQLITE_CASE_SENSITIVE_LIKE
 LIKEFUNC("like", 2, likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
 LIKEFUNC("like", 3, likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
 #else
-LIKEFUNC("like", 2, likeInfoNorm, SQLITE_FUNC_LIKE),
-LIKEFUNC("like", 3, likeInfoNorm, SQLITE_FUNC_LIKE),
+LIKEFUNC("like", 2, _likeInfoNorm, SQLITE_FUNC_LIKE),
+LIKEFUNC("like", 3, _likeInfoNorm, SQLITE_FUNC_LIKE),
 #endif
 FUNCTION("regexp",                2, 0, 0, regexpFunc          ),};
             int i;

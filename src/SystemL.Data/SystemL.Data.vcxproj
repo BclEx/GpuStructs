@@ -169,7 +169,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;HAS_CODEC;ENABLE_STAT3;XXX;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_LIB;TEST;ENABLE_ATOMIC_WRITE;OMIT_WAL;HAS_CODEC;ENABLE_STAT3;XXX;xOMIT_GET_TABLE;SOUNDEX;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;ENABLE_TREE_EXPLAIN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

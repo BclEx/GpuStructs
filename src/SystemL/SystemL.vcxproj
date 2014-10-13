@@ -113,47 +113,51 @@
     <ClCompile Include="Program.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\SystemL.net\Core\00.Bitvec.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\05.Hash.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\10.ConvertEx.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\20.MutexEx.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\30.RC.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\40.StatusEx.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\45.VAlloc.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\50.SysEx.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\50.VSystem.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\60.MathEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Bitvec.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Hash.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\ConvertEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\MutexEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\RC.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\StatusEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\VAlloc.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\SysEx.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\VSystem.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\MathEx.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\IO\30.VFile.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\Text\00.StringBuilder.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h" />
+    <ClInclude Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
-    <ClCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
-    <ClCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
-    <ClCompile Include="..\SystemL.net\Core\05.Hash.cu" />
-    <ClCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
-    <ClCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
-    <ClCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />
-    <ClCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu" />
-    <ClCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu" />
-    <ClCompile Include="..\SystemL.net\Core\IO\30.VFile.cu" />
-    <ClCompile Include="..\SystemL.net\Core\50.VSystem.cu" />
-    <ClCompile Include="..\SystemL.net\Core\55.WinVSystem.cu" />
+    <ClCompile Include="..\SystemL.net\Core\SysEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\Bitvec.cu" />
+    <ClCompile Include="..\SystemL.net\Core\Hash.cu" />
+    <ClCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\StatusEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
+    <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
+    <ClCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />
+    <ClCompile Include="..\SystemL.net\Core\VSystem.cu" />
+    <ClCompile Include="..\SystemL.net\Core\WinVSystem.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="Program.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\50.SysEx.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\00.Bitvec.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\05.Hash.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\10.ConvertEx.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\IO\20.MemoryVFile.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\40.StatusEx.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\IO\25.JournalVFile.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\Text\00.StringBuilder.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\IO\30.VFile.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\50.VSystem.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\55.GpuVSystem.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\SysEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Bitvec.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Hash.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\StatusEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\VSystem.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\GpuVSystem.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

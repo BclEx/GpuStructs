@@ -799,11 +799,11 @@ zulu_time:
 #endif
 	};
 
-	__device__ void Date_RegisterDateTimeFunctions()
+	__device__ void Date_::RegisterDateTimeFunctions()
 	{
-		FuncDefHash *pHash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
+		FuncDefHash *hash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
 		for (int i = 0; i < __arrayStaticLength(_dateTimeFuncs); i++)
-			sqlite3FuncDefInsert(pHash, &_dateTimeFuncs[i]);
+			sqlite3FuncDefInsert(hash, &_dateTimeFuncs[i]);
 	}
 
 } }

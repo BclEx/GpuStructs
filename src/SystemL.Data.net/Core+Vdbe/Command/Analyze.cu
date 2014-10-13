@@ -494,7 +494,7 @@ namespace Core { namespace Command
 		LoadAnalysis(parse, db);
 	}
 
-	__device__ void Analyze::Analyze(Parse *parse, Token *name1, Token *name2)
+	__device__ void Analyze::Analyze_(Parse *parse, Token *name1, Token *name2)
 	{
 		Context *ctx = parse->Ctx;
 		// Read the database schema. If an error occurs, leave an error message and code in pParse and return NULL.

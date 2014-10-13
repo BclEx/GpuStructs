@@ -35,18 +35,19 @@
 #endif
 
 #include "Core+Types.cu.h"
-#include "10.ConvertEx.cu.h"
-#include "30.RC.cu.h"
-#include "45.VAlloc.cu.h"
-#include "50.SysEx.cu.h"
-#include "20.MutexEx.cu.h"
-#include "00.Bitvec.cu.h"
-#include "05.Hash.cu.h"
-#include "40.StatusEx.cu.h"
-#include "50.VSystem.cu.h"
-#include "60.MathEx.cu.h"
+#include "ConvertEx.cu.h"
+#include "RC.cu.h"
+#include "VAlloc.cu.h"
+#include "SysEx.cu.h"
+#include "MutexEx.cu.h"
+#include "Bitvec.cu.h"
+#include "Hash.cu.h"
+#include "StatusEx.cu.h"
+#include "VSystem.cu.h"
+#include "MathEx.cu.h"
+
 //
-#include "IO\30.VFile.cu.h"
-#include "Text\00.StringBuilder.cu.h"
+#include "IO\IO.VFile.cu.h"
+#include "Text\Text.StringBuilder.cu.h"
 using namespace Core;
 using namespace Core::IO;

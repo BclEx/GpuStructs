@@ -1396,6 +1396,7 @@ namespace Core
 		TRIGGER_AFTER = 2,
 	};
 
+	struct TriggerStep;
 	struct Trigger
 	{
 		char *Name;				// The name of the trigger
@@ -1452,6 +1453,66 @@ namespace Core
 #pragma endregion
 
 	__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);
+
+#pragma region Command
+	namespace Command {
+
+		struct Alter
+		{
+			__device__ void Functions();
+			__device__ void RenameTable(Parse *parse, SrcList *src, Token *name);
+			__device__ void MinimumFileFormat(Parse *parse, int db, int minFormat);
+			__device__ void FinishAddColumn(Parse *parse, Token *colDef);
+			__device__ void BeginAddColumn(Parse *parse, SrcList *src);
+		};
+
+		struct Analyze
+		{
+			__device__ void Analyze_(Parse *parse, Token *name1, Token *name2);
+			__device__ void DeleteIndexSamples(Context *ctx, Index *idx);
+			__device__ RC AnalysisLoad(Context *ctx, int db);
+		};
+
+		struct Attach
+		{
+			__device__ void Detach(Parse *parse, Expr *dbName);
+			__device__ void Attach_(Parse *parse, Expr *p, Expr *dbName, Expr *key);
+		};
+
+		struct Date_
+		{
+			__device__ void RegisterDateTimeFunctions();
+		};
+
+		struct Delete
+		{
+			__device__ Table *SrcListLookup(Parse *parse, SrcList *src);
+			__device__ bool IsReadOnly(Parse *parse, Table *table, bool viewOk);
+#if !defined(OMIT_VIEW) && !defined(OMIT_TRIGGER)
+			__device__ void MaterializeView(Parse *parse, Table *view, Expr *where_, int curId);
+#endif
+#if 1 || defined(ENABLE_UPDATE_DELETE_LIMIT) && !defined(OMIT_SUBQUERY)
+			__device__ Expr *LimitWhere(Parse *parse, SrcList *src, Expr *where_, ExprList *orderBy, Expr *limit, Expr *offset, char *stmtType);
+#endif
+			__device__ void DeleteFrom(Parse *parse, SrcList *tabList, Expr *where_);
+			__device__ void GenerateRowDelete(Parse *parse, Table *table, int curId, int rowid, int count, Trigger *trigger, OE onconf);
+			__device__ void GenerateRowIndexDelete(Parse *parse, Table *table, int curId, int *regIdxs);
+			__device__ int GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec);
+		};
+
+		struct Func
+		{
+			__device__ static CollSeq *GetFuncCollSeq(FuncContext *fctx);
+			__device__ static void SkipAccumulatorLoad(FuncContext *fctx);
+			__device__ static void RegisterBuiltinFunctions(Context *ctx);
+			__device__ static void RegisterLikeFunctions(Context *ctx, int caseSensitive);
+			__device__ static int IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc);
+			__device__ static void RegisterGlobalFunctions();
+		};
+	}
+#pragma endregion
+
 }
 #include "Vdbe.cu.h"
 #include "Context.cu.h"
+
