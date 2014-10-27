@@ -84,7 +84,7 @@ namespace Core
             public int NewTid;				// Rootpage of table being initialized
             public byte DB;                 // Which db file is being initialized
             public bool Busy;				// TRUE if currently initializing
-            public byte OrphanTrigger;      // Last statement is orphaned TEMP trigger
+            public bool OrphanTrigger;      // Last statement is orphaned TEMP trigger
         }
 
         public OPTFLAG OptFlags;

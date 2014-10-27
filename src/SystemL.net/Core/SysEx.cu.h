@@ -111,7 +111,7 @@ namespace Core
 				_memcpy(newZ, z, n);
 			return newZ;
 		}
-		__device__ inline static char *TagStrNDup(void *tag,  const char *z, int n)
+		__device__ inline static char *TagStrNDup(void *tag, const char *z, int n)
 		{
 			if (z == nullptr) return nullptr;
 			_assert((n & 0x7fffffff) == n);
@@ -122,6 +122,17 @@ namespace Core
 				newZ[n] = 0;
 			}
 			return newZ;
+		}
+
+		__device__ inline static void TagStrSet(void *tag, char **source, const char *format, ...)
+		{
+			va_list ap;
+			char *z;
+			va_start(ap, zFormat);
+			z = sqlite3VMPrintf(tag, format, ap);
+			va_end(ap);
+			TagFree(tag, *source);
+			*source = z;
 		}
 
 #pragma endregion

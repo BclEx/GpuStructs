@@ -51,7 +51,7 @@ namespace Core.Command
                 case TYPE.BLOB: z = "blob"; break;
                 default: z = "null"; break;
             }
-            sqlite3_result_text(fctx, z, -1, SQLITE_STATIC);
+            sqlite3_result_text(fctx, z, -1, DESTRUCTOR_STATIC);
         }
 
 

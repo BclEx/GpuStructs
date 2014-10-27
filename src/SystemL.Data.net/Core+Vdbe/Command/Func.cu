@@ -48,7 +48,7 @@ namespace Core { namespace Command
 		case TYPE_BLOB: z = "blob"; break;
 		default: z = "null"; break;
 		}
-		sqlite3_result_text(fctx, z, -1, SQLITE_STATIC);
+		sqlite3_result_text(fctx, z, -1, DESTRUCTOR_STATIC);
 	}
 
 	__device__ static void LengthFunc(FuncContext *fctx, int argc, Mem **argv)

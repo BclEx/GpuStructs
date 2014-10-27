@@ -171,7 +171,7 @@ namespace Core
 #endif
 
 	public: //was:private
-		Context *Db;            // The database connection that owns this statement
+		Context *Ctx;            // The database connection that owns this statement
 		array_t<VdbeOp> Ops;        // Space to hold the virtual machine's program
 		array_t<Mem> Mems;      // The memory locations
 		Mem **Args;				// Arguments to currently executing user function

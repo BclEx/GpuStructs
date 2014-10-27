@@ -808,6 +808,17 @@ namespace Core
 
 #pragma endregion
 
+#pragma region Prepare
+
+	typedef struct {
+		Context *Ctx; // The database being initialized
+		char **ErrMsg; // Error message stored here
+		int Db; // 0 for main database.  1 for TEMP, 2.. for ATTACHed
+		RC RC; // Result code stored here
+	} InitData;
+
+#pragma endregion 
+
 #pragma region Parse
 
 #ifdef OMIT_VIRTUALTABLE

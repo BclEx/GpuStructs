@@ -3902,7 +3902,7 @@ whereBeginError:
 		return nullptr;
 	}
 
-	void sqlite3WhereEnd(WhereInfo *winfo)
+	__device__ void Where_End(WhereInfo *winfo)
 	{
 		Parse *parse = winfo->Parse;
 		Vdbe *v = parse->V;
@@ -3922,17 +3922,18 @@ whereBeginError:
 				v->AddOp2(level->OP, level->P1, level->P2);
 				v->ChangeP5(level->P5);
 			}
-			if ((level->Plan.WsFlags & WHERE_IN_ABLE) && level->u.in.nIn > 0)
+			if ((level->Plan.WsFlags & WHERE_IN_ABLE) && level->u.in.InLoopsLength > 0)
 			{
-				WhereLevel::InLoop *in_;
 				v->ResolveLabel(level->AddrNxt);
-				for (int j = level->u.in.nIn, in_ = &level->u.in.aInLoop[j-1]; j > 0; j--, in_--)
+				int j;
+				WhereLevel::InLoop *in_;
+				for (j = level->u.in.InLoopsLength, in_ = &level->u.in.InLoops[j-1]; j > 0; j--, in_--)
 				{
 					v->JumpHere(in_->AddrInTop+1);
 					v->AddOp2(in_->EndLoopOp, in_->Cur, in_->AddrInTop);
 					v->JumpHere(in_->AddrInTop-1);
 				}
-				SysEx::TagFree(ctx, level->u.in.aInLoop);
+				SysEx::TagFree(ctx, level->u.in.InLoops);
 			}
 			v->ResolveLabel(level->AddrBrk);
 			if (level->LeftJoin)
@@ -3954,75 +3955,67 @@ whereBeginError:
 		// The "break" point is here, just past the end of the outer loop. Set it.
 		v->ResolveLabel(winfo->BreakId);
 
-		/* Close all of the cursors that were opened by sqlite3WhereBegin.
-		*/
-		assert( winfo->nLevel==1 || winfo->nLevel==tabList->nSrc );
-		for(i=0, level=winfo->a; i<winfo->nLevel; i++, level++){
-			Index *pIdx = 0;
-			struct SrcList_item *pTabItem = &tabList->a[level->From];
-			Table *pTab = pTabItem->pTab;
-			assert( pTab!=0 );
-			if( (pTab->tabFlags & TF_Ephemeral)==0
-				&& pTab->pSelect==0
-				&& (winfo->wctrlFlags & WHERE_OMIT_OPEN_CLOSE)==0
-				){
-					int ws = level->plan.wsFlags;
-					if( !winfo->okOnePass && (ws & WHERE_IDX_ONLY)==0 ){
-						sqlite3VdbeAddOp1(v, OP_Close, pTabItem->iCursor);
-					}
-					if( (ws & WHERE_INDEXED)!=0 && (ws & WHERE_TEMP_INDEX)==0 ){
-						sqlite3VdbeAddOp1(v, OP_Close, level->iIdxCur);
-					}
+		// Close all of the cursors that were opened by sqlite3WhereBegin.
+		_assert(winfo->Levels == 1 || winfo->Levels == tabList->Srcs);
+		for (i = 0, level = winfo->Data; i < winfo->Levels; i++, level++)
+		{
+			SrcList::SrcListItem *tabItem = &tabList->Ids[level->From];
+			Table *table = tabItem->Table;
+			_assert(table != nullptr);
+			if ((table->TabFlags & TF_Ephemeral) == 0 && !table->Select && (winfo->WctrlFlags & WHERE_OMIT_OPEN_CLOSE) == 0)
+			{
+				uint ws = level->Plan.WsFlags;
+				if (!winfo->OkOnePass && (ws & WHERE_IDX_ONLY) == 0)
+					v->AddOp1(OP_Close, tabItem->Cursor);
+				if ((ws & WHERE_INDEXED) != 0 && (ws & WHERE_TEMP_INDEX) == 0)
+					v->AddOp1(OP_Close, level->IdxCur);
 			}
 
-			/* If this scan uses an index, make code substitutions to read data
-			** from the index in preference to the table. Sometimes, this means
-			** the table need never be read from. This is a performance boost,
-			** as the vdbe level waits until the table is read before actually
-			** seeking the table cursor to the record corresponding to the current
-			** position in the index.
-			** 
-			** Calls to the code generator in between sqlite3WhereBegin and
-			** sqlite3WhereEnd will have created code that references the table
-			** directly.  This loop scans all that code looking for opcodes
-			** that reference the table and converts them into opcodes that
-			** reference the index.
-			*/
-			if( level->plan.wsFlags & WHERE_INDEXED ){
-				pIdx = level->plan.u.pIdx;
-			}else if( level->plan.wsFlags & WHERE_MULTI_OR ){
-				pIdx = level->u.pCovidx;
-			}
-			if( pIdx && !ctx->mallocFailed){
-				int k, j, last;
-				VdbeOp *pOp;
-
-				pOp = sqlite3VdbeGetOp(v, winfo->iTop);
-				last = sqlite3VdbeCurrentAddr(v);
-				for(k=winfo->iTop; k<last; k++, pOp++){
-					if( pOp->p1!=level->iTabCur ) continue;
-					if( pOp->opcode==OP_Column ){
-						for(j=0; j<pIdx->nColumn; j++){
-							if( pOp->p2==pIdx->aiColumn[j] ){
-								pOp->p2 = j;
-								pOp->p1 = level->iIdxCur;
+			// If this scan uses an index, make code substitutions to read data from the index in preference to the table. Sometimes, this means
+			// the table need never be read from. This is a performance boost, as the vdbe level waits until the table is read before actually
+			// seeking the table cursor to the record corresponding to the current position in the index.
+			// 
+			// Calls to the code generator in between sqlite3WhereBegin and sqlite3WhereEnd will have created code that references the table
+			// directly.  This loop scans all that code looking for opcodes that reference the table and converts them into opcodes that
+			// reference the index.
+			Index *idx = nullptr;
+			if (level->Plan.WsFlags & WHERE_INDEXED)
+				idx = level->Plan.u.Index;
+			else if (level->Plan.WsFlags & WHERE_MULTI_OR)
+				idx = level->u.Covidx;
+			if (idx && !ctx->MallocFailed)
+			{
+				int last = v->CurrentAddr();
+				int k;
+				Vdbe::VdbeOp *op;
+				for (k = winfo->TopId, op = v->GetOp(winfo->TopId); k < last; k++, op++)
+				{
+					if (op->P1 != level->TabCur) continue;
+					if (op->Opcode == OP_Column)
+					{
+						for (int j = 0; j < idx->Columns.length; j++)
+						{
+							if (op->P2 == idx->Columns[j])
+							{
+								op->P2 = j;
+								op->P1 = level->IdxCur;
 								break;
 							}
 						}
-						assert( (level->plan.wsFlags & WHERE_IDX_ONLY)==0
-							|| j<pIdx->nColumn );
-					}else if( pOp->opcode==OP_Rowid ){
-						pOp->p1 = level->iIdxCur;
-						pOp->opcode = OP_IdxRowid;
+						_assert((level->Plan.WsFlags & WHERE_IDX_ONLY) == 0 || j < idx->Columns.length);
+					}
+					else if (op->Opcode == OP_Rowid)
+					{
+						op->P1 = level->IdxCur;
+						op->Opcode = OP_IdxRowid;
 					}
 				}
 			}
 		}
 
-		/* Final cleanup
-		*/
-		parse->nQueryLoop = winfo->savedNQueryLoop;
-		whereInfoFree(ctx, winfo);
+		// Final cleanup
+		parse->QueryLoops = winfo->SavedNQueryLoop;
+		WhereInfoFree(ctx, winfo);
 		return;
 	}
 }

@@ -3,36 +3,36 @@
 
 #pragma region Name1
 
-__device__ static int vdbeSafety(Vdbe *p)
+__device__ static bool VdbeSafety(Vdbe *p)
 {
-	if (p->Db == nullptr)
+	if (p->Ctx == nullptr)
 	{
 		SysEx_LOG(RC_MISUSE, "API called with finalized prepared statement");
-		return 1;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
-__device__ static int vdbeSafetyNotNull(Vdbe *p)
+__device__ static bool VdbeSafetyNotNull(Vdbe *p)
 {
 	if (p == nullptr)
 	{
 		SysEx_LOG(RC_MISUSE, "API called with NULL prepared statement");
-		return 1;
+		return true;
 	}
-	return vdbeSafety(p);
+	return VdbeSafety(p);
 }
 
 __device__ RC sqlite3_finalize(Vdbe *p)
 {
 	if (p == nullptr)
 		return RC_OK; // IMPLEMENTATION-OF: R-57228-12904 Invoking sqlite3_finalize() on a NULL pointer is a harmless no-op.
-	Context *db = p->Db;
-	if (vdbeSafety(p)) return RC_MISUSE_BKPT;
-	MutexEx::Enter(db->Mutex);
+	Context *ctx = p->Ctx;
+	if (VdbeSafety(p)) return SysEx_MISUSE_BKPT;
+	MutexEx::Enter(ctx->Mutex);
 	RC rc = p->Finalize();
-	rc = sqlite3ApiExit(db, rc);
-	sqlite3LeaveMutexAndCloseZombie(db);
+	rc = sqlite3ApiExit(ctx, rc);
+	Main::LeaveMutexAndCloseZombie(ctx);
 	return rc;
 }
 

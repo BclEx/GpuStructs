@@ -3954,12 +3954,13 @@ namespace Core
                     _queryPlanIdx += 3;
                 }
             }
-            
+
             //while (_queryPlanIdx > 0 && _queryPlan[_queryPlanIdx - 1] == ' ')
             //    _queryPlan[--_queryPlanIdx] = 0;
             //_queryPlan[_queryPlanIdx] = 0;
             _queryPlan = new StringBuilder(_queryPlan.ToString().Trim());
             _queryPlanIdx = 0;
+#endif
 
             // Record the continuation address in the WhereInfo structure.  Then clean up and return.
             return winfo;
@@ -3974,159 +3975,122 @@ namespace Core
             return null;
         }
 
-        /*
-        ** Generate the end of the WHERE loop.  See comments on
-        ** sqlite3WhereBegin() for additional information.
-        */
-        static void sqlite3WhereEnd(WhereInfo pWInfo)
+        public static void eEnd(WhereInfo winfo)
         {
-            Parse pParse = pWInfo.pParse;
-            Vdbe v = pParse.pVdbe;
+            Parse parse = winfo.Parse;
+            Vdbe v = parse.V;
             int i;
-            WhereLevel pLevel;
-            SrcList pTabList = pWInfo.pTabList;
-            sqlite3 db = pParse.db;
+            WhereLevel level;
+            SrcList tabList = winfo.TabList;
+            Context ctx = parse.Ctx;
 
-            /* Generate loop termination code.
-            */
-            sqlite3ExprCacheClear(pParse);
-            for (i = pWInfo.nLevel - 1; i >= 0; i--)
+            // Generate loop termination code.
+            Expr.CacheClear(parse);
+            for (i = winfo.Levels - 1; i >= 0; i--)
             {
-                pLevel = pWInfo.Data[i];
-                sqlite3VdbeResolveLabel(v, pLevel.addrCont);
-                if (pLevel.op != OP_Noop)
+                level = winfo.Data[i];
+                v.ResolveLabel(level.AddrCont);
+                if (level.OP != OP.Noop)
                 {
-                    sqlite3VdbeAddOp2(v, pLevel.op, pLevel.p1, pLevel.p2);
-                    sqlite3VdbeChangeP5(v, pLevel.p5);
+                    v.AddOp2(level.OP, level.P1, level.P2);
+                    v.ChangeP5(level.p5);
                 }
-                if ((pLevel.plan.wsFlags & WHERE_IN_ABLE) != 0 && pLevel.u._in.nIn > 0)
+                if ((level.Plan.WsFlags & WHERE_IN_ABLE) != 0 && level.u.in_.InLoopsLength > 0)
                 {
-                    InLoop pIn;
-                    int j;
-                    sqlite3VdbeResolveLabel(v, pLevel.addrNxt);
-                    for (j = pLevel.u._in.nIn; j > 0; j--)//, pIn--)
+                    v.ResolveLabel(level.AddrNxt);
+                    for (int j = level.u.in_.InLoopsLength; j > 0; j--) //: in_--)
                     {
-                        pIn = pLevel.u._in.aInLoop[j - 1];
-                        sqlite3VdbeJumpHere(v, pIn.addrInTop + 1);
-                        sqlite3VdbeAddOp2(v, OP_Next, pIn.iCur, pIn.addrInTop);
-                        sqlite3VdbeJumpHere(v, pIn.addrInTop - 1);
+                        WhereLevel.InLoop in_ = level.u.in_.InLoops[j - 1];
+                        v.JumpHere(in_.AddrInTop + 1);
+                        v.AddOp2(OP.Next, in_.Cur, in_.AddrInTop);
+                        v.JumpHere(in_.AddrInTop - 1);
                     }
-                    sqlite3DbFree(db, ref pLevel.u._in.aInLoop);
+                    SysEx.TagFree(ctx, ref level.u.in_.InLoops);
                 }
-                sqlite3VdbeResolveLabel(v, pLevel.addrBrk);
-                if (pLevel.iLeftJoin != 0)
+                v.ResolveLabel(level.AddrBrk);
+                if (level.LeftJoin != 0)
                 {
-                    int addr;
-                    addr = sqlite3VdbeAddOp1(v, OP_IfPos, pLevel.iLeftJoin);
-                    Debug.Assert((pLevel.plan.wsFlags & WHERE_IDX_ONLY) == 0
-                    || (pLevel.plan.wsFlags & WHERE_INDEXED) != 0);
-                    if ((pLevel.plan.wsFlags & WHERE_IDX_ONLY) == 0)
-                    {
-                        sqlite3VdbeAddOp1(v, OP_NullRow, pTabList.a[i].iCursor);
-                    }
-                    if (pLevel.iIdxCur >= 0)
-                    {
-                        sqlite3VdbeAddOp1(v, OP_NullRow, pLevel.iIdxCur);
-                    }
-                    if (pLevel.op == OP_Return)
-                    {
-                        sqlite3VdbeAddOp2(v, OP_Gosub, pLevel.p1, pLevel.addrFirst);
-                    }
+                    int addr = v.AddOp1(OP.IfPos, level.LeftJoin);
+                    Debug.Assert((level.Plan.WsFlags & WHERE_IDX_ONLY) == 0 || (level.Plan.WsFlags & WHERE_INDEXED) != 0);
+                    if ((level.Plan.WsFlags & WHERE_IDX_ONLY) == 0)
+                        v.AddOp1(OP.NullRow, tabList.Ids[i].Cursor);
+                    if (level.IdxCur >= 0)
+                        v.AddOp1(OP.NullRow, level.IdxCur);
+                    if (level.OP == OP.Return)
+                        v.AddOp2(OP.Gosub, level.P1, level.AddrFirst);
                     else
-                    {
-                        sqlite3VdbeAddOp2(v, OP_Goto, 0, pLevel.addrFirst);
-                    }
-                    sqlite3VdbeJumpHere(v, addr);
+                        v.VdbeAddOp2(OP.Goto, 0, level.AddrFirst);
+                    v.JumpHere(addr);
                 }
             }
 
-            /* The "break" point is here, just past the end of the outer loop.
-            ** Set it.
-            */
-            sqlite3VdbeResolveLabel(v, pWInfo.BreakId);
+            // The "break" point is here, just past the end of the outer loop. Set it.
+            v.ResolveLabel(winfo.BreakId);
 
-            /* Close all of the cursors that were opened by sqlite3WhereBegin.
-            */
-            Debug.Assert(pWInfo.nLevel == 1 || pWInfo.nLevel == pTabList.nSrc);
-            for (i = 0; i < pWInfo.nLevel; i++)//  for(i=0, pLevel=pWInfo.a; i<pWInfo.nLevel; i++, pLevel++){
+            // Close all of the cursors that were opened by sqlite3WhereBegin.
+            Debug.Assert(winfo.Levels == 1 || winfo.Levels == tabList.Srcs);
+            for (i = 0; i < winfo.Levels; i++) //: level++)
             {
-                pLevel = pWInfo.Data[i];
-                SrcList_item pTabItem = pTabList.a[pLevel.iFrom];
-                Table pTab = pTabItem.pTab;
-                Debug.Assert(pTab != null);
-                if ((pTab.tabFlags & TF_Ephemeral) == 0
-                && pTab.pSelect == null
-                && (pWInfo.wctrlFlags & WHERE_OMIT_CLOSE) == 0
-                )
+                level = winfo.Data[i];
+                SrcList.SrcListItem tabItem = tabList.Ids[level.From];
+                Table table = tabItem.Table;
+                Debug.Assert(table != null);
+                if ((table.TabFlags & TF.Ephemeral) == 0 && table.Select == null && (winfo.WctrlFlags & WHERE_OMIT_CLOSE) == 0)
                 {
-                    u32 ws = pLevel.plan.wsFlags;
-                    if (0 == pWInfo.okOnePass && (ws & WHERE_IDX_ONLY) == 0)
-                    {
-                        sqlite3VdbeAddOp1(v, OP_Close, pTabItem.iCursor);
-                    }
+                    uint ws = level.Plan.WsFlags;
+                    if (!winfo.OkOnePass && (ws & WHERE_IDX_ONLY) == 0)
+                        v.AddOp1(OP.Close, tabItem.Cursor);
                     if ((ws & WHERE_INDEXED) != 0 && (ws & WHERE_TEMP_INDEX) == 0)
-                    {
-                        sqlite3VdbeAddOp1(v, OP_Close, pLevel.iIdxCur);
-                    }
+                        v.AddOp1(OP.Close, level.IdxCur);
                 }
 
-                /* If this scan uses an index, make code substitutions to read data
-                ** from the index in preference to the table. Sometimes, this means
-                ** the table need never be read from. This is a performance boost,
-                ** as the vdbe level waits until the table is read before actually
-                ** seeking the table cursor to the record corresponding to the current
-                ** position in the index.
-                **
-                ** Calls to the code generator in between sqlite3WhereBegin and
-                ** sqlite3WhereEnd will have created code that references the table
-                ** directly.  This loop scans all that code looking for opcodes
-                ** that reference the table and converts them into opcodes that
-                ** reference the index.
-                */
-                if ((pLevel.plan.wsFlags & WHERE_INDEXED) != 0)///* && 0 == db.mallocFailed */ )
+                // If this scan uses an index, make code substitutions to read data from the index in preference to the table. Sometimes, this means
+                // the table need never be read from. This is a performance boost, as the vdbe level waits until the table is read before actually
+                // seeking the table cursor to the record corresponding to the current position in the index.
+                // 
+                // Calls to the code generator in between sqlite3WhereBegin and sqlite3WhereEnd will have created code that references the table
+                // directly.  This loop scans all that code looking for opcodes that reference the table and converts them into opcodes that
+                // reference the index.
+                Index idx = null;
+                if ((level.Plan.WsFlags & WHERE_INDEXED) != 0)
+                    idx = level->Plan.u.Index;
+                else if ((level->Plan.WsFlags & WHERE_MULTI_OR) != 0)
+                    idx = level->u.Covidx;
+                if (idx != null && !ctx->MallocFailed)
                 {
-                    int k, j, last;
-                    VdbeOp pOp;
-                    Index pIdx = pLevel.plan.u.pIdx;
-
-                    Debug.Assert(pIdx != null);
-                    //pOp = sqlite3VdbeGetOp( v, pWInfo.iTop );
-                    last = sqlite3VdbeCurrentAddr(v);
-                    for (k = pWInfo.TopId; k < last; k++)//, pOp++ )
+                    int last = v.CurrentAddr();
+                    int k;
+                    Vdbe.VdbeOp op; //: = sqlite3VdbeGetOp( v, pWInfo.iTop );
+                    for (k = winfo.TopId; k < last; k++) //: op++)
                     {
-                        pOp = sqlite3VdbeGetOp(v, k);
-                        if (pOp.p1 != pLevel.iTabCur)
-                            continue;
-                        if (pOp.opcode == OP_Column)
+                        op = v.GetOp(k);
+                        if (op.P1 != level.TabCur) continue;
+                        if (op.Opcode == OP.Column)
                         {
-                            for (j = 0; j < pIdx.nColumn; j++)
+                            for (int j = 0; j < idx.Columns.length; j++)
                             {
-                                if (pOp.p2 == pIdx.aiColumn[j])
+                                if (op.P2 == idx.Columns[j])
                                 {
-                                    pOp.p2 = j;
-                                    pOp.p1 = pLevel.iIdxCur;
+                                    op.P2 = j;
+                                    op.P1 = level.IdxCur;
                                     break;
                                 }
                             }
-                            Debug.Assert((pLevel.plan.wsFlags & WHERE_IDX_ONLY) == 0
-                            || j < pIdx.nColumn);
-
+                            Debug.Assert((level.Plan.WsFlags & WHERE_IDX_ONLY) == 0 || j < idx.Columns.length);
                         }
-                        else if (pOp.opcode == OP_Rowid)
+                        else if (op.Opcode == OP.Rowid)
                         {
-                            pOp.p1 = pLevel.iIdxCur;
-                            pOp.opcode = OP_IdxRowid;
+                            op.P1 = level.IdxCur;
+                            op.Opcode = OP.IdxRowid;
                         }
                     }
                 }
             }
 
-            /* Final cleanup
-            */
-            pParse.nQueryLoop = pWInfo.savedNQueryLoop;
-            whereInfoFree(db, pWInfo);
+            // Final cleanup
+            parse.QueryLoops = winfo.SavedNQueryLoop;
+            WhereInfoFree(ctx, winfo);
             return;
         }
     }
-
 }

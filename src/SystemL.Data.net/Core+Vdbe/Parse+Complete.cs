@@ -191,7 +191,7 @@ namespace Core
             rc = (sql8 != null ? (RC)Complete(sql8) : RC.NOMEM);
             else rc = RC.NOMEM;
             sqlite3ValueFree(val);
-            return Context.ApiExit(nullptr, rc);
+            return Context.ApiExit(null, rc);
         }
 #endif
 

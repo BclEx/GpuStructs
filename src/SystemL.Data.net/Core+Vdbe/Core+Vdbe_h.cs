@@ -751,6 +751,18 @@ namespace Core
     #region Callback
     #endregion
 
+    #region Prepare
+
+    public class InitData
+    {
+        public Context Ctx; // The database being initialized
+        public string ErrMsg; // Error message stored here
+        public int Db; // 0 for main database.  1 for TEMP, 2.. for ATTACHed
+        public RC RC; // Result code stored here
+    }
+
+    #endregion
+
     #region Parse
 
     public static partial class E
