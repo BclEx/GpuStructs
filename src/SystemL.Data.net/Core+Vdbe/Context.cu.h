@@ -90,8 +90,6 @@ namespace Core
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
 		int64 LastRowID;					// ROWID of most recent insert (see above)
 		VSystem::OPEN OpenFlags;			// Flags passed to sqlite3_vfs.xOpen()
-		RC ErrCode;							// Most recent error code (RC_*)
-		int ErrMask;						// & result codes with this before returning
 		void(*CollNeeded)(void *, Context *, int textRep, const char *);
 		void(*CollNeeded16)(void *, Context *, int textRep, const void *);
 		void *CollNeededArg;
@@ -105,7 +103,6 @@ namespace Core
 		} u1;
 		Lookaside Lookaside;				// Lookaside malloc configuration
 
-		bool MallocFailed;					// True if we have seen a malloc failure
 		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
 		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
 		int NextPagesize;					// Pagesize after VACUUM if >0
@@ -137,33 +134,7 @@ namespace Core
 		Context *NextBlocked;					// Next in list of all blocked connections
 #endif
 
-		__device__ inline static RC ApiExit(Context *ctx, RC rc)
-		{
-			// If the db handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
-			// is unsafe, as is the call to sqlite3Error().
-			_assert(!ctx || MutexEx::Held(ctx->Mutex));
-			if (ctx && (ctx->MallocFailed || rc == RC_IOERR_NOMEM))
-			{
-				Error(ctx, RC_NOMEM, nullptr);
-				ctx->MallocFailed = false;
-				rc = RC_NOMEM;
-			}
-			return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
-		}
 
-
-		//////////////////////
-		// ERROR
-#pragma region ERROR
-
-		inline __device__ static void Error(void *tag, RC errorCode, const char *fmt) { }
-		template <typename T1> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1) { }
-		template <typename T1, typename T2> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2) { }
-		template <typename T1, typename T2, typename T3> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
-		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { }
-
-#pragma endregion
 	};
 
 }

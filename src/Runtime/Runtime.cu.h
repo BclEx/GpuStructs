@@ -562,6 +562,10 @@ template <typename T> struct array_t { int length; T *data; __device__ inline ar
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; __device__ inline array_t2() { data = nullptr; length = 0; } __device__ inline array_t2(T *a) { data = a; length = 0; } __device__ inline array_t2(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
+typedef char *_argsT;
+#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
+#define __arg(args, t) (*(t *)((args += _INTSIZEOF(t)) - _INTSIZEOF(t)))
+
 // skiputf8
 template <typename T> __device__ inline void _skiputf8(const T *z)
 {

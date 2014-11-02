@@ -46,7 +46,7 @@
     <Compile Include="Core\VAlloc.cs" />
     <Compile Include="Core\MathEx.cs" />
     <Compile Include="Core\Hash.cs" />
-    <Compile Include="Core\C.cs" />
+    <Compile Include="C.cs" />
     <Compile Include="Core\Text\Text.StringBuilder.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Core\SysEx.cs" />
@@ -84,6 +84,8 @@
     <Content Include="Core\IO\IO.VFile.cu" />
     <Content Include="Core\Text\Text.StringBuilder.cu" />
     <None Include="Core\SysEx+Utf.cu" />
+    <Content Include="Core\Text\Text.Print.cu.h" />
+    <None Include="Core\Text\Text.Print.cu" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

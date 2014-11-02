@@ -41,6 +41,9 @@
     <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.net\Core\Text\Text.Print.cu">
+      <Filter>Core\Text</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h">
@@ -84,6 +87,9 @@
     </ClInclude>
     <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h">
       <Filter>Core\IO</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SystemL.net\Core\Text\Text.Print.cu.h">
+      <Filter>Core\Text</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

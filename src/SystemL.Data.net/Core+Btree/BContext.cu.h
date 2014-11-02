@@ -5,7 +5,7 @@ namespace Core
 
 #define CTXENCODE(ctx) ((ctx)->DBs[0].Schema->Encode)
 
-	class BContext
+	class BContext : public TagBase
 	{
 	public:
 		static const int MAX_ATTACHED = 10;
@@ -53,7 +53,6 @@ namespace Core
 			FLAG_EnableTrigger = 0x40000000,
 		};
 
-		MutexEx Mutex;
 		array_t<DB> DBs;				// All backends / Number of backends currently in use
 		FLAG Flags;
 		int ActiveVdbeCnt;

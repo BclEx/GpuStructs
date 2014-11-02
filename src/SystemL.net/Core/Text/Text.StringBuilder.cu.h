@@ -13,6 +13,7 @@
 		uint8 UseMalloc;	// 0: none,  1: sqlite3DbMalloc,  2: sqlite3_malloc
 		bool Overflowed;    // Becomes true if string size exceeds limits
 
+		__device__ void Printf(bool useExtended, const char *fmt, void *args);
 		__device__ void Append(const char *z, int length);
 		__device__ char *ToString();
 		__device__ void Reset();

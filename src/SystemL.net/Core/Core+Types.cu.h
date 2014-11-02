@@ -29,13 +29,14 @@ typedef unsigned long long	uint64;
 #ifdef OMIT_FLOATING_POINT
 #define double int64
 #define float int64
-//#define LONGDOUBLE_TYPE int64
+#define double64 int64
 #define BIG_DOUBLE (((int64)1)<<50)
 #define OMIT_DATETIME_FUNCS 1
 #define OMIT_TRACE 1
 #undef MIXED_ENDIAN_64BIT_FLOAT
 #undef HAVE_ISNAN
 #else
+#define double64 long double
 #define BIG_DOUBLE (1e99)
 #endif
 

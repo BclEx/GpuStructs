@@ -38,6 +38,15 @@ namespace Core
 
 #define SysEx_VERSION_NUMBER 3007016
 
+	class TagBase
+	{
+	public:
+		MutexEx Mutex;
+		bool MallocFailed; // True if we have seen a malloc failure
+		RC ErrCode; // Most recent error code (RC_*)
+		int ErrMask; // & result codes with this before returning
+	};
+
 	class SysEx
 	{
 	public:
@@ -168,6 +177,33 @@ namespace Core
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); return nullptr; }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); return nullptr; }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ static char *Mprintf(void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); return nullptr; }
+
+#pragma endregion
+
+		__device__ inline static RC ApiExit(TagBase *tag, RC rc)
+		{
+			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
+			// is unsafe, as is the call to sqlite3Error().
+			_assert(!tag || MutexEx::Held(tag->Mutex));
+			if (tag && (tag->MallocFailed || rc == RC_IOERR_NOMEM))
+			{
+				Error(tag, RC_NOMEM, nullptr);
+				tag->MallocFailed = false;
+				rc = RC_NOMEM;
+			}
+			return (RC)(rc & (tag ? tag->ErrMask : 0xff));
+		}
+
+		//////////////////////
+		// ERROR
+#pragma region ERROR
+
+		inline __device__ static void Error(void *tag, RC errorCode, const char *fmt) { }
+		template <typename T1> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1) { }
+		template <typename T1, typename T2> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2) { }
+		template <typename T1, typename T2, typename T3> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
+		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { }
 
 #pragma endregion
 
