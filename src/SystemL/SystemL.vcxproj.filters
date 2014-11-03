@@ -32,17 +32,11 @@
     <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu">
       <Filter>Core\IO</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu">
-      <Filter>Core\Text</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\Text\Text.Print.cu">
-      <Filter>Core\Text</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -82,14 +76,8 @@
     <ClInclude Include="..\SystemL.net\Core\MathEx.cu.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu.h">
-      <Filter>Core\Text</Filter>
-    </ClInclude>
     <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h">
       <Filter>Core\IO</Filter>
-    </ClInclude>
-    <ClInclude Include="..\SystemL.net\Core\Text\Text.Print.cu.h">
-      <Filter>Core\Text</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -98,9 +86,6 @@
     </Filter>
     <Filter Include="Core\IO">
       <UniqueIdentifier>{1ee250da-47a5-4fb0-ae2b-f264b71953e9}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Text">
-      <UniqueIdentifier>{1ed0b226-75ce-454b-8c44-f1d6df5a5ffa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

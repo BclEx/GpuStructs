@@ -9,7 +9,7 @@
 #else
 #include <malloc.h>
 #endif
-#include "Runtime.h"
+#include "RuntimeHost.h"
 #include "cuda_runtime_api.h"
 
 #define RUNTIME_UNRESTRICTED -1

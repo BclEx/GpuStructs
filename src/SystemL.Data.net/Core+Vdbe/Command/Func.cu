@@ -770,7 +770,7 @@ namespace Core { namespace Command
 		int replacementLength = sqlite3_value_bytes(argv[2]); // Size of replacement
 		_assert(replacement == sqlite3_value_text(argv[2]));
 		int64 outLength = stringLength + 1; // Maximum size of out
-		_assert(outLength < MAX_LENGTH);
+		_assert(outLength < CORE_MAX_LENGTH);
 		unsigned char *out = (unsigned char *)ContextMalloc(fctx, (int64)outLength); // The output
 		if (!out)
 			return;

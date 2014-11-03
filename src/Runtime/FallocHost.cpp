@@ -2,7 +2,7 @@
 #error Atomics only used with > sm_10 architecture
 #endif
 #include <string.h>
-#include "Falloc.h"
+#include "FallocHost.h"
 #include "cuda_runtime_api.h"
 
 typedef struct __align__(8)

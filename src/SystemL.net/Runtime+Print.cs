@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Text;
-namespace Core.Text
+namespace Core
 {
     public class StringBuilder
     {

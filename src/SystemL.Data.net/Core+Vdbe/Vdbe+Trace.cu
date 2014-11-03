@@ -127,7 +127,7 @@ namespace Core {
 				p->Vdbe = vdbe;
 				SysEx::Free(vdbe->Explain);
 				vdbe->Explain = p;
-				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), MAX_LENGTH);
+				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), CORE_MAX_LENGTH);
 				p->Str.UseMalloc = 2;
 			}
 			else

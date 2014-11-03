@@ -3,7 +3,7 @@
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 100
 #error Atomics only used with > sm_10 architecture
 #endif
-#include "Falloc.h"
+#include "FallocHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
@@ -13,7 +13,7 @@
 #ifndef __EMBED__
 #define __static__ static
 #endif
-#include "Falloc.cu.native.h"
+#include "Falloc.cu+native.h"
 #else
 
 ///////////////////////////////////////////////////////////////////////////////

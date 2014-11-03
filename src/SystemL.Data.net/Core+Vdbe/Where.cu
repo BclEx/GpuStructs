@@ -2731,7 +2731,7 @@ cancel:
 		if (eqs == 0 && (plan->WsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT)) == 0)
 			return nullptr;
 		Text::StringBuilder b;
-		Text::StringBuilder::Init(&b, 0, 0, MAX_LENGTH);
+		Text::StringBuilder::Init(&b, 0, 0, CORE_MAX_LENGTH);
 		b.Ctx = ctx;
 		b.Append(" (", 2);
 		int i;

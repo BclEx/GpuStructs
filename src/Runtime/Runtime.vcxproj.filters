@@ -4,23 +4,21 @@
     <ClCompile Include="FallocHost.cpp" />
     <ClCompile Include="Program.cpp" />
     <ClCompile Include="RuntimeHost.cpp" />
-    <ClCompile Include="Visual.cpp" />
+    <ClCompile Include="VisualHost.cpp" />
+    <ClCompile Include="Falloc.cu" />
+    <ClCompile Include="Runtime.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="RuntimeEx.h" />
     <ClInclude Include="RuntimeGL.h" />
     <ClInclude Include="Falloc.cpu.h" />
     <ClInclude Include="Falloc.cu.h" />
-    <ClInclude Include="Falloc.cu.native.h" />
-    <ClInclude Include="Falloc.h" />
     <ClInclude Include="Runtime.cpu.h" />
     <ClInclude Include="Runtime.cu.h" />
-    <ClInclude Include="Runtime.cu.native.h" />
+    <ClInclude Include="Falloc.cu+native.h" />
+    <ClInclude Include="Runtime.cu+native.h" />
+    <ClInclude Include="RuntimeHost.h" />
+    <ClInclude Include="VisualHost.h" />
     <ClInclude Include="Runtime.h" />
-    <ClInclude Include="Visual.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Falloc.cu" />
-    <None Include="Runtime.cu" />
+    <ClInclude Include="FallocHost.h" />
   </ItemGroup>
 </Project>

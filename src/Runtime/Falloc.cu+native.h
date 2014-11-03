@@ -5,7 +5,7 @@
 #define __static__
 #endif
 #include <string.h>
-#include "RuntimeEx.h"
+#include "RuntimeHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRUCT

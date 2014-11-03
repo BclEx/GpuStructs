@@ -40,6 +40,7 @@ return 0;
 ///////////////////////////////////////////////////////////////////////////////
 // HOST SIDE
 // External function definitions for host-side code
+#pragma region HOST SIDE
 
 typedef struct
 {
@@ -80,13 +81,15 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length 
 //	Call this at exit, or before calling cudaFallocInit() again.
 //
 extern "C" void cudaFallocEnd(cudaFallocHost &host);
+#pragma endregion
 
 
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
 // Visual render for host-side code
+#pragma region VISUAL
 #ifdef VISUAL
-#include "Visual.h"
+#include "VisualHost.h"
 
 class FallocVisualRender : public IVisualRender
 {
@@ -102,5 +105,6 @@ public:
 };
 
 #endif
+#pragma endregion
 
 #endif // __FALLOC_H__

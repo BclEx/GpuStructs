@@ -1,5 +1,6 @@
 #ifndef __RUNTIME_CPU_H__
 #define __RUNTIME_CPU_H__
+#include <stdarg.h> // Needed for the definition of va_list
 #include <stdio.h>
 //#ifndef __device__
 //#define __device__
@@ -16,7 +17,7 @@
 #include <math.h>
 #endif
 #pragma warning(disable:4996)
-#include "Runtime.h"
+#include "RuntimeHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
@@ -73,38 +74,30 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 #pragma endregion
 
 //////////////////////
-// SNPRINTF
-#pragma region SNPRINTF
+// TRANSFER
+#pragma region TRANSFER
 
-inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt) { return _snprintf(buf, bufLen, fmt); }
-template <typename T1> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1) { return _snprintf(buf, bufLen, fmt, arg1); }
-template <typename T1, typename T2> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2) { return _snprintf(buf, bufLen, fmt, arg1, arg2); }
-template <typename T1, typename T2, typename T3> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3); }
-template <typename T1, typename T2, typename T3, typename T4> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ int __snprintf(char *buf, size_t bufLen, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { return _snprintf(buf, bufLen, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); }
+inline __device__ int _transfer(const char *fmt) { return 0; }
+template <typename T1> inline __device__ int _transfer(const char *fmt, T1 arg1) { return 0; }
+template <typename T1, typename T2> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2) { return 0; }
+template <typename T1, typename T2, typename T3> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { return 0; }
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { return 0; }
 
 #pragma endregion
 
 //////////////////////
-// MPRINTF
-#pragma region MPRINTF
+// ARGSET
+#pragma region ARGSET
 
-inline __device__ char *_mprintf(const char *fmt) { __snprintf(nullptr, 0, fmt); return nullptr; }
-template <typename T1> inline __device__ char *_mprintf(const char *fmt, T1 arg1) { __snprintf(nullptr, 0, fmt, arg1); return nullptr; }
-template <typename T1, typename T2> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2) { __snprintf(nullptr, 0, fmt, arg1, arg2); return nullptr; }
-template <typename T1, typename T2, typename T3> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); return nullptr; }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> inline __device__ char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { __snprintf(nullptr, 0, fmt, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); return nullptr; }
+//typedef char *va_list;
+//#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
+//#define va_arg(args, t) (*(t *)((args += _INTSIZEOF(t)) - _INTSIZEOF(t)))
 
 #pragma endregion
 
@@ -137,10 +130,6 @@ template <typename T> struct array_t { int length; T *data; inline array_t() { d
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t2() { data = nullptr; length = 0; } inline array_t2(T *a) { data = a; length = 0; } inline array_t2(T *a, TLength b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 template <typename TLength, typename T, int size> struct array_t3 { TLength length; T data[size]; inline array_t3() { length = 0; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
 #define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
-
-typedef char *_argsT;
-#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
-#define __arg(args, t) (*(t *)((args += _INTSIZEOF(t)) - _INTSIZEOF(t)))
 
 // skiputf8
 template <typename T> __device__ inline void _skiputf8(const T *z)

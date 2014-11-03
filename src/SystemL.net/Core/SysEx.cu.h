@@ -133,16 +133,29 @@ namespace Core
 			return newZ;
 		}
 
-		__device__ inline static void TagStrSet(void *tag, char **source, const char *format, ...)
+#if __CUDACC__
+//__device__ static char *_mprintf(const char *fmt) { char *z = _vmtagprintf(tag, fmt, nullptr); }
+//template <typename T1> __device__ static char *_mprintf(const char *fmt, T1 arg1) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1)); }
+//template <typename T1, typename T2> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2)); }
+//template <typename T1, typename T2, typename T3> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3)); }
+//template <typename T1, typename T2, typename T3, typename T4> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5, arg6)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5, arg6, arg7)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)); }
+//template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static char *_mprintf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { char *z = _vmtagprintf(tag, fmt, __argSet(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA)); }
+#else
+		__device__ inline static void TagStrSet(void *tag, char **source, const char *fmt, ...)
 		{
-			va_list ap;
-			char *z;
-			va_start(ap, zFormat);
-			z = sqlite3VMPrintf(tag, format, ap);
-			va_end(ap);
+			va_list args;
+			va_start(args, fmt);
+			char *z = _vmtagprintf(tag, fmt, args);
+			va_end(args);
 			TagFree(tag, *source);
 			*source = z;
 		}
+#endif
 
 #pragma endregion
 		__device__ static RC Initialize();

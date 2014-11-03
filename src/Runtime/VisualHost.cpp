@@ -1,6 +1,6 @@
 #ifdef VISUAL
 #include <cstdlib>
-#include "Visual.h"
+#include "VisualHost.h"
 
 float Visual::RotateX;
 float Visual::RotateY;

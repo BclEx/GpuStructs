@@ -734,7 +734,7 @@ namespace Core
 						  ** blob in register P2.
 						  */
 			case OP_Blob: {                /* out2-prerelease */
-				assert( pOp->p1 <= SQLITE_MAX_LENGTH );
+				assert( pOp->p1 <= CORE_MAX_LENGTH );
 				sqlite3VdbeMemSetStr(pOut, pOp->p4.z, pOp->p1, 0, 0);
 				pOut->enc = encoding;
 				UPDATE_MAX_BLOBSIZE(pOut);
@@ -5949,7 +5949,7 @@ vdbe_return:
 		sqlite3VdbeLeave(p);
 		return rc;
 
-		/* Jump to here if a string or blob larger than SQLITE_MAX_LENGTH
+		/* Jump to here if a string or blob larger than CORE_MAX_LENGTH
 		** is encountered.
 		*/
 too_big:

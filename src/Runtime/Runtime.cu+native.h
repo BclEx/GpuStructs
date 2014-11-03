@@ -4,7 +4,7 @@
 #ifndef __static__
 #define __static__
 #endif
-#include "RuntimeEx.h"
+#include "RuntimeHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRUCT

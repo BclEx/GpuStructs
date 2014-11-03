@@ -1,12 +1,21 @@
 #define __EMBED__ 1
+#if __CUDACC__
 #include "Falloc.cu.h"
+#else
+#include "Falloc.cpu.h"
+#endif
+#include "FallocHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
-#include "Falloc.h"
-
+#ifdef _LCcpu
+void FallocVisualRender::Dispose() { }
+void FallocVisualRender::Keyboard(unsigned char key) { }
+void FallocVisualRender::Display() { }
+void FallocVisualRender::Initialize() { }
+#else
 #define MAX(a,b) (a > b ? a : b)
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
@@ -315,5 +324,6 @@ void FallocVisualRender::Initialize()
 #undef BLOCK5COLOR
 #undef MARKERCOLOR
 
+#endif
 #endif
 #pragma endregion

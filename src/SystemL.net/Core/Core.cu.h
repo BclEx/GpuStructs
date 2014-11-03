@@ -1,16 +1,4 @@
-﻿#if __CUDACC__
-#include <Runtime.cu.h>
-#else
-#include <Runtime.cpu.h>
-#endif
-
-#pragma region Limits
-
-#ifndef CORE_MAX_LENGTH
-#define CORE_MAX_LENGTH 1000000000
-#endif
-
-#pragma endregion
+﻿#include <Runtime.h>
 
 #if defined(__GNUC__) && 0
 #define likely(X)    __builtin_expect((X),1)
@@ -45,9 +33,6 @@
 #include "StatusEx.cu.h"
 #include "VSystem.cu.h"
 #include "MathEx.cu.h"
-
-//
 #include "IO\IO.VFile.cu.h"
-#include "Text\Text.StringBuilder.cu.h"
 using namespace Core;
 using namespace Core::IO;

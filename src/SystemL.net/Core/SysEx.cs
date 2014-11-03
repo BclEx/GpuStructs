@@ -25,7 +25,6 @@ namespace Core
 
         internal static void ASSERTCOVERAGE(bool p)
         {
-            throw new NotImplementedException();
         }
 
         #region Memory Allocation

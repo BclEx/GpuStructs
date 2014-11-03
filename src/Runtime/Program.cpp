@@ -1,8 +1,8 @@
 #pragma warning(disable: 4996)
 #ifndef _LIB
 #include "Cuda.h"
-#include "Runtime.h"
-#include "Falloc.h"
+#include "RuntimeHost.h"
+#include "FallocHost.h"
 #include <stdio.h>
 
 int main(int argc, char **argv)
@@ -29,4 +29,5 @@ int main(int argc, char **argv)
 	char c; scanf("%c", &c);
     return 1;
 }
+
 #endif

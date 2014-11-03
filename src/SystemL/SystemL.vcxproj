@@ -126,8 +126,6 @@
     <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\Text\Text.Print.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
     <ClCompile Include="..\SystemL.net\Core\SysEx.cu" />
@@ -137,8 +135,6 @@
     <ClCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
     <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
-    <ClCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu" />
-    <ClCompile Include="..\SystemL.net\Core\Text\Text.Print.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />
@@ -154,8 +150,6 @@
     <CudaCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
     <CudaCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\Text\Text.StringBuilder.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\Text\Text.Print.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />
