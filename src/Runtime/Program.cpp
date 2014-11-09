@@ -24,7 +24,6 @@ int main(int argc, char **argv)
 	cudaRuntimeEnd(runtimeHost);
 	cudaFallocEnd(fallocHost);
 
-	cudaDeviceReset();
 	printf("End.");
 	char c; scanf("%c", &c);
     return 1;

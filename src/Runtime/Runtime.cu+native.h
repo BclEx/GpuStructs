@@ -53,7 +53,7 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbo
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
 
-extern "C" __device__ __static__ char *__runtimeMoveNextPtr(char *&end, char *&bufptr)
+extern "C" __device__ __static__ char *__runtimeMoveNext(char *&end, char *&bufptr)
 {
 	if (!__runtimeHeap) __THROW;
 	// thread/block restriction check
@@ -93,7 +93,7 @@ extern "C" __device__ __static__ void __runtimeWriteHeader(unsigned short type, 
 	*(runtimeBlockHeader *)(void *)ptr = header;
 }
 
-extern "C" __device__ __static__ char *__runtimeWriteString(char *dest, const char *src, int maxLength, char *end)
+extern "C" __device__ __static__ char *__runtimeWrite(char *dest, const char *src, int maxLength, char *end)
 {
 	// initialization and overflow check
 	if (!dest || dest >= end) //|| !src)
@@ -133,14 +133,14 @@ extern "C" __device__ __static__ char *__runtimeWriteString(char *dest, const ch
 
 #define ASSERT_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return;
+	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return;
 #define ASSERT_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define ASSERT_POSTAMBLE \
-	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	fmtstart = bufptr; end = __runtimeWrite(bufptr, fmt, 0, end); \
 	__runtimeWriteHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
 
-extern "C" __device__ __static__ void __assert(const char *fmt, const char *file, unsigned int line)
+extern "C" __device__ __static__ void __assertWrite(const char *fmt, const char *file, unsigned int line)
 {
 	ASSERT_PREAMBLE;
 	ASSERT_POSTAMBLE;

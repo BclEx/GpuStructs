@@ -12,15 +12,11 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // RUNTIME
-__device__ static void *(*cudaRuntimeAlloc)(size_t size) = nullptr;
-__device__ static void *(*cudaRuntimeTagAlloc)(void *tag, size_t size) = nullptr;
-__device__ static void *(*cudaRuntimeRealloc)(void *old, size_t newSize) = nullptr;
-__device__ static void *(*cudaRuntimeTagRealloc)(void *tag, void *old, size_t newSize) = nullptr;
-__device__ static void (*cudaRuntimeFree)(void *p) = nullptr;
-__device__ static void (*cudaRuntimeTagFree)(void *tag, void *p) = nullptr;
-__device__ static int cudaRuntimeInitialized = -2;
-__device__ static int (*cudaRuntimeInitialize)() = nullptr;
+__device__ static cudaRuntime __curt = { -2 };
+__device__ static int (*cudaRuntimeInitialize)(cudaRuntime *curt) = nullptr;
 
+//////////////////////
+// STDARG
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRINT
@@ -321,7 +317,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			else
 			{
 				outLength = precision + 10;
-				out_ = extra = (char *)cudaRuntimeAlloc(outLength);
+				out_ = extra = (char *)__curt.Alloc(outLength);
 				if (!out_)
 				{
 					b->MallocFailed = true;
@@ -429,7 +425,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			e2 = (type == TYPE_EXP ? 0 : exp);
 			if (e2+precision+width > BUFSIZE - 15)
 			{
-				bufpt = extra = (char *)cudaRuntimeAlloc(e2+precision+width+15);
+				bufpt = extra = (char *)__curt.Alloc(e2+precision+width+15);
 				if (!bufpt)
 				{
 					b->MallocFailed = true;
@@ -532,7 +528,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			n += i + 1 + needQuote*2;
 			if (n > BUFSIZE)
 			{
-				bufpt = extra = (char *)cudaRuntimeAlloc(n);
+				bufpt = extra = (char *)__curt.Alloc(n);
 				if (!bufpt)
 				{
 					b->MallocFailed = true;
@@ -591,7 +587,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			if (nspace > 0) AppendSpace(b, nspace);
 		}
 		if (extra != nullptr)
-			cudaRuntimeFree(extra);
+			__curt.Free(extra);
 	}
 }
 
@@ -633,9 +629,9 @@ __device__ void StringBuilder::Append(const char *z, int length)
 			else
 				Size = (int)newSize;
 			if (AllocType == 1)
-				newText = (char *)cudaRuntimeTagRealloc(Tag, oldText, Size);
+				newText = (char *)__curt.TagRealloc(Tag, oldText, Size);
 			else
-				newText = (char *)cudaRuntimeRealloc(oldText, Size);
+				newText = (char *)__curt.Realloc(oldText, Size);
 			if (newText)
 			{
 				if (oldText == nullptr && Index > 0) _memcpy(newText, Text, Index);
@@ -662,9 +658,9 @@ __device__ char *StringBuilder::ToString()
 		if (AllocType && Text == Base)
 		{
 			if (AllocType == 1)
-				Text = (char *)cudaRuntimeTagAlloc(Tag, Index + 1);
+				Text = (char *)__curt.TagAlloc(Tag, Index + 1);
 			else
-				Text = (char *)cudaRuntimeAlloc(Index + 1);
+				Text = (char *)__curt.Alloc(Index + 1);
 			if (Text)
 				_memcpy(Text, Base, Index + 1);
 			else
@@ -679,9 +675,9 @@ __device__ void StringBuilder::Reset()
 	if (Text != Base)
 	{
 		if (AllocType == 1)
-			cudaRuntimeTagFree(Tag, Text);
+			__curt.TagFree(Tag, Text);
 		else
-			cudaRuntimeFree(Text);
+			__curt.Free(Text);
 	}
 	Text = nullptr;
 }
@@ -708,8 +704,8 @@ __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args)
 	b.Tag = tag;
 	vxprintf(&b, 1, fmt, args);
 	char *z = b.ToString();
-	//:? if (b.MallocFailed)
-	//:?	tag->MallocFailed = true;
+	if (b.MallocFailed)
+		__curt.TagAllocFailed(tag);
 	return z;
 }
 
@@ -829,9 +825,15 @@ __global__ static void Keypress(struct runtimeHeap_s *heap, unsigned char key)
 	case 'a':
 		_printf("Test\n");
 		break;
-		//case 'b':
-		//	_printf("Test %d\n", threadIdx.x);
-		//	break;
+	case 'A':
+		printf("Test\n");
+		break;
+	case 'b':
+		_printf("Test %d\n", threadIdx.x);
+		break;
+	case 'B':
+		printf("Test %d\n", threadIdx.x);
+		break;
 	case 'c':
 		_assert(true);
 		break;
@@ -862,7 +864,7 @@ static void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
 {
 	if (key == 'z')
 	{
-		cudaRuntimeExecute(host);
+		cudaDeviceSynchronizeEx(host);
 		return;
 	}
 	checkCudaErrors(cudaRuntimeSetHeap(host.heap), exit(0));

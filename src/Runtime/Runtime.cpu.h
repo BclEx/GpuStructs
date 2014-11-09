@@ -27,8 +27,6 @@
 #undef _assert
 #ifndef NDEBUG
 #define _assert(X) assert(X)
-//extern "C" _CRTIMP void __cdecl _wassert(_In_z_ const wchar_t * _Message, _In_z_ const wchar_t *_File, _In_ unsigned _Line);
-//#define _assert(X) (void)((!!(X))||(_wassert(#X, __FILE__, __LINE__), 0))
 #define ASSERTONLY(X) X
 __device__ inline void Coverage(int line) { }
 #define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
@@ -92,24 +90,20 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 #pragma endregion
 
 //////////////////////
-// ARGSET
-#pragma region ARGSET
-
-//typedef char *va_list;
-//#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
-//#define va_arg(args, t) (*(t *)((args += _INTSIZEOF(t)) - _INTSIZEOF(t)))
-
+// STDARG
+#pragma region STDARG
+// included in stdargs.h
 #pragma endregion
 
 //////////////////////
 // THROW
 #pragma region THROW
 
-__device__ inline void _throw(const char *fmt) { printf(fmt); }
-template <typename T1> __device__ inline void _throw(const char *fmt, T1 arg1) { printf(fmt, arg1); }
+__device__ inline void _throw(const char *fmt) { printf(fmt); exit(); }
+template <typename T1> __device__ inline void _throw(const char *fmt, T1 arg1) { printf(fmt, arg1); exit(); }
 template <typename T1, typename T2> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2) { printf(fmt, arg1, arg2); }
-template <typename T1, typename T2, typename T3> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { printf(fmt, arg1, arg2, arg3); }
-template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { printf(fmt, arg1, arg2, arg3, arg4); }
+template <typename T1, typename T2, typename T3> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { printf(fmt, arg1, arg2, arg3); exit(); }
+template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { printf(fmt, arg1, arg2, arg3, arg4); exit(); }
 
 #pragma endregion
 

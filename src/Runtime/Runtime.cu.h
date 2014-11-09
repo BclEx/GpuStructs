@@ -6,6 +6,7 @@
 #ifdef HAVE_ISNAN
 #include <math.h>
 #endif
+#include <assert.h>
 #include "RuntimeHost.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16,11 +17,14 @@
 #undef  _assert
 #ifndef NDEBUG
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
-extern "C" __device__ static void __assert(const char *message, const char *file, unsigned int line);
+extern "C" __device__ static void __assertWrite(const char *message, const char *file, unsigned int line);
+#undef assert
+#define assert(X) _assert(X)
 #else
-extern "C" __device__ void __assert(const char *message, const char *file, unsigned int line);
+extern "C" __device__ void __assertWrite(const char *message, const char *file, unsigned int line);
 #endif
-#define _assert(X) (void)((!!(X))||(__assert(#X, __FILE__, __LINE__), 0))
+//
+#define _assert(X) (void)((!!(X))||(__assertWrite(#X, __FILE__, __LINE__), 0))
 #define ASSERTONLY(X) X
 __device__ __forceinline__ void Coverage(int line) { }
 #define ASSERTCOVERAGE(X) if (X) { Coverage(__LINE__); }
@@ -36,9 +40,9 @@ __device__ __forceinline__ void Coverage(int line) { }
 
 #define RUNTIME_UNRESTRICTED -1
 #define RUNTIME_ALIGNSIZE sizeof(long long)
+#define RUNTIMETYPE_RAW 0
 #define RUNTIMETYPE_PRINTF 1
 #define RUNTIMETYPE_TRANSFER 2
-#define RUNTIMETYPE_RAW 3
 #define RUNTIMETYPE_ASSERT 4
 #define RUNTIMETYPE_THROW 5
 
@@ -52,9 +56,9 @@ __device__ __forceinline__ void Coverage(int line) { }
 #else
 
 // Heap
-extern "C" __device__ char *__runtimeMoveNextPtr(char *&end, char *&bufptr);
+extern "C" __device__ char *__runtimeMoveNext(char *&end, char *&bufptr);
 extern "C" __device__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr);
-extern "C" __device__ char *__runtimeWriteString(char *dest, const char *src, int maxLength, char *end);
+extern "C" __device__ char *__runtimeWrite(char *dest, const char *src, int maxLength, char *end);
 extern "C" __device__ void _runtimeSetHeap(void *heap);
 extern "C" __device__ void runtimeRestrict(int threadid, int blockid);
 
@@ -78,7 +82,7 @@ __device__ static char *__copyArg(char *ptr, const char *arg, char *end)
 	if (!ptr) // || !arg)
 		return nullptr;
 	// strncpy does all our work. We just terminate.
-	if ((ptr = __runtimeWriteString(ptr, arg, 0, end)) != nullptr)
+	if ((ptr = __runtimeWrite(ptr, arg, 0, end)) != nullptr)
 		*ptr = 0;
 	return ptr;
 }
@@ -105,11 +109,11 @@ template <typename T> __device__ static char *__copyArg(char *ptr, T &arg, char 
 
 #define PRINTF_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return 0;
+	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return 0;
 #define PRINTF_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define PRINTF_POSTAMBLE \
-	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	fmtstart = bufptr; end = __runtimeWrite(bufptr, fmt, 0, end); \
 	__runtimeWriteHeader(RUNTIMETYPE_PRINTF, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
@@ -127,100 +131,54 @@ template <typename T1> __device__ static int _printf(const char *fmt, T1 arg1)
 template <typename T1, typename T2> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_POSTAMBLE;
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5); PRINTF_ARG(arg6);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5); PRINTF_ARG(arg6); PRINTF_ARG(arg7);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5); PRINTF_ARG(arg6); PRINTF_ARG(arg7); PRINTF_ARG(arg8);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
-	PRINTF_ARG(arg9);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5); PRINTF_ARG(arg6); PRINTF_ARG(arg7); PRINTF_ARG(arg8); PRINTF_ARG(arg9);
 	PRINTF_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static int _printf(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
 {
 	PRINTF_PREAMBLE;
-	PRINTF_ARG(arg1);
-	PRINTF_ARG(arg2);
-	PRINTF_ARG(arg3);
-	PRINTF_ARG(arg4);
-	PRINTF_ARG(arg5);
-	PRINTF_ARG(arg6);
-	PRINTF_ARG(arg7);
-	PRINTF_ARG(arg8);
-	PRINTF_ARG(arg9);
-	PRINTF_ARG(argA);
+	PRINTF_ARG(arg1); PRINTF_ARG(arg2); PRINTF_ARG(arg3); PRINTF_ARG(arg4); PRINTF_ARG(arg5); PRINTF_ARG(arg6); PRINTF_ARG(arg7); PRINTF_ARG(arg8); PRINTF_ARG(arg9); PRINTF_ARG(argA);
 	PRINTF_POSTAMBLE;
 }
 
@@ -236,11 +194,11 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 
 #define TRANSFER_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return 0;
+	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return 0;
 #define TRANSFER_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define TRANSFER_POSTAMBLE \
-	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	fmtstart = bufptr; end = __runtimeWrite(bufptr, fmt, 0, end); \
 	__runtimeWriteHeader(RUNTIMETYPE_TRANSFER, start, (end ? fmtstart : nullptr)); \
 	return (end ? (int)(end - start) : 0);
 
@@ -258,100 +216,55 @@ template <typename T1> __device__ static int _transfer(const char *fmt, T1 arg1)
 template <typename T1, typename T2> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
-	TRANSFER_ARG(arg6);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5); TRANSFER_ARG(arg6);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
-	TRANSFER_ARG(arg6);
-	TRANSFER_ARG(arg7);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5); TRANSFER_ARG(arg6); TRANSFER_ARG(arg7);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
-	TRANSFER_ARG(arg6);
-	TRANSFER_ARG(arg7);
-	TRANSFER_ARG(arg8);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5); TRANSFER_ARG(arg6); TRANSFER_ARG(arg7); TRANSFER_ARG(arg8);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
-	TRANSFER_ARG(arg6);
-	TRANSFER_ARG(arg7);
-	TRANSFER_ARG(arg8);
-	TRANSFER_ARG(arg9);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5); TRANSFER_ARG(arg6); TRANSFER_ARG(arg7); TRANSFER_ARG(arg8); TRANSFER_ARG(arg9);
 	TRANSFER_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static int _transfer(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
 {
 	TRANSFER_PREAMBLE;
-	TRANSFER_ARG(arg1);
-	TRANSFER_ARG(arg2);
-	TRANSFER_ARG(arg3);
-	TRANSFER_ARG(arg4);
-	TRANSFER_ARG(arg5);
-	TRANSFER_ARG(arg6);
-	TRANSFER_ARG(arg7);
-	TRANSFER_ARG(arg8);
-	TRANSFER_ARG(arg9);
-	TRANSFER_ARG(argA);
+	TRANSFER_ARG(arg1); TRANSFER_ARG(arg2); TRANSFER_ARG(arg3); TRANSFER_ARG(arg4); TRANSFER_ARG(arg5); TRANSFER_ARG(arg6); TRANSFER_ARG(arg7); TRANSFER_ARG(arg8); TRANSFER_ARG(arg9); TRANSFER_ARG(argA);
 	TRANSFER_POSTAMBLE;
 }
 
@@ -362,137 +275,98 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 #pragma endregion
 
 //////////////////////
-// ARGSET
-#pragma region ARGSET
+// STDARG
+#pragma region STDARG
 
-//typedef char *va_list;
-//#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
-//#define va_arg(args, t) (*(t *)((args += _INTSIZEOF(t)) - _INTSIZEOF(t)))
+#undef va_start
+#undef va_arg
+#undef va_end
 
-#define ARGSET_PREAMBLE \
+typedef char *va_list;
+#define _INTSIZEOF(n) ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
+//#define va_start(ap, v)  (ap = (va_list)_ADDRESSOF(v) + _INTSIZEOF(v))
+#define va_arg(ap, t) (*(t *)((ap += _INTSIZEOF(t)) - _INTSIZEOF(t)))
+#define va_end(ap) (ap = (va_list)0)
+
+#define STDARG_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return 0;
-#define ARGSET_ARG(argname) \
+	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return;
+#define STDARG_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
-#define ARGSET_POSTAMBLE \
+#define STDARG_POSTAMBLE \
 	fmtstart = bufptr; \
 	__runtimeWriteHeader(RUNTIMETYPE_RAW, start, (end ? fmtstart : nullptr)); \
-	return (end ? (int)(end - start) : 0);
+	args = (end ? (va_list)(end - start) : 0);
 
-__device__ static int __argSet()
+__device__ static void va_start(va_list &args)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_POSTAMBLE;
 }
-template <typename T1> __device__ static int __argSet(T1 arg1)
+template <typename T1> __device__ static void va_start(va_list &args, T1 arg1)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2> __device__ static int __argSet(T1 arg1, T2 arg2)
+template <typename T1, typename T2> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3)
+template <typename T1, typename T2, typename T3> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+template <typename T1, typename T2, typename T3, typename T4> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_ARG(arg6);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_ARG(arg6);
-	ARGSET_ARG(arg7);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_ARG(arg6);
-	ARGSET_ARG(arg7);
-	ARGSET_ARG(arg8);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_ARG(arg6);
-	ARGSET_ARG(arg7);
-	ARGSET_ARG(arg8);
-	ARGSET_ARG(arg9);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9);
+	STDARG_POSTAMBLE;
 }
-template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static int __argSet(T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA)
 {
-	ARGSET_PREAMBLE;
-	ARGSET_ARG(arg1);
-	ARGSET_ARG(arg2);
-	ARGSET_ARG(arg3);
-	ARGSET_ARG(arg4);
-	ARGSET_ARG(arg5);
-	ARGSET_ARG(arg6);
-	ARGSET_ARG(arg7);
-	ARGSET_ARG(arg8);
-	ARGSET_ARG(arg9);
-	ARGSET_ARG(argA);
-	ARGSET_POSTAMBLE;
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA);
+	STDARG_POSTAMBLE;
 }
 
-#undef ARGSET_PREAMBLE
-#undef ARGSET_ARG
-#undef ARGSET_POSTAMBLE
+#undef STDARG_PREAMBLE
+#undef STDARG_ARG
+#undef STDARG_POSTAMBLE
 
 #pragma endregion
 
@@ -502,11 +376,11 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 
 #define THROW_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNextPtr(end, bufptr)) == nullptr) return;
+	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return;
 #define THROW_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define THROW_POSTAMBLE \
-	fmtstart = bufptr; end = __runtimeWriteString(bufptr, fmt, 0, end); \
+	fmtstart = bufptr; end = __runtimeWrite(bufptr, fmt, 0, end); \
 	__runtimeWriteHeader(RUNTIMETYPE_THROW, start, (end ? fmtstart : nullptr)); \
 	__THROW;
 
@@ -524,25 +398,19 @@ template <typename T1> __device__ static void _throw(const char *fmt, T1 arg1)
 template <typename T1, typename T2> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2)
 {
 	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
+	THROW_ARG(arg1); THROW_ARG(arg2);
 	THROW_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3)
 {
 	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
-	THROW_ARG(arg3);
+	THROW_ARG(arg1); THROW_ARG(arg2); THROW_ARG(arg3);
 	THROW_POSTAMBLE;
 }
 template <typename T1, typename T2, typename T3, typename T4> __device__ static void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	THROW_PREAMBLE;
-	THROW_ARG(arg1);
-	THROW_ARG(arg2);
-	THROW_ARG(arg3);
-	THROW_ARG(arg4);
+	THROW_ARG(arg1); THROW_ARG(arg2); THROW_ARG(arg3); THROW_ARG(arg4);
 	THROW_POSTAMBLE;
 }
 
@@ -573,6 +441,7 @@ template <typename T> __device__ inline void _skiputf8(const T *z)
 }
 
 // strcmp
+#undef _fstrcmp
 template <typename T> __device__ inline int _strcmp(const T *left, const T *right)
 {
 	register unsigned char *a, *b;
@@ -584,6 +453,7 @@ template <typename T> __device__ inline int _strcmp(const T *left, const T *righ
 #define _fstrcmp(x, y) (__tolower(*(unsigned char *)(x))==__tolower(*(unsigned char *)(y))&&!_strcmp((x)+1,(y)+1))
 
 // strncmp
+#undef _fstrncmp
 template <typename T> __device__ inline int _strncmp(const T *left, const T *right, int n)
 {
 	register unsigned char *a, *b;

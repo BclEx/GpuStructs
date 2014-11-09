@@ -47,10 +47,11 @@ cudaError _lastError;
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
 #define RUNTIME_ALIGNSIZE sizeof(long long)
+#define RUNTIMETYPE_RAW 0
 #define RUNTIMETYPE_PRINTF 1
-#define RUNTIMETYPE_SNPRINTF 2
-#define RUNTIMETYPE_ASSERT 3
-#define RUNTIMETYPE_THROW 4
+#define RUNTIMETYPE_TRANSFER 2
+#define RUNTIMETYPE_ASSERT 4
+#define RUNTIMETYPE_THROW 5
 
 extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
@@ -147,13 +148,7 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 			else
 				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
 			break;
-		case RUNTIMETYPE_SNPRINTF:
-			if (headings)
-				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
-			if (hdr->fmtoffset == 0)
-				fprintf(_stream, "printf buffer overflow\n");
-			else
-				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
+		case RUNTIMETYPE_TRANSFER:
 			break;
 		case RUNTIMETYPE_ASSERT:
 			if (headings)
@@ -191,8 +186,9 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 	return count;
 }
 
-extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream, bool showThreadID)
+extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stream, bool showThreadID)
 {
+	cudaDeviceSynchronize();
 	// for now, we force "synchronous" mode which means we're not concurrent with kernel execution. This also means we don't need clearOnPrint.
 	// if you're patching it for async operation, here's where you want it.
 	bool sync = true;

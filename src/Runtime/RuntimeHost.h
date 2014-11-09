@@ -56,7 +56,7 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host);
 extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler);
 
 //
-//	cudaRuntimeExecute
+//	cudaDeviceSynchronizeEx
 //
 //	Dumps all printfs in the output buffer to the specified file pointer. If the output pointer is not specified,
 //	the default "stdout" is used.
@@ -68,7 +68,7 @@ extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler h
 //	Returns:
 //		cudaSuccess if all is well.
 //
-extern "C" cudaError_t cudaRuntimeExecute(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = true);
+extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = true);
 
 #pragma endregion
 
