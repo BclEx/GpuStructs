@@ -32,7 +32,7 @@ namespace Core
 		else if (colsOut)
 		{
 			_assert(colsLength > 1);
-			cols = (int *)SysEx::TagAlloc(Ctx, colsLength*sizeof(int));
+			cols = (int *)_tagalloc(Ctx, colsLength*sizeof(int));
 			if (!cols) return 1;
 			*colsOut = cols;
 		}
@@ -90,7 +90,7 @@ namespace Core
 		{
 			if (!DisableTriggers)
 				ErrorMsg("foreign key mismatch - \"%w\" referencing \"%w\"", fkey->From->Name, fkey->To);
-			SysEx::TagFree(Ctx, cols);
+			_tagfree(Ctx, cols);
 			return 1;
 		}
 
@@ -306,7 +306,7 @@ namespace Core
 			Expr::ListDelete(ctx, step->ExprList);
 			Select::Delete(ctx, step->Select);
 			Expr::Delete(ctx, p->When);
-			SysEx::TagFree(ctx, p);
+			_tagfree(ctx, p);
 		}
 	}
 
@@ -426,7 +426,7 @@ namespace Core
 			if (regNew != 0) // A row is being added to the child table. If a parent row cannot be found, adding the child row has violated the FK constraint. 
 				FKLookupParent(this, db, to, index, fkey, cols, regNew, +1, isIgnore);
 
-			SysEx::TagFree(ctx, frees);
+			_tagfree(ctx, frees);
 		}
 
 		// Loop through all the foreign key constraints that refer to this table
@@ -471,7 +471,7 @@ namespace Core
 				item->Name = nullptr;
 				SrcListDelete(ctx, src);
 			}
-			SysEx::TagFree(ctx, cols);
+			_tagfree(ctx, cols);
 		}
 	}
 
@@ -621,7 +621,7 @@ namespace Core
 					Expr::ListSetName(parse, pList, &fromCol, 0);
 				}
 			}
-			SysEx::TagFree(ctx, cols);
+			_tagfree(ctx, cols);
 
 			char const *fromName = key->From->Name; // Name of child table
 			int fromNameLength = _strlen30(fromName); // Length in bytes of fromName
@@ -647,7 +647,7 @@ namespace Core
 			bool enableLookaside = ctx->Lookaside.Enabled; // Copy of ctx->lookaside.bEnabled
 			ctx->Lookaside.Enabled = false;
 
-			trigger = (Trigger *)SysEx::TagAlloc(ctx, 
+			trigger = (Trigger *)_tagalloc(ctx, 
 				sizeof(Trigger) + // Trigger
 				sizeof(TriggerStep) + // Single step in trigger program
 				fromNameLength + 1 // Space for step->target.z
@@ -754,7 +754,7 @@ namespace Core
 			FKTriggerDelete(ctx, fkey->Triggers[1]);
 #endif
 			next = fkey->NextFrom;
-			SysEx::TagFree(ctx, fkey);
+			_tagfree(ctx, fkey);
 		}
 	}
 

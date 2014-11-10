@@ -60,7 +60,7 @@ namespace Core { namespace Command
 #endif
 		if (sqlite3ViewGetColumnNames(parse, table) || sqlite3IsReadOnly(parse, table, tmask))
 			goto update_cleanup;
-		int *xrefs = (int *)SysEx::TagAlloc(ctx, sizeof(int) * table->Cols.length); // xrefs[i] is the index in pChanges->a[] of the an expression for the i-th column of the table. xrefs[i]==-1 if the i-th column is not changed.
+		int *xrefs = (int *)_tagalloc(ctx, sizeof(int) * table->Cols.length); // xrefs[i] is the index in pChanges->a[] of the an expression for the i-th column of the table. xrefs[i]==-1 if the i-th column is not changed.
 		if (!xrefs) goto update_cleanup;
 		for (i = 0; i < table->Cols.length; i++) xrefs[i] = -1;
 
@@ -131,7 +131,7 @@ namespace Core { namespace Command
 		int *regIdxs = nullptr; // One register assigned to each index to be updated
 		if (idxLength > 0)
 		{
-			regIdxs = (int *)SysEx::TagAlloc(ctx, sizeof(Index *) * idxLength);
+			regIdxs = (int *)_tagalloc(ctx, sizeof(Index *) * idxLength);
 			if (!regIdxs) goto update_cleanup;
 		}
 		for (j = 0, idx = table->Index; idx; idx = idx->Next, j++)
@@ -415,8 +415,8 @@ update_cleanup:
 		#if !OMIT_AUTHORIZATION
 		Auth::ContextPop(&sContext);
 		#endif
-		SysEx::TagFree(ctx, regIdxs);
-		SysEx::TagFree(ctx, xrefs);
+		_tagfree(ctx, regIdxs);
+		_tagfree(ctx, xrefs);
 		SrcList::Delete(ctx, tabList);
 		ExprList::Delete(ctx, changes);
 		Expr::Delete(ctx, where_);

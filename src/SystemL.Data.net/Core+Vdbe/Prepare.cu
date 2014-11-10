@@ -140,14 +140,14 @@ namespace Core
 			goto error_out;
 		}
 		Table *table = Build::FindTable(ctx, masterName, ctx->DBs[db].Name);
-		if (SysEx_ALWAYS(table))
+		if (_ALWAYS(table))
 			table->TabFlags |= TF_Readonly;
 
 		// Create a cursor to hold the database open
 		Context::DB *dbAsObj = &ctx->DBs[db];
 		if (!dbAsObj->Bt)
 		{
-			if (!OMIT_TEMPDB && SysEx_ALWAYS(db == 1))
+			if (!OMIT_TEMPDB && _ALWAYS(db == 1))
 				DbSetProperty(ctx, 1, DB_SchemaLoaded);
 			return RC_OK;
 		}
@@ -181,7 +181,7 @@ namespace Core
 		//    meta[9]   unused
 		// Note: The #defined SQLITE_UTF* symbols in sqliteInt.h correspond to the possible values of meta[4].
 		int meta[5];
-		for (i = 0; i < __arrayStaticLength(meta); i++)
+		for (i = 0; i < _lengthof(meta); i++)
 			dbAsObj->Bt->GetMeta((Btree::META)i+1, (uint32 *)&meta[i]);
 		dbAsObj->Schema->SchemaCookie = meta[BTREE_SCHEMA_VERSION-1];
 
@@ -258,7 +258,7 @@ namespace Core
 			}
 #endif
 			if (rc == RC_OK) rc = initData.RC;
-			SysEx::TagFree(ctx, sql);
+			_tagfree(ctx, sql);
 #ifndef OMIT_ANALYZE
 			if (rc == RC_OK)
 				sqlite3AnalysisLoad(ctx, db);
@@ -308,7 +308,7 @@ error_out:
 		// Once all the other databases have been initialized, load the schema for the TEMP database. This is loaded last, as the TEMP database
 		// schema may contain references to objects in other databases.
 #ifndef OMIT_TEMPDB
-		if (rc == RC_OK && SysEx_ALWAYS(ctx->DBs.length > 1) && !DbHasProperty(ctx, 1, DB_SchemaLoaded))
+		if (rc == RC_OK && _ALWAYS(ctx->DBs.length > 1) && !DbHasProperty(ctx, 1, DB_SchemaLoaded))
 		{
 			rc = InitOne(ctx, 1, errMsg);
 			if (rc)

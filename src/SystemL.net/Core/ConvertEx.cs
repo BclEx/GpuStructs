@@ -286,7 +286,7 @@ namespace Core
         {
             byte i = 0;
             do { i++; v >>= 7; }
-            while (v != 0 && SysEx.ALWAYS(i < 9));
+            while (v != 0 && C._ALWAYS(i < 9));
             return i;
         }
 
@@ -573,9 +573,9 @@ namespace Core
             if (c == 0)
             {
                 c = z[18 * incr] - '8';
-                SysEx.ASSERTCOVERAGE(c == -1);
-                SysEx.ASSERTCOVERAGE(c == 0);
-                SysEx.ASSERTCOVERAGE(c == +1);
+                C.ASSERTCOVERAGE(c == -1);
+                C.ASSERTCOVERAGE(c == 0);
+                C.ASSERTCOVERAGE(c == +1);
             }
             return c;
         }
@@ -617,9 +617,9 @@ namespace Core
             if (u > long.MaxValue) out_ = long.MinValue;
             else out_ = (neg != 0 ? -(long)u : (long)u);
 
-            SysEx.ASSERTCOVERAGE(i - zIdx == 18);
-            SysEx.ASSERTCOVERAGE(i - zIdx == 19);
-            SysEx.ASSERTCOVERAGE(i - zIdx == 20);
+            C.ASSERTCOVERAGE(i - zIdx == 18);
+            C.ASSERTCOVERAGE(i - zIdx == 19);
+            C.ASSERTCOVERAGE(i - zIdx == 20);
             if ((c != 0 && i < length) || i == zIdx || i - zIdx > 19 * incr) return 1; // zNum is empty or contains non-numeric text or is longer than 19 digits (thus guaranteeing that it is too large)
             else if (i - zIdx < 19 * incr) { Debug.Assert(u <= long.MaxValue); return 0; } // Less than 19 digits, so we know that it fits in 64 bits
             else
@@ -644,9 +644,9 @@ namespace Core
             // The longest decimal representation of a 32 bit integer is 10 digits:
             //             1234567890
             //     2^31 -> 2147483648
-            SysEx.ASSERTCOVERAGE(i == 10);
+            C.ASSERTCOVERAGE(i == 10);
             if (i > 10) return false;
-            SysEx.ASSERTCOVERAGE(v - neg == 2147483647);
+            C.ASSERTCOVERAGE(v - neg == 2147483647);
             if (v - neg > 2147483647) return false;
             out_ = (int)(neg != 0 ? -v : v);
             return true;

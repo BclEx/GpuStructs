@@ -138,7 +138,7 @@ namespace Core.IO
         {
             var p = new JournalVFile();
             if (bufferLength > 0)
-                p.Buffer = SysEx.Alloc(bufferLength, true);
+                p.Buffer = C._alloc2(bufferLength, true);
             else
             {
                 VSystem.OPEN dummy;

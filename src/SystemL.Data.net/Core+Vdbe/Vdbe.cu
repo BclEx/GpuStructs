@@ -278,9 +278,9 @@ namespace Core
 	__device__ static void importVtabErrMsg(Vdbe *p, IVTable *vtab)
 	{
 		Context *db = p->Db;
-		SysEx::TagFree(db, p->ErrMsg);
+		_tagfree(db, p->ErrMsg);
 		p->ErrMsg = SysEx::TagStrDup(db, vtab->ErrMsg);
-		SysEx::Free(vtab->ErrMsg);
+		_free(vtab->ErrMsg);
 		vtab->ErrMsg = nullptr;
 	}
 

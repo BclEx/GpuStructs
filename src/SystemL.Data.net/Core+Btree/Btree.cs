@@ -349,7 +349,7 @@ namespace Core
             // all that is required. Otherwise, if pCur is not open on an intKey table, then malloc space for and store the pCur.nKey bytes of key data.
             if (!cur.Pages[0].IntKey)
             {
-                var key = SysEx.Alloc((int)cur.KeyLength);
+                var key = C._alloc((int)cur.KeyLength);
                 rc = Key(cur, 0, (uint)cur.KeyLength, key);
                 if (rc == RC.OK)
                     cur.Key = key;
@@ -385,7 +385,7 @@ namespace Core
         public static void ClearCursor(BtCursor cur)
         {
             Debug.Assert(cursorHoldsMutex(cur));
-            SysEx.Free(ref cur.Key);
+            C._free(ref cur.Key);
             cur.State = CURSOR.INVALID;
         }
 
@@ -631,7 +631,7 @@ namespace Core
         static ushort cellSizePtr(MemPage page, byte[] cell, uint offset_) // For C#
         {
             var info = new CellInfo();
-            info.Cell = SysEx.Alloc(cell.Length);
+            info.Cell = C._alloc(cell.Length);
             Buffer.BlockCopy(cell, (int)offset_, info.Cell, 0, (int)(cell.Length - offset_));
             btreeParseCellPtr(page, info.Cell, ref info);
             return info.Size;
@@ -1413,9 +1413,9 @@ namespace Core
                 else
                 {
                     var list = _sharedCacheList;
-                    while (SysEx.ALWAYS(list != null) && list.Next != bt)
+                    while (C._ALWAYS(list != null) && list.Next != bt)
                         list = list.Next;
-                    if (SysEx.ALWAYS(list != null))
+                    if (C._ALWAYS(list != null))
                         list.Next = bt.Next;
                 }
 #if THREADSAFE
@@ -2494,7 +2494,7 @@ namespace Core
             Debug.Assert(!wrFlag || p.InTrans == TRANS.WRITE);
             Debug.Assert(bt.Page1 != null && bt.Page1.Data != null);
 
-            if (SysEx.NEVER(wrFlag && (bt.BtsFlags & BTS.READ_ONLY) != 0))
+            if (C._NEVER(wrFlag && (bt.BtsFlags & BTS.READ_ONLY) != 0))
                 return RC.READONLY;
             if (tableID == 1 && btreePagecount(bt) == 0)
             {
@@ -2709,7 +2709,7 @@ namespace Core
             var key = (uint)(page.IntKey ? 0 : (int)cur.Info.Key);
 
             BtShared bt = cur.Bt; // Btree this cursor belongs to
-            if (SysEx.NEVER(offset + amount > key + cur.Info.Data) || cur.Info.Local > bt.UsableSize)
+            if (C._NEVER(offset + amount > key + cur.Info.Data) || cur.Info.Local > bt.UsableSize)
                 // Trying to read or write past the end of the data is an error
                 return SysEx.CORRUPT_BKPT();
 
@@ -2744,7 +2744,7 @@ namespace Core
                     uint ovfl = (cur.Info.Payload - cur.Info.Local + ovflSize - 1) / ovflSize;
                     cur.Overflows = new Pid[ovfl];
                     // nOvfl is always positive.  If it were zero, fetchPayload would have been used instead of this routine. */
-                    if (SysEx.ALWAYS(ovfl != 0) && cur.Overflows == null)
+                    if (C._ALWAYS(ovfl != 0) && cur.Overflows == null)
                         rc = RC.NOMEM;
                 }
 
@@ -2874,9 +2874,9 @@ namespace Core
             Debug.Assert(cursorHoldsMutex(cur));
             var page = cur.Pages[cur.ID];
             Debug.Assert(cur.Idxs[cur.ID] < page.Cells);
-            if (SysEx.NEVER(cur.Info.Size == 0))
+            if (C._NEVER(cur.Info.Size == 0))
                 btreeParseCell(cur.Pages[cur.ID], cur.Idxs[cur.ID], ref cur.Info);
-            var payload = SysEx.Alloc(cur.Info.Size - cur.Info.Header); //cur.Info.Cell + cur.Info.Header;
+            var payload = C._alloc(cur.Info.Size - cur.Info.Header); //cur.Info.Cell + cur.Info.Header;
             payload_ = (cur.Info.Cell_ + cur.Info.Header);
             var key = (page.IntKey ? 0U : (uint)cur.Info.Key);
             uint local;
@@ -2902,7 +2902,7 @@ namespace Core
             Debug.Assert(cursorHoldsMutex(cur));
             byte[] p = null;
             offset_ = 0U;
-            if (SysEx.ALWAYS(cur.State == CURSOR.VALID))
+            if (C._ALWAYS(cur.State == CURSOR.VALID))
                 p = fetchPayload(cur, ref amount, false, out offset_);
             return p;
         }
@@ -2913,7 +2913,7 @@ namespace Core
             Debug.Assert(cursorHoldsMutex(cur));
             byte[] p = null;
             offset_ = 0U;
-            if (SysEx.ALWAYS(cur.State == CURSOR.VALID))
+            if (C._ALWAYS(cur.State == CURSOR.VALID))
                 p = fetchPayload(cur, ref amount, true, out offset_);
             return p;
         }
@@ -3244,7 +3244,7 @@ namespace Core
                             Buffer.BlockCopy(page.Data, (int)cell_ - page.ChildPtrSize, cellBody, 0, cellBody.Length);
                             btreeParseCellPtr(page, cellBody, ref cur.Info);
                             cellLength = (int)cur.Info.Key;
-                            var cellKey = SysEx.Alloc(cellLength);
+                            var cellKey = C._alloc(cellLength);
                             rc = accessPayload(cur, 0, (uint)cellLength, cellKey, 0);
                             if (rc != RC.OK)
                             {
@@ -3931,7 +3931,7 @@ namespace Core
             }
             else
             {
-                if (SysEx.NEVER(keyLength > 0x7fffffff || key == null))
+                if (C._NEVER(keyLength > 0x7fffffff || key == null))
                     return SysEx.CORRUPT_BKPT();
                 payloadLength += (int)keyLength;
                 src = key;
@@ -5237,7 +5237,7 @@ namespace Core
             Debug.Assert(hasSharedCacheTableLock(p, cur.RootID, cur.KeyInfo != null, LOCK.WRITE));
             Debug.Assert(!hasReadConflicts(p, cur.RootID));
 
-            if (SysEx.NEVER(cur.Idxs[cur.ID] >= cur.Pages[cur.ID].Cells) || SysEx.NEVER(cur.State != CURSOR.VALID))
+            if (C._NEVER(cur.Idxs[cur.ID] >= cur.Pages[cur.ID].Cells) || C._NEVER(cur.State != CURSOR.VALID))
                 return RC.ERROR; // Something has gone awry.
 
             int cellDepth = cur.ID; // Depth of node containing pCell
@@ -5408,7 +5408,7 @@ namespace Core
                 // freelist count.  Hence, the sqlite3BtreeUpdateMeta() call cannot fail.
                 Debug.Assert(Pager.Iswriteable(bt.Page1.DBPage));
                 rc = p.UpdateMeta(META.LARGEST_ROOT_PAGE, rootID);
-                if (SysEx.NEVER(rc != RC.OK))
+                if (C._NEVER(rc != RC.OK))
                 {
                     releasePage(root);
                     return rc;
@@ -5507,7 +5507,7 @@ namespace Core
             // need to move another root-page to fill a gap left by the deleted root page. If an open cursor was using this page a problem would occur.
             //
             // This error is caught long before control reaches this point.
-            if (SysEx.NEVER(bt.Cursor != null))
+            if (C._NEVER(bt.Cursor != null))
             {
                 BContext.ConnectionBlocked(p.Ctx, bt.Cursor.Btree.Ctx);
                 return RC.LOCKED_SHAREDCACHE;
@@ -6057,7 +6057,7 @@ namespace Core
                 Leave();
                 return null;
             }
-            check.PgRefs = SysEx.Alloc((int)(check.Pages / 8) + 1);
+            check.PgRefs = C._alloc((int)(check.Pages / 8) + 1);
             if (check.PgRefs == null)
             {
                 errors = 1;
@@ -6099,7 +6099,7 @@ namespace Core
 
             // Make sure this analysis did not leave any unref() pages. This is an internal consistency check; an integrity check
             // of the integrity check.
-            if (SysEx.NEVER(refs != bt.Pager.get_Refs()))
+            if (C._NEVER(refs != bt.Pager.get_Refs()))
                 checkAppendMsg(check, (string)null, "Outstanding page count goes from %d to %d during this analysis", refs, bt.Pager.get_Refs());
 
             // Clean  up and report errors.

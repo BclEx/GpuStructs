@@ -180,7 +180,7 @@ namespace Core
 		// If the above search did not find a BtLock struct associating Btree p with table iTable, allocate one and link it into the list.
 		if (!newLock)
 		{
-			newLock = (BtLock *)SysEx::Alloc(sizeof(BtLock), true);
+			newLock = (BtLock *)_alloc2(sizeof(BtLock), true);
 			if (!newLock)
 				return RC_NOMEM;
 			newLock->Table = table;
@@ -217,7 +217,7 @@ namespace Core
 				*iter = lock->Next;
 				_assert(lock->Table != 1 || lock == &p->Lock);
 				if (lock->Table != 1)
-					SysEx::Free(lock);
+					_free(lock);
 			}
 			else
 				iter = &lock->Next;
@@ -272,7 +272,7 @@ namespace Core
 	__device__ static void invalidateOverflowCache(BtCursor *cur)
 	{
 		_assert(cursorHoldsMutex(cur));
-		SysEx::Free(cur->Overflows);
+		_free(cur->Overflows);
 		cur->Overflows = nullptr;
 	}
 
@@ -351,14 +351,14 @@ namespace Core
 		// all that is required. Otherwise, if pCur is not open on an intKey table, then malloc space for and store the pCur->nKey bytes of key data.
 		if (!cur->Pages[0]->IntKey)
 		{
-			void *key = SysEx::Alloc((int)cur->KeyLength);
+			void *key = _alloc((int)cur->KeyLength);
 			if (key)
 			{
 				rc = Btree::Key(cur, 0, (int)cur->KeyLength, key);
 				if (rc == RC_OK)
 					cur->Key = key;
 				else
-					SysEx::Free(key);
+					_free(key);
 			}
 			else
 				rc = RC_NOMEM;
@@ -400,7 +400,7 @@ namespace Core
 	__device__ void Btree::ClearCursor(BtCursor *cur)
 	{
 		_assert(cursorHoldsMutex(cur));
-		SysEx::Free(cur->Key);
+		_free(cur->Key);
 		cur->Key = nullptr;
 		cur->State = CURSOR_INVALID;
 	}
@@ -421,7 +421,7 @@ namespace Core
 			idxKey = nullptr;
 		RC rc = Btree::MovetoUnpacked(cur, idxKey, keyLength, bias, res);
 		if (free)
-			SysEx::TagFree(cur->KeyInfo->Ctx, free);
+			_tagfree(cur->KeyInfo->Ctx, free);
 		return rc;
 	}
 
@@ -435,7 +435,7 @@ namespace Core
 		RC rc = btreeMoveto(cur, cur->Key, cur->KeyLength, 0, &cur->SkipNext);
 		if (rc == RC_OK)
 		{
-			SysEx::Free(cur->Key);
+			_free(cur->Key);
 			cur->Key = nullptr;
 			_assert(cur->State == CURSOR_VALID || cur->State == CURSOR_INVALID);
 		}
@@ -1191,7 +1191,7 @@ ptrmap_exit:
 			flags |= OPEN_MEMORY;
 		if ((vfsFlags & VSystem::OPEN_MAIN_DB) != 0 && (memoryDB || tempDB))
 			vfsFlags = (VSystem::OPEN)((vfsFlags & ~VSystem::OPEN_MAIN_DB) | VSystem::OPEN_TEMP_DB);
-		Btree *p = (Btree *)SysEx::Alloc(sizeof(Btree), true); // Handle to return
+		Btree *p = (Btree *)_alloc2(sizeof(Btree), true); // Handle to return
 		if (!p)
 			return RC_NOMEM;
 		p->InTrans = TRANS_NONE;
@@ -1210,11 +1210,11 @@ ptrmap_exit:
 			if (vfsFlags & VSystem::OPEN_SHAREDCACHE)
 			{
 				int fullPathnameLength = vfs->MaxPathname + 1;
-				char *fullPathname = (char *)SysEx::Alloc(fullPathnameLength);
+				char *fullPathname = (char *)_alloc(fullPathnameLength);
 				p->Sharable = true;
 				if (!fullPathname)
 				{
-					SysEx::Free(p);
+					_free(p);
 					return RC_NOMEM;
 				}
 				if (memoryDB)
@@ -1224,8 +1224,8 @@ ptrmap_exit:
 					rc = vfs->FullPathname(filename, fullPathnameLength, fullPathname);
 					if (rc)
 					{
-						SysEx::Free(fullPathname);
-						SysEx::Free(p);
+						_free(fullPathname);
+						_free(p);
 						return rc;
 					}
 				}
@@ -1248,8 +1248,8 @@ ptrmap_exit:
 							{
 								MutexEx::Leave(mutexShared);
 								MutexEx::Leave(mutexOpen);
-								SysEx::Free(fullPathname);
-								SysEx::Free(p);
+								_free(fullPathname);
+								_free(p);
 								return RC_CONSTRAINT;
 							}
 						}
@@ -1259,7 +1259,7 @@ ptrmap_exit:
 					}
 				}
 				MutexEx::Leave(mutexShared);
-				SysEx::Free(fullPathname);
+				_free(fullPathname);
 			}
 #ifdef _DEBUG
 			else
@@ -1281,7 +1281,7 @@ ptrmap_exit:
 			_assert(sizeof(uint16) == 2);
 			_assert(sizeof(Pid) == 4);
 
-			bt = (BtShared *)SysEx::Alloc(sizeof(*bt), true);
+			bt = (BtShared *)_alloc2(sizeof(*bt), true);
 			if (bt == nullptr)
 			{
 				rc = RC_NOMEM;
@@ -1388,8 +1388,8 @@ btree_open_out:
 		{
 			if (bt && bt->Pager)
 				bt->Pager->Close();
-			SysEx::Free(bt);
-			SysEx::Free(p);
+			_free(bt);
+			_free(p);
 			*btree = 0;
 		}
 		else
@@ -1422,9 +1422,9 @@ btree_open_out:
 			else
 			{
 				BtShared *list = _sharedCacheList;
-				while (SysEx_ALWAYS(list) && list->Next != bt)
+				while (_ALWAYS(list) && list->Next != bt)
 					list = list->Next;
-				if (SysEx_ALWAYS(list))
+				if (_ALWAYS(list))
 					list->Next = bt->Next;
 			}
 #if THREADSAFE
@@ -1481,9 +1481,9 @@ btree_open_out:
 			bt->Pager->Close();
 			if (bt->FreeSchema && bt->Schema)
 				bt->FreeSchema(bt->Schema);
-			SysEx::TagFree(nullptr, bt->Schema);
+			_tagfree(nullptr, bt->Schema);
 			freeTempSpace(bt);
-			SysEx::Free(bt);
+			_free(bt);
 		}
 
 #ifndef OMIT_SHARED_CACHE
@@ -1492,7 +1492,7 @@ btree_open_out:
 		if (Next) Next->Prev = Prev;
 #endif
 
-		SysEx::Free(this);
+		_free(this);
 		return RC_OK;
 	}
 
@@ -2516,7 +2516,7 @@ set_child_ptrmaps_out:
 		_assert(!wrFlag || p->InTrans == TRANS_WRITE);
 		_assert(bt->Page1 && bt->Page1->Data);
 
-		if (SysEx_NEVER(wrFlag && (bt->BtsFlags & BTS_READ_ONLY) != 0))
+		if (_NEVER(wrFlag && (bt->BtsFlags & BTS_READ_ONLY) != 0))
 			return RC_READONLY;
 		if (tableID == 1 && btreePagecount(bt) == 0)
 		{
@@ -2588,7 +2588,7 @@ set_child_ptrmaps_out:
 				releasePage(cur->Pages[i]);
 			unlockBtreeIfUnused(bt);
 			invalidateOverflowCache(cur);
-			// SysEx::Free(cur);
+			// _free(cur);
 			btree->Leave();
 		}
 		return RC_OK;
@@ -2741,7 +2741,7 @@ set_child_ptrmaps_out:
 		uint32 key = (page->IntKey ? 0 : (int)cur->Info.Key);
 
 		BtShared *bt = cur->Bt; // Btree this cursor belongs to
-		if (SysEx_NEVER(offset + amount > key + cur->Info.Data) || &payload[cur->Info.Local] > &page->Data[bt->UsableSize])
+		if (_NEVER(offset + amount > key + cur->Info.Data) || &payload[cur->Info.Local] > &page->Data[bt->UsableSize])
 			// Trying to read or write past the end of the data is an error
 				return SysEx_CORRUPT_BKPT;
 
@@ -2773,9 +2773,9 @@ set_child_ptrmaps_out:
 			if (cur->IsIncrblobHandle && !cur->Overflows)
 			{
 				uint ovfl = (cur->Info.Payload - cur->Info.Local + ovflSize - 1) / ovflSize;
-				cur->Overflows = (Pid *)SysEx::Alloc(sizeof(Pid) * ovfl, true);
+				cur->Overflows = (Pid *)_alloc2(sizeof(Pid) * ovfl, true);
 				// nOvfl is always positive.  If it were zero, fetchPayload would have been used instead of this routine.
-				if (SysEx_ALWAYS(ovfl) && !cur->Overflows)
+				if (_ALWAYS(ovfl) && !cur->Overflows)
 					rc = RC_NOMEM;
 			}
 
@@ -2905,7 +2905,7 @@ set_child_ptrmaps_out:
 		_assert(cursorHoldsMutex(cur) );
 		MemPage *page = cur->Pages[cur->ID];
 		_assert(cur->Idxs[cur->ID] < page->Cells);
-		if (SysEx_NEVER(cur->Info.Size == 0))
+		if (_NEVER(cur->Info.Size == 0))
 			btreeParseCell(cur->Pages[cur->ID], cur->Idxs[cur->ID], &cur->Info);
 		uint8 *payload = cur->Info.Cell + cur->Info.Header;
 		uint32 key = (page->IntKey ? 0U : (int)cur->Info.Key);
@@ -2929,7 +2929,7 @@ set_child_ptrmaps_out:
 		_assert(MutexEx::Held(cur->Btree->Ctx->Mutex));
 		_assert(cursorHoldsMutex(cur));
 		const void *p = nullptr;
-		if (SysEx_ALWAYS(cur->State == CURSOR_VALID))
+		if (_ALWAYS(cur->State == CURSOR_VALID))
 			p = (const void*)fetchPayload(cur, amount, false);
 		return p;
 	}
@@ -2939,7 +2939,7 @@ set_child_ptrmaps_out:
 		const void *p = 0;
 		_assert(MutexEx::Held(cur->Btree->Ctx->Mutex));
 		_assert(cursorHoldsMutex(cur));
-		if (SysEx_ALWAYS(cur->State == CURSOR_VALID))
+		if (_ALWAYS(cur->State == CURSOR_VALID))
 			p = (const void*)fetchPayload(cur, amount, true);
 		return p;
 	}
@@ -3270,7 +3270,7 @@ set_child_ptrmaps_out:
 						uint8 *const cellBody = cell - page->ChildPtrSize;
 						btreeParseCellPtr(page, cellBody, &cur->Info);
 						cellLength = (int)cur->Info.Key;
-						void *cellKey = SysEx::Alloc(cellLength);
+						void *cellKey = _alloc(cellLength);
 						if (cellKey == nullptr)
 						{
 							rc = RC_NOMEM;
@@ -3279,11 +3279,11 @@ set_child_ptrmaps_out:
 						rc = accessPayload(cur, 0, cellLength, (unsigned char *)cellKey, 0);
 						if (rc)
 						{
-							SysEx::Free(cellKey);
+							_free(cellKey);
 							goto moveto_finish;
 						}
 						c = _vdbe->RecordCompare(cellLength, cellKey, idxKey);
-						SysEx::Free(cellKey);
+						_free(cellKey);
 					}
 				}
 				if (c == 0)
@@ -3953,7 +3953,7 @@ freepage_out:
 		}
 		else
 		{ 
-			if (SysEx_NEVER(keyLength > 0x7fffffff || key == nullptr))
+			if (_NEVER(keyLength > 0x7fffffff || key == nullptr))
 				return SysEx_CORRUPT_BKPT;
 			payloadLength += (int)keyLength;
 			src = (uint8 *)key;
@@ -4093,8 +4093,8 @@ freepage_out:
 
 		_assert(i <= page->Cells + page->Overflows);
 		_assert(page->Cells <= MX_CELL(page->Bt) && MX_CELL(page->Bt) <= 10921);
-		_assert(page->Overflows <= __arrayStaticLength(page->Ovfls));
-		_assert(__arrayStaticLength(page->Ovfls) == __arrayStaticLength(page->OvflIdxs));
+		_assert(page->Overflows <= _lengthof(page->Ovfls));
+		_assert(_lengthof(page->Ovfls) == _lengthof(page->OvflIdxs));
 		_assert(MutexEx::Held(page->Bt->Mutex));
 		// The cell should normally be sized correctly.  However, when moving a malformed cell from a leaf page to an interior page, if the cell size
 		// wanted to be less than 4 but got rounded up to 4 on the leaf, then size might be less than 8 (leaf-size + pointer) on the interior node.  Hence
@@ -4474,7 +4474,7 @@ freepage_out:
 			+ bt->PageSize // aSpace1
 			+ k * oldPagesUsed; // Page copies (apCopy)
 		cells = 0; // Number of cells in apCell[]
-		cell = (uint8 **)SysEx::ScratchAlloc(sizeScratch); // All cells begin balanced
+		cell = (uint8 **)_stackalloc(sizeScratch); // All cells begin balanced
 		if (cell == nullptr)
 		{
 			rc = RC_NOMEM;
@@ -4837,7 +4837,7 @@ freepage_out:
 				{
 					// Cell i is the cell immediately following the last cell on old sibling page j. If the siblings are not leaf pages of an
 					// intkey b-tree, then cell i was a divider cell.
-					_assert(j + 1 < __arrayStaticLength(copyPages));
+					_assert(j + 1 < _lengthof(copyPages));
 					_assert(j + 1 < oldPagesUsed);
 					oldPage = copyPages[++j];
 					nextOldID = i + !leafData + oldPage->Cells + oldPage->Overflows;
@@ -4903,7 +4903,7 @@ freepage_out:
 
 		// Cleanup before returning.
 balance_cleanup:
-		SysEx::ScratchFree(cell);
+		_stackfree(cell);
 		for (i = 0; i < oldPagesUsed; i++)
 			releasePage(oldPages[i]);
 		for (i = 0; i < newPagesUsed; i++)
@@ -5179,7 +5179,7 @@ end_insert:
 		_assert(hasSharedCacheTableLock(p, cur->RootID, cur->KeyInfo != nullptr, LOCK_WRITE));
 		_assert(!hasReadConflicts(p, cur->RootID));
 
-		if (SysEx_NEVER(cur->Idxs[cur->ID] >= cur->Pages[cur->ID]->Cells) || SysEx_NEVER(cur->State != CURSOR_VALID))
+		if (_NEVER(cur->Idxs[cur->ID] >= cur->Pages[cur->ID]->Cells) || _NEVER(cur->State != CURSOR_VALID))
 			return RC_ERROR; // Something has gone awry.
 
 		int cellDepth = cur->ID; // Depth of node containing pCell
@@ -5350,7 +5350,7 @@ end_insert:
 			// freelist count.  Hence, the sqlite3BtreeUpdateMeta() call cannot fail.
 			_assert(Pager::Iswriteable(bt->Page1->DBPage));
 			rc = p->UpdateMeta(Btree::META_LARGEST_ROOT_PAGE, rootID);
-			if (SysEx_NEVER(rc))
+			if (_NEVER(rc))
 			{
 				releasePage(root);
 				return rc;
@@ -5449,7 +5449,7 @@ cleardatabasepage_out:
 		// need to move another root-page to fill a gap left by the deleted root page. If an open cursor was using this page a problem would occur.
 		//
 		// This error is caught long before control reaches this point.
-		if (SysEx_NEVER(bt->Cursor))
+		if (_NEVER(bt->Cursor))
 		{
 			BContext::ConnectionBlocked(p->Ctx, bt->Cursor->Btree->Ctx);
 			return RC_LOCKED_SHAREDCACHE;
@@ -5976,7 +5976,7 @@ cleardatabasepage_out:
 			return nullptr;
 		}
 
-		check.PgRefs = (uint8 *)SysEx::Alloc((check.Pages / 8) + 1, true);
+		check.PgRefs = (uint8 *)_alloc2((check.Pages / 8) + 1, true);
 		if (!check.PgRefs)
 		{
 			*errors = 1;
@@ -5986,8 +5986,8 @@ cleardatabasepage_out:
 		Pid i = PENDING_BYTE_PAGE(bt);
 		if (i <= check.Pages) setPageReferenced(&check, i);
 		char err[100];
-		Text::StringBuilder::Init(&check.ErrMsg, err, sizeof(err), 2000);
-		check.ErrMsg.UseMalloc = 2;
+		TextBuilder::Init(&check.ErrMsg, err, sizeof(err), 2000);
+		check.ErrMsg.AllocType = 2;
 
 		// Check the integrity of the freelist
 		checkList(&check, true, (Pid)ConvertEx::Get4(&bt->Page1->Data[32]), (int)ConvertEx::Get4(&bt->Page1->Data[36]), "Main freelist: ");
@@ -6020,12 +6020,12 @@ cleardatabasepage_out:
 
 		// Make sure this analysis did not leave any unref() pages. This is an internal consistency check; an integrity check
 		// of the integrity check.
-		if (SysEx_NEVER(refs != bt->Pager->get_Refs()))
+		if (_NEVER(refs != bt->Pager->get_Refs()))
 			checkAppendMsg(&check, nullptr, "Outstanding page count goes from %d to %d during this analysis", refs, bt->Pager->get_Refs());
 
 		// Clean  up and report errors.
 		Leave();
-		SysEx::Free(check.PgRefs);
+		_free(check.PgRefs);
 		if (check.MallocFailed)
 		{
 			check.ErrMsg.Reset();
@@ -6092,7 +6092,7 @@ cleardatabasepage_out:
 		Enter();
 		if (!bt->Schema && bytes)
 		{
-			bt->Schema = (Core::Schema *)SysEx::TagAlloc(nullptr, bytes, true);
+			bt->Schema = (Core::Schema *)_tagalloc2(nullptr, bytes, true);
 			bt->FreeSchema = free;
 		}
 		Leave();

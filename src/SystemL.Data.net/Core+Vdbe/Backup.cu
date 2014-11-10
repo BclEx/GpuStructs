@@ -46,7 +46,7 @@ namespace Core
 					Context::Error(errorCtx, parse->RC, "%s", parse->ErrMsg);
 					rc = RC_ERROR;
 				}
-				SysEx::TagFree(errorCtx, parse->ErrMsg);
+				_tagfree(errorCtx, parse->ErrMsg);
 				sqlite3StackFree(errorCtx, parse);
 			}
 			if (rc)
@@ -87,7 +87,7 @@ namespace Core
 		{
 			// Allocate space for a new sqlite3_backup object... EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a
 			// call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
-			p = (Backup *)SysEx::Alloc(sizeof(Backup), true);
+			p = (Backup *)_alloc(sizeof(Backup), true);
 			if (!p)
 				Context::Error(destCtx, RC_NOMEM, nullptr);
 		}
@@ -106,7 +106,7 @@ namespace Core
 			{
 				// One (or both) of the named databases did not exist or an OOM error was hit.  The error has already been written into the
 				// pDestDb handle.  All that is left to do here is free the sqlite3_backup structure.
-				SysEx::Free(p);
+				_free(p);
 				p = nullptr;
 			}
 		}
@@ -120,7 +120,7 @@ namespace Core
 
 	__device__ static bool IsFatalError(RC rc)
 	{
-		return (rc != RC_OK && rc != RC_BUSY && SysEx_ALWAYS(rc != RC_LOCKED));
+		return (rc != RC_OK && rc != RC_BUSY && _ALWAYS(rc != RC_LOCKED));
 	}
 
 	__device__ static RC BackupOnePage(Backup *p, Pid srcPg, const uint8 *srcData, bool update)
@@ -435,7 +435,7 @@ namespace Core
 		p->Src->Leave();
 		// EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
 		if (p->DestCtx)
-			SysEx::Free(p);
+			_free(p);
 		sqlite3LeaveMutexAndCloseZombie(srcCtx);
 		return rc;
 	}

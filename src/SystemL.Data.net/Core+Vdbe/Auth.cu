@@ -53,7 +53,7 @@ namespace Core
 		else
 		{
 			_assert(tableList);
-			for (int src = 0; SysEx_ALWAYS(src < tableList->Srcs); src++)
+			for (int src = 0; _ALWAYS(src < tableList->Srcs); src++)
 				if (expr->TableIdx == tableList->Ids[src].Cursor)
 				{
 					table = tableList->Ids[src].Table;
@@ -61,7 +61,7 @@ namespace Core
 				}
 		}
 		int col = expr->ColumnIdx; // Index of column in table
-		if (SysEx_NEVER(table)) return;
+		if (_NEVER(table)) return;
 
 		const char *colName; // Name of the column of the table
 		if (col >= 0)

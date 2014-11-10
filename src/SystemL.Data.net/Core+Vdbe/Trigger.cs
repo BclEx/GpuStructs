@@ -21,7 +21,7 @@ namespace Core
                 IdList.Delete(ctx, ref tmp.IdList);
 
                 triggerStep = null;
-                SysEx.TagFree(ctx, ref tmp);
+                C._tagfree(ctx, ref tmp);
             }
         }
 
@@ -90,7 +90,7 @@ namespace Core
             // To maintain backwards compatibility, ignore the database name on pTableName if we are reparsing our of SQLITE_MASTER.
             if (ctx.Init.Busy && db != 1)
             {
-                SysEx.TagFree(ctx, ref tableName.Ids[0].Database);
+                C._tagfree(ctx, ref tableName.Ids[0].Database);
                 tableName.Ids[0].Database = null;
             }
 
@@ -181,7 +181,7 @@ namespace Core
                 trTm = TK.BEFORE;
 
             // Build the Trigger object
-            trigger = new Trigger(); //: (Trigger *)SysEx::TagAlloc(db, sizeof(Trigger), true);
+            trigger = new Trigger(); //: (Trigger *)_tagalloc(db, sizeof(Trigger), true);
             if (trigger == null) goto trigger_cleanup;
             trigger.Name = name;
             trigger.Table = tableName.Ids[0].Name; //: SysEx::TagStrDup(ctx, tableName->Ids[0].Name);
@@ -195,7 +195,7 @@ namespace Core
             parse.NewTrigger = trigger;
 
         trigger_cleanup:
-            SysEx.TagFree(ctx, ref name);
+            C._tagfree(ctx, ref name);
             SrcListDelete(ctx, ref tableName);
             IdListDelete(ctx, ref columns);
             ExprDelete(ctx, ref when);
@@ -213,7 +213,7 @@ namespace Core
             Token nameToken = new Token(); // Trigger name for error reporting
 
             parse.NewTrigger = null;
-            if (SysEx.NEVER(parse.Errs != 0) || trig == null)
+            if (C._NEVER(parse.Errs != 0) || trig == null)
                 goto triggerfinish_cleanup;
             string name = trig.Name; // Name of trigger
             int db = sqlite3SchemaToIndex(parse.Ctx, trig.Schema); // Database containing the trigger
@@ -237,7 +237,7 @@ namespace Core
                 parse.BeginWriteOperation(0, db);
                 string z = all.data.Substring(0, all.length); //: SysEx::TagStrNDup(ctx, (char *)all->data, all->length);
                 parse.NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx.DBs[db].Name, SCHEMA_TABLE(db), name, trig.Table, z);
-                SysEx.TagFree(ctx, ref z);
+                C._tagfree(ctx, ref z);
                 parse.ChangeCookie(db);
                 v.AddParseSchemaOp(db, SysEx.Mprintf(ctx, "type='trigger' AND name='%q'", name));
             }
@@ -267,7 +267,7 @@ namespace Core
 
         public static TriggerStep TriggerSelectStep(Context ctx, Select select)
         {
-            TriggerStep triggerStep = new TriggerStep(); //: SysEx::TagAlloc(ctx, sizeof(TriggerStep), true);
+            TriggerStep triggerStep = new TriggerStep(); //: _tagalloc(ctx, sizeof(TriggerStep), true);
             if (triggerStep == null)
             {
                 SelectDelete(ctx, ref select);
@@ -281,7 +281,7 @@ namespace Core
 
         static TriggerStep TriggerStepAllocate(Context ctx, byte op, Token name)
         {
-            TriggerStep triggerStep = new TriggerStep(); //: SysEx::TagAlloc(ctx, sizeof(TriggerStep) + name->length, true);
+            TriggerStep triggerStep = new TriggerStep(); //: _tagalloc(ctx, sizeof(TriggerStep) + name->length, true);
             if (triggerStep != null)
             {
                 string z = name.data;
@@ -345,11 +345,11 @@ namespace Core
         {
             if (trigger == null) return;
             DeleteTriggerStep(ctx, ref trigger.StepList);
-            SysEx.TagFree(ctx, ref trigger.Name);
-            SysEx.TagFree(ctx, ref trigger.Table);
+            C._tagfree(ctx, ref trigger.Name);
+            C._tagfree(ctx, ref trigger.Table);
             ExprDelete(ctx, ref trigger.When);
             IdListDelete(ctx, ref trigger.Columns);
-            SysEx.TagFree(ctx, ref trigger);
+            C._tagfree(ctx, ref trigger);
             trigger = null;
         }
 
@@ -446,7 +446,7 @@ namespace Core
         {
             Debug.Assert(sqlite3SchemaMutexHeld(ctx, db, null));
             Trigger trigger = ctx.DBs[db].Schema.TriggerHash.Insert(name, name.Length, (Trigger)null);
-            if (SysEx_ALWAYS(trigger != null))
+            if (_ALWAYS(trigger != null))
             {
                 if (trigger.Schema == trigger.TabSchema)
                 {
@@ -479,7 +479,7 @@ namespace Core
         static bool CheckColumnOverlap(IdList idList, ExprList eList)
         {
             int e;
-            if (idList == null || SysEx.NEVER(eList == null))
+            if (idList == null || C._NEVER(eList == null))
                 return true;
             for (e = 0; e < eList.Exprs; e++)
             {
@@ -606,7 +606,7 @@ namespace Core
                 to.Errs = from.Errs;
             }
             else
-                SysEx.TagFree(from.Ctx, ref from.ErrMsg);
+                C._tagfree(from.Ctx, ref from.ErrMsg);
         }
 
         static TriggerPrg CodeRowTrigger(Parse parse, Trigger trigger, Table table, OE orconf)
@@ -619,7 +619,7 @@ namespace Core
 
             // Allocate the TriggerPrg and SubProgram objects. To ensure that they are freed if an error occurs, link them into the Parse.pTriggerPrg 
             // list of the top-level Parse object sooner rather than later.
-            TriggerPrg prg = new TriggerPrg(); // Value to return //: SysEx::TagAlloc(ctx, sizeof(TriggerPrg), true);
+            TriggerPrg prg = new TriggerPrg(); // Value to return //: _tagalloc(ctx, sizeof(TriggerPrg), true);
             if (prg == null) return null;
             prg.Next = top.TriggerPrg;
             top.TriggerPrg = prg;
@@ -634,7 +634,7 @@ namespace Core
 
 
             // Allocate and populate a new Parse context to use for coding the trigger sub-program.
-            Parse subParse = new Parse(); // Parse context for sub-vdbe //: SysEx::ScratchAlloc(ctx, sizeof(Parse), true);
+            Parse subParse = new Parse(); // Parse context for sub-vdbe //: _stackalloc(ctx, sizeof(Parse), true);
             if (subParse == null) return null;
             NameContext sNC = new NameContext(); // Name context for sub-vdbe
             sNC.Parse = subParse;

@@ -110,7 +110,7 @@ namespace Core
 		_assert(z2 <= zTerm);
 		while (*z2 != 0 && z2 < zTerm)
 		{
-			SKIP_UTF8(z2);
+			_strskiputf8(z2);
 			r++;
 		}
 		return r;

@@ -114,7 +114,7 @@ namespace Core.Command
                 return;
             }
             sqlite3_randomness(-1, p.Prn);
-            sqlite3_result_blob(funcCtx, p, -1, SysEx.Free);
+            sqlite3_result_blob(funcCtx, p, -1, C._free);
         }
         static const FuncDef stat3InitFuncdef = new FuncDef
 	    {
@@ -250,7 +250,7 @@ namespace Core.Command
             int regRowid = memId++;       // Rowid for the inserted record
 
             Vdbe v = parse.GetVdbe(); // The virtual machine being built up
-            if (v == null || SysEx.NEVER(table == null))
+            if (v == null || C._NEVER(table == null))
                 return;
             // Do not gather statistics on views or virtual tables or system tables
             if (table.Id == 0 || table.Name.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase))
@@ -275,7 +275,7 @@ namespace Core.Command
                 if (onlyIdx != null && onlyIdx != idx) continue;
                 v.NoopComment("Begin analysis of %s", idx.Name);
                 int cols = idx.Columns.length;
-                int[] chngAddrs = SysEx.TagAlloc<int>(ctx, cols); // Array of jump instruction addresses
+                int[] chngAddrs = C._tagalloc<int>(ctx, cols); // Array of jump instruction addresses
                 if (chngAddrs == null) continue;
                 KeyInfo key = sqlite3IndexKeyinfo(parse, idx);
                 if (memId + 1 + (cols * 2) > parse.Mems)
@@ -368,7 +368,7 @@ namespace Core.Command
                     v.AddOp2(OP.AddImm, memId + i + 1, 1);
                     v.AddOp3(OP.Column, idxCurId, i, memId + cols + i + 1);
                 }
-                SysEx.TagFree(ctx, chngAddrs);
+                C._tagfree(ctx, chngAddrs);
 
                 // Always jump here after updating the iMem+1...iMem+1+nCol counters
                 v.ResolveLabel(endOfLoop);
@@ -528,7 +528,7 @@ namespace Core.Command
                             AnalyzeTable(parse, idx.Table, idx);
                         else if ((table = sqlite3LocateTable(parse, 0, z, null)) != null)
                             AnalyzeTable(parse, table, null);
-                        SysEx.TagFree(ctx, z);
+                        C._tagfree(ctx, z);
                     }
                 }
             }
@@ -549,7 +549,7 @@ namespace Core.Command
                             AnalyzeTable(parse, idx.pTable, idx);
                         else if ((table = sqlite3LocateTable(parse, 0, z, dbName)) != null)
                             AnalyzeTable(parse, table, null);
-                        SysEx.TagFree(ctx, z);
+                        C._tagfree(ctx, z);
                     }
                 }
             }
@@ -606,9 +606,9 @@ namespace Core.Command
                 {
                     IndexSample p = idx.Samples[j];
                     if (p.Type == TYPE.TEXT || p.Type == TYPE.BLOB)
-                        SysEx.TagFree(ctx, ref p.u.Z);
+                        C._tagfree(ctx, ref p.u.Z);
                 }
-                SysEx.TagFree(ctx, ref idx.Samples);
+                C._tagfree(ctx, ref idx.Samples);
             }
             if (ctx && ctx.BytesFreed == 0)
             {
@@ -630,7 +630,7 @@ namespace Core.Command
                 return RC_NOMEM;
             sqlite3_stmt stmt = null; // An SQL statement being run
             RC rc = sqlite3_prepare(ctx, sql, -1, stmt, 0); // Result codes from subroutines
-            SysEx.TagFree(ctx, sql);
+            C._tagfree(ctx, sql);
             if (rc) return rc;
 
             while (sqlite3_step(stmt) == SQLITE_ROW)
@@ -659,7 +659,7 @@ namespace Core.Command
             if (!sql)
                 return RC_NOMEM;
             rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0);
-            SysEx.TagFree(ctx, sql);
+            C._tagfree(ctx, sql);
             if (rc) return rc;
 
             Index prevIdx = null; // Previous index in the loop
@@ -719,7 +719,7 @@ namespace Core.Command
                                 sample.u.Z = null;
                             else
                             {
-                                sample.u.Z = SysEx.TagAlloc(ctx, n);
+                                sample.u.Z = C._tagalloc(ctx, n);
                                 if (sample->u.Z == null)
                                 {
                                     ctx.MallocFailed = true;
@@ -764,7 +764,7 @@ namespace Core.Command
             else
             {
                 rc = sqlite3_exec(ctx, sql, AnalysisLoader, sInfo, 0);
-                SysEx.TagFree(ctx, ref sql);
+                C._tagfree(ctx, ref sql);
             }
 
             // Load the statistics from the sqlite_stat3 table.

@@ -386,7 +386,7 @@ __device__ void sqlite3InvalidFunction(FuncContext *ctx, int notUsed, Mem **notU
 	const char *name = ctx->Func->Name;
 	char *err = _mprintf("unable to use function %s in the requested context", name);
 	sqlite3_result_error(ctx, err, -1);
-	SysEx::Free(err);
+	_free(err);
 }
 
 __device__ void *sqlite3_aggregate_context(FuncContext *ctx, int bytes)
@@ -488,7 +488,7 @@ __device__ static Mem *columnMem(Vdbe *p, int i)
 	}
 	else
 	{
-		if (p && SysEx_ALWAYS(p->Db))
+		if (p && _ALWAYS(p->Db))
 		{
 			MutexEx::Enter(p->Db->Mutex);
 			sqlite3Error(p->Db, SQLITE_RANGE, 0);

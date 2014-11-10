@@ -56,7 +56,7 @@ namespace Core
             else
             {
                 Debug.Assert(tableList != null);
-                for (int src = 0; SysEx.ALWAYS(src < tableList.Srcs); src++)
+                for (int src = 0; C._ALWAYS(src < tableList.Srcs); src++)
                     if (expr.TableIdx == tableList.Ids[src].Cursor)
                     {
                         table = tableList.Ids[src].pTab;
@@ -64,7 +64,7 @@ namespace Core
                     }
             }
             int col = expr.ColumnIdx; // Index of column in table
-            if (SysEx.NEVER(table == null)) return;
+            if (C._NEVER(table == null)) return;
 
             string colName;     // Name of the column of the table
             if (col >= 0)

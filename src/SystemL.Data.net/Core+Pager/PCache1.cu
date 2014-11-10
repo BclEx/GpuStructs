@@ -138,17 +138,17 @@ namespace Core
 		if (!p)
 		{
 			// Memory is not available in the SQLITE_CONFIG_PAGECACHE pool.  Get it from sqlite3Malloc instead.
-			p = SysEx::Alloc(bytes);
+			p = _alloc(bytes);
 #ifndef DISABLE_PAGECACHE_OVERFLOW_STATS
 			if (p)
 			{
-				int size = SysEx::AllocSize(p);
+				int size = _allocsize(p);
 				MutexEx::Enter(_pcache1.Mutex);
 				StatusEx::StatusAdd(StatusEx::STATUS_PAGECACHE_OVERFLOW, size);
 				MutexEx::Leave(_pcache1.Mutex);
 			}
 #endif
-			SysEx::MemdebugSetType(p, SysEx::MEMTYPE_PCACHE);
+			_memdbg_settype(p, MEMTYPE_PCACHE);
 		}
 		return p;
 	}
@@ -172,15 +172,15 @@ namespace Core
 		}
 		else
 		{
-			_assert(SysEx::MemdebugHasType(p, SysEx::MEMTYPE_PCACHE));
-			SysEx::MemdebugSetType(p, SysEx::MEMTYPE_HEAP);
-			freed = SysEx::AllocSize(p);
+			_assert(_memdbg_hastype(p, MEMTYPE_PCACHE));
+			_memdbg_settype(p, MEMTYPE_HEAP);
+			freed = _allocsize(p);
 #ifndef DISABLE_PAGECACHE_OVERFLOW_STATS
 			MutexEx::Enter(_pcache1.Mutex);
 			StatusEx::StatusAdd(StatusEx::STATUS_PAGECACHE_OVERFLOW, -freed);
 			MutexEx::Leave(_pcache1.Mutex);
 #endif
-			SysEx::Free(p);
+			_free(p);
 		}
 		return freed;
 	}
@@ -190,10 +190,10 @@ namespace Core
 	{
 		if (p >= _pcache1.Start && p < _pcache1.End)
 			return _pcache1.SizeSlot;
-		_assert(SysEx::MemdebugHasType(p, SysEx::MEMTYPE_PCACHE));
-		SysEx::MemdebugSetType(p, SysEx::MEMTYPE_HEAP);
-		int size = SysEx::AllocSize(p);
-		SysEx::MemdebugSetType(p, SysEx::MEMTYPE_PCACHE);
+		_assert(_memdbg_hastype(p, MEMTYPE_PCACHE));
+		_memdbg_settype(p, MEMTYPE_HEAP);
+		int size = _allocsize(p);
+		_memdbg_settype(p, MEMTYPE_PCACHE);
 		return size;
 	}
 #endif
@@ -207,11 +207,11 @@ namespace Core
 		void *pg;
 #ifdef PCACHE_SEPARATE_HEADER
 		pg = Alloc(cache->SizePage);
-		p = (PgHdr1 *)SysEx::Alloc(sizeof(PgHdr1) + cache->SizeExtra);
+		p = (PgHdr1 *)_alloc(sizeof(PgHdr1) + cache->SizeExtra);
 		if (!pg || !p)
 		{
 			Free(pg);
-			SysEx::Free(p);
+			_free(p);
 			pg = nullptr;
 		}
 #else
@@ -232,13 +232,13 @@ namespace Core
 
 	__device__ static void FreePage(PgHdr1 *p)
 	{
-		if (SysEx_ALWAYS(p))
+		if (_ALWAYS(p))
 		{
 			PCache1 *cache = p->Cache;
 			_assert(MutexEx::Held(p->Cache->Group->Mutex));
 			Free(p->Page.Buffer);
 #ifdef PCACHE_SEPARATE_HEADER
-			SysEx::Free(p);
+			_free(p);
 #endif
 			if (cache->Purgeable)
 				cache->Group->CurrentPages--;
@@ -247,7 +247,7 @@ namespace Core
 
 	__device__ static bool UnderMemoryPressure(PCache1 *cache)
 	{
-		return (_pcache1.Slots && (cache->SizePage + cache->SizeExtra) <= _pcache1.SizeSlot ? _pcache1.UnderPressure : SysEx::HeapNearlyFull());
+		return (_pcache1.Slots && (cache->SizePage + cache->SizeExtra) <= _pcache1.SizeSlot ? _pcache1.UnderPressure : _heapnearlyfull());
 	}
 
 #pragma endregion
@@ -261,13 +261,13 @@ namespace Core
 		if (newLength < 256)
 			newLength = 256;
 		MutexEx::Leave(p->Group->Mutex);
-		if (p->Hash.length) SysEx::BeginBenignAlloc();
-		PgHdr1 **newHash = (PgHdr1 **)SysEx::Alloc(sizeof(PgHdr1 *) * newLength, true);
-		if (p->Hash.length) SysEx::EndBenignAlloc();
+		if (p->Hash.length) _benignalloc_begin();
+		PgHdr1 **newHash = (PgHdr1 **)_alloc2(sizeof(PgHdr1 *) * newLength, true);
+		if (p->Hash.length) _benignalloc_end();
 		MutexEx::Enter(p->Group->Mutex);
 		if (newHash)
 		{
-			for (uint i = 0; i < p->Hash.length; i++)
+			for (uint i = 0; i < (uint)p->Hash.length; i++)
 			{
 				PgHdr1 *page;
 				PgHdr1 *next = p->Hash[i];
@@ -279,7 +279,7 @@ namespace Core
 					newHash[h] = page;
 				}
 			}
-			SysEx::Free(p->Hash);
+			_free(p->Hash);
 			p->Hash = newHash;
 			p->Hash.length = newLength;
 		}
@@ -337,7 +337,7 @@ namespace Core
 	{
 		ASSERTONLY(uint pages = 0;)
 			_assert(MutexEx::Held(p->Group->Mutex));
-		for (uint h = 0; h < p->Hash.length; h++)
+		for (uint h = 0; h < (uint)p->Hash.length; h++)
 		{
 			PgHdr1 **pp = &p->Hash[h]; 
 			PgHdr1 *page;
@@ -364,7 +364,7 @@ namespace Core
 
 #pragma region Interface
 
-	__device__ IPCache *new_PCache1() {  PCache1 *cache = (PCache1 *)SysEx::Alloc(sizeof(PCache1), true); return (IPCache *)(new (cache) PCache1()); }
+	__device__ IPCache *new_PCache1() { PCache1 *cache = (PCache1 *)_alloc2(sizeof(PCache1), true); return (IPCache *)(new (cache) PCache1()); }
 
 	__device__ RC PCache1::Init()
 	{
@@ -401,7 +401,7 @@ namespace Core
 		_assert((sizePage & (sizePage - 1)) == 0 && sizePage >= 512 && sizePage <= 65536);
 		_assert(sizeExtra < 300);
 		int size = sizeof(PCache1) + sizeof(PGroup) * (int)separateCache;
-		PCache1 *cache = (PCache1 *)SysEx::Alloc(size, true);
+		PCache1 *cache = (PCache1 *)_alloc2(size, true);
 		cache = new (cache) PCache1();
 		if (cache)
 		{
@@ -504,7 +504,7 @@ namespace Core
 		_assert(N90pct == Max * 9 / 10);
 		if (createFlag && (pinned >= group->MaxPinned || pinned >= N90pct || UnderMemoryPressure(this)))
 			goto fetch_out;
-		if (Pages >= Hash.length && ResizeHash(this))
+		if (Pages >= (Pid)Hash.length && ResizeHash(this))
 			goto fetch_out;
 
 		// Step 4. Try to recycle a page.
@@ -533,9 +533,9 @@ namespace Core
 		// Step 5. If a usable page buffer has still not been found, attempt to allocate a new one. 
 		if (!page)
 		{
-			if (createFlag) SysEx::BeginBenignAlloc();
+			if (createFlag) _benignalloc_begin();
 			page = AllocPage(this);
-			if (createFlag) SysEx::EndBenignAlloc();
+			if (createFlag) _benignalloc_end();
 		}
 		if (page)
 		{
@@ -635,8 +635,8 @@ fetch_out:
 		group->MaxPinned = group->MaxPages + 10 - group->MinPages;
 		EnforceMaxPage(group);
 		MutexEx::Leave(group->Mutex);
-		SysEx::Free(cache->Hash);
-		SysEx::Free(cache);
+		_free(cache->Hash);
+		_free(cache);
 	}
 
 #ifdef ENABLE_MEMORY_MANAGEMENT

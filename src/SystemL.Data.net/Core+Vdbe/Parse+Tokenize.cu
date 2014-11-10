@@ -293,7 +293,7 @@ namespace Core
 			ctx->u1.IsInterrupted = 0;
 		RC = RC_OK;
 		Tail = sql;
-		void *engine = Parser_Alloc((void *(*)(size_t))SysEx::Alloc); // The LEMON-generated LALR(1) parser
+		void *engine = Parser_Alloc((void *(*)(size_t))_alloc); // The LEMON-generated LALR(1) parser
 		if (!engine)
 		{
 			ctx->MallocFailed = true;
@@ -328,7 +328,7 @@ namespace Core
 				}
 				break; }
 			case TK_ILLEGAL: {
-				SysEx::TagFree(ctx, *errMsg);
+				_tagfree(ctx, *errMsg);
 				*errMsg = SysEx::Mprintf(ctx, "unrecognized token: \"%T\"", &LastToken);
 				errs++;
 				goto abort_parse; }
@@ -356,7 +356,7 @@ abort_parse:
 #ifdef YYTRACKMAXSTACKDEPTH
 		sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK, sqlite3ParserStackPeak(engine));
 #endif
-		Parser_Free(engine, SysEx::Free);
+		Parser_Free(engine, _free);
 		ctx->Lookaside.Enabled = enableLookaside;
 		if (ctx->MallocFailed)
 			RC = RC_NOMEM;
@@ -378,13 +378,13 @@ abort_parse:
 #ifndef OMIT_SHARED_CACHE
 		if (Nested == 0)
 		{
-			SysEx::TagFree(ctx, TableLocks.data);
+			_tagfree(ctx, TableLocks.data);
 			TableLocks.data = nullptr;
 			TableLocks.length = 0;
 		}
 #endif
 #ifndef OMIT_VIRTUALTABLE
-		SysEx::Free(VTableLocks.data);
+		_free(VTableLocks.data);
 #endif
 
 		if (!INDECLARE_VTABLE(this))
@@ -397,14 +397,14 @@ abort_parse:
 		DeleteTrigger(ctx, NewTrigger);
 #endif
 		for (i = Vars.length-1; i >= 0; i--)
-			SysEx::TagFree(ctx, Vars.data[i]);
-		SysEx::TagFree(ctx, Vars.data);
-		SysEx::TagFree(ctx, Alias.data);
+			_tagfree(ctx, Vars.data[i]);
+		_tagfree(ctx, Vars.data);
+		_tagfree(ctx, Alias.data);
 		while (Ainc)
 		{
 			AutoincInfo *p = Ainc;
 			Ainc = p->Next;
-			SysEx::TagFree(ctx, p);
+			_tagfree(ctx, p);
 		}
 		while (ZombieTab)
 		{
@@ -430,7 +430,7 @@ abort_parse:
 		default: return -1;
 		}
 		int i, j;
-		for (i = 1, j = 0; SysEx_ALWAYS(z[i]); i++)
+		for (i = 1, j = 0; _ALWAYS(z[i]); i++)
 			if (z[i] == quote)
 			{
 				if (z[i+1] == quote) { z[j++] = quote; i++; }

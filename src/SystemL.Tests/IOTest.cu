@@ -5,7 +5,7 @@
 #if __CUDACC__
 #define TEST(id) \
 	__global__ void ioTest##id(void *r); \
-	void ioTest##id##_host(cudaRuntimeHost &r) { ioTest##id<<<1, 1>>>(r.heap); cudaRuntimeExecute(r); } \
+	void ioTest##id##_host(cudaDeviceHeap &r) { ioTest##id<<<1, 1>>>(r.heap); cudaDeviceHeapSynchronize(r); } \
 	__global__ void ioTest##id(void *r) \
 { \
 	_runtimeSetHeap(r); \
@@ -13,7 +13,7 @@
 #else
 #define TEST(id) \
 	__global__ void ioTest##id(void *r); \
-	void ioTest##id##_host(cudaRuntimeHost &r) { ioTest##id(r.heap); cudaRuntimeExecute(r); } \
+	void ioTest##id##_host(cudaDeviceHeap &r) { ioTest##id(r.heap); cudaDeviceHeapSynchronize(r); } \
 	__global__ void ioTest##id(void *r) \
 { \
 	_runtimeSetHeap(r); \
@@ -31,11 +31,11 @@ TEST(0) {
 
 // printf outputs
 TEST(1) {
-	auto vfs = VSystem::Find("gpu");
-	auto file = (VFile *)SysEx::Alloc(vfs->SizeOsFile);
+	auto vfs = VSystem::FindVfs("gpu");
+	auto file = (VFile *)_alloc(vfs->SizeOsFile);
 	auto rc = vfs->Open("C:\\T_\\Test.db", file, (VSystem::OPEN)((int)VSystem::OPEN_CREATE | (int)VSystem::OPEN_READWRITE | (int)VSystem::OPEN_MAIN_DB), nullptr);
 	_printf("%d\n", rc);
 	file->Write4(0, 123145);
 	file->Close();
-	SysEx::Free(file);
+	_free(file);
 }}

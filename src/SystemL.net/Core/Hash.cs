@@ -43,12 +43,12 @@ namespace Core
         {
             HashElem elem = First; // For looping over all elements of the table
             First = null;
-            SysEx.Free(ref Table); Table = null;
+            C._free(ref Table); Table = null;
             TableSize = 0;
             while (elem != null)
             {
                 HashElem nextElem = elem.Next;
-                SysEx.Free(ref elem);
+                C._free(ref elem);
                 elem = nextElem;
             }
             Count = 0;
@@ -102,14 +102,14 @@ namespace Core
             // allocation as a benign. Use sqlite3Malloc()/memset(0) instead of sqlite3MallocZero() to make the allocation, as sqlite3MallocZero()
             // only zeroes the requested number of bytes whereas this module will use the actual amount of space allocated for the hash table (which
             // may be larger than the requested amount).
-            SysEx.BeginBenignAlloc();
+            C._benignalloc_begin();
             HTable[] newTable = new HTable[newSize]; // The new hash table
             for (int i = 0; i < newSize; i++)
                 newTable[i] = new HTable();
-            SysEx.EndBenignAlloc();
+            C._benignalloc_end();
             if (newTable == null)
                 return false;
-            SysEx.Free(ref hash.Table);
+            C._free(ref hash.Table);
             hash.Table = newTable;
             //hash.TableSize = newSize = SysEx.AllocSize(newTable) / sizeof(HTable);
             hash.TableSize = newSize;
@@ -138,7 +138,7 @@ namespace Core
                 elem = hash.First;
                 count = (int)hash.Count;
             }
-            while (count-- > 0 && SysEx.ALWAYS(elem != null))
+            while (count-- > 0 && C._ALWAYS(elem != null))
             {
                 if (elem.KeyLength == keyLength && elem.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
                     return elem;
@@ -164,7 +164,7 @@ namespace Core
                 entry.Count--;
                 Debug.Assert(entry.Count >= 0);
             }
-            SysEx.Free(ref elem);
+            C._free(ref elem);
             hash.Count--;
             if (hash.Count == 0)
             {

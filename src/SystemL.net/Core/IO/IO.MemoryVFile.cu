@@ -45,7 +45,7 @@ namespace Core { namespace IO
 		if (_readpoint.Offset != offset || offset == 0)
 		{
 			int64 offset2 = 0;
-			for (chunk = First; SysEx_ALWAYS(chunk) && (offset2 + JOURNAL_CHUNKSIZE) <= offset; chunk = chunk->Next)
+			for (chunk = First; _ALWAYS(chunk) && (offset2 + JOURNAL_CHUNKSIZE) <= offset; chunk = chunk->Next)
 				offset2 += JOURNAL_CHUNKSIZE;
 		}
 		else
@@ -104,7 +104,7 @@ namespace Core { namespace IO
 		{
 			FileChunk *tmp = chunk;
 			chunk = chunk->Next;
-			SysEx::Free(tmp);
+			_free(tmp);
 		}
 		MemoryVFileOpen(this);
 		return RC_OK;

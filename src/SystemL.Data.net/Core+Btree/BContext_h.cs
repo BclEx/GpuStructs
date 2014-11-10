@@ -66,7 +66,7 @@ namespace Core
 
         public int InvokeBusyHandler()
         {
-            if (SysEx.NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
+            if (C._NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
                 return 0;
             var rc = BusyHandler.Func(BusyHandler.Arg, BusyHandler.Busys);
             if (rc == 0)

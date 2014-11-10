@@ -63,7 +63,7 @@ namespace Core
             for (chunk = p.Chunk; chunk != null; chunk = nextChunk)
             {
                 nextChunk = chunk.NextChunk;
-                SysEx.TagFree(p.Db, ref chunk);
+                C._tagfree(p.Db, ref chunk);
             }
             p.Chunk = null;
             p.FreshLength = 0;

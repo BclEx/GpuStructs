@@ -78,18 +78,18 @@ namespace Core.Command
                     if (oldName.Equals(parent, StringComparison.OrdinalIgnoreCase))
                     {
                         string out_ = SysEx.Mprintf(ctx, "%s%.*s\"%w\"", output, z - zLeft, input.Substring(zLeft), newName);
-                        SysEx.TagFree(ctx, ref output);
+                        C._tagfree(ctx, ref output);
                         output = out_;
                         z += n;
                         zLeft = z;
                     }
-                    SysEx.TagFree(ctx, ref parent);
+                    C._tagfree(ctx, ref parent);
                 }
             }
 
             string r = SysEx.Mprintf(ctx, "%s%s", output, input.Substring(zLeft));
             sqlite3_result_text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
-            SysEx.TagFree(ctx, ref output);
+            C._tagfree(ctx, ref output);
         }
 #endif
 
@@ -170,7 +170,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             else
             {
                 newExpr = SysEx.Mprintf(ctx, "%s OR name=%Q", where_, constant);
-                SysEx.TagFree(ctx, ref where_);
+                C._tagfree(ctx, ref where_);
             }
             return newExpr;
         }
@@ -210,7 +210,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
 #endif
 
             Vdbe v = parse.GetVdbe();
-            if (SysEx.NEVER(v == null)) return;
+            if (C._NEVER(v == null)) return;
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
             int db = sqlite3SchemaToIndex(ctx, table.Schema); // Index of database containing pTab
             Debug.Assert(db >= 0);
@@ -255,7 +255,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             Context ctx = parse.Ctx; // Database connection
 
             Context.FLAG savedDbFlags = ctx.Flags; // Saved value of db->flags
-            //if (SysEx.NEVER(ctx.MallocFailed)) goto exit_rename_table;
+            //if (C._NEVER(ctx.MallocFailed)) goto exit_rename_table;
             Debug.Assert(src.Srcs == 1);
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
 
@@ -344,7 +344,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
                         "UPDATE \"%w\".%s SET " +
                             "sql = sqlite_rename_parent(sql, %Q, %Q) " +
                             "WHERE %s;", dbName, SCHEMA_TABLE(db), tableName, nameAsString, where_);
-                    SysEx.TagFree(ctx, ref where_);
+                    C._tagfree(ctx, ref where_);
                 }
             }
 #endif
@@ -390,7 +390,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
                 "sql = sqlite_rename_trigger(sql, %Q), " +
                 "tbl_name = %Q " +
                 "WHERE %s;", nameAsString, nameAsString, where_);
-                SysEx.TagFree(ctx, ref where_);
+                C._tagfree(ctx, ref where_);
             }
 #endif
 
@@ -411,7 +411,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
 
         exit_rename_table:
             sqlite3SrcListDelete(ctx, ref src);
-            SysEx.TagFree(ctx, ref nameAsString);
+            C._tagfree(ctx, ref nameAsString);
             ctx.Flags = savedDbFlags;
         }
 
@@ -419,7 +419,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
         {
             Vdbe v = parse.GetVdbe();
             // The VDBE should have been allocated before this routine is called. If that allocation failed, we would have quit before reaching this point
-            if (SysEx.ALWAYS(v != null))
+            if (C._ALWAYS(v != null))
             {
                 int r1 = parse.GetTempReg();
                 int r2 = parse.GetTempReg();
@@ -512,7 +512,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
                 "WHERE type = 'table' AND name = %Q",
                 dbName, SCHEMA_TABLE(db), newTable.AddColOffset, colDefAsString, newTable.AddColOffset + 1,
                 tableName);
-                SysEx.TagFree(ctx, ref colDefAsString);
+                C._tagfree(ctx, ref colDefAsString);
                 ctx.Flags = savedDbFlags;
             }
 

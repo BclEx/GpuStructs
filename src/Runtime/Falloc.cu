@@ -10,12 +10,7 @@
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
-#ifdef _LCcpu
-void FallocVisualRender::Dispose() { }
-void FallocVisualRender::Keyboard(unsigned char key) { }
-void FallocVisualRender::Display() { }
-void FallocVisualRender::Initialize() { }
-#else
+#if __CUDACC__
 #define MAX(a,b) (a > b ? a : b)
 #define BLOCKPITCH 64
 #define HEADERPITCH 4
@@ -195,7 +190,7 @@ inline size_t GetFallocRenderQuads(size_t blocks)
 
 static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)
 {
-	checkCudaErrors(cudaFallocSetHeap(heap), exit(0));
+	cudaCheckErrors(cudaFallocSetHeap(heap), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
@@ -207,7 +202,7 @@ static void LaunchFallocRender(float4 *b, size_t blocks, fallocHeap *heap)
 
 static void LaunchFallocKeypress(fallocHeap *heap, unsigned char key)
 {
-	checkCudaErrors(cudaFallocSetHeap(heap), exit(0));
+	cudaCheckErrors(cudaFallocSetHeap(heap), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Keypress<<<heapGrid, heapBlock>>>(heap, key);
@@ -221,14 +216,14 @@ static struct cudaGraphicsResource *_fallocVboResource;
 static void FallocRunCuda(size_t blocks, fallocHeap *heap, struct cudaGraphicsResource **resource)
 {
 	// map OpenGL buffer object for writing from CUDA
-	checkCudaErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
+	cudaCheckErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
 	float4 *b;
 	size_t size;
-	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&b, &size, *resource), exit(0));
+	cudaCheckErrors(cudaGraphicsResourceGetMappedPointer((void **)&b, &size, *resource), exit(0));
 	//printf("CUDA mapped VBO: May access %ld bytes\n", size);
 	LaunchFallocRender(b, blocks, heap);
 	// unmap buffer object
-	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
+	cudaCheckErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
 }
 
 static void FallocCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
@@ -242,7 +237,7 @@ static void FallocCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResou
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	// register this buffer object with CUDA
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
+	cudaCheckErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
 	SDK_CHECK_ERROR_GL();
 }
 
@@ -324,6 +319,11 @@ void FallocVisualRender::Initialize()
 #undef BLOCK5COLOR
 #undef MARKERCOLOR
 
+#else
+void FallocVisualRender::Dispose() { }
+void FallocVisualRender::Keyboard(unsigned char key) { }
+void FallocVisualRender::Display() { }
+void FallocVisualRender::Initialize() { }
 #endif
 #endif
 #pragma endregion

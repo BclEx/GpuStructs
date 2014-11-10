@@ -28,7 +28,7 @@ namespace Core
                 var cp = new OverflowCell();
                 if (Cell != null)
                 {
-                    cp.Cell = SysEx.Alloc(Cell.Length);
+                    cp.Cell = C._alloc(Cell.Length);
                     Buffer.BlockCopy(Cell, 0, cp.Cell, 0, Cell.Length);
                 }
                 return cp;
@@ -71,7 +71,7 @@ namespace Core
                 //}
                 //if (Data != null)
                 //{
-                //    cp.Data = SysEx.Alloc(Data.Length);
+                //    cp.Data = C._alloc(Data.Length);
                 //    Buffer.BlockCopy(Data, 0, cp.Data, 0, Data.Length);
                 //}
                 return cp;

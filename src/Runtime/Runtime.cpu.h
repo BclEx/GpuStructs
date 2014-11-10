@@ -2,6 +2,7 @@
 #define __RUNTIME_CPU_H__
 #include <stdarg.h> // Needed for the definition of va_list
 #include <stdio.h>
+#include <process.h>
 //#ifndef __device__
 //#define __device__
 //#endif
@@ -23,7 +24,9 @@
 // DEVICE SIDE
 // External function definitions for device-side code
 
-// Assert
+//////////////////////
+// ASSERT
+#pragma region ASSERT
 #undef _assert
 #ifndef NDEBUG
 #define _assert(X) assert(X)
@@ -35,19 +38,23 @@ __device__ inline void Coverage(int line) { }
 #define ASSERTONLY(X)
 #define ASSERTCOVERAGE(X)
 #endif
+#define _ALWAYS(X) (X)
+#define _NEVER(X) (X)
+
+#pragma endregion
 
 ///////////////////////////////////////////////////////////////////////////////
 // HEAP
 #pragma region HEAP
 
-#define RUNTIME_UNRESTRICTED -1
+#define CURT_UNRESTRICTED -1
 
 #pragma endregion
 
 // Heap
-extern "C" __device__ inline void _runtimeSetHeap(void *heap) { }
-extern "C" inline cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
-extern "C" __device__ inline void runtimeRestrict(int threadid, int blockid) { }
+extern "C" __device__ inline static void _runtimeSetHeap(void *heap) { }
+extern "C" inline cudaError_t cudaDeviceHeapSelect(cudaDeviceHeap &host) { return cudaSuccess; }
+extern "C" __device__ inline static void runtimeRestrict(int threadid, int blockid) { }
 
 ///////////////////////////////////////////////////////////////////////////////
 // DEVICE SIDE
@@ -99,131 +106,15 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 // THROW
 #pragma region THROW
 
-__device__ inline void _throw(const char *fmt) { printf(fmt); exit(); }
-template <typename T1> __device__ inline void _throw(const char *fmt, T1 arg1) { printf(fmt, arg1); exit(); }
-template <typename T1, typename T2> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2) { printf(fmt, arg1, arg2); }
-template <typename T1, typename T2, typename T3> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { printf(fmt, arg1, arg2, arg3); exit(); }
-template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { printf(fmt, arg1, arg2, arg3, arg4); exit(); }
+__device__ inline void _throw(const char *fmt) { printf(fmt); exit(0); }
+template <typename T1> __device__ inline void _throw(const char *fmt, T1 arg1) { printf(fmt, arg1); exit(0); }
+template <typename T1, typename T2> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2) { printf(fmt, arg1, arg2); exit(0); }
+template <typename T1, typename T2, typename T3> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { printf(fmt, arg1, arg2, arg3); exit(0); }
+template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _throw(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { printf(fmt, arg1, arg2, arg3, arg4); exit(0); }
 
 #pragma endregion
 
-extern "C" const unsigned char _runtimeUpperToLower[256];
-extern "C" const unsigned char _runtimeCtypeMap[256];
-
-#define __toupper(x) ((x)&~(_runtimeCtypeMap[(unsigned char)(x)]&0x20))
-#define _isspace(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x01)
-#define _isalnum(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x06)
-#define _isalpha(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x02)
-#define _isdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x04)
-#define _isxdigit(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x08)
-#define _isidchar(x) (_runtimeCtypeMap[(unsigned char)(x)]&0x46)
-#define __tolower(x) (_runtimeUpperToLower[(unsigned char)(x)])
-
-// array
-template <typename T> struct array_t { int length; T *data; inline array_t() { data = nullptr; length = 0; } inline array_t(T *a) { data = a; length = 0; } inline array_t(T *a, int b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
-template <typename TLength, typename T> struct array_t2 { TLength length; T *data; inline array_t2() { data = nullptr; length = 0; } inline array_t2(T *a) { data = a; length = 0; } inline array_t2(T *a, TLength b) { data = a; length = b; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
-template <typename TLength, typename T, int size> struct array_t3 { TLength length; T data[size]; inline array_t3() { length = 0; } inline void operator=(T *a) { data = a; } inline operator T *() { return data; } };
-#define __arrayStaticLength(symbol) (sizeof(symbol) / sizeof(symbol[0]))
-
-// skiputf8
-template <typename T> __device__ inline void _skiputf8(const T *z)
-{
-	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
-}
-
-// strcmp
-template <typename T> __device__ inline int _strcmp(const T *left, const T *right)
-{
-	register unsigned char *a, *b;
-	a = (unsigned char *)left;
-	b = (unsigned char *)right;
-	while (*a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
-	return _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b];
-}
-
-// strncmp
-template <typename T> __device__ inline int _strncmp(const T *left, const T *right, int n)
-{
-	register unsigned char *a, *b;
-	a = (unsigned char *)left;
-	b = (unsigned char *)right;
-	while (n-- > 0 && *a != 0 && _runtimeUpperToLower[*a] == _runtimeUpperToLower[*b]) { a++; b++; }
-	return (n < 0 ? 0 : _runtimeUpperToLower[*a] - _runtimeUpperToLower[*b]);
-}
-
-// memcpy
-template <typename T> __device__ inline void _memcpy(T *dest, const T *src, size_t length)
-{
-	//memcpy(dest, src, length);
-	register unsigned char *a, *b;
-	a = (unsigned char *)dest;
-	b = (unsigned char *)src;
-	for (size_t i = 0; i < length; ++i, ++a, ++b)
-		*a = *b;
-}
-
-// memset
-template <typename T> __device__ inline void _memset(T *dest, const char value, size_t length)
-{
-	register unsigned char *a;
-	a = (unsigned char *)dest;
-	for (size_t i = 0; i < length; ++i, ++a)
-		*a = value;
-}
-
-// memcmp
-template <typename T, typename Y> __device__ inline int _memcmp(T *left, Y *right, size_t length)
-{
-	register unsigned char *a, *b;
-	a = (unsigned char *)left;
-	b = (unsigned char *)right;
-	while (*a != 0 && *a == *b) { a++; b++; }
-	return *a - *b;
-}
-
-// strlen30
-__device__ inline int _strlen30(const char *z)
-{
-	register const char *z2 = z;
-	if (z == nullptr) return 0;
-	while (*z2) { z2++; }
-	return 0x3fffffff & (int)(z2 - z);
-}
-
-// hextobyte
-__device__ inline unsigned char _hextobyte(char h)
-{
-	_assert((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'));
-	return (unsigned char)((h + 9*(1&(h>>6))) & 0xf);
-}
-
-#ifndef OMIT_FLOATING_POINT
-__device__ inline int _isNaN(double x)
-{
-#if !defined(HAVE_ISNAN)
-	// Systems that support the isnan() library function should probably make use of it by compiling with -DHAVE_ISNAN.  But we have
-	// found that many systems do not have a working isnan() function so this implementation is provided as an alternative.
-	//
-	// This NaN test sometimes fails if compiled on GCC with -ffast-math. On the other hand, the use of -ffast-math comes with the following
-	// warning:
-	//
-	//      This option [-ffast-math] should never be turned on by any -O option since it can result in incorrect output for programs
-	//      which depend on an exact implementation of IEEE or ISO rules/specifications for math functions.
-	//
-	// Under MSVC, this NaN test may fail if compiled with a floating-point precision mode other than /fp:precise.  From the MSDN 
-	// documentation:
-	//
-	//      The compiler [with /fp:precise] will properly handle comparisons involving NaN. For example, x != x evaluates to true if x is NaN 
-#ifdef __FAST_MATH__
-#error Runtime will not work correctly with the -ffast-math option of GCC.
-#endif
-	volatile double y = x;
-	volatile double z = y;
-	return (y != z);
-#else
-	return isnan(x);
-#endif
-}
-#endif
+extern "C" const unsigned char __curtUpperToLower[256];
+extern "C" const unsigned char __curtCtypeMap[256];
 
 #endif // __RUNTIME_CPU_H__

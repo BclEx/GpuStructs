@@ -18,11 +18,11 @@ namespace Core
                 case '\f':
                 case '\r':
                     {
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == ' ');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\t');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\n');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\f');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '\r');
+                        C.ASSERTCOVERAGE(z[offset + 0] == ' ');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '\t');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '\n');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '\f');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '\r');
                         for (i = 1; z.Length > offset + i && char.IsWhiteSpace(z[offset + i]); i++) { }
                         tokenType = TK.SPACE;
                         return i;
@@ -175,9 +175,9 @@ namespace Core
                 case '"':
                     {
                         int delim = z[offset + 0];
-                        SysEx.ASSERTCOVERAGE(delim == '`');
-                        SysEx.ASSERTCOVERAGE(delim == '\'');
-                        SysEx.ASSERTCOVERAGE(delim == '"');
+                        C.ASSERTCOVERAGE(delim == '`');
+                        C.ASSERTCOVERAGE(delim == '\'');
+                        C.ASSERTCOVERAGE(delim == '"');
                         for (i = 1; (offset + i) < z.Length && (c = z[offset + i]) != '\0'; i++)
                         {
                             if (c == delim)
@@ -232,16 +232,16 @@ namespace Core
                 case '8':
                 case '9':
                     {
-                        SysEx.ASSERTCOVERAGE(z[offset] == '0');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '1');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '2');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '3');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '4');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '5');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '6');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '7');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '8');
-                        SysEx.ASSERTCOVERAGE(z[offset] == '9');
+                        C.ASSERTCOVERAGE(z[offset] == '0');
+                        C.ASSERTCOVERAGE(z[offset] == '1');
+                        C.ASSERTCOVERAGE(z[offset] == '2');
+                        C.ASSERTCOVERAGE(z[offset] == '3');
+                        C.ASSERTCOVERAGE(z[offset] == '4');
+                        C.ASSERTCOVERAGE(z[offset] == '5');
+                        C.ASSERTCOVERAGE(z[offset] == '6');
+                        C.ASSERTCOVERAGE(z[offset] == '7');
+                        C.ASSERTCOVERAGE(z[offset] == '8');
+                        C.ASSERTCOVERAGE(z[offset] == '9');
                         tokenType = TK.INTEGER;
                         for (i = 0; z.Length > offset + i && char.IsDigit(z[offset + i]); i++) { }
 #if !OMIT_FLOATING_POINT
@@ -297,9 +297,9 @@ namespace Core
                 case ':':
                     {
                         int n = 0;
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '$');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == '@');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == ':');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '$');
+                        C.ASSERTCOVERAGE(z[offset + 0] == '@');
+                        C.ASSERTCOVERAGE(z[offset + 0] == ':');
                         tokenType = TK.VARIABLE;
                         for (i = 1; z.Length > offset + i && (c = z[offset + i]) != '\0'; i++)
                         {
@@ -335,8 +335,8 @@ namespace Core
                 case 'x':
                 case 'X':
                     {
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == 'x');
-                        SysEx.ASSERTCOVERAGE(z[offset + 0] == 'X');
+                        C.ASSERTCOVERAGE(z[offset + 0] == 'x');
+                        C.ASSERTCOVERAGE(z[offset + 0] == 'X');
                         if (z.Length > offset + 1 && z[offset + 1] == '\'')
                         {
                             tokenType = TK.BLOB;
@@ -426,7 +426,7 @@ namespace Core
                         }
                     case TK.ILLEGAL:
                         {
-                            SysEx.TagFree(ctx, ref errMsg);
+                            C._tagfree(ctx, ref errMsg);
                             errMsg = SysEx.Mprintf(ctx, "unrecognized token: \"%T\"", (object)LastToken);
                             errs++;
                             goto abort_parse;
@@ -478,7 +478,7 @@ namespace Core
 #if !OMIT_SHARED_CACHE
             if (Nested == 0)
             {
-                SysEx.TagFree(ctx, ref TableLocks.data);
+                C._tagfree(ctx, ref TableLocks.data);
                 TableLocks.data = null;
                 TableLocks.length = 0;
             }
@@ -497,14 +497,14 @@ namespace Core
             DeleteTrigger(ctx, ref NewTrigger);
 #endif
             //for (i = Vars.length - 1; i >= 0; i--)
-            //    SysEx.TagFree(ctx, ref Vars.data[i]);
-            SysEx.TagFree(ctx, ref Vars.data);
-            SysEx.TagFree(ctx, ref Alias.data);
+            //    C._tagfree(ctx, ref Vars.data[i]);
+            C._tagfree(ctx, ref Vars.data);
+            C._tagfree(ctx, ref Alias.data);
             while (Ainc != null)
             {
                 AutoincInfo p = Ainc;
                 Ainc = p.Next;
-                SysEx.TagFree(ctx, ref p);
+                C._tagfree(ctx, ref p);
             }
             while (ZombieTab != null)
             {

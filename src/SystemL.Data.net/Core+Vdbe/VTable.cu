@@ -19,7 +19,7 @@ namespace Core
 			rc = SysEx_MISUSE_BKPT;
 		else
 		{
-			TableModule *module = (TableModule *)SysEx::TagAlloc(ctx, sizeof(TableModule) + nameLength + 1);
+			TableModule *module = (TableModule *)_tagalloc(ctx, sizeof(TableModule) + nameLength + 1);
 			if (module)
 			{
 				char *nameCopy = (char *)(&module[1]);
@@ -33,11 +33,11 @@ namespace Core
 				if (delModule)
 				{
 					ctx->MallocFailed = true;
-					SysEx::TagFree(ctx, delModule);
+					_tagfree(ctx, delModule);
 				}
 			}
 		}
-		rc = Context::ApiExit(ctx, rc);
+		rc = SysEx::ApiExit(ctx, rc);
 		if (rc != RC_OK && destroy) destroy(aux);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
@@ -67,7 +67,7 @@ namespace Core
 		{
 			if (IVTable)
 				((ITableModule *)IVTable->IModule)->Disconnect(this->IVTable);
-			SysEx::TagFree(ctx, this);
+			_tagfree(ctx, this);
 		}
 	}
 
@@ -143,8 +143,8 @@ namespace Core
 		{
 			for (int i = 0; i < table->ModuleArgs.length; i++)
 				if (i != 1)
-					SysEx::TagFree(ctx, table->ModuleArgs[i]);
-			SysEx::TagFree(ctx, table->ModuleArgs);
+					_tagfree(ctx, table->ModuleArgs[i]);
+			_tagfree(ctx, table->ModuleArgs);
 		}
 	}
 
@@ -156,9 +156,9 @@ namespace Core
 		if (!moduleArgs)
 		{
 			for (int j = 0; j < i; j++)
-				SysEx::TagFree(ctx, table->ModuleArgs[j]);
-			SysEx::TagFree(ctx, arg);
-			SysEx::TagFree(ctx, table->ModuleArgs);
+				_tagfree(ctx, table->ModuleArgs[j]);
+			_tagfree(ctx, arg);
+			_tagfree(ctx, table->ModuleArgs);
 			table->ModuleArgs.length = 0;
 		}
 		else
@@ -242,7 +242,7 @@ namespace Core
 				table->Name,
 				stmt,
 				parse->RegRowid);
-			SysEx::TagFree(ctx, stmt);
+			_tagfree(ctx, stmt);
 			Vdbe *v = Vdbe::GetVdbe(parse);
 			sqlite3ChangeCookie(parse, dbidx);
 
@@ -301,10 +301,10 @@ namespace Core
 		if (!moduleName)
 			return RC_NOMEM;
 
-		VTable *vtable = (VTable *)SysEx::TagAlloc(ctx, sizeof(VTable), true);
+		VTable *vtable = (VTable *)_tagalloc(ctx, sizeof(VTable), true);
 		if (!vtable)
 		{
-			SysEx::TagFree(ctx, moduleName);
+			_tagfree(ctx, moduleName);
 			return RC_NOMEM;
 		}
 		vtable->Ctx = ctx;
@@ -336,11 +336,11 @@ namespace Core
 			else
 			{
 				*perror = SysEx::Mprintf(ctx, "%s", error);
-				SysEx::Free(error);
+				_free(error);
 			}
-			SysEx::TagFree(ctx, vtable);
+			_tagfree(ctx, vtable);
 		}
-		else if (SysEx_ALWAYS(vtable->IVTable))
+		else if (_ALWAYS(vtable->IVTable))
 		{
 			// Justification of ALWAYS():  A correct vtab constructor must allocate the sqlite3_vtab object if successful.
 			vtable->IVTable->IModule = module->IModule;
@@ -389,7 +389,7 @@ namespace Core
 			}
 		}
 
-		SysEx::TagFree(ctx, moduleName);
+		_tagfree(ctx, moduleName);
 		return rc;
 	}
 
@@ -413,7 +413,7 @@ namespace Core
 		RC rc = VTableCallConstructor(ctx, table, module, module->IModule->Connect, &error);
 		if (rc != RC_OK)
 			Context::ErrorMsg(parse, "%s", error);
-		SysEx::TagFree(ctx, error);
+		_tagfree(ctx, error);
 		return rc;
 	}
 
@@ -462,7 +462,7 @@ namespace Core
 			rc = VTableCallConstructor(ctx, table, module, module->IModule->Create, error);
 
 		// Justification of ALWAYS():  The xConstructor method is required to create a valid sqlite3_vtab if it returns SQLITE_OK.
-		if (rc == RC_OK && SysEx_ALWAYS(VTable::GetVTable(ctx, table)))
+		if (rc == RC_OK && _ALWAYS(VTable::GetVTable(ctx, table)))
 		{
 			rc = GrowVTrans(ctx);
 			if (rc == RC_OK)
@@ -484,7 +484,7 @@ namespace Core
 		_assert((table->TabFlags & TF_Virtual) != 0);
 
 		RC rc = RC_OK;
-		Parse *parse = (Parse *)SysEx::ScratchAlloc(ctx, sizeof(Parse));
+		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(Parse));
 		if (!parse)
 			rc = RC_NOMEM;
 		else
@@ -507,7 +507,7 @@ namespace Core
 			else
 			{
 				Context::Error(ctx, RC_ERROR, (error ? "%s" : 0), error);
-				SysEx::TagFree(ctx, error);
+				_tagfree(ctx, error);
 				rc = RC_ERROR;
 			}
 			parse->DeclareVTable = false;
@@ -515,7 +515,7 @@ namespace Core
 			if (parse->Vdbe)
 				Vdbe::Finalize(parse->Vdbe);
 			sqlite3DeleteTable(ctx, parse->NewTable);
-			SysEx::ScratchFree(ctx, parse);
+			_stackfree(ctx, parse);
 		}
 
 		_assert((rc & 0xff) == rc);
@@ -528,7 +528,7 @@ namespace Core
 	{
 		RC rc = RC_OK;
 		Table *table = sqlite3FindTable(ctx, tableName, ctx->DBs[dbidx].Name);
-		if (SysEx_ALWAYS(table != 0 && table->VTables != 0))
+		if (_ALWAYS(table != 0 && table->VTables != 0))
 		{
 			VTable *vtable = VTableDisconnectAll(ctx, table);
 			_assert(rc == RC_OK);
@@ -567,7 +567,7 @@ namespace Core
 				vtable->Savepoint = 0;
 				vtable->Unlock();
 			}
-			SysEx::TagFree(ctx, ctx->VTrans);
+			_tagfree(ctx, ctx->VTrans);
 			ctx->VTrans.length = 0;
 			ctx->VTrans = nullptr;
 		}
@@ -585,9 +585,9 @@ namespace Core
 			if (ivtable && (x = ivtable->IModule->Sync))
 			{
 				rc = x(ivtable);
-				SysEx::TagFree(ctx, *error);
+				_tagfree(ctx, *error);
 				*error = SysEx::TagStrDup(ctx, ivtable->ErrMsg);
-				SysEx::Free(ivtable->ErrMsg);
+				_free(ivtable->ErrMsg);
 			}
 		}
 		ctx->VTrans = vtrans;
@@ -670,10 +670,10 @@ namespace Core
 	__device__ FuncDef *VTable::OverloadFunction(Context *ctx, FuncDef *def, int argsLength, Expr *expr)
 	{
 		// Check to see the left operand is a column in a virtual table
-		if (SysEx_NEVER(expr == nullptr)) return def;
+		if (_NEVER(expr == nullptr)) return def;
 		if (expr->OP != TK_COLUMN) return def;
 		Table *table = expr->Table;
-		if (SysEx_NEVER(table == nullptr)) return def;
+		if (_NEVER(table == nullptr)) return def;
 		if ((table->TabFlags & TF_Virtual) == 0) return def;
 		Core::IVTable *ivtable = VTable::GetVTable(ctx, table)->IVTable;
 		_assert(ivtable != nullptr);
@@ -689,15 +689,15 @@ namespace Core
 		if (lowerName)
 		{
 			for (unsigned char *z = (unsigned char*)lowerName; *z; z++)
-				*z = __tolower(*z);
+				*z = _tolower(*z);
 			rc = imodule->FindFunction(ivtable, argsLength, lowerName, &func, &args);
-			SysEx::TagFree(ctx, lowerName);
+			_tagfree(ctx, lowerName);
 		}
 		if (rc == RC_OK)
 			return def;
 
 		// Create a new ephemeral function definition for the overloaded function
-		FuncDef *newFunc = (FuncDef *)SysEx::TagAlloc(ctx, sizeof(FuncDef) + _strlen30(def->Name) + 1, true);
+		FuncDef *newFunc = (FuncDef *)_tagalloc(ctx, sizeof(FuncDef) + _strlen30(def->Name) + 1, true);
 		if (!newFunc) return def;
 		*newFunc = *def;
 		newFunc->Name = (char *)&newFunc[1];

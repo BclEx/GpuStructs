@@ -1,20 +1,305 @@
 using System;
 using System.Diagnostics;
 using System.Text;
+
 namespace Core
 {
-    public class StringBuilder
+    public struct array_t<T>
     {
-        public object Ctx;			// Optional database for lookaside.  Can be NULL
+        public int length;
+        public T[] data;
+        public array_t(T[] a) { data = a; length = 0; }
+        public array_t(T[] a, int b) { data = a; length = b; }
+        public static implicit operator T[](array_t<T> p) { return p.data; }
+        public T this[int i] { get { return data[i]; } set { data[i] = value; } }
+    };
+    public struct array_t2<TLength, T> where TLength : struct
+    {
+        public TLength length;
+        public T[] data;
+        public array_t2(T[] a) { data = a; length = default(TLength); }
+        public array_t2(T[] a, TLength b) { data = a; length = b; }
+        public static implicit operator T[](array_t2<TLength, T> p) { return p.data; }
+        public T this[int i] { get { return data[i]; } set { data[i] = value; } }
+    };
+    public struct array_t3<TLength, T> where TLength : struct
+    {
+        public TLength length;
+        public T[] data;
+        public array_t3(T[] a) { data = a; length = default(TLength); }
+        public array_t3(T[] a, TLength b) { data = a; length = b; }
+        public static implicit operator T[](array_t3<TLength, T> p) { return p.data; }
+        public T this[int i] { get { return data[i]; } set { data[i] = value; } }
+    };
+
+    [Flags]
+    public enum MEMTYPE : byte
+    {
+        HEAP = 0x01,         // General heap allocations
+        LOOKASIDE = 0x02,    // Might have been lookaside memory
+        SCRATCH = 0x04,      // Scratch allocations
+        PCACHE = 0x08,       // Page cache allocations
+        DB = 0x10,           // Uses sqlite3DbMalloc, not sqlite_malloc
+    }
+
+    public class TextBuilder
+    {
+        public object Tag;			// Optional database for lookaside.  Can be NULL
         public string Base;		// A base allocation.  Not from malloc.
-        public System.Text.StringBuilder Text; // The string collected so far
-        public int Size;			// Amount of space allocated in zText
+        public StringBuilder Text; // The string collected so far
+        public int Size { get { return Text.Length; } } // Amount of space allocated in zText
         public int MaxSize;		// Maximum allowed string length
         public bool MallocFailed;  // Becomes true if any memory allocation fails
-        public bool Overflowed;        // Becomes true if string size exceeds limits
+        public bool Overflowed { get { return MaxSize > 0 && Text.Length > MaxSize; } } // Becomes true if string size exceeds limits
 
-        #region Printf
+        public void Append(string z, int length)
+        {
+            Debug.Assert(z != null || length == 0);
+            if (Overflowed)
+            {
+                C.ASSERTCOVERAGE(Overflowed);
+                return;
+            }
+            if (length < 0)
+                length = z.Length;
+            if (length == 0 || C._NEVER(z == null))
+                return;
+            Text.Append(z.Substring(0, length <= z.Length ? length : z.Length));
+        }
 
+        public new string ToString()
+        {
+            return Text.ToString();
+        }
+
+        public void Reset()
+        {
+            Text.Length = 0;
+        }
+
+        public static void Init(TextBuilder b, int capacity, int maxSize)
+        {
+            b.Text.Length = 0;
+            if (b.Text.Capacity < capacity)
+                b.Text.Capacity = capacity;
+            b.Tag = null;
+            b.MaxSize = maxSize;
+        }
+
+        public TextBuilder(int n)
+        {
+            Tag = null;
+            Text = new StringBuilder(n);
+            MaxSize = 0;
+        }
+    }
+
+    public static class C
+    {
+        public const double BIG_DOUBLE = 1e99;
+
+        public static bool _ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
+        public static bool _NEVER(bool x) { return x; }
+        public static void ASSERTCOVERAGE(bool p) { }
+
+        //////////////////////
+        // STDARGS
+        #region STDARGS
+
+        static long __arg(ref int idx, object[] args, long notUsed)
+        {
+            if (args[idx] is long)
+                return Convert.ToInt64(args[idx++]);
+            return (long)(args[idx++].GetHashCode());
+        }
+        static int __arg(ref int idx, object[] args, int notUsed)
+        {
+            if (Convert.ToInt64(args[idx]) > 0 && Convert.ToUInt32(args[idx]) > int.MaxValue)
+                return (int)(Convert.ToUInt32(args[idx++]) - int.MaxValue - 1);
+            return (int)Convert.ToInt32(args[idx++]);
+        }
+        static double __arg(ref int idx, object[] args, double notUsed)
+        {
+            return Convert.ToDouble(args[idx++]);
+        }
+        static string __arg(ref int idx, object[] args, string notUsed)
+        {
+            if (args.Length < idx - 1 || args[idx] == null) { idx++; return "NULL"; }
+            if (args[idx] is byte[])
+            {
+                if (Encoding.UTF8.GetString((byte[])args[idx], 0, ((byte[])args[idx]).Length) == "\0")
+                {
+                    idx++;
+                    return string.Empty;
+                }
+                return Encoding.UTF8.GetString((byte[])args[idx], 0, ((byte[])args[idx++]).Length);
+            }
+            if (args[idx] is int) { idx++; return null; }
+            if (args[idx] is StringBuilder) return (string)args[idx++].ToString();
+            if (args[idx] is char) return ((char)args[idx++]).ToString();
+            return (string)args[idx++];
+        }
+
+        #endregion
+
+        //////////////////////
+        // FUNC
+        #region FUNC
+
+        public static void _strskiputf8(string z, ref int idx)
+        {
+            idx++;
+            if (idx < z.Length && z[idx - 1] >= 0xC0)
+                while (idx < z.Length && (z[idx] & 0xC0) == 0x80)
+                    idx++;
+        }
+        public static void _strskiputf8(byte[] z, ref int idx)
+        {
+            idx++;
+            if (idx < z.Length && z[idx - 1] >= 0xC0)
+                while (idx < z.Length && (z[idx] & 0xC0) == 0x80)
+                    idx++;
+        }
+
+        public static int _memcmp(byte[] a, byte[] b, int limit)
+        {
+            if (a.Length < limit) return (a.Length < b.Length ? -1 : +1);
+            if (b.Length < limit) return +1;
+            for (int i = 0; i < limit; i++)
+                if (a[i] != b[i]) return (a[i] < b[i] ? -1 : 1);
+            return 0;
+        }
+        public static int _memcmp(string a, byte[] b, int limit)
+        {
+            if (a.Length < limit) return (a.Length < b.Length ? -1 : +1);
+            if (b.Length < limit) return +1;
+            char[] cA = a.ToCharArray();
+            for (int i = 0; i < limit; i++)
+                if (cA[i] != b[i]) return (cA[i] < b[i] ? -1 : 1);
+            return 0;
+        }
+        public static int _memcmp(byte[] a, int aOffset, byte[] b, int limit)
+        {
+            if (a.Length < aOffset + limit) return (a.Length - aOffset < b.Length ? -1 : +1);
+            if (b.Length < limit) return +1;
+            for (int i = 0; i < limit; i++)
+                if (a[i + aOffset] != b[i]) return (a[i + aOffset] < b[i] ? -1 : 1);
+            return 0;
+        }
+        public static int _memcmp(byte[] a, int aOffset, byte[] b, int bOffset, int limit)
+        {
+            if (a.Length < aOffset + limit) return (a.Length - aOffset < b.Length - bOffset ? -1 : +1);
+            if (b.Length < bOffset + limit) return +1;
+            for (int i = 0; i < limit; i++)
+                if (a[i + aOffset] != b[i + bOffset])
+                    return (a[i + aOffset] < b[i + bOffset] ? -1 : 1);
+            return 0;
+        }
+        public static int _memcmp(byte[] a, int aOffset, string b, int limit)
+        {
+            if (a.Length < aOffset + limit) return (a.Length - aOffset < b.Length ? -1 : +1);
+            if (b.Length < limit) return +1;
+            for (int i = 0; i < limit; i++)
+                if (a[i + aOffset] != b[i]) return (a[i + aOffset] < b[i] ? -1 : 1);
+            return 0;
+        }
+        public static int _memcmp(string a, string b, int limit)
+        {
+            if (a.Length < limit) return (a.Length < b.Length ? -1 : +1);
+            if (b.Length < limit) return +1;
+            int rc;
+            if ((rc = string.Compare(a, 0, b, 0, limit, StringComparison.Ordinal)) == 0) return 0;
+            return (rc < 0 ? -1 : +1);
+        }
+
+        #endregion
+
+        //////////////////////
+        // MEMORY ALLOCATION
+        #region MEMORY ALLOCATION
+
+#if MEMDEBUG
+        //public static void _memdbg_settype<T>(T X, MEMTYPE Y);
+        //public static bool _memdbg_hastype<T>(T X, MEMTYPE Y);
+        //public static bool _memdbg_nottype<T>(T X, MEMTYPE Y);
+#else
+        public static void _memdbg_settype<T>(T X, MEMTYPE Y) { }
+        public static bool _memdbg_hastype<T>(T X, MEMTYPE Y) { return true; }
+        public static bool _memdbg_nottype<T>(T X, MEMTYPE Y) { return true; }
+#endif
+
+        public static void _benignalloc_begin() { }
+        public static void _benignalloc_end() { }
+        public static byte[] _alloc(int size) { return new byte[size]; }
+        public static byte[] _alloc2(int size, bool clear) { return new byte[size]; }
+        public static T[] _alloc<T>(byte s, int size) where T : struct { return new T[size / s]; }
+        public static T[] _alloc2<T>(byte s, int size, bool clear) where T : struct { return new T[size / s]; }
+        public static byte[] _tagalloc(object tag, int size) { return new byte[size]; }
+        public static byte[] _tagalloc2(object tag, int size, bool clear) { return new byte[size]; }
+        public static T[] _tagalloc<T>(object tag, int size) where T : struct { return new T[size]; }
+        public static T[] _tagalloc<T>(object tag, byte s, int size) where T : struct { return new T[size / s]; }
+        public static T[] _tagalloc2<T>(object tag, byte s, int size, bool clear) where T : struct { return new T[size / s]; }
+        public static int _allocsize(byte[] p)
+        {
+            Debug.Assert(_memdbg_hastype(p, MEMTYPE.HEAP));
+            Debug.Assert(_memdbg_nottype(p, MEMTYPE.DB));
+            return p.Length;
+        }
+        public static int _tagallocsize(object tag, byte[] p)
+        {
+            Debug.Assert(_memdbg_hastype(p, MEMTYPE.HEAP));
+            Debug.Assert(_memdbg_nottype(p, MEMTYPE.DB));
+            return p.Length;
+        }
+        public static void _free<T>(ref T p) where T : class { }
+        public static void _tagfree<T>(object tag, ref T p) where T : class { p = null; }
+        public static byte[] _stackalloc(int size) { return new byte[size]; }
+        public static void _stackfree(ref byte[] p) { p = null; }
+        static byte[][] _scratch; // Scratch memory
+        public static byte[][] _stackalloc(byte[][] cell, int n)
+        {
+            cell = _scratch;
+            if (cell == null)
+                cell = new byte[n < 200 ? 200 : n][];
+            else if (cell.Length < n)
+                Array.Resize(ref cell, n);
+            _scratch = null;
+            return cell;
+        }
+        public static void _stackfree(byte[][] cell)
+        {
+            if (cell != null)
+            {
+                if (_scratch == null || _scratch.Length < cell.Length)
+                {
+                    Debug.Assert(_memdbg_hastype(cell, MEMTYPE.SCRATCH));
+                    Debug.Assert(_memdbg_nottype(cell, ~MEMTYPE.SCRATCH));
+                    _memdbg_settype(cell, MEMTYPE.HEAP);
+                    _scratch = cell;
+                }
+                // larger Scratch 2 already in use, let the C# GC handle
+                cell = null;
+            }
+        }
+        public static T[] _realloc<T>(int s, T[] p, int bytes)
+        {
+            var newT = new T[bytes / s];
+            Array.Copy(p, newT, Math.Min(p.Length, newT.Length));
+            return newT;
+        }
+        public static T[] _tagrealloc<T>(object tag, int s, T[] p, int bytes)
+        {
+            var newT = new T[bytes / s];
+            Array.Copy(p, newT, Math.Min(p.Length, newT.Length));
+            return newT;
+        }
+        public static bool _heapnearlyfull() { return false; }
+
+        #endregion
+
+        //////////////////////
+        // PRINT
+        #region PRINT
 # if SMALL_STACK
         const int BUFSIZE = 50;
 # else
@@ -22,32 +307,32 @@ namespace Core
 #endif
         enum TYPE : byte
         {
-            RADIX = 1, // Integer types.  %d, %x, %o, and so forth
-            FLOAT = 2, // Floating point.  %f
-            EXP = 3, // Exponentional notation. %e and %E
-            GENERIC = 4, // Floating or exponential, depending on exponent. %g
-            SIZE = 5, // Return number of characters processed so far. %n
-            STRING = 6, // Strings. %s
-            DYNSTRING = 7, // Dynamically allocated strings. %z
-            PERCENT = 8, // Percent symbol. %%
-            CHARX = 9, // Characters. %c
+            RADIX = 1,          // Integer types.  %d, %x, %o, and so forth
+            FLOAT = 2,          // Floating point.  %f
+            EXP = 3,            // Exponentional notation. %e and %E
+            GENERIC = 4,        // Floating or exponential, depending on exponent. %g
+            SIZE = 5,           // Return number of characters processed so far. %n
+            STRING = 6,         // Strings. %s
+            DYNSTRING = 7,      // Dynamically allocated strings. %z
+            PERCENT = 8,        // Percent symbol. %%
+            CHARX = 9,          // Characters. %c
             // The rest are extensions, not normally found in printf()
-            SQLESCAPE = 10, // Strings with '\'' doubled.  %q
-            SQLESCAPE2 = 11, // Strings with '\'' doubled and enclosed in '', NULL pointers replaced by SQL NULL.  %Q
-            TOKEN = 12, // a pointer to a Token structure
-            SRCLIST = 13, // a pointer to a SrcList
-            POINTER = 14, // The %p conversion
-            SQLESCAPE3 = 15, // %w . Strings with '\"' doubled
-            ORDINAL = 16, // %r . 1st, 2nd, 3rd, 4th, etc.  English only
+            SQLESCAPE = 10,     // Strings with '\'' doubled.  %q
+            SQLESCAPE2 = 11,    // Strings with '\'' doubled and enclosed in '', NULL pointers replaced by SQL NULL.  %Q
+            TOKEN = 12,         // a pointer to a Token structure
+            SRCLIST = 13,       // a pointer to a SrcList
+            POINTER = 14,       // The %p conversion
+            SQLESCAPE3 = 15,    // %w . Strings with '\"' doubled
+            ORDINAL = 16,       // %r . 1st, 2nd, 3rd, 4th, etc.  English only
             //
-            INVALID = 0, // Any unrecognized conversion type 
+            INVALID = 0,        // Any unrecognized conversion type 
         }
 
         enum FLAG : byte
         {
-            SIGNED = 1,     // True if the value to convert is signed
-            INTERN = 2,     // True if for internal use only
-            STRING = 4,     // Allow infinity precision
+            SIGNED = 1, // True if the value to convert is signed
+            INTERN = 2, // True if for internal use only
+            STRING = 4, // Allow infinity precision
         }
 
         class Info // Information about each format field
@@ -111,47 +396,14 @@ namespace Core
             return (char)digit;
         }
 #endif
-        static void AppendSpace(StringBuilder b, int length)
+
+        static void AppendSpace(TextBuilder b, int length)
         {
             b.Text.AppendFormat("{0," + length + "}", "");
         }
 
-        static long __arg(ref int idx, object[] args, long notUsed)
-        {
-            if (args[idx] is long)
-                return Convert.ToInt64(args[idx++]);
-            return (long)(args[idx++].GetHashCode());
-        }
-        static int __arg(ref int idx, object[] args, int notUsed)
-        {
-            if (Convert.ToInt64(args[idx]) > 0 && Convert.ToUInt32(args[idx]) > int.MaxValue)
-                return (int)(Convert.ToUInt32(args[idx++]) - int.MaxValue - 1);
-            return (int)Convert.ToInt32(args[idx++]);
-        }
-        static double __arg(ref int idx, object[] args, double notUsed)
-        {
-            return Convert.ToDouble(args[idx++]);
-        }
-        static string __arg(ref int idx, object[] args, string notUsed)
-        {
-            if (args.Length < idx - 1 || args[idx] == null) { idx++; return "NULL"; }
-            if (args[idx] is byte[])
-            {
-                if (Encoding.UTF8.GetString((byte[])args[idx], 0, ((byte[])args[idx]).Length) == "\0")
-                {
-                    idx++;
-                    return string.Empty;
-                }
-                return Encoding.UTF8.GetString((byte[])args[idx], 0, ((byte[])args[idx++]).Length);
-            }
-            if (args[idx] is int) { idx++; return null; }
-            if (args[idx] is StringBuilder) return (string)args[idx++].ToString();
-            if (args[idx] is char) return ((char)args[idx++]).ToString();
-            return (string)args[idx++];
-        }
-
         static readonly char[] _ord = "thstndrd".ToCharArray();
-        static void Printf(StringBuilder b, bool useExtended, string fmt, object[] args) //+ sqlite3VXPrintf
+        static void vxprintf(TextBuilder b, bool useExtended, string fmt, object[] args)
         {
             int argsIdx = 0;
             char[] buf = new char[BUFSIZE]; // Conversion buffer
@@ -318,7 +570,7 @@ namespace Core
                             else v = __arg(ref argsIdx, args, (int)0);
                             if (v < 0)
                             {
-                                longvalue = (v == SMALLEST_INT64 ? ((long)((ulong)1) << 63) : -v);
+                                longvalue = (v == long.MinValue ? ((long)((ulong)1) << 63) : -v);
                                 prefix = '-';
                             }
                             else
@@ -653,220 +905,158 @@ namespace Core
             }
         }
 
-        #endregion
+        static TextBuilder _b = new TextBuilder(BUFSIZE);
 
-        public void Append(string z, int length)
+        static string _vmtagprintf(object tag, string fmt, params object[] args)
         {
-            Debug.Assert(z != null || length == 0);
-            if (Overflowed)
-            {
-                //ASSERTCOVERAGE(Overflowed);
-                return;
-            }
-            if (length < 0)
-                length = z.Length;
-            if (length == 0 || SysEx.NEVER(z == null))
-                return;
-            Text.Append(z.Substring(0, length <= z.Length ? length : z.Length));
-        }
-
-        public new string ToString()
-        {
-            return Text.ToString();
-        }
-
-        public void Reset()
-        {
-            Text.Length = 0;
-        }
-
-        public static void Init(StringBuilder b, int capacity, int maxSize)
-        {
-            b.Text.Length = 0;
-            if (b.Text.Capacity < capacity)
-                b.Text.Capacity = capacity;
-            b.Ctx = null;
-            b.MaxSize = maxSize;
-        }
-
-        #region Use
-
-        static StringBuilder acc = new StringBuilder(PRINT_BUF_SIZE);
-        static string sqlite3VMPrintf(object tag, string zFormat, params object[] ap)
-        {
-            if (zFormat == null)
-                return null;
-            if (ap.Length == 0)
-                return zFormat;
+            if (fmt == null) return null;
+            if (args.Length == 0) return fmt;
             //string z;
             Debug.Assert(tag != null);
-            sqlite3StrAccumInit(acc, null, SQLITE_PRINT_BUF_SIZE, tag.aLimit[SQLITE_LIMIT_LENGTH]);
-            acc.db = tag;
-            acc.zText.Length = 0;
-            sqlite3VXPrintf(acc, 1, zFormat, ap);
-            if (!acc.MallocFailed) tag.MallocFailed = true;
-            return acc.ToString();
+            TextBuilder.Init(_b, BUFSIZE, 0); //? tag.Limits[SQLITE_LIMIT_LENGTH]);
+            _b.Tag = tag;
+            _b.Text.Length = 0;
+            vxprintf(_b, true, fmt, args);
+            //? if (!_b.MallocFailed) tag.MallocFailed = true;
+            return _b.ToString();
         }
 
-        static string sqlite3MPrintf(object tag, string zFormat, params object[] ap)
+
+        static string _vmprintf(string fmt, params  object[] args)
         {
-            string z;
-            //va_list ap;
-            lock (lock_va_list)
-            {
-                va_start(ap, zFormat);
-                z = sqlite3VMPrintf(tag, zFormat, ap);
-                va_end(ref ap);
-            }
-            return z;
+            //: if (!RuntimeInitialize()) return null;
+            //: TextBuilder b = new TextBuilder(BUFSIZE);
+            TextBuilder.Init(_b, BUFSIZE, BUFSIZE);
+            //: b.AllocType = 2;
+            vxprintf(_b, false, fmt, args);
+            return _b.ToString();
         }
 
-        static string sqlite3MAppendf(object tag, string zStr, string zFormat, params  object[] ap)
+        static public void __vsnprintf(StringBuilder buf, int bufLen, string fmt, params object[] args)
         {
-            string z;
-            //va_list ap;
-            lock (lock_va_list)
-            {
-                va_start(ap, zFormat);
-                z = sqlite3VMPrintf(tag, zFormat, ap);
-                va_end(ref ap);
-                sqlite3DbFree(tag, ref zStr);
-            }
-            return z;
-        }
-
-        static string sqlite3_vmprintf(string zFormat, params  object[] ap)
-        {
-            //StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
-#if !OMIT_AUTOINIT
-            if (sqlite3_initialize() != 0)
-                return "";
-#endif
-            sqlite3StrAccumInit(acc, null, SQLITE_PRINT_BUF_SIZE, SQLITE_PRINT_BUF_SIZE);//zBase).Length;
-            //acc.useMalloc = 2;
-            sqlite3VXPrintf(acc, 0, zFormat, ap);
-            return sqlite3StrAccumFinish(acc);
-        }
-
-        static public string sqlite3_mprintf(string zFormat, params object[] ap)
-        {
-            string z;
-#if  !SQLITE_OMIT_AUTOINIT
-            if (sqlite3_initialize() != 0)
-                return "";
-#endif
-            //va_list ap;
-            lock (lock_va_list)
-            {
-                va_start(ap, zFormat);
-                z = sqlite3_vmprintf(zFormat, ap);
-                va_end(ref ap);
-            }
-            return z;
-        }
-
-        static public void sqlite3_vsnprintf(int n, StringBuilder zBuf, string zFormat, params object[] ap)
-        {
-            //StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
-            if (n <= 0)
-                return;
-            sqlite3StrAccumInit(acc, null, n, 0);
-            //acc.useMalloc = 0;
-            sqlite3VXPrintf(acc, 0, zFormat, ap);
-            zBuf.Length = 0;
-            if (n > 1 && n <= acc.zText.Length)
-                acc.zText.Length = n - 1;
-            zBuf.Append(sqlite3StrAccumFinish(acc));
+            if (bufLen <= 0) return;
+            //: TextBuilder b = new TextBuilder(BUFSIZE);
+            TextBuilder.Init(_b, bufLen, 0);
+            //: b.AllocType = 0;
+            vxprintf(_b, false, fmt, args);
+            buf.Length = 0;
+            if (bufLen > 1 && bufLen <= _b.Text.Length)
+                _b.Text.Length = bufLen - 1;
+            buf.Append(_b.ToString());
             return;
         }
 
-        static public void sqlite3_snprintf(int n, StringBuilder zBuf, string zFormat, params object[] ap)
-        {
-            //string z;
-            //va_list ap;
-            lock (lock_va_list)
-            {//StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
-                zBuf.EnsureCapacity(SQLITE_PRINT_BUF_SIZE);
-                va_start(ap, zFormat);
-                sqlite3_vsnprintf(n, zBuf, zFormat, ap);
-                va_end(ref ap);
-            }
-            return;
-        }
-
-        //static public string sqlite3_snprintf( int n, ref string zBuf, string zFormat, params va_list[] ap )
+        //public static string __vsnprintf(ref string buf, int bufLen, string fmt, params object[] args)
         //{
-        //  string z;
-        //  //va_list ap;
-        //  StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
-
-        //  if ( n <= 0 )
-        //  {
-        //    return zBuf;
-        //  }
-        //  sqlite3StrAccumInit( acc, null, n, 0 );
-        //  //acc.useMalloc = 0;
-        //  va_start( ap, zFormat );
-        //  sqlite3VXPrintf( acc, 0, zFormat, ap );
-        //  va_end( ap );
-        //  z = sqlite3StrAccumFinish( acc );
-        //  return ( zBuf = z );
+        //    if (bufLen <= 0) return buf;
+        //    TextBuilder b = new TextBuilder(BUFSIZE);
+        //    TextBuilder.Init(b, bufLen, 0);
+        //    //: b.AllocType = 0;
+        //    vxprintf(b, false, fmt, args);
+        //    string z = b.ToString();
+        //    return (buf = z);
         //}
 
-        static void renderLogMsg(int iErrCode, string zFormat, params object[] ap)
+        #endregion
+
+        //////////////////////
+        // SNPRINTF
+        #region SNPRINTF
+        public static void _snprintf(StringBuilder buf, int bufLen, string fmt, params object[] args)
         {
-            //StrAccum acc;                          /* String accumulator */
-            //char zMsg[SQLITE_PRINT_BUF_SIZE*3];    /* Complete log message */
-            sqlite3StrAccumInit(acc, null, SQLITE_PRINT_BUF_SIZE * 3, 0);
-            //acc.useMalloc = 0;
-            sqlite3VXPrintf(acc, 0, zFormat, ap);
-            sqlite3GlobalConfig.xLog(sqlite3GlobalConfig.pLogArg, iErrCode,
-            sqlite3StrAccumFinish(acc));
+            buf.EnsureCapacity(BUFSIZE);
+            __vsnprintf(buf, bufLen, fmt, args);
+            return;
+        }
+        #endregion
+
+        //////////////////////
+        // MPRINTF
+        #region MPRINTF
+        public static string _mprintf(string fmt, params object[] args)
+        {
+            //: if (!RuntimeInitialize()) return null;
+            string z = _vmprintf(fmt, args);
+            return z;
         }
 
-        static void sqlite3_log(int iErrCode, string zFormat, params va_list[] ap)
+        public static string _mtagprintf(object tag, string fmt, params object[] args)
         {
-            if (sqlite3GlobalConfig.xLog != null)
-            {
-                //va_list ap;                             /* Vararg list */
-                lock (lock_va_list)
-                {
-                    va_start(ap, zFormat);
-                    renderLogMsg(iErrCode, zFormat, ap);
-                    va_end(ref ap);
-                }
-            }
+            string z = _vmtagprintf(tag, fmt, args);
+            return z;
         }
 
-#if DEBUG || TRACE
-        static void sqlite3DebugPrintf(string zFormat, params va_list[] ap)
+        public static string _mtagappendf(object tag, string src, string fmt, params object[] args)
         {
-            //va_list ap;
-            lock (lock_va_list)
-            {
-                //StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
-                sqlite3StrAccumInit(acc, null, SQLITE_PRINT_BUF_SIZE, 0);
-                //acc.useMalloc = 0;
-                va_start(ap, zFormat);
-                sqlite3VXPrintf(acc, 0, zFormat, ap);
-                va_end(ref ap);
-            }
-            Console.Write(sqlite3StrAccumFinish(acc));
-            //fflush(stdout);
+            string z = _vmtagprintf(tag, fmt, args);
+            _tagfree(tag, ref src);
+            return z;
         }
-#endif
-#if !OMIT_TRACE
-        static void sqlite3XPrintf(StrAccum p, string zFormat, params object[] ap)
+
+        public static string _mtagassignf(object tag, ref string src, string fmt, params object[] args)
         {
-            //va_list ap;
-            lock (lock_va_list)
-            {
-                va_start(ap, zFormat);
-                sqlite3VXPrintf(p, 1, zFormat, ap);
-                va_end(ref ap);
-            }
+            string z = _vmtagprintf(tag, fmt, args);
+            _tagfree(tag, ref src);
+            return z;
         }
-#endif
+
+        #endregion
+
+        #region Unfiled
+        //        static void renderLogMsg(int iErrCode, string zFormat, params object[] ap)
+        //        {
+        //            //StrAccum acc;                          /* String accumulator */
+        //            //char zMsg[SQLITE_PRINT_BUF_SIZE*3];    /* Complete log message */
+        //            sqlite3StrAccumInit(_b, null, SQLITE_PRINT_BUF_SIZE * 3, 0);
+        //            //acc.useMalloc = 0;
+        //            sqlite3VXPrintf(_b, 0, zFormat, ap);
+        //            sqlite3GlobalConfig.xLog(sqlite3GlobalConfig.pLogArg, iErrCode,
+        //            sqlite3StrAccumFinish(_b));
+        //        }
+
+        //        static void sqlite3_log(int iErrCode, string zFormat, params va_list[] ap)
+        //        {
+        //            if (sqlite3GlobalConfig.xLog != null)
+        //            {
+        //                //va_list ap;                             /* Vararg list */
+        //                lock (lock_va_list)
+        //                {
+        //                    va_start(ap, zFormat);
+        //                    renderLogMsg(iErrCode, zFormat, ap);
+        //                    va_end(ref ap);
+        //                }
+        //            }
+        //        }
+
+        //#if DEBUG || TRACE
+        //        static void sqlite3DebugPrintf(string zFormat, params va_list[] ap)
+        //        {
+        //            //va_list ap;
+        //            lock (lock_va_list)
+        //            {
+        //                //StrAccum acc = new StrAccum( SQLITE_PRINT_BUF_SIZE );
+        //                sqlite3StrAccumInit(_b, null, SQLITE_PRINT_BUF_SIZE, 0);
+        //                //acc.useMalloc = 0;
+        //                va_start(ap, zFormat);
+        //                sqlite3VXPrintf(_b, 0, zFormat, ap);
+        //                va_end(ref ap);
+        //            }
+        //            Console.Write(sqlite3StrAccumFinish(_b));
+        //            //fflush(stdout);
+        //        }
+        //#endif
+        //#if !OMIT_TRACE
+        //        static void sqlite3XPrintf(StrAccum p, string zFormat, params object[] ap)
+        //        {
+        //            //va_list ap;
+        //            lock (lock_va_list)
+        //            {
+        //                va_start(ap, zFormat);
+        //                sqlite3VXPrintf(p, 1, zFormat, ap);
+        //                va_end(ref ap);
+        //            }
+        //        }
+        //#endif
         #endregion
     }
 }

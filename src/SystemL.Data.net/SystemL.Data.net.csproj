@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug.cpu</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>10.0.0</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
@@ -10,7 +10,7 @@
     <RootNamespace>System</RootNamespace>
     <AssemblyName>SystemL.Data</AssemblyName>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug.cpu|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;_LIB;TEST;THREADSAFE;ENABLE_ATOMIC_WRITE;OMIT_WAL;EXPENSIVE_ASSERT;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;ENABLE_STAT3;SOUNDEX;ENABLE_TREE_EXPLAIN;MAX_EXPR_DEPTH;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE</DefineConstants>
@@ -22,7 +22,7 @@
     <NoWarn>0618</NoWarn>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release.cpu|AnyCPU'">
     <OutputPath>bin\Release\</OutputPath>
     <Optimize>true</Optimize>
     <PlatformTarget>AnyCPU</PlatformTarget>

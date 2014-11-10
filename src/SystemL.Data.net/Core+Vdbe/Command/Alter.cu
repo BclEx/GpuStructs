@@ -65,17 +65,17 @@ namespace Core { namespace Command
 				if (!_strcmp((const char *)oldName, parent))
 				{
 					char *out_ = SysEx::Mprintf(ctx, "%s%.*s\"%w\"", (output ? output : ""), z - input, input, (const char *)newName);
-					SysEx::TagFree(ctx, output);
+					_tagfree(ctx, output);
 					output = out_;
 					input = &z[n];
 				}
-				SysEx::TagFree(ctx, parent);
+				_tagfree(ctx, parent);
 			}
 		}
 
 		char *r = SysEx::Mprintf(ctx, "%s%s", (output ? output : ""), input);
 		sqlite3_result_text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
-		SysEx::TagFree(ctx, output);
+		_tagfree(ctx, output);
 	}
 #endif
 
@@ -142,7 +142,7 @@ namespace Core { namespace Command
 	{
 		FuncDefHash *hash = Context::GlobalFunctions;
 		FuncDef *funcs = _alterTableFuncs;
-		for (int i = 0; i < __arrayStaticLength(_alterTableFuncs); i++)
+		for (int i = 0; i < _lengthof(_alterTableFuncs); i++)
 			sqlite3FuncDefInsert(hash, &funcs[i]);
 	}
 
@@ -154,7 +154,7 @@ namespace Core { namespace Command
 		else
 		{
 			newExpr = SysEx::Mprintf(ctx, "%s OR name=%Q", where_, constant);
-			SysEx::TagFree(ctx, where_);
+			_tagfree(ctx, where_);
 		}
 		return newExpr;
 	}
@@ -189,7 +189,7 @@ namespace Core { namespace Command
 		if (where_)
 		{
 			char *newWhere = SysEx::Mprintf(ctx, "type='trigger' AND (%s)", where_);
-			SysEx::TagFree(ctx, where_);
+			_tagfree(ctx, where_);
 			where_ = newWhere;
 		}
 		return where_;
@@ -199,7 +199,7 @@ namespace Core { namespace Command
 	{
 		Context *ctx = parse->Ctx;
 		Vdbe *v = parse->GetVdbe();
-		if (SysEx_NEVER(v == nullptr)) return;
+		if (_NEVER(v == nullptr)) return;
 		_assert(Btree::HoldsAllMutexes(ctx));
 		int db = sqlite3SchemaToIndex(ctx, table->Schema); // Index of database containing pTab
 		_assert(db >= 0);
@@ -244,7 +244,7 @@ namespace Core { namespace Command
 		Context *ctx = parse->Ctx; // Database connection
 
 		Context::FLAG savedDbFlags = ctx->Flags;  // Saved value of db->flags
-		if (SysEx_NEVER(ctx->MallocFailed)) goto exit_rename_table;
+		if (_NEVER(ctx->MallocFailed)) goto exit_rename_table;
 		_assert(src->Srcs == 1);
 		_assert(Btree::HoldsAllMutexes(ctx));
 
@@ -333,7 +333,7 @@ namespace Core { namespace Command
 					"UPDATE \"%w\".%s SET "
 					"sql = sqlite_rename_parent(sql, %Q, %Q) "
 					"WHERE %s;", dbName, SCHEMA_TABLE(db), tableName, nameAsString, where_);
-				SysEx::TagFree(ctx, where_);
+				_tagfree(ctx, where_);
 			}
 		}
 #endif
@@ -379,7 +379,7 @@ namespace Core { namespace Command
 				"sql = sqlite_rename_trigger(sql, %Q), "
 				"tbl_name = %Q "
 				"WHERE %s;", nameAsString, nameAsString, where_);
-			SysEx::TagFree(ctx, where_);
+			_tagfree(ctx, where_);
 		}
 #endif
 
@@ -400,7 +400,7 @@ namespace Core { namespace Command
 
 exit_rename_table:
 		sqlite3SrcListDelete(ctx, src);
-		SysEx::TagFree(ctx, nameAsString);
+		_tagfree(ctx, nameAsString);
 		ctx->Flags = savedDbFlags;
 	}
 
@@ -408,7 +408,7 @@ exit_rename_table:
 	{
 		Vdbe *v = parse->GetVdbe();
 		// The VDBE should have been allocated before this routine is called. If that allocation failed, we would have quit before reaching this point
-		if (SysEx_ALWAYS(v))
+		if (_ALWAYS(v))
 		{
 			int r1 = parse->GetTempReg();
 			int r2 = parse->GetTempReg();
@@ -504,7 +504,7 @@ exit_rename_table:
 				"WHERE type = 'table' AND name = %Q", 
 				dbName, SCHEMA_TABLE(db), newTable->AddColOffset, colDefAsString, newTable->AddColOffset+1,
 				tableName);
-			SysEx::TagFree(ctx, colDefAsString);
+			_tagfree(ctx, colDefAsString);
 			ctx->Flags = savedDbFlags;
 		}
 
@@ -549,7 +549,7 @@ exit_rename_table:
 		// Put a copy of the Table struct in Parse.pNewTable for the sqlite3AddColumn() function and friends to modify.  But modify
 		// the name by adding an "sqlite_altertab_" prefix.  By adding this prefix, we insure that the name will not collide with an existing
 		// table because user table are not allowed to have the "sqlite_" prefix on their name.
-		Table *newTable = (Table *)SysEx::TagAlloc(ctx, sizeof(Table), true);
+		Table *newTable = (Table *)_tagalloc(ctx, sizeof(Table), true);
 		if (!newTable) goto exit_begin_add_column;
 		parse->NewTable = newTable;
 		newTable->Refs = 1;
@@ -557,7 +557,7 @@ exit_rename_table:
 		_assert(newTable->Cols.length > 0);
 		int allocs = (((newTable->Cols.length-1)/8)*8)+8;
 		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newtable->Cols.length < 8);
-		newTable->Cols.data = (Column *)SysEx::TagAlloc(ctx, sizeof(Column)*allocs, true);
+		newTable->Cols.data = (Column *)_tagalloc(ctx, sizeof(Column)*allocs, true);
 		newTable->Name = SysEx::Mprintf(ctx, "sqlite_altertab_%s", table->Name);
 		if (!newTable->Cols || !newTable->Name)
 		{

@@ -34,7 +34,7 @@ void Visual::Keyboard(unsigned char key, int, int)
 	switch (key)
 	{
 	case 27:
-		exit(1);
+		glutLeaveMainLoop();
 		break;
 	}
 }
@@ -102,6 +102,7 @@ bool Visual::InitGL(IVisualRender *render, int *argc, char **argv)
 	glutInitWindowSize(WindowWidth, WindowHeight);
 	glutCreateWindow("Cuda GL Interop (VBO)");
 	// register callbacks
+	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_CONTINUE_EXECUTION);
 	glutDisplayFunc(Display);
 	glutKeyboardFunc(Keyboard);
 	glutMouseFunc(Mouse);

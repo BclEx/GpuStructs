@@ -50,7 +50,7 @@ namespace Core
                         Context.Error(errorCtx, parse.RC, "%s", parse.ErrMsg);
                         rc = RC.ERROR;
                     }
-                    SysEx.TagFree(errorCtx, ref parse.ErrMsg);
+                    C._tagfree(errorCtx, ref parse.ErrMsg);
                 }
                 if (rc != 0)
                     return null;
@@ -108,7 +108,7 @@ namespace Core
                 {
                     // One (or both) of the named databases did not exist or an OOM error was hit.  The error has already been written into the
                     // pDestDb handle.  All that is left to do here is free the sqlite3_backup structure.
-                    //SysEx.Free(ref p);
+                    //C._free(ref p);
                     p = null;
                 }
             }
@@ -122,7 +122,7 @@ namespace Core
 
         static bool IsFatalError(RC rc)
         {
-            return (rc != RC.OK && rc != RC.BUSY && SysEx.ALWAYS(rc != RC.LOCKED));
+            return (rc != RC.OK && rc != RC.BUSY && C._ALWAYS(rc != RC.LOCKED));
         }
 
         static RC BackupOnePage(Backup p, Pid srcPg, byte[] srcData, bool update)
@@ -442,7 +442,7 @@ namespace Core
             p.Src.Leave();
             //// EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
             //if (p.DestCtx != null)
-            //    SysEx.Free(ref p);
+            //    C._free(ref p);
             MutexEx.LeaveMutexAndCloseZombie(mutex);
             return rc;
         }

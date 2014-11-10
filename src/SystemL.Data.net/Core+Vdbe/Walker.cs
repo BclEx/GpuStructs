@@ -10,8 +10,8 @@ namespace Core
         public WRC WalkExpr(Expr expr)
         {
             if (expr == null) return WRC.Continue;
-            SysEx.ASSERTCOVERAGE(E.ExprHasProperty(expr, EP.TokenOnly));
-            SysEx.ASSERTCOVERAGE(E.ExprHasProperty(expr, EP.Reduced));
+            C.ASSERTCOVERAGE(E.ExprHasProperty(expr, EP.TokenOnly));
+            C.ASSERTCOVERAGE(E.ExprHasProperty(expr, EP.Reduced));
             WRC rc = ExprCallback(this, expr);
             if (rc == WRC.Continue && !E.ExprHasAnyProperty(expr, EP.TokenOnly))
             {
@@ -59,7 +59,7 @@ namespace Core
             SrcList src = p.Src;
             int i;
             SrcList.SrcListItem item;
-            if (SysEx.ALWAYS(src != null))
+            if (C._ALWAYS(src != null))
                 for (i = src.Srcs; i > 0; i--)
                 {
                     item = src.Ids[src.Srcs - i];

@@ -43,16 +43,16 @@ inline static void writeBlockRef(fallocBlockRef *ref, fallocBlockHeader *block)
 }
 
 //
-//  cudaFallocInit
+//  cudaDeviceFallocCreate
 //
 //  Takes a buffer length to allocate, creates the memory on the device and
 //  returns a pointer to it for when a kernel is called. It's up to the caller
 //  to free it.
 //
-extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
+extern "C" cudaDeviceFalloc cudaDeviceFallocCreate(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
-	cudaFallocHost host; memset(&host, 0, sizeof(cudaFallocHost));
+	cudaDeviceFalloc host; memset(&host, 0, sizeof(cudaDeviceFalloc));
 	// fix up blockSize to include fallocBlockHeader
 	blockSize = (blockSize + sizeof(fallocBlockHeader) + 15) & ~15;
 	// fix up length to be a multiple of blockSize
@@ -102,11 +102,11 @@ extern "C" cudaFallocHost cudaFallocInit(size_t blockSize, size_t length, cudaEr
 }
 
 //
-//  cudaFallocEnd
+//  cudaDeviceFallocDestroy
 //
 //  Frees up the memory which we allocated
 //
-extern "C" void cudaFallocEnd(cudaFallocHost &host) {
+extern "C" void cudaDeviceFallocDestroy(cudaDeviceFalloc &host) {
 	if (!host.heap)
 		return;
 	cudaFree(host.heap); host.heap = nullptr;

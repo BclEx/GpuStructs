@@ -98,14 +98,14 @@ namespace Core
                 {
                     if (errMsg != null)
                     {
-                        SysEx.Free(ref errMsg);
+                        C._free(ref errMsg);
                         errMsg = r.ErrMsg;
                     }
-                    SysEx.Free(ref r.ErrMsg);
+                    C._free(ref r.ErrMsg);
                 }
                 return (db.ErrCode = r.RC); // Assume 32-bit assignment is atomic
             }
-            SysEx.Free(ref r.ErrMsg);
+            C._free(ref r.ErrMsg);
             if (rc != RC.OK)
             {
                 sqlite3_free_table(ref r.Results);

@@ -20,12 +20,12 @@ namespace Core
 	{
 		HashElem *elem = First; // For looping over all elements of the table
 		First = nullptr;
-		SysEx::Free(Table); Table = nullptr;
+		_free(Table); Table = nullptr;
 		TableSize = 0;
 		while (elem)
 		{
 			HashElem *nextElem = elem->Next;
-			SysEx::Free(elem);
+			_free(elem);
 			elem = nextElem;
 		}
 		Count = 0;
@@ -35,7 +35,7 @@ namespace Core
 	{
 		_assert(keyLength >= 0);
 		int h = 0;
-		while (keyLength > 0) { h = (h<<3) ^ h ^ __tolower(*key++); keyLength--; }
+		while (keyLength > 0) { h = (h<<3) ^ h ^ _tolower(*key++); keyLength--; }
 		return (unsigned int)h;
 	}
 
@@ -79,14 +79,14 @@ namespace Core
 		// allocation as a benign. Use sqlite3Malloc()/memset(0) instead of sqlite3MallocZero() to make the allocation, as sqlite3MallocZero()
 		// only zeroes the requested number of bytes whereas this module will use the actual amount of space allocated for the hash table (which
 		// may be larger than the requested amount).
-		SysEx::BeginBenignAlloc();
-		Hash::HTable *newTable = (Hash::HTable *)SysEx::Alloc(newSize * sizeof(Hash::HTable)); // The new hash table
-		SysEx::EndBenignAlloc();
+		_benignalloc_begin();
+		Hash::HTable *newTable = (Hash::HTable *)_alloc(newSize * sizeof(Hash::HTable)); // The new hash table
+		_benignalloc_end();
 		if (!newTable)
 			return false;
-		SysEx::Free(hash->Table);
+		_free(hash->Table);
 		hash->Table = newTable;
-		hash->TableSize = newSize = SysEx::AllocSize(newTable) / sizeof(Hash::HTable);
+		hash->TableSize = newSize = _allocsize(newTable) / sizeof(Hash::HTable);
 		_memset(newTable, 0, newSize * sizeof(Hash::HTable));
 		HashElem *elem, *nextElem;
 		for (elem = hash->First, hash->First = nullptr; elem; elem = nextElem)
@@ -113,7 +113,7 @@ namespace Core
 			elem = hash->First;
 			count = hash->Count;
 		}
-		while (count-- && SysEx_ALWAYS(elem))
+		while (count-- && _ALWAYS(elem))
 		{
 			if (elem->KeyLength == keyLength && !_strncmp(elem->Key, key, keyLength))
 				return elem;
@@ -138,7 +138,7 @@ namespace Core
 			entry->Count--;
 			_assert(entry->Count >= 0);
 		}
-		SysEx::Free(elem);
+		_free(elem);
 		hash->Count--;
 		if (hash->Count == 0)
 		{
@@ -178,7 +178,7 @@ namespace Core
 		}
 		if (data == nullptr)
 			return nullptr;
-		HashElem *newElem = (HashElem *)SysEx::Alloc(sizeof(HashElem));
+		HashElem *newElem = (HashElem *)_alloc(sizeof(HashElem));
 		if (newElem == nullptr)
 			return nullptr;
 		newElem->Key = key;

@@ -60,8 +60,8 @@ namespace Core
 
 	__device__ static void vdbeSorterIterZero(Context *db, VdbeSorterIter *iter)
 	{
-		SysEx::TagFree(db, iter->Alloc);
-		SysEx::TagFree(db, iter->Buffer);
+		_tagfree(db, iter->Alloc);
+		_tagfree(db, iter->Buffer);
 		_memset(iter, 0, sizeof(VdbeSorterIter));
 	}
 
@@ -175,9 +175,9 @@ namespace Core
 		iter->File = sorter->Temp1;
 		iter->ReadOffset = start;
 		iter->Alloc.length = 128;
-		iter->Alloc = (uint8 *)SysEx::TagAlloc(db, iter->Alloc.length);
+		iter->Alloc = (uint8 *)_tagalloc(db, iter->Alloc.length);
 		iter->Buffer.length = bufferLength;
-		iter->Buffer = (uint8 *)SysEx::TagAlloc(db, bufferLength);
+		iter->Buffer = (uint8 *)_tagalloc(db, bufferLength);
 		RC rc = RC_OK;
 		if (!iter->Buffer)
 			rc = RC_NOMEM;
@@ -272,7 +272,7 @@ namespace Core
 	{
 		_assert(cursor->KeyInfo && !cursor->Bt);
 		VdbeSorter *sorter; // The new sorter
-		cursor->Sorter = sorter = (VdbeSorter *)SysEx::TagAlloc(db, sizeof(VdbeSorter));
+		cursor->Sorter = sorter = (VdbeSorter *)_tagalloc(db, sizeof(VdbeSorter));
 		if (!sorter)
 			return RC_NOMEM;
 
@@ -298,7 +298,7 @@ namespace Core
 		for (SorterRecord *p = record; p; p = next)
 		{
 			next = p->Next;
-			SysEx::TagFree(db, p);
+			_tagfree(db, p);
 		}
 	}
 
@@ -311,13 +311,13 @@ namespace Core
 			{
 				for (int i = 0; i < sorter->Trees.length; i++)
 					vdbeSorterIterZero(db, &sorter->Iters[i]);
-				SysEx::TagFree(db, sorter->Iters);
+				_tagfree(db, sorter->Iters);
 			}
 			if (sorter->Temp1)
 				sorter->Temp1->CloseAndFree();
 			vdbeSorterRecordFree(db, sorter->Record);
-			SysEx::TagFree(db, sorter->Unpacked);
-			SysEx::TagFree(db, sorter);
+			_tagfree(db, sorter->Unpacked);
+			_tagfree(db, sorter);
 			cursor->Sorter = nullptr;
 		}
 	}
@@ -359,7 +359,7 @@ namespace Core
 
 	__device__ static RC vdbeSorterSort(const VdbeCursor *cursor)
 	{
-		SorterRecord **slots = (SorterRecord **)SysEx::Alloc(64 * sizeof(SorterRecord *));
+		SorterRecord **slots = (SorterRecord **)_alloc(64 * sizeof(SorterRecord *));
 		if (!slots)
 			return RC_NOMEM;
 		VdbeSorter *sorter = cursor->Sorter;
@@ -381,7 +381,7 @@ namespace Core
 		for (i = 0; i < 64; i++)
 			vdbeSorterMerge(cursor, p, slots[i], &p);
 		sorter->Record = p;
-		SysEx::Free(slots);
+		_free(slots);
 		return RC_OK;
 	}
 
@@ -393,7 +393,7 @@ namespace Core
 	{
 		_memset(p, 0, sizeof(FileWriter));
 		int pageSize = db->DBs[0].Bt->GetPageSize();
-		p->Buffer = (uint8 *)SysEx::TagAlloc(db, pageSize);
+		p->Buffer = (uint8 *)_tagalloc(db, pageSize);
 		if (!p->Buffer)
 			p->FWErr = RC_NOMEM;
 		else
@@ -428,10 +428,10 @@ namespace Core
 
 	__device__ static RC fileWriterFinish(Context *db, FileWriter *p, int64 *eof)
 	{
-		if (p->FWErr == 0 && SysEx_ALWAYS(p->Buffer) && p->BufEnd > p->BufStart)
+		if (p->FWErr == 0 && _ALWAYS(p->Buffer) && p->BufEnd > p->BufStart)
 			p->FWErr = p->File->Write(&p->Buffer[p->BufStart], p->BufEnd - p->BufStart, p->WriteOffset + p->BufStart);
 		*eof = (p->WriteOffset + p->BufEnd);
-		SysEx::TagFree(db, p->Buffer);
+		_tagfree(db, p->Buffer);
 		RC rc = (RC)p->FWErr;
 		_memset(p, 0, sizeof(FileWriter));
 		return rc;
@@ -475,7 +475,7 @@ namespace Core
 				next = p->Next;
 				fileWriterWriteVarint(&writer, p->N);
 				fileWriterWrite(&writer, (uint8 *)p->P, p->N);
-				SysEx::TagFree(db, p);
+				_tagfree(db, p);
 			}
 			sorter->Record = p;
 			rc = fileWriterFinish(db, &writer, &sorter->WriteOffset);
@@ -488,7 +488,7 @@ namespace Core
 		VdbeSorter *sorter = cursor->Sorter;
 		_assert(sorter);
 		sorter->InMemory += ConvertEx::GetVarintLength(mem->N) + mem->N;
-		SorterRecord *newRecord = (SorterRecord *)SysEx::TagAlloc(db, mem->N + sizeof(SorterRecord)); // New list element
+		SorterRecord *newRecord = (SorterRecord *)_tagalloc(db, mem->N + sizeof(SorterRecord)); // New list element
 		RC rc = RC_OK;
 		if (!newRecord)
 			rc = RC_NOMEM;
@@ -560,7 +560,7 @@ namespace Core
 		_assert(iters > 0);
 		int n = 2; while (n < iters) n += n; // Power of 2 >= iters
 		int bytes = n * (sizeof(int) + sizeof(VdbeSorterIter)); // Bytes of space required for aIter/aTree
-		sorter->Iters = (VdbeSorterIter *)SysEx::TagAlloc(db, bytes);
+		sorter->Iters = (VdbeSorterIter *)_tagalloc(db, bytes);
 		if (!sorter->Iters) return RC_NOMEM;
 		sorter->Trees = (int *)&sorter->Iters[n];
 		sorter->Trees.length = n;

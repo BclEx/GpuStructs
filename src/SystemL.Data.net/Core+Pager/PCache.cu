@@ -297,7 +297,7 @@ namespace Core
 				next = p->DirtyNext;
 				// This routine never gets call with a positive pgno except right after sqlite3PcacheCleanAll().  So if there are dirty pages, it must be that pgno==0.
 				_assert(p->ID > 0);
-				if (SysEx_ALWAYS(p->ID > id))
+				if (_ALWAYS(p->ID > id))
 				{
 					_assert(p->Flags & PgHdr::PGHDR_DIRTY);
 					MakeClean(p);
@@ -362,7 +362,7 @@ namespace Core
 			p = in;
 			in = p->Dirty;
 			p->Dirty = nullptr;
-			for (i = 0; SysEx_ALWAYS(i < N_SORT_BUCKET - 1); i++)
+			for (i = 0; _ALWAYS(i < N_SORT_BUCKET - 1); i++)
 			{
 				if (a[i] == nullptr)
 				{
@@ -375,7 +375,7 @@ namespace Core
 					a[i] = nullptr;
 				}
 			}
-			if (SysEx_NEVER(i == N_SORT_BUCKET - 1))
+			if (_NEVER(i == N_SORT_BUCKET - 1))
 				// To get here, there need to be 2^(N_SORT_BUCKET) elements in the input list.  But that is impossible.
 					a[i] = MergeDirtyList(a[i], p);
 		}

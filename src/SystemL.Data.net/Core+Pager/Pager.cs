@@ -802,9 +802,9 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                 Debug.Assert(assert_pager_state(this));
                 if (State >= PAGER.WRITER_LOCKED)
                 {
-                    SysEx.BeginBenignAlloc();
+                    C._benignalloc_begin();
                     Rollback();
-                    SysEx.EndBenignAlloc();
+                    C._benignalloc_end();
                 }
                 else if (!ExclusiveMode)
                 {
@@ -1258,7 +1258,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             Debug.Assert(pager.State >= PAGER.READER && !pager.MemoryDB);
             Debug.Assert(pager.File.Opened);
 
-            if (SysEx.NEVER(!pager.File.Opened))
+            if (C._NEVER(!pager.File.Opened))
             {
                 Debug.Assert(pager.TempFile);
                 Array.Clear(page.Data, 0, pager.PageSize);
@@ -1812,7 +1812,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
         {
             Debug.Assert(assert_pager_state(this));
             disable_simulated_io_errors();
-            SysEx.BeginBenignAlloc();
+            C._benignalloc_begin();
             ErrorCode = RC.OK;
             ExclusiveMode = false;
             var tmp = TmpSpace;
@@ -1835,7 +1835,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                     pager_error(pagerSyncHotJournal());
                 pagerUnlockAndRollback();
             }
-            SysEx.EndBenignAlloc();
+            C._benignalloc_end();
             PAGERTRACE("CLOSE {0}", PAGERID(this));
             SysEx.IOTRACE("CLOSE {0:x}", GetHashCode());
             JournalFile.Close();
@@ -2095,7 +2095,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             // Spilling is also prohibited when in an error state since that could lead to database corruption.   In the current implementaton it 
             // is impossible for sqlite3PcacheFetch() to be called with createFlag==1 while in the error state, hence it is impossible for this routine to
             // be called in the error state.  Nevertheless, we include a NEVER() test for the error state as a safeguard against future changes.
-            if (SysEx.NEVER(pager.ErrorCode != 0)) return RC.OK;
+            if (C._NEVER(pager.ErrorCode != 0)) return RC.OK;
             if (pager.DoNotSpill != 0) return RC.OK;
             if (pager.DoNotSyncSpill != 0 && (pg.Flags & PgHdr.PGHDR.NEED_SYNC) != 0) return RC.OK;
 
@@ -2134,7 +2134,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                 //
                 // The solution is to write the current data for page X into the sub-journal file now (if it is not already there), so that it will
                 // be restored to its current value when the "ROLLBACK TO sp" is executed.
-                if (SysEx.NEVER(rc == RC.OK && pg.ID > pager.DBSize && subjRequiresPage(pg)))
+                if (C._NEVER(rc == RC.OK && pg.ID > pager.DBSize && subjRequiresPage(pg)))
                     rc = subjournalPage(pg);
 
                 // Write the contents of the page out to the database file.
@@ -2370,13 +2370,13 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                     if (rc == RC.OK)
                         if (pages == 0)
                         {
-                            SysEx.BeginBenignAlloc();
+                            C._benignalloc_begin();
                             if (pagerLockDb(VFile.LOCK.RESERVED) == RC.OK)
                             {
                                 vfs.Delete(Journal, false);
                                 if (!ExclusiveMode) pagerUnlockDb(VFile.LOCK.SHARED);
                             }
-                            SysEx.EndBenignAlloc();
+                            C._benignalloc_end();
                         }
                         else
                         {
@@ -2421,7 +2421,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             Debug.Assert(PCache.get_Refs() == 0);
             Debug.Assert(assert_pager_state(this));
             Debug.Assert(State == PAGER.OPEN || State == PAGER.READER);
-            if (SysEx.NEVER(MemoryDB && ErrorCode != 0)) return ErrorCode;
+            if (C._NEVER(MemoryDB && ErrorCode != 0)) return ErrorCode;
 
             var rc = RC.OK;
             if (!UseWal() && State == PAGER.OPEN)
@@ -2641,11 +2641,11 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                     // Failure to set the bits in the InJournal bit-vectors is benign. It merely means that we might do some extra work to journal a 
                     // page that does not need to be journaled.  Nevertheless, be sure to test the case where a malloc error occurs while trying to set 
                     // a bit in a bit vector.
-                    SysEx.BeginBenignAlloc();
+                    C._benignalloc_begin();
                     if (id <= DBOrigSize)
                         InJournal.Set(id);
                     addToSavepointBitvecs(id);
-                    SysEx.EndBenignAlloc();
+                    C._benignalloc_end();
                 }
                 Array.Clear(pg.Data, 0, PageSize);
                 SysEx.IOTRACE("ZERO {0:x} {1}\n", GetHashCode(), id);
@@ -2699,7 +2699,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
 
             // If already in the error state, this function is a no-op.  But on the other hand, this routine is never called if we are already in
             // an error state.
-            if (SysEx.NEVER(ErrorCode != RC.OK)) return ErrorCode;
+            if (C._NEVER(ErrorCode != RC.OK)) return ErrorCode;
 
             var rc = RC.OK;
             if (!UseWal() && JournalMode != IPager.JOURNALMODE.OFF)
@@ -2759,7 +2759,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             SubjInMemory = subjInMemory;
 
             var rc = RC.OK;
-            if (SysEx.ALWAYS(State == PAGER.READER))
+            if (C._ALWAYS(State == PAGER.READER))
             {
                 Debug.Assert(InJournal == null);
 
@@ -2822,10 +2822,10 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             Debug.Assert(assert_pager_state(pager));
 
             // If an error has been previously detected, report the same error again. This should not happen, but the check provides robustness. 
-            if (SysEx.NEVER(pager.ErrorCode != RC.OK)) return pager.ErrorCode;
+            if (C._NEVER(pager.ErrorCode != RC.OK)) return pager.ErrorCode;
 
             // Higher-level routines never call this function if database is not writable.  But check anyway, just for robustness.
-            if (SysEx.NEVER(pager.ReadOnly)) return RC.PERM;
+            if (C._NEVER(pager.ReadOnly)) return RC.PERM;
 
             checkPage(pg);
 
@@ -3037,7 +3037,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             var DIRECT_MODE = isDirectMode;
 #endif
             var rc = RC.OK;
-            if (!ChangeCountDone && SysEx.ALWAYS(DBSize > 0))
+            if (!ChangeCountDone && C._ALWAYS(DBSize > 0))
             {
                 Debug.Assert(!TempFile && File.Opened);
 
@@ -3048,7 +3048,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
 
                 // If page one was fetched successfully, and this function is not operating in direct-mode, make page 1 writable.  When not in 
                 // direct mode, page 1 is always held in cache and hence the PagerGet() above is always successful - hence the ALWAYS on rc==SQLITE_OK.
-                if (!DIRECT_MODE && SysEx.ALWAYS(rc == RC.OK))
+                if (!DIRECT_MODE && C._ALWAYS(rc == RC.OK))
                     rc = Write(pgHdr);
 
                 if (rc == RC.OK)
@@ -3124,7 +3124,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             Debug.Assert(assert_pager_state(this));
 
             // If a prior error occurred, report that error again.
-            if (SysEx.NEVER(ErrorCode != 0)) return ErrorCode;
+            if (C._NEVER(ErrorCode != 0)) return ErrorCode;
 
             PAGERTRACE("DATABASE SYNC: File={0} zMaster={1} nSize={2}", Filename, master, DBSize);
 
@@ -3152,7 +3152,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
                         list.Dirty = null;
                     }
                     Debug.Assert(rc == RC.OK);
-                    if (SysEx.ALWAYS(list != null))
+                    if (C._ALWAYS(list != null))
                         rc = pagerWalFrames(list, DBSize, true);
                     Unref(pageOne);
                     if (rc == RC.OK)
@@ -3249,7 +3249,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
         {
             // This routine should not be called if a prior error has occurred. But if (due to a coding error elsewhere in the system) it does get
             // called, just return the same error code without doing anything.
-            if (SysEx.NEVER(ErrorCode != RC.OK)) return ErrorCode;
+            if (C._NEVER(ErrorCode != RC.OK)) return ErrorCode;
             Debug.Assert(State == PAGER.WRITER_LOCKED ||
                 State == PAGER.WRITER_FINISHED ||
                 (UseWal() && State == PAGER.WRITER_CACHEMOD));
@@ -3713,7 +3713,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
         {
             Debug.Assert(assert_pager_state(this));
             if (State >= PAGER.WRITER_CACHEMOD) return false;
-            return (SysEx.NEVER(JournalFile.Opened && JournalOffset > 0) ? false : true);
+            return (C._NEVER(JournalFile.Opened && JournalOffset > 0) ? false : true);
         }
 
         private long SetJournalSizeLimit(long limit)

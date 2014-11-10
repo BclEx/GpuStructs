@@ -202,13 +202,13 @@ namespace Core
         static void WhereOrInfoDelete(Context ctx, WhereOrInfo p)
         {
             WhereClauseClear(p.WC);
-            SysEx.TagFree(ctx, ref p);
+            C._tagfree(ctx, ref p);
         }
 
         static void WhereAndInfoDelete(Context ctx, WhereAndInfo p)
         {
             WhereClauseClear(p.WC);
-            SysEx.TagFree(ctx, ref p);
+            C._tagfree(ctx, ref p);
         }
 
         static void WhereClauseClear(WhereClause wc)
@@ -227,12 +227,12 @@ namespace Core
                     WhereAndInfoDelete(ctx, a.u.AndInfo);
             }
             if (wc.Slots.data != wc.Statics)
-                SysEx.TagFree(ctx, ref wc.Slots.data);
+                C._tagfree(ctx, ref wc.Slots.data);
         }
 
         static int WhereClauseInsert(WhereClause wc, Expr p, TERM wtFlags)
         {
-            SysEx.ASSERTCOVERAGE((wtFlags & TERM.VIRTUAL) != 0);  // EV: R-00211-15100
+            C.ASSERTCOVERAGE((wtFlags & TERM.VIRTUAL) != 0);  // EV: R-00211-15100
             if (wc.Terms >= wc.Slots.length)
             {
                 Array.Resize(ref wc.Slots.data, wc.Slots.length * 2);
@@ -312,7 +312,7 @@ namespace Core
                 mask |= ExprTableUsage(maskSet, s.Where);
                 mask |= ExprTableUsage(maskSet, s.Having);
                 SrcList src = s.Src;
-                if (SysEx.ALWAYS(src != null))
+                if (C._ALWAYS(src != null))
                 {
                     for (int i = 0; i < src.Srcs; i++)
                     {
@@ -420,7 +420,7 @@ namespace Core
                                     CollSeq coll = Expr.BinaryCompareCollSeq(parse, x.Left, x.Right);
                                     if (coll == null) coll = parse.Ctx.DefaultColl;
                                     for (j = 0; idx.Columns[j] != origColumn; j++)
-                                        if (SysEx.NEVER(j >= idx.Columns.length)) return null;
+                                        if (C._NEVER(j >= idx.Columns.length)) return null;
                                     if (!string.Equals(coll.Name, idx.CollNames[j], StringComparison.OrdinalIgnoreCase))
                                         continue;
                                 }
@@ -597,7 +597,7 @@ namespace Core
                         WhereClauseInit(andWC, wc.Parse, maskSet, wc.WctrlFlags);
                         WhereSplit(andWC, orTerm.Expr, TK.AND);
                         ExprAnalyzeAll(src, andWC);
-                        SysEx.ASSERTCOVERAGE(ctx.MallocFailed);
+                        C.ASSERTCOVERAGE(ctx.MallocFailed);
                         if (!ctx.MallocFailed)
                         {
                             for (j = 0, andTerm = andWC.Slots[0]; j < andWC.Terms; j++, andTerm = andWC.Slots[j])
@@ -668,8 +668,8 @@ namespace Core
                         {
                             // This term must be of the form t1.a==t2.b where t2 is in the chngToIN set but t1 is not.  This term will be either preceeded
                             // or follwed by an inverted copy (t2.b==t1.a).  Skip this term and use its inversion.
-                            SysEx.ASSERTCOVERAGE((orTerm.WtFlags & TERM.COPIED) != 0);
-                            SysEx.ASSERTCOVERAGE((orTerm.WtFlags & TERM.VIRTUAL) != 0);
+                            C.ASSERTCOVERAGE((orTerm.WtFlags & TERM.COPIED) != 0);
+                            C.ASSERTCOVERAGE((orTerm.WtFlags & TERM.VIRTUAL) != 0);
                             Debug.Assert((orTerm.WtFlags & (TERM.COPIED | TERM.VIRTUAL)) != 0);
                             continue;
                         }
@@ -685,7 +685,7 @@ namespace Core
                         Debug.Assert(chngToIN == GetMask(maskSet, cursorId));
                         break;
                     }
-                    SysEx.ASSERTCOVERAGE(j == 1);
+                    C.ASSERTCOVERAGE(j == 1);
 
                     // We have found a candidate table and column.  Check to see if that table and column is common to every term in the OR clause
                     okToChngToIN = true;
@@ -736,7 +736,7 @@ namespace Core
                         Debug.Assert(!E.ExprHasProperty(newExpr, EP.xIsSelect));
                         newExpr.x.List = list;
                         int idxNew = WhereClauseInsert(wc, newExpr, TERM.VIRTUAL | TERM.DYNAMIC);
-                        SysEx.ASSERTCOVERAGE(idxNew == 0);
+                        C.ASSERTCOVERAGE(idxNew == 0);
                         ExprAnalyze(src, wc, idxNew);
                         term = wc.Slots[idxTerm];
                         wc.Slots[idxNew].Parent = idxTerm;
@@ -831,7 +831,7 @@ namespace Core
                     left = dup.Left;
                     newTerm.LeftCursor = left.TableIdx;
                     newTerm.u.LeftColumn = left.ColumnIdx;
-                    SysEx.ASSERTCOVERAGE((prereqLeft | extraRight) != prereqLeft);
+                    C.ASSERTCOVERAGE((prereqLeft | extraRight) != prereqLeft);
                     newTerm.PrereqRight = prereqLeft | extraRight;
                     newTerm.PrereqAll = prereqAll;
                     newTerm.EOperator = (OperatorMask(dup.OP) | extraOp) & opMask;
@@ -858,7 +858,7 @@ namespace Core
                 {
                     Expr newExpr = Expr.PExpr_(parse, ops[i], Expr.Dup(ctx, expr.Left, 0), Expr.Dup(ctx, list.Ids[i].Expr, 0), null);
                     int idxNew = WhereClauseInsert(wc, newExpr, TERM.VIRTUAL | TERM.DYNAMIC);
-                    SysEx.ASSERTCOVERAGE(idxNew == 0);
+                    C.ASSERTCOVERAGE(idxNew == 0);
                     ExprAnalyze(src, wc, idxNew);
                     term = wc.Slots[idxTerm];
                     wc.Slots[idxNew].Parent = idxTerm;
@@ -908,12 +908,12 @@ namespace Core
                 Expr newExpr1 = Expr.Dup(ctx, left, 0);
                 newExpr1 = Expr.PExpr_(parse, TK.GE, newExpr1.AddCollateToken(parse, sCollSeqName), str1, 0);
                 int idxNew1 = WhereClauseInsert(wc, newExpr1, TERM.VIRTUAL | TERM.DYNAMIC);
-                SysEx.ASSERTCOVERAGE(idxNew1 == 0);
+                C.ASSERTCOVERAGE(idxNew1 == 0);
                 ExprAnalyze(src, wc, idxNew1);
                 Expr newExpr2 = Expr.Dup(ctx, left, 0);
                 newExpr2 = Expr.PExpr_(parse, TK.LT, newExpr2.AddCollateToken(parse, sCollSeqName), str2, null);
                 int idxNew2 = WhereClauseInsert(wc, newExpr2, TERM.VIRTUAL | TERM.DYNAMIC);
-                SysEx.ASSERTCOVERAGE(idxNew2 == 0);
+                C.ASSERTCOVERAGE(idxNew2 == 0);
                 ExprAnalyze(src, wc, idxNew2);
                 term = wc.Slots[idxTerm];
                 if (isComplete)
@@ -938,7 +938,7 @@ namespace Core
                 {
                     Expr newExpr = Expr.PExpr_(parse, TK.MATCH, null, Expr.Dup(ctx, right, 0), null);
                     int idxNew = WhereClauseInsert(wc, newExpr, TERM.VIRTUAL | TERM.DYNAMIC);
-                    SysEx.ASSERTCOVERAGE(idxNew == 0);
+                    C.ASSERTCOVERAGE(idxNew == 0);
                     WhereTerm newTerm = wc.Slots[idxNew];
                     newTerm.PrereqRight = prereqExpr;
                     newTerm.LeftCursor = left.TableIdx;
@@ -992,7 +992,7 @@ namespace Core
                 if (expr.OP == TK.COLUMN && expr.ColumnIdx == index.Columns[column] && expr.TableIdx == baseId)
                 {
                     CollSeq coll = list.Ids[i].Expr.CollSeq(parse);
-                    if (SysEx.ALWAYS(coll != null) && string.Equals(coll.Name, collName))
+                    if (C._ALWAYS(coll != null) && string.Equals(coll.Name, collName))
                         return i;
                 }
             }
@@ -1003,7 +1003,7 @@ namespace Core
         {
             Debug.Assert(distinct != null);
             if (index.Name == null || distinct.Exprs >= BMS) return false;
-            SysEx.ASSERTCOVERAGE(distinct.Exprs == BMS - 1);
+            C.ASSERTCOVERAGE(distinct.Exprs == BMS - 1);
 
             // Loop through all the expressions in the distinct list. If any of them are not simple column references, return early. Otherwise, test if the
             // WHERE clause contains a "col=X" clause. If it does, the expression can be ignored. If it does not, and the column does not belong to the
@@ -1289,8 +1289,8 @@ namespace Core
                 {
                     int column = term.u.LeftColumn;
                     Bitmask mask = (column >= BMS ? ((Bitmask)1) << (BMS - 1) : ((Bitmask)1) << column);
-                    SysEx.ASSERTCOVERAGE(column == BMS);
-                    SysEx.ASSERTCOVERAGE(column == BMS - 1);
+                    C.ASSERTCOVERAGE(column == BMS);
+                    C.ASSERTCOVERAGE(column == BMS - 1);
                     if ((idxCols & mask) == 0)
                     {
                         columns++;
@@ -1307,8 +1307,8 @@ namespace Core
             // if they go out of sync.
             Bitmask extraCols = src.ColUsed & (~idxCols | (((Bitmask)1) << (BMS - 1))); // Bitmap of additional columns
             int maxBitCol = (table.Cols.length >= BMS - 1 ? BMS - 1 : table.Cols.length); // Maximum column in pSrc.colUsed
-            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS - 1);
-            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS - 2);
+            C.ASSERTCOVERAGE(table.Cols.length == BMS - 1);
+            C.ASSERTCOVERAGE(table.Cols.length == BMS - 2);
             int i;
             for (i = 0; i < maxBitCol; i++)
                 if ((extraCols & (((Bitmask)1) << i)) != 0) columns++;
@@ -1345,7 +1345,7 @@ namespace Core
                         idxCols |= mask;
                         index.Columns[n] = term.u.LeftColumn;
                         CollSeq coll = Expr.BinaryCompareCollSeq(parse, x.Left, x.Right); // Collating sequence to on a column
-                        index.CollNames[n] = (SysEx.ALWAYS(coll != null) ? coll.Name : "BINARY");
+                        index.CollNames[n] = (C._ALWAYS(coll != null) ? coll.Name : "BINARY");
                         n++;
                     }
                 }
@@ -1421,8 +1421,8 @@ namespace Core
             {
                 if (term.LeftCursor != src.Cursor) continue;
                 Debug.Assert(IsPowerOfTwo(term.EOperator & ~WO.EQUIV));
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO.IN) != 0);
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO.ISNULL) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO.IN) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO.ISNULL) != 0);
                 if ((term.EOperator & WO.ISNULL) != 0) continue;
                 if ((term.WtFlags & TERM.VNULL) != 0) continue;
                 terms++;
@@ -1466,8 +1466,8 @@ namespace Core
             {
                 if (term.LeftCursor != src.Cursor) continue;
                 Debug.Assert((term.EOperator & (term.EOperator - 1)) == 0);
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO.IN) != 0);
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO.ISNULL) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO.IN) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO.ISNULL) != 0);
                 if ((term.EOperator & WO.ISNULL) != 0) continue;
                 if ((term.WtFlags & TERM.VNULL) != 0) continue;
                 if (idxCons[j] == null)
@@ -1505,7 +1505,7 @@ namespace Core
                 else if (vtable.ErrMsg != null) parse.ErrorMsg("%s", ErrStr(rc));
                 else parse.ErrorMsg("%s", vtable.ErrMsg);
             }
-            SysEx.Free(vtable.ErrMsg);
+            C._free(vtable.ErrMsg);
             vtable.ErrMsg = null;
             for (int i = 0; i < p.Constraints.length; i++)
                 if (!p.Constraints[i].Usable && p.ConstraintUsages[i].ArgvIndex > 0)
@@ -1571,7 +1571,7 @@ namespace Core
                     usage[i] = new IIndexInfo.ConstraintUsage();
                 }
                 if (idxInfo.NeedToFreeIdxStr)
-                    SysEx.Free(ref idxInfo.IdxStr);
+                    C._free(ref idxInfo.IdxStr);
                 idxInfo.IdxStr = null;
                 idxInfo.IdxNum = 0;
                 idxInfo.NeedToFreeIdxStr = false;
@@ -1745,7 +1745,7 @@ namespace Core
                                 return RC.NOMEM;
                             }
                             c = coll.Cmp(coll.User, sampleBytes, sampleZ, (int)n, z);
-                            SysEx.TagFree(ctx, ref sampleZ);
+                            C._tagfree(ctx, ref sampleZ);
                         }
                         else
 #endif
@@ -1926,7 +1926,7 @@ namespace Core
                     if (column < 0)
                     {
                         sortOrder = (int)SO.ASC;
-                        SysEx.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
+                        C.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
                     }
                     else
                     {
@@ -1935,19 +1935,19 @@ namespace Core
                             if (column == index.Columns[j]) break;
                         if (j >= n) return 0;
                         sortOrder = index.SortOrders[j];
-                        SysEx.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
+                        C.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
                     }
                 }
                 else
                 {
                     if (column != -1) return 0;
                     sortOrder = SO.ASC;
-                    SysEx.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
+                    C.ASSERTCOVERAGE((level.Plan.WsFlags & WHERE_REVERSE) != 0);
                 }
                 if ((level.Plan.WsFlags & WHERE_REVERSE) != 0)
                 {
                     Debug.Assert(sortOrder == SO.ASC || sortOrder == SO.DESC);
-                    SysEx.ASSERTCOVERAGE(sortOrder == SO.DESC);
+                    C.ASSERTCOVERAGE(sortOrder == SO.DESC);
                     sortOrder = 1 - sortOrder;
                 }
                 return (int)sortOrder + 2;
@@ -1977,8 +1977,8 @@ namespace Core
                     return priorSats;
                 if (E.CtxOptimizationDisabled(ctx, OPTFLAG.OrderByIdxJoin)) // Only look at the outer-most loop if the OrderByIdxJoin optimization is disabled
                     return priorSats;
-                SysEx.ASSERTCOVERAGE((wsFlags & WHERE_OB_UNIQUE) != 0);
-                SysEx.ASSERTCOVERAGE((wsFlags & WHERE_ALL_UNIQUE) != 0);
+                C.ASSERTCOVERAGE((wsFlags & WHERE_OB_UNIQUE) != 0);
+                C.ASSERTCOVERAGE((wsFlags & WHERE_ALL_UNIQUE) != 0);
                 outerObUnique = ((wsFlags & (WHERE_OB_UNIQUE | WHERE_ALL_UNIQUE)) != 0);
             }
             ExprList orderBy = p.OrderBy; // The ORDER BY clause
@@ -2069,8 +2069,8 @@ namespace Core
                         // sort order required for X.
                         if (isMatch && isEq >= 2 && isEq != obItem.SortOrder + 2)
                         {
-                            SysEx.ASSERTCOVERAGE(isEq == 2);
-                            SysEx.ASSERTCOVERAGE(isEq == 3);
+                            C.ASSERTCOVERAGE(isEq == 2);
+                            C.ASSERTCOVERAGE(isEq == 3);
                             break;
                         }
                     }
@@ -2095,9 +2095,9 @@ namespace Core
                 }
                 else if (table.Cols[column].NotNull == 0 && isEq != 1)
                 {
-                    SysEx.ASSERTCOVERAGE(isEq == 0);
-                    SysEx.ASSERTCOVERAGE(isEq == 2);
-                    SysEx.ASSERTCOVERAGE(isEq == 3);
+                    C.ASSERTCOVERAGE(isEq == 0);
+                    C.ASSERTCOVERAGE(isEq == 2);
+                    C.ASSERTCOVERAGE(isEq == 3);
                     uniqueNotNull = false;
                 }
             }
@@ -2281,7 +2281,7 @@ namespace Core
                     term = FindTerm(wc, cursor, j, p.NotReady, eqTermMask, index);
                     if (term == null) break;
                     pc.Plan.WsFlags |= (WHERE_COLUMN_EQ | WHERE_ROWID_EQ);
-                    SysEx.ASSERTCOVERAGE(term.WC != wc);
+                    C.ASSERTCOVERAGE(term.WC != wc);
                     if ((term.EOperator & WO.IN) != 0)
                     {
                         Expr expr = term.Expr;
@@ -2292,7 +2292,7 @@ namespace Core
                             inMul *= 25;
                             inEst = true;
                         }
-                        else if (SysEx.ALWAYS(expr.x.List != null) && expr.x.List.Exprs != 0)
+                        else if (C._ALWAYS(expr.x.List != null) && expr.x.List.Exprs != 0)
                             inMul *= expr.x.List.Exprs; // "x IN (value, value, ...)"
                     }
                     else if ((term.EOperator & WO.ISNULL) != 0)
@@ -2310,8 +2310,8 @@ namespace Core
                 // can be optimized using the index.
                 if (pc.Plan.Eqs == probe.Columns.length && probe.OnError != OE.None)
                 {
-                    SysEx.ASSERTCOVERAGE((pc.Plan.WsFlags & WHERE_COLUMN_IN) != 0);
-                    SysEx.ASSERTCOVERAGE((pc.Plan.WsFlags & WHERE_COLUMN_NULL) != 0);
+                    C.ASSERTCOVERAGE((pc.Plan.WsFlags & WHERE_COLUMN_IN) != 0);
+                    C.ASSERTCOVERAGE((pc.Plan.WsFlags & WHERE_COLUMN_NULL) != 0);
                     if ((pc.Plan.WsFlags & (WHERE_COLUMN_IN | WHERE_COLUMN_NULL)) == 0)
                     {
                         pc.Plan.WsFlags |= WHERE_UNIQUE;
@@ -2332,14 +2332,14 @@ namespace Core
                             bounds = 1;
                             pc.Plan.WsFlags |= WHERE_TOP_LIMIT;
                             pc.Used |= top.PrereqRight;
-                            SysEx.ASSERTCOVERAGE(top.WC != wc);
+                            C.ASSERTCOVERAGE(top.WC != wc);
                         }
                         if (btm != null)
                         {
                             bounds++;
                             pc.Plan.WsFlags |= WHERE_BTM_LIMIT;
                             pc.Used |= btm.PrereqRight;
-                            SysEx.ASSERTCOVERAGE(btm.WC != wc);
+                            C.ASSERTCOVERAGE(btm.WC != wc);
                         }
                         pc.Plan.WsFlags |= (WHERE_COLUMN_RANGE | WHERE_ROWID_RANGE);
                     }
@@ -2411,9 +2411,9 @@ namespace Core
                     Debug.Assert((firstTerm.EOperator & (WO.EQ | WO.ISNULL | WO.IN)) != 0);
                     if ((firstTerm.EOperator & (WO.EQ | WO.ISNULL)) != 0)
                     {
-                        SysEx.ASSERTCOVERAGE((firstTerm.EOperator & WO.EQ) != 0);
-                        SysEx.ASSERTCOVERAGE((firstTerm.EOperator & WO.EQUIV) != 0);
-                        SysEx.ASSERTCOVERAGE((firstTerm.EOperator & WO.ISNULL) != 0);
+                        C.ASSERTCOVERAGE((firstTerm.EOperator & WO.EQ) != 0);
+                        C.ASSERTCOVERAGE((firstTerm.EOperator & WO.EQUIV) != 0);
+                        C.ASSERTCOVERAGE((firstTerm.EOperator & WO.ISNULL) != 0);
                         WhereEqualScanEst(parse, probe, firstTerm.Expr.Right, ref pc.Plan.Rows);
                     }
                     else if (!inEst)
@@ -2592,8 +2592,8 @@ namespace Core
                 IIndexInfo indexInfo = p.IdxInfo[0];
                 Debug.Assert(indexInfo != null || p.Parse.Ctx.MallocFailed);
                 if (indexInfo != null && indexInfo.NeedToFreeIdxStr)
-                    SysEx.Free(ref indexInfo.IdxStr);
-                SysEx.TagFree(p.Parse.Ctx, ref indexInfo);
+                    C._free(ref indexInfo.IdxStr);
+                C._tagfree(p.Parse.Ctx, ref indexInfo);
             }
             else
 #endif
@@ -2661,10 +2661,10 @@ namespace Core
                 bool rev = ((level.Plan.WsFlags & WHERE_REVERSE) != 0);
                 if ((level.Plan.WsFlags & WHERE_INDEXED) != 0 && level.Plan.u.Index.SortOrders[eq] != 0)
                 {
-                    SysEx.ASSERTCOVERAGE(eq == 0);
-                    SysEx.ASSERTCOVERAGE(eq == level.Plan.u.Index.Columns.length - 1);
-                    SysEx.ASSERTCOVERAGE(eq > 0 && eq + 1 < level.Plan.u.Index.Columns.length);
-                    SysEx.ASSERTCOVERAGE(rev);
+                    C.ASSERTCOVERAGE(eq == 0);
+                    C.ASSERTCOVERAGE(eq == level.Plan.u.Index.Columns.length - 1);
+                    C.ASSERTCOVERAGE(eq > 0 && eq + 1 < level.Plan.u.Index.Columns.length);
+                    C.ASSERTCOVERAGE(rev);
                     rev = !rev;
                 }
                 Debug.Assert(x.OP == TK.IN);
@@ -2673,7 +2673,7 @@ namespace Core
                 IN_INDEX type = sqlite3FindInIndex(parse, x, ref dummy1);
                 if (type == IN_INDEX.INDEX_DESC)
                 {
-                    SysEx.ASSERTCOVERAGE(rev);
+                    C.ASSERTCOVERAGE(rev);
                     rev = !rev;
                 }
                 int tableId = x.TableIdx;
@@ -2734,8 +2734,8 @@ namespace Core
                 if (NEVER(term == null))
                     break;
                 // The following true for indices with redundant columns. Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0;
-                SysEx.ASSERTCOVERAGE((term.WtFlags & TERM_CODED) != 0);
-                SysEx.ASSERTCOVERAGE((term.WtFlags & TERM_VIRTUAL) != 0); // EV: R-30575-11662
+                C.ASSERTCOVERAGE((term.WtFlags & TERM_CODED) != 0);
+                C.ASSERTCOVERAGE((term.WtFlags & TERM_VIRTUAL) != 0); // EV: R-30575-11662
                 int r1 = CodeEqualityTerm(parse, term, level, baseId + j);
                 if (r1 != baseId + j)
                     if (regs == 1)
@@ -2745,8 +2745,8 @@ namespace Core
                     }
                     else
                         v.AddOp2(OP.SCopy, r1, baseId + j);
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO_ISNULL) != 0);
-                SysEx.ASSERTCOVERAGE((term.EOperator & WO_IN) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO_ISNULL) != 0);
+                C.ASSERTCOVERAGE((term.EOperator & WO_IN) != 0);
                 if ((term.EOperator & (WO.ISNULL | WO.IN)) == 0)
                 {
                     Expr right = term.Expr.Right;
@@ -2824,7 +2824,7 @@ namespace Core
                         ((flags & WHERE_TEMP_INDEX) != 0 ? "" : " "),
                         ((flags & WHERE_TEMP_INDEX) != 0 ? "" : level.plan.u.Index.Name),
                         where != null ? where : ""));
-                    SysEx.TagFree(ctx, ref where);
+                    C._tagfree(ctx, ref where);
                 }
                 else if ((flags & (WHERE_ROWID_EQ | WHERE_ROWID_RANGE)) != 0)
                 {
@@ -2844,7 +2844,7 @@ namespace Core
                 long rows; // Expected number of rows visited by scan
                 if ((wctrlFlags & (WHERE_ORDERBY_MIN | WHERE_ORDERBY_MAX)) != 0)
                 {
-                    SysEx.ASSERTCOVERAGE(wctrlFlags & WHERE_ORDERBY_MIN);
+                    C.ASSERTCOVERAGE(wctrlFlags & WHERE_ORDERBY_MIN);
                     rows = 1;
                 }
                 else
@@ -2982,7 +2982,7 @@ namespace Core
                         Debug.Assert(term != null);
                         Debug.Assert(term.Expr != null);
                         Debug.Assert(!omitTable);
-                        SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                        C.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
                         rowidRegId = CodeEqualityTerm(parse, term, level, releaseRegId);
                         addrNxt = level.AddrNxt;
                         v.AddOp2(OP.MustBeInt, rowidRegId, addrNxt);
@@ -3020,7 +3020,7 @@ namespace Core
                             Debug.Assert(TK_LT == TK_GT + 2); //  ... of the TK_xx values...
                             Debug.Assert(TK_GE == TK_GT + 3); //  ... is correcct.
 
-                            SysEx.ASSERTCOVERAGE(start.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                            C.ASSERTCOVERAGE(start.WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
                             Expr x = start.Expr; // The expression that defines the start bound
                             Debug.Assert(x != null);
                             Debug.Assert(start.LeftCursor == cur);
@@ -3131,10 +3131,10 @@ namespace Core
                         if ((eqs < index.Columns.length && rev == (index.SortOrders[eqs] == SO.ASC)) || (rev && index.Columns.length == eqs))
                             SWAP(ref rangeEnd, ref rangeStart);
 
-                        SysEx.ASSERTCOVERAGE(rangeStart != null && (rangeStart.EOperator & WO_LE) != 0);
-                        SysEx.ASSERTCOVERAGE(rangeStart != null && (rangeStart.EOperator & WO_GE) != 0);
-                        SysEx.ASSERTCOVERAGE(rangeEnd != null && (rangeEnd.EOperator & WO_LE) != 0);
-                        SysEx.ASSERTCOVERAGE(rangeEnd != null && (rangeEnd.EOperator & WO_GE) != 0);
+                        C.ASSERTCOVERAGE(rangeStart != null && (rangeStart.EOperator & WO_LE) != 0);
+                        C.ASSERTCOVERAGE(rangeStart != null && (rangeStart.EOperator & WO_GE) != 0);
+                        C.ASSERTCOVERAGE(rangeEnd != null && (rangeEnd.EOperator & WO_LE) != 0);
+                        C.ASSERTCOVERAGE(rangeEnd != null && (rangeEnd.EOperator & WO_GE) != 0);
                         bool startEq = (rangeStart == null || (rangeStart.EOperator & (WO_LE | WO_GE)) != 0); // True if range start uses ==, >= or <=
                         bool endEq = (rangeEnd == null || (rangeEnd.EOperator & (WO_LE | WO_GE)) != 0); // True if range end uses ==, >= or <=
                         bool startConstraints = (rangeStart != null || eqs > 0); // Start of range is constrained
@@ -3151,7 +3151,7 @@ namespace Core
                                 if (right->CompareAffinity((AFF)startAffs[eqs]) == AFF.NONE || right->NeedsNoAffinityChange((AFF)startAffs[eqs]) != 0)
                                     startAffs[eqs] = AFF.NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
                             constraints++;
-                            SysEx.ASSERTCOVERAGE(rangeStart.wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                            C.ASSERTCOVERAGE(rangeStart.wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
                         }
                         else if (isMinQuery)
                         {
@@ -3163,12 +3163,12 @@ namespace Core
                         CodeApplyAffinity(parse, baseId, constraints, startAffs.ToString());
                         OP op = _startOps[(startConstraints << 2) + (startEq << 1) + rev]; // Instruction opcode
                         Debug.Assert(op != 0);
-                        SysEx.ASSERTCOVERAGE(op == OP.Rewind);
-                        SysEx.ASSERTCOVERAGE(op == OP.Last);
-                        SysEx.ASSERTCOVERAGE(op == OP.SeekGt);
-                        SysEx.ASSERTCOVERAGE(op == OP.SeekGe);
-                        SysEx.ASSERTCOVERAGE(op == OP.SeekLe);
-                        SysEx.ASSERTCOVERAGE(op == OP.SeekLt);
+                        C.ASSERTCOVERAGE(op == OP.Rewind);
+                        C.ASSERTCOVERAGE(op == OP.Last);
+                        C.ASSERTCOVERAGE(op == OP.SeekGt);
+                        C.ASSERTCOVERAGE(op == OP.SeekGe);
+                        C.ASSERTCOVERAGE(op == OP.SeekLe);
+                        C.ASSERTCOVERAGE(op == OP.SeekLt);
                         v.AddOp4Int(op, idxCur, addrNxt, baseId, constraints);
 
                         // Load the value for the inequality constraint at the end of the range (if any).
@@ -3185,19 +3185,19 @@ namespace Core
                                     endAffs[eqs] = AFF.NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
                             CodeApplyAffinity(parse, baseId, eqs + 1, endAffs.ToString());
                             constraints++;
-                            SysEx.ASSERTCOVERAGE(rangeEnd.wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+                            C.ASSERTCOVERAGE(rangeEnd.wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
                         }
-                        SysEx.TagFree(parse.Ctx, ref startAffs);
-                        SysEx.TagFree(parse.Ctx, ref endAffs);
+                        C._tagfree(parse.Ctx, ref startAffs);
+                        C._tagfree(parse.Ctx, ref endAffs);
 
                         // Top of the loop body
                         level.P2 = v.CurrentAddr();
 
                         // Check if the index cursor is past the end of the range.
                         op = _endOps[((rangeEnd != null || eqs != 0) ? 1 : 0) * (1 + rev)];
-                        SysEx.ASSERTCOVERAGE(op == OP.Noop);
-                        SysEx.ASSERTCOVERAGE(op == OP.IdxGE);
-                        SysEx.ASSERTCOVERAGE(op == OP.IdxLT);
+                        C.ASSERTCOVERAGE(op == OP.Noop);
+                        C.ASSERTCOVERAGE(op == OP.IdxGE);
+                        C.ASSERTCOVERAGE(op == OP.IdxLT);
                         if (op != OP.Noop)
                         {
                             v.AddOp4Int(op, idxCur, addrNxt, baseId, constraints);
@@ -3207,8 +3207,8 @@ namespace Core
                         // If there are inequality constraints, check that the value of the table column that the inequality contrains is not NULL.
                         // If it is, jump to the next iteration of the loop.
                         int r1 = parse.GetTempReg(); // Temp register
-                        SysEx.ASSERTCOVERAGE(level.Plan.WsFlags & WHERE_BTM_LIMIT);
-                        SysEx.ASSERTCOVERAGE(level.Plan.wsFlags & WHERE_TOP_LIMIT);
+                        C.ASSERTCOVERAGE(level.Plan.WsFlags & WHERE_BTM_LIMIT);
+                        C.ASSERTCOVERAGE(level.Plan.wsFlags & WHERE_TOP_LIMIT);
                         if ((level.Plan.QsFlags & (WHERE_BTM_LIMIT | WHERE_TOP_LIMIT)) != 0)
                         {
                             v.AddOp3(OP.Column, idxCur, eqs, r1);
@@ -3406,7 +3406,7 @@ namespace Core
                             v.AddOp2(OP.Goto, 0, level.AddrBrk);
                             v.ResolveLabel(loopBodyId);
 
-                            if (winfo.Levels > 1) SysEx.TagFree(parse.Ctx, ref orTab);
+                            if (winfo.Levels > 1) C._tagfree(parse.Ctx, ref orTab);
                             if (!untestedTerms) DisableTerm(level, term);
                         }
                         else
@@ -3432,12 +3432,12 @@ namespace Core
             for (j = wc.Terms; j > 0; j--)
             {
                 term = wc.Slots[wc.Terms - j];
-                SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // IMP: R-30575-11662
-                SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_CODED);
+                C.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // IMP: R-30575-11662
+                C.ASSERTCOVERAGE(term.WtFlags & TERM_CODED);
                 if ((term.WtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0) continue;
                 if ((term.PrereqAll & notReady) != 0)
                 {
-                    SysEx.ASSERTCOVERAGE(winfo.UntestedTerms == 0 && (winfo.WctrlFlags & WHERE_ONETABLE_ONLY) != 0);
+                    C.ASSERTCOVERAGE(winfo.UntestedTerms == 0 && (winfo.WctrlFlags & WHERE_ONETABLE_ONLY) != 0);
                     winfo.UntestedTerms = 1;
                     continue;
                 }
@@ -3459,8 +3459,8 @@ namespace Core
                 for (j = 0; j < wc.Terms; j++) //: term++
                 {
                     term = wc.Slots[j];
-                    SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // IMP: R-30575-11662
-                    SysEx.ASSERTCOVERAGE(term.WtFlags & TERM_CODED);
+                    C.ASSERTCOVERAGE(term.WtFlags & TERM_VIRTUAL); // IMP: R-30575-11662
+                    C.ASSERTCOVERAGE(term.WtFlags & TERM_CODED);
                     if ((term.WtFlags & (TERM_VIRTUAL | TERM_CODED)) != 0) continue;
                     if ((term.PrereqAll & notReady) != 0)
                     {
@@ -3478,7 +3478,7 @@ namespace Core
 
         static void WhereInfoFree(Context ctx, WhereInfo winfo)
         {
-            if (SysEx.ALWAYS(winfo != null))
+            if (C._ALWAYS(winfo != null))
             {
                 for (int i = 0; i < winfo.Levels; i++)
                 {
@@ -3486,21 +3486,21 @@ namespace Core
                     if (info != null)
                     {
                         // Debug.Assert(!info->NeedToFreeIdxStr || ctx->MallocFailed);
-                        if (info.NeedToFreeIdxStr) SysEx.Free(ref info.IdxStr);
-                        SysEx.TagFree(ctx, ref info);
+                        if (info.NeedToFreeIdxStr) C._free(ref info.IdxStr);
+                        C._tagfree(ctx, ref info);
                     }
                     if (winfo.Data[i] != null && (winfo.Data[i].plan.wsFlags & WHERE_TEMP_INDEX) != 0)
                     {
                         Index index = winfo.Data[i].Plan.u.Index;
                         if (index != null)
                         {
-                            SysEx.TagFree(ctx, ref index.ColAff);
-                            SysEx.TagFree(ctx, ref index);
+                            C._tagfree(ctx, ref index.ColAff);
+                            C._tagfree(ctx, ref index);
                         }
                     }
                 }
                 WhereClauseClear(winfo.WC);
-                SysEx.TagFree(ctx, ref winfo);
+                C._tagfree(ctx, ref winfo);
             }
         }
 
@@ -3522,7 +3522,7 @@ namespace Core
             sWBI.Parse = parse;
 
             // The number of tables in the FROM clause is limited by the number of bits in a Bitmask
-            SysEx.ASSERTCOVERAGE(tabList.Srcs == BMS);
+            C.ASSERTCOVERAGE(tabList.Srcs == BMS);
             if (tabList.Srcs > BMS)
             {
                 parse.ErrorMsg("at most %d tables in a join", BMS);
@@ -3543,7 +3543,7 @@ namespace Core
                 winfo.Data[ai] = new WhereLevel();
             if (ctx.MallocFailed)
             {
-                SysEx.TagFree(ctx, winfo);
+                C._tagfree(ctx, winfo);
                 winfo = null;
                 goto whereBeginError;
             }
@@ -3753,7 +3753,7 @@ namespace Core
                         //       The NEVER() comes about because rule (2) above prevents An indexable full-table-scan from reaching rule (3).
                         //   (4) The plan cost must be lower than prior plans, where "cost" is defined by the compareCost() function above. 
                         if ((sWBI.Cost.Used & sWBI.NotValid) == 0 && // (1)
-                            (unconstrained == 0 || sWBI.Src.Index == null || SysEx.NEVER((sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) != 0)) && // (3)
+                            (unconstrained == 0 || sWBI.Src.Index == null || C._NEVER((sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) != 0)) && // (3)
                             (bestJ < 0 || CompareCost(sWBI.Cost, bestPlan))) // (4)
                         {
                             WHERETRACE("   === table %d (%s) is best so far\n       cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=%08x\n",
@@ -3771,8 +3771,8 @@ namespace Core
                 Debug.Assert(bestJ >= 0);
                 Debug.Assert((sWBI.NotValid & GetMask(maskSet, tabList.Ids[bestJ].Cursor)) != 0);
                 Debug.Assert(bestJ == fromId || (tabList.Ids[fromId].Jointype & JT.LEFT) == 0);
-                SysEx.ASSERTCOVERAGE(bestJ > fromId && (tabList.Ids[fromId].Jointype & JT.CROSS) != 0);
-                SysEx.ASSERTCOVERAGE(bestJ > fromId && bestJ < tabListLength - 1 && (tabList.Ids[bestJ + 1].Jointype & JT.LEFT) != 0);
+                C.ASSERTCOVERAGE(bestJ > fromId && (tabList.Ids[fromId].Jointype & JT.CROSS) != 0);
+                C.ASSERTCOVERAGE(bestJ > fromId && bestJ < tabListLength - 1 && (tabList.Ids[bestJ + 1].Jointype & JT.LEFT) != 0);
                 WHERETRACE("*** Optimizer selects table %d (%s) for loop %d with:\n    cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=0x%08x\n",
                     bestJ, tabList.Ids[bestJ].Table.Name,
                     level - winfo.Data, bestPlan.Cost, bestPlan.Plan.Rows,
@@ -3785,8 +3785,8 @@ namespace Core
                 andFlags &= bestPlan.Plan.WsFlags;
                 level.Plan = bestPlan.Plan;
                 level.TabCur = tabList.Ids[bestJ].Cursor;
-                SysEx.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_INDEXED);
-                SysEx.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_TEMP_INDEX);
+                C.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_INDEXED);
+                C.ASSERTCOVERAGE(bestPlan.Plan.WsFlags & WHERE_TEMP_INDEX);
                 if ((bestPlan.Plan.WsFlags & (WHERE_INDEXED | WHERE_TEMP_INDEX)) != 0)
                     level.IdxCur = ((wctrlFlags & WHERE_ONETABLE_ONLY) && (bestPlan.Plan.WsFlags & WHERE_TEMP_INDEX) == 0 ? idxCur : parse.Tabs++);
                 else
@@ -3862,8 +3862,8 @@ namespace Core
                         {
                             OP op = (winfo.OkOnePass != 0 ? OP.OpenWrite : OP.OpenRead);
                             sqlite3OpenTable(parse, tabItem.Cursor, db, table, op);
-                            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS - 1);
-                            SysEx.ASSERTCOVERAGE(table.Cols.length == BMS);
+                            C.ASSERTCOVERAGE(table.Cols.length == BMS - 1);
+                            C.ASSERTCOVERAGE(table.Cols.length == BMS);
                             if (winfo.OkOnePass == 0 && table.Cols.length < BMS)
                             {
                                 Bitmask b = tabItem.ColUsed;
@@ -3931,8 +3931,8 @@ namespace Core
                     }
                     _queryPlan.Append(" "); _queryPlanIdx++; //: _queryPlan[_queryPlanIdx++] = ' ';
                 }
-                SysEx.ASSERTCOVERAGE(w & WHERE_ROWID_EQ);
-                SysEx.ASSERTCOVERAGE(w & WHERE_ROWID_RANGE);
+                C.ASSERTCOVERAGE(w & WHERE_ROWID_EQ);
+                C.ASSERTCOVERAGE(w & WHERE_ROWID_RANGE);
                 if ((w & (WHERE_ROWID_EQ | WHERE_ROWID_RANGE)) != 0)
                 {
                     _queryPlan.Append("* "); //: _memcpy(&_queryPlan[_queryPlanIdx], "* ", 2);
@@ -4005,7 +4005,7 @@ namespace Core
                         v.AddOp2(OP.Next, in_.Cur, in_.AddrInTop);
                         v.JumpHere(in_.AddrInTop - 1);
                     }
-                    SysEx.TagFree(ctx, ref level.u.in_.InLoops);
+                    C._tagfree(ctx, ref level.u.in_.InLoops);
                 }
                 v.ResolveLabel(level.AddrBrk);
                 if (level.LeftJoin != 0)

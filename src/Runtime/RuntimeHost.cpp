@@ -12,7 +12,7 @@
 #include "RuntimeHost.h"
 #include "cuda_runtime_api.h"
 
-#define RUNTIME_UNRESTRICTED -1
+#define CURT_UNRESTRICTED -1
 
 typedef struct __align__(8)
 {
@@ -40,25 +40,25 @@ typedef struct __align__(8)
 } runtimeBlockHeader;
 
 static FILE *_stream;
-cudaError _lastError;
+cudaError __cudaLastError;
 
 ///////////////////////////////////////////////////////////////////////////////
 // HOST SIDE
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
-#define RUNTIME_ALIGNSIZE sizeof(long long)
-#define RUNTIMETYPE_RAW 0
-#define RUNTIMETYPE_PRINTF 1
-#define RUNTIMETYPE_TRANSFER 2
-#define RUNTIMETYPE_ASSERT 4
-#define RUNTIMETYPE_THROW 5
+#define __HEAP_ALIGNSIZE sizeof(long long)
+#define	__HEAP_HEADER_RAW 0
+#define __HEAP_HEADER_PRINTF 1
+#define __HEAP_HEADER_TRANSFER 2
+#define __HEAP_HEADER_ASSERT 4
+#define __HEAP_HEADER_THROW 5
 
-extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
+extern "C" cudaDeviceHeap cudaDeviceHeapCreate(size_t blockSize, size_t length, cudaError_t *error, void *reserved)
 {
 	cudaError_t localError; if (error == nullptr) error = &localError;
-	cudaRuntimeHost host; memset(&host, 0, sizeof(cudaRuntimeHost));
+	cudaDeviceHeap host; memset(&host, 0, sizeof(cudaDeviceHeap));
 	// fix up blockSize to include fallocBlockHeader
-	blockSize = (blockSize + (RUNTIME_ALIGNSIZE - 1)) & ~(RUNTIME_ALIGNSIZE - 1);
+	blockSize = (blockSize + (__HEAP_ALIGNSIZE - 1)) & ~(__HEAP_ALIGNSIZE - 1);
 	// fix up length to be a multiple of blockSize
 	if (!length || length % blockSize)
 		length += blockSize - (length % blockSize);
@@ -75,7 +75,7 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cuda
 	char *blocks = heap + length - blocksLength;
 	// no restrictions to begin with
 	runtimeRestriction restriction;
-	restriction.threadid = restriction.blockid = RUNTIME_UNRESTRICTED;
+	restriction.threadid = restriction.blockid = CURT_UNRESTRICTED;
 	// transfer to heap
 	runtimeHeap hostHeap;
 	hostHeap.blockPtr = (volatile char *)blocks;
@@ -98,7 +98,7 @@ extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize, size_t length, cuda
 	return host;
 }
 
-extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
+extern "C" void cudaDeviceHeapDestroy(cudaDeviceHeap &host)
 {
 	if (!host.heap)
 		return;
@@ -107,7 +107,7 @@ extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host)
 #endif
 }
 
-extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler)
+extern "C" void cudaDeviceHeapSetHandler(cudaDeviceHeap &host, cudaAssertHandler handler)
 {
 	host.assertHandler = handler;
 }
@@ -140,7 +140,7 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 		bool error = false;
 		switch (hdr->type)
 		{
-		case RUNTIMETYPE_PRINTF:
+		case __HEAP_HEADER_PRINTF:
 			if (headings)
 				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			if (hdr->fmtoffset == 0)
@@ -148,9 +148,9 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 			else
 				error = !outputPrintfData(_stream, blockSize, b + hdr->fmtoffset, b + sizeof(runtimeBlockHeader));
 			break;
-		case RUNTIMETYPE_TRANSFER:
+		case __HEAP_HEADER_TRANSFER:
 			break;
-		case RUNTIMETYPE_ASSERT:
+		case __HEAP_HEADER_ASSERT:
 			if (headings)
 				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			fprintf(_stream, "ASSERT: ");
@@ -161,7 +161,7 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 			fprintf(_stream, "\n");
 			//assertHandler();
 			break;
-		case RUNTIMETYPE_THROW:
+		case __HEAP_HEADER_THROW:
 			if (headings)
 				fprintf(_stream, "[%d, %d]: ", hdr->blockid, hdr->threadid);
 			fprintf(_stream, "THROW: ");
@@ -186,9 +186,8 @@ static int executeRuntime(cudaAssertHandler assertHandler, size_t blockSize, cha
 	return count;
 }
 
-extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stream, bool showThreadID)
+extern "C" cudaError_t cudaDeviceHeapSynchronize(cudaDeviceHeap &host, void *stream, bool showThreadID)
 {
-	cudaDeviceSynchronize();
 	// for now, we force "synchronous" mode which means we're not concurrent with kernel execution. This also means we don't need clearOnPrint.
 	// if you're patching it for async operation, here's where you want it.
 	bool sync = true;
@@ -227,7 +226,7 @@ extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stre
 static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *data)
 {
 	// Format string is prefixed by a length that we don't need
-	fmt += RUNTIME_ALIGNSIZE;
+	fmt += __HEAP_ALIGNSIZE;
 	// now run through it, printing everything we can. We must run to every % character, extract only that, and use printf to format it.
 	char *p = strchr(fmt, '%');
 	while (p != nullptr)
@@ -249,7 +248,7 @@ static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *da
 			fputs("Corrupt printf buffer data - aborting\n", stream);
 			return false;
 		}
-		data += RUNTIME_ALIGNSIZE;
+		data += __HEAP_ALIGNSIZE;
 		//
 		char specifier = *p++;
 		char c = *p; *p = '\0'; // store for later and clip
@@ -266,7 +265,7 @@ static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *da
 			// everything else is just printed out as-is
 		default: fprintf(stream, format); break;
 		}
-		data += RUNTIME_ALIGNSIZE; // move on to next argument
+		data += __HEAP_ALIGNSIZE; // move on to next argument
 		*p = c; fmt = p; // restore what we removed, and adjust fmt string to be past the specifier
 		p = strchr(fmt, '%'); // and get the next specifier
 	}
@@ -278,7 +277,7 @@ static bool outputPrintfData(FILE *stream, size_t blockSize, char *fmt, char *da
 static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *data)
 {
 	// Format string is prefixed by a length that we don't need
-	fmt += RUNTIME_ALIGNSIZE;
+	fmt += __HEAP_ALIGNSIZE;
 	// now run through it, printing everything we can. We must run to every % character, extract only that, and use printf to format it.
 	char *p = strchr(fmt, '%');
 	while (p != nullptr)
@@ -300,7 +299,7 @@ static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *da
 			strcpy(stream, "Corrupt printf buffer data - aborting\n");
 			return false;
 		}
-		data += RUNTIME_ALIGNSIZE;
+		data += __HEAP_ALIGNSIZE;
 		//
 		char specifier = *p++;
 		char c = *p; *p = '\0'; // store for later and clip
@@ -317,7 +316,7 @@ static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *da
 			// everything else is just printed out as-is
 		default: sprintf(stream, format); break;
 		}
-		data += RUNTIME_ALIGNSIZE; // move on to next argument
+		data += __HEAP_ALIGNSIZE; // move on to next argument
 		*p = c; fmt = p; // restore what we removed, and adjust fmt string to be past the specifier
 		p = strchr(fmt, '%'); // and get the next specifier
 	}
@@ -333,7 +332,7 @@ static bool outputPrintfData(char *stream, size_t blockSize, char *fmt, char *da
 #pragma region EMBED
 //#ifdef _LCcpu
 
-extern "C" const unsigned char _runtimeUpperToLower[256] = {
+extern "C" const unsigned char __curtUpperToLower[256] = {
 	0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
 	18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
 	36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
@@ -351,7 +350,7 @@ extern "C" const unsigned char _runtimeUpperToLower[256] = {
 	252,253,254,255
 };
 
-extern "C" const unsigned char _runtimeCtypeMap[256] = {
+extern "C" const unsigned char __curtCtypeMap[256] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 00..07    ........ */
 	0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00,  /* 08..0f    ........ */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 10..17    ........ */

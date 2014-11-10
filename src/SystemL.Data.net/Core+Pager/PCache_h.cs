@@ -73,7 +73,7 @@ namespace Core
 
         internal void memsetData(int sizePage)
         {
-            Data = SysEx.Alloc(sizePage);
+            Data = C._alloc(sizePage);
         }
     }
 

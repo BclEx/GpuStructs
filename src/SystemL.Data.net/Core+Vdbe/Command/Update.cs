@@ -316,8 +316,8 @@ namespace Core.Command
                     {
                         // This branch loads the value of a column that will not be changed into a register. This is done if there are no BEFORE triggers, or
                         // if there are one or more BEFORE triggers that use this value via a new.* reference in a trigger program.
-                        SysEx.ASSERTCOVERAGE(i == 31);
-                        SysEx.ASSERTCOVERAGE(i == 32);
+                        C.ASSERTCOVERAGE(i == 31);
+                        C.ASSERTCOVERAGE(i == 32);
                         v.AddOp3(OP.Column, curId, i, regNew + i);
                         v.ColumnDefault(table, i, regNew + i);
                     }
@@ -411,8 +411,8 @@ namespace Core.Command
 #if !OMIT_AUTHORIZATION
             Auth.ContextPop(sContext);
 #endif
-            SysEx.TagFree(ctx, ref regIdxs);
-            SysEx.TagFree(ctx, ref xrefs);
+            C._tagfree(ctx, ref regIdxs);
+            C._tagfree(ctx, ref xrefs);
             SrcList.Delete(ctx, ref tabList);
             ExprList.Delete(ctx, ref changes);
             Expr.Delete(ctx, ref where_);

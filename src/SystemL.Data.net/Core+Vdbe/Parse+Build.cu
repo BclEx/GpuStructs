@@ -119,7 +119,7 @@ namespace Core
 		}
 
 		// Get the VDBE program ready for execution
-		if (v && SysEx_ALWAYS(Errs == 0) && !ctx->MallocFailed)
+		if (v && _ALWAYS(Errs == 0) && !ctx->MallocFailed)
 		{
 #ifdef DEBUG
 			FILE *trace = ((ctx->Flags & BContext::FLAG_VdbeTrace) != 0 ? stdout : 0);
@@ -159,8 +159,8 @@ namespace Core
 		char *errMsg = nullptr;
 		RunParser(sql, &errMsg);
 		Context *ctx = Ctx;
-		SysEx::TagFree(ctx, errMsg);
-		SysEx::TagFree(ctx, sql);
+		_tagfree(ctx, errMsg);
+		_tagfree(ctx, sql);
 		_memcpy(&VarsSeen, saveBuf, SAVE_SZ);
 		Nested--;
 	}
@@ -244,8 +244,8 @@ namespace Core
 #ifndef OMIT_ANALYZE
 		Parse::DeleteIndexSamples(ctx, index);
 #endif
-		SysEx::TagFree(ctx, index->ColAff);
-		SysEx::TagFree(ctx, index);
+		_tagfree(ctx, index->ColAff);
+		_tagfree(ctx, index);
 	}
 
 	__device__ void Parse::UnlinkAndDeleteIndex(Context *ctx, int db, const char *indexName)
@@ -254,7 +254,7 @@ namespace Core
 		Hash *hash = &ctx->DBs[db].Schema->IndexHash;
 		int indexNameLength = _strlen30(indexName);
 		Index *index = (Index *)hash->Insert(indexName, indexNameLength, 0);
-		if (SysEx_ALWAYS(index))
+		if (_ALWAYS(index))
 		{
 			if (index->Table->Index == index)
 				index->Table->Index = index->Next;
@@ -262,9 +262,9 @@ namespace Core
 			{
 				// Justification of ALWAYS();  The index must be on the list of indices.
 				Index *p = index->Table->Index;
-				while (SysEx_ALWAYS(p) && p->Next != index)
+				while (_ALWAYS(p) && p->Next != index)
 					p = p->Next;
-				if (SysEx_ALWAYS(p && p->Next == index))
+				if (_ALWAYS(p && p->Next == index))
 					p->Next = index->Next;
 			}
 			FreeIndex(ctx, index);
@@ -280,7 +280,7 @@ namespace Core
 			Context::DB *db = &ctx->DBs[i];
 			if (!db->Bt)
 			{
-				SysEx::TagFree(ctx, db->Name);
+				_tagfree(ctx, db->Name);
 				db->Name = nullptr;
 				continue;
 			}
@@ -293,7 +293,7 @@ namespace Core
 		if (ctx->DBs.length <= 2 && ctx->DBs.data != ctx->StaticDBs)
 		{
 			_memcpy(ctx->StaticDBs, ctx->DBs.data, 2 * sizeof(ctx->DBs[0]));
-			SysEx::TagFree(ctx, ctx->DBs);
+			_tagfree(ctx, ctx->DBs);
 			ctx->DBs = ctx->StaticDBs;
 		}
 	}
@@ -344,13 +344,13 @@ namespace Core
 		{
 			for (int i = 0; i < table->Cols.length; i++, col++)
 			{
-				SysEx::TagFree(ctx, col->Name);
+				_tagfree(ctx, col->Name);
 				Expr::Delete(ctx, col->Dflt);
-				SysEx::TagFree(ctx, col->DfltName);
-				SysEx::TagFree(ctx, col->Type);
-				SysEx::TagFree(ctx, col->Coll);
+				_tagfree(ctx, col->DfltName);
+				_tagfree(ctx, col->Type);
+				_tagfree(ctx, col->Coll);
 			}
-			SysEx::TagFree(ctx, table->Cols);
+			_tagfree(ctx, table->Cols);
 		}
 	}
 
@@ -389,8 +389,8 @@ namespace Core
 
 		// Delete the Table structure itself.
 		DeleteColumnNames(ctx, table);
-		SysEx::TagFree(ctx, table->Name);
-		SysEx::TagFree(ctx, table->ColAff);
+		_tagfree(ctx, table->Name);
+		_tagfree(ctx, table->ColAff);
 		Select::SelectDelete(db, table->Select);
 #ifndef OMIT_CHECK
 		Expr::ExprListDelete(db, table->Check);
@@ -398,7 +398,7 @@ namespace Core
 #ifndef OMIT_VIRTUALTABLE
 		VTable::Clear(ctx, table);
 #endif
-		SysEx::TagFree(ctx, table);
+		_tagfree(ctx, table);
 
 		// Verify that no lookaside memory was used by schema tables
 		_assert(!lookaside || lookaside == ctx->Lookaside.Outs);
@@ -456,7 +456,7 @@ namespace Core
 	{
 		char *nameAsString = NameFromToken(db, name); // Name we are searching for
 		int db = FindDbName(ctx, nameAsString); // Database number                    
-		SysEx::TagFree(ctx, nameAsString);
+		_tagfree(ctx, nameAsString);
 		return db;
 	}
 
@@ -464,7 +464,7 @@ namespace Core
 	{
 		Context *ctx = Ctx;
 		int db; // Database holding the object
-		if (SysEx_ALWAYS(name2 != nullptr) && name2->length > 0)
+		if (_ALWAYS(name2 != nullptr) && name2->length > 0)
 		{
 			if (ctx->Init.Busy)
 			{
@@ -580,7 +580,7 @@ namespace Core
 			}
 		}
 
-		table = (Table *)SysEx::TagAlloc(ctx, sizeof(Table), true);
+		table = (Table *)_tagalloc(ctx, sizeof(Table), true);
 		if (!table)
 		{
 			ctx->MallocFailed = true;
@@ -653,7 +653,7 @@ namespace Core
 		return;
 
 begin_table_error:
-		SysEx::TagFree(ctx, name);
+		_tagfree(ctx, name);
 		return;
 	}
 
@@ -678,7 +678,7 @@ begin_table_error:
 			if (_strcmp(nameAsString, table->Cols[i].Name))
 			{
 				ErrorMsg("duplicate column name: %s", nameAsString);
-				SysEx::TagFree(ctx, nameAsString);
+				_tagfree(ctx, nameAsString);
 				return;
 			}
 		}
@@ -687,7 +687,7 @@ begin_table_error:
 			Column *newCols = (Column *)SysEx::TagRealloc(ctx, table->Cols, (table->Cols.length + 8) * sizeof(table->Cols[0]));
 			if (!newCols)
 			{
-				SysEx::TagFree(ctx, nameAsString);
+				_tagfree(ctx, nameAsString);
 				return;
 			}
 			table->Cols = newCols;
@@ -705,7 +705,7 @@ begin_table_error:
 	__device__ void Parse::AddNotNull(uint8 onError)
 	{
 		Table *table = NewTable;
-		if (!table || SysEx_NEVER(table->Cols.length < 1))
+		if (!table || _NEVER(table->Cols.length < 1))
 			return;
 		table->Cols[table->Cols.length - 1].NotNull = onError;
 	}
@@ -717,7 +717,7 @@ begin_table_error:
 		if (data)
 			while (data[0])
 			{
-				h = (h << 8) + __tolower((*data) & 0xff);
+				h = (h << 8) + _tolower((*data) & 0xff);
 				data++;
 				if (h == (('c'<<24)+('h'<<16)+('a'<<8)+'r')) aff = AFF_TEXT; // CHAR
 				else if (h == (('c'<<24)+('l'<<16)+('o'<<8)+'b')) aff = AFF_TEXT; // CLOB
@@ -736,7 +736,7 @@ begin_table_error:
 	__device__ void Parse::AddColumnType(Token *type)
 	{
 		Table *table = NewTable;
-		if (!table || SysEx_NEVER(table->Cols.length < 1))
+		if (!table || _NEVER(table->Cols.length < 1))
 			return;
 		Column *col = &table->Cols[table->Cols.length - 1];
 		_assert(col->Type == nullptr);
@@ -759,7 +759,7 @@ begin_table_error:
 				// is required by pragma table_info.
 				Expr::Delete(ctx, col->Dflt);
 				col->Dflt = Expr::ExprDup(ctx, span->Expr, EXPRDUP_REDUCE);
-				SysEx::TagFree(ctx, col->DfltName);
+				_tagfree(ctx, col->DfltName);
 				col->DfltName = SysEx::TagStrNDup(ctx, (char *)span->Start, (int)(span->End - span->Start));
 			}
 		}
@@ -861,7 +861,7 @@ primary_key_exit:
 			}
 		}
 		else
-			SysEx::TagFree(ctx, collName);
+			_tagfree(ctx, collName);
 	}
 
 	__device__ CollSeq *Parse::LocateCollSeq(const char *name)
@@ -943,7 +943,7 @@ primary_key_exit:
 			end = "\n)";
 		}
 		n += 35 + 6 * table->Cols.length;
-		char *stmt = (char *)SysEx::TagAlloc(0, n);
+		char *stmt = (char *)_tagalloc(0, n);
 		if (!stmt)
 		{
 			ctx->MallocFailed = true;
@@ -1022,7 +1022,7 @@ primary_key_exit:
 		if (!ctx->Init.Busy)
 		{
 			Vdbe *v = GetVdbe();
-			if (SysEx_NEVER(v == 0))
+			if (_NEVER(v == 0))
 				return;
 			v->AddOp1(OP_Close, 0);
 			// Initialize zType for the new view or table.
@@ -1096,7 +1096,7 @@ primary_key_exit:
 				"UPDATE %Q.%s "
 				"SET type='%s', name=%Q, tbl_name=%Q, rootpage=#%d, sql=%Q "
 				"WHERE rowid=#%d", args);
-			SysEx::TagFree(ctx, stmt);
+			_tagfree(ctx, stmt);
 			ChangeCookie(db);
 
 #ifndef OMIT_AUTOINCREMENT
@@ -1183,13 +1183,13 @@ primary_key_exit:
 
 		// Locate the end of the CREATE VIEW statement.  Make sEnd point to the end.
 		Token end = LastToken;
-		if (SysEx_ALWAYS(end[0] != 0) && end[0] != ';')
+		if (_ALWAYS(end[0] != 0) && end[0] != ';')
 			end.data += end.length;
 		end.length = 0;
 
 		int n = (int)(end.data - begin->data);
 		const char *z = begin->data;
-		while (SysEx_ALWAYS(n > 0) && _isspace(z[n - 1])) { n--; }
+		while (_ALWAYS(n > 0) && _isspace(z[n - 1])) { n--; }
 		end.data = &z[n - 1];
 		end.length = 1;
 
@@ -1556,7 +1556,7 @@ exit_drop_table:
 		if (!fromCol)
 		{
 			int col = table->Cols.length-1;
-			if (SysEx_NEVER(col < 0))
+			if (_NEVER(col < 0))
 				goto fk_end;
 			if (toCol && toCol->Exprs != 1)
 			{
@@ -1576,7 +1576,7 @@ exit_drop_table:
 		if (toCol)
 			for (i = 0; i < toCol->Exprs; i++)
 				bytes += _strlen30(toCol->Ids[i].Name) + 1;
-		fkey = (FKey *)SysEx::TagAlloc(ctx, bytes);
+		fkey = (FKey *)_tagalloc(ctx, bytes);
 		if (!fkey)
 			goto fk_end;
 		fkey->From = table;
@@ -1644,7 +1644,7 @@ exit_drop_table:
 		fkey = nullptr;
 
 fk_end:
-		SysEx::TagFree(ctx, fkey);
+		_tagfree(ctx, fkey);
 #endif
 		Expr::ExprListDelete(ctx, fromCol);
 		Expr::ExprListDelete(ctx, toCol);
@@ -1888,7 +1888,7 @@ fk_end:
 		// Allocate the index structure. 
 		int nameLength = _strlen30(name); // Number of characters in zName
 		int cols = list->Exprs;
-		Index *index = (Index *)SysEx::TagAlloc(ctx, 
+		Index *index = (Index *)_tagalloc(ctx, 
 			SysEx_ROUND8(sizeof(Index)) +			// Index structure
 			SysEx_ROUND8(sizeof(tRowcnt)*(cols+1)) +// Index.aiRowEst
 			sizeof(char *)*cols +					// Index.azColl
@@ -2064,7 +2064,7 @@ fk_end:
 				(void *)memId,
 				stmt };
 			NestedParse("INSERT INTO %Q.%s VALUES('index',%Q,%Q,#%d,%Q);", args);
-			SysEx::TagFree(ctx, stmt);
+			_tagfree(ctx, stmt);
 
 			// Fill the index with data and reparse the schema. Code an OP_Expire to invalidate all pre-compiled statements.
 			if (tableName)
@@ -2102,12 +2102,12 @@ fk_end:
 exit_create_index:
 		if (index)
 		{
-			SysEx::TagFree(ctx, index->ColAff);
-			SysEx::TagFree(ctx, index);
+			_tagfree(ctx, index->ColAff);
+			_tagfree(ctx, index);
 		}
 		ExprList::Delete(ctx, list);
 		SrcList::Delete(ctx, tableName);
-		SysEx::TagFree(ctx, name);
+		_tagfree(ctx, name);
 		return r;
 	}
 
@@ -2223,9 +2223,9 @@ exit_drop_index:
 	{
 		if (!list) return;
 		for (int i = 0; i < list->Ids.length; i++)
-			SysEx::TagFree(ctx, list->Ids[i].Name);
-		SysEx::TagFree(ctx, list->Ids);
-		SysEx::TagFree(ctx, list);
+			_tagfree(ctx, list->Ids[i].Name);
+		_tagfree(ctx, list->Ids);
+		_tagfree(ctx, list);
 	}
 
 	__device__ int Parse::IdListIndex(IdList *list, const char *name)
@@ -2254,7 +2254,7 @@ exit_drop_index:
 				return src;
 			}
 			src = newSrc;
-			int got = (SysEx::TagAllocSize(ctx, newSrc) - sizeof(*src))/sizeof(src->Ids[0])+1;
+			int got = (_tagallocsize(ctx, newSrc) - sizeof(*src))/sizeof(src->Ids[0])+1;
 			src->Allocs = (uint16)got;
 		}
 		// Move existing slots that come after the newly inserted slots out of the way
@@ -2274,7 +2274,7 @@ exit_drop_index:
 		_assert(!database || table); // Cannot have C without B
 		if (!list)
 		{
-			list = (SrcList *)SysEx::TagAlloc(ctx, sizeof(SrcList), true);
+			list = (SrcList *)_tagalloc(ctx, sizeof(SrcList), true);
 			if (!list) return nullptr;
 			list->Allocs = 1;
 		}
@@ -2320,16 +2320,16 @@ exit_drop_index:
 		SrcList::SrcListItem *item;
 		for (item = list->Ids, i = 0; i < list->Srcs; i++, item++)
 		{
-			SysEx::TagFree(ctx, item->Database);
-			SysEx::TagFree(ctx, item->Name);
-			SysEx::TagFree(ctx, item->Alias);
-			SysEx::TagFree(ctx, item->Index);
+			_tagfree(ctx, item->Database);
+			_tagfree(ctx, item->Name);
+			_tagfree(ctx, item->Alias);
+			_tagfree(ctx, item->Index);
 			Table::DeleteTable(ctx, item->Table);
 			Select::Delete(ctx, item->Select);
 			Expr::Delete(ctx, item->On);
 			IdListDelete(ctx, item->Using);
 		}
-		SysEx::TagFree(ctx, list);
+		_tagfree(ctx, list);
 	}
 
 	__device__ SrcList *Parse::SrcListAppendFromTerm(SrcList *list, Token *table, Token *database, Token *alias, Select *subquery, Expr *on, IdList *using_)
@@ -2363,7 +2363,7 @@ append_from_error:
 	__device__ void Parse::SrcListIndexedBy(SrcList *list, Token *indexedBy)
 	{
 		_assert(indexedBy != nullptr);
-		if (list && SysEx_ALWAYS(list->Srcs > 0))
+		if (list && _ALWAYS(list->Srcs > 0))
 		{
 			SrcList::SrcListItem *item = &list->Ids[list->Srcs-1];
 			_assert(!item->NotIndexed && item->Index == nullptr);
@@ -2448,7 +2448,7 @@ append_from_error:
 #endif
 				)
 			{
-				SysEx::TagFree(Ctx, nameAsString);
+				_tagfree(Ctx, nameAsString);
 				return;
 			}
 			v->AddOp4(OP_Savepoint, op, 0, 0, nameAsString, Vdbe::P4T_DYNAMIC);
@@ -2607,7 +2607,7 @@ append_from_error:
 			ReindexDatabases(this, nullptr);
 			return;
 		}
-		else if (SysEx_NEVER(!name2) || !name2->data)
+		else if (_NEVER(!name2) || !name2->data)
 		{
 			_assert(name1->data);
 			char *collName = NameFromToken(ctx, name1);
@@ -2616,10 +2616,10 @@ append_from_error:
 			if (coll)
 			{
 				ReindexDatabases(this, collName);
-				SysEx::TagFree(ctx, collName);
+				_tagfree(ctx, collName);
 				return;
 			}
-			SysEx::TagFree(ctx, collName);
+			_tagfree(ctx, collName);
 		}
 		Token *objName; // Name of the table or index to be reindexed
 		int db = TwoPartName(name1, name2, &objName); // The database index number
@@ -2631,11 +2631,11 @@ append_from_error:
 		if (table)
 		{
 			ReindexTable(this, table, 0);
-			SysEx::TagFree(ctx, z);
+			_tagfree(ctx, z);
 			return;
 		}
 		Index *index = FindIndex(ctx, z, dbName); // An index associated with pTab
-		SysEx::TagFree(ctx, z);
+		_tagfree(ctx, z);
 		if (index)
 		{
 			BeginWriteOperation(0, db);
@@ -2651,7 +2651,7 @@ append_from_error:
 		int colLength = index->Columns.length;
 		int bytes = sizeof(KeyInfo) + (colLength-1)*sizeof(CollSeq*) + colLength;
 		Context *ctx = Ctx;
-		KeyInfo *key = (KeyInfo *)SysEx::TagAlloc(ctx, bytes);
+		KeyInfo *key = (KeyInfo *)_tagalloc(ctx, bytes);
 		if (key)
 		{
 			key->Ctx = Ctx;
@@ -2668,7 +2668,7 @@ append_from_error:
 		}
 		if (Errs)
 		{
-			SysEx::TagFree(ctx, key);
+			_tagfree(ctx, key);
 			key = nullptr;
 		}
 		return key;

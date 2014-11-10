@@ -61,7 +61,7 @@ namespace Core
                 dup.u.Token = expr.u.Token;
                 dup.Flags2 |= EP2.MallocedToken;
             }
-            SysEx.TagFree(ctx, ref dup);
+            C._tagfree(ctx, ref dup);
         }
 
         static bool NameInUsingClause(IdList using_, string colName)
@@ -75,11 +75,11 @@ namespace Core
         public static bool MatchSpanName(string span, string colName, string table, string dbName)
         {
             int n;
-            for (n = 0; SysEx.ALWAYS(span[n] != null) && span[n] != '.'; n++) { }
+            for (n = 0; C._ALWAYS(span[n] != null) && span[n] != '.'; n++) { }
             if (dbName != null && (string.Compare(span, 0, dbName, 0, n, StringComparison.OrdinalIgnoreCase) != 0) || dbName[n] != 0)
                 return false;
             span += n + 1;
-            for (n = 0; SysEx.ALWAYS(span[n] != null) && span[n] != '.'; n++) { }
+            for (n = 0; C._ALWAYS(span[n] != null) && span[n] != '.'; n++) { }
             if (table != null && (string.Compare(span, 0, table, 0, n, StringComparison.OrdinalIgnoreCase) != 0 || table[n] != 0))
                 return false;
             span += n + 1;
@@ -236,14 +236,14 @@ namespace Core
                                 expr.Affinity = AFF.INTEGER;
                             else if (expr.TableIdx == 0)
                             {
-                                SysEx.ASSERTCOVERAGE(colId == 31);
-                                SysEx.ASSERTCOVERAGE(colId == 32);
+                                C.ASSERTCOVERAGE(colId == 31);
+                                C.ASSERTCOVERAGE(colId == 32);
                                 parse.Oldmask |= (colId >= 32 ? 0xffffffff : (((uint)1) << colId));
                             }
                             else
                             {
-                                SysEx.ASSERTCOVERAGE(colId == 31);
-                                SysEx.ASSERTCOVERAGE(colId == 32);
+                                C.ASSERTCOVERAGE(colId == 31);
+                                C.ASSERTCOVERAGE(colId == 32);
                                 parse.Newmask |= (colId >= 32 ? 0xffffffff : (((uint)1) << colId));
                             }
                             expr.ColumnIdx = (short)colId;
@@ -334,7 +334,7 @@ namespace Core
             if (expr.ColumnIdx >= 0 && match != null)
             {
                 int n = expr.ColumnIdx;
-                SysEx.ASSERTCOVERAGE(n == BMS - 1);
+                C.ASSERTCOVERAGE(n == BMS - 1);
                 if (n >= BMS)
                     n = BMS - 1;
                 Debug.Assert(match.Cursor == expr.TableIdx);
@@ -378,8 +378,8 @@ namespace Core
                 else
                 {
                     p.ColumnIdx = (yVars)colId;
-                    SysEx.ASSERTCOVERAGE(colId == BMS);
-                    SysEx.ASSERTCOVERAGE(colId == BMS - 1);
+                    C.ASSERTCOVERAGE(colId == BMS);
+                    C.ASSERTCOVERAGE(colId == BMS - 1);
                     item.ColUsed |= ((Bitmask)1) << (colId >= BMS ? BMS - 1 : colId);
                 }
                 Expr.SetProperty(p, EP.Resolved);

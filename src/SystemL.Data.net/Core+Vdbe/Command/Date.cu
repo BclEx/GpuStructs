@@ -374,7 +374,7 @@ zulu_time:
 		double r;
 		char *z, zBuf[30];
 		z = zBuf;
-		for (n = 0; n < __arrayStaticLength(buf)-1 && mod[n]; n++)
+		for (n = 0; n < _lengthof(buf)-1 && mod[n]; n++)
 			z[n] = (char)_toLower[(uint8)mod[n]];
 		z[n] = 0;
 		switch (z[0])
@@ -665,7 +665,7 @@ zulu_time:
 		}
 		else
 		{
-			z = (char *)SysEx::TagAlloc(ctx, (int)n);
+			z = (char *)_tagalloc(ctx, (int)n);
 			if (!z)
 			{
 				sqlite3_result_error_nomem(funcCtx);
@@ -802,7 +802,7 @@ zulu_time:
 	__device__ void Date_::RegisterDateTimeFunctions()
 	{
 		FuncDefHash *hash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
-		for (int i = 0; i < __arrayStaticLength(_dateTimeFuncs); i++)
+		for (int i = 0; i < _lengthof(_dateTimeFuncs); i++)
 			sqlite3FuncDefInsert(hash, &_dateTimeFuncs[i]);
 	}
 

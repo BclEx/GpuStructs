@@ -102,7 +102,7 @@ namespace Core
 				break;
 			}
 			if (p->Flags & EP_Collate)
-				p = (SysEx_ALWAYS(p->Left) && (p->Left->Flags & EP_Collate) != 0 ? p->Left : p->Right);
+				p = (_ALWAYS(p->Left) && (p->Left->Flags & EP_Collate) != 0 ? p->Left : p->Right);
 			else
 				break;
 		}
@@ -270,7 +270,7 @@ namespace Core
 				_assert(value >= 0);
 			}
 		}
-		Expr *newExpr = (Expr *)SysEx::TagAlloc(ctx, sizeof(Expr)+extraSize, true);
+		Expr *newExpr = (Expr *)_tagalloc(ctx, sizeof(Expr)+extraSize, true);
 		if (newExpr)
 		{
 			newExpr->OP = (uint8)op;
@@ -461,7 +461,7 @@ namespace Core
 				}
 				if (z[0] != '?' || parse->Vars[x-1] == nullptr)
 				{
-					SysEx::TagFree(ctx, parse->Vars[x-1]);
+					_tagfree(ctx, parse->Vars[x-1]);
 					parse->Vars[x-1] = SysEx::TagStrNDup(ctx, z, length);
 				}
 			}
@@ -480,14 +480,14 @@ namespace Core
 			Delete(ctx, expr->Left);
 			Delete(ctx, expr->Right);
 			if (!ExprHasProperty(expr, EP_Reduced) && (expr->Flags2 & EP2_MallocedToken))
-				SysEx::TagFree(ctx, expr->u.Token);
+				_tagfree(ctx, expr->u.Token);
 			if (ExprHasProperty(expr, EP_xIsSelect))
 				Select::Delete(ctx, expr->x.Select);
 			else
 				ListDelete(ctx, expr->x.List);
 		}
 		if (!ExprHasProperty(expr, EP_Static))
-			SysEx::TagFree(ctx, expr);
+			_tagfree(ctx, expr);
 	}
 
 #pragma region Clone
@@ -553,7 +553,7 @@ namespace Core
 			}
 			else
 			{
-				alloc = (uint8 *)SysEx::TagAlloc(ctx, DupedExprSize(expr, flags));
+				alloc = (uint8 *)_tagalloc(ctx, DupedExprSize(expr, flags));
 				staticFlag = 0;
 			}
 			newExpr = (Expr *)alloc;
@@ -625,7 +625,7 @@ namespace Core
 	__device__ ExprList *Expr::ListDup(Context *ctx, ExprList *list, int flags)
 	{
 		if (!list) return nullptr;
-		ExprList *newList = (ExprList *)SysEx::TagAlloc(ctx, sizeof(*newList));
+		ExprList *newList = (ExprList *)_tagalloc(ctx, sizeof(*newList));
 		if (!newList) return nullptr;
 		int i;
 		newList->ECursor = 0;
@@ -635,10 +635,10 @@ namespace Core
 			for (i = 1; i < list->Exprs; i += i) { }
 		}
 		ExprList::ExprListItem *item;
-		newList->Ids = item = (ExprList::ExprListItem *)SysEx::TagAlloc(ctx, i * sizeof(list->Ids[0]));
+		newList->Ids = item = (ExprList::ExprListItem *)_tagalloc(ctx, i * sizeof(list->Ids[0]));
 		if (!item)
 		{
-			SysEx::TagFree(ctx, newList);
+			_tagfree(ctx, newList);
 			return nullptr;
 		} 
 		ExprList::ExprListItem *oldItem = list->Ids;
@@ -662,7 +662,7 @@ namespace Core
 		if (!list)
 			return 0;
 		int bytes = sizeof(*list) + (list->Srcs > 0 ? sizeof(list->Ids[0]) * (list->Srcs-1) : 0);
-		SrcList *newList = (SrcList *)SysEx::TagAlloc(ctx, bytes);
+		SrcList *newList = (SrcList *)_tagalloc(ctx, bytes);
 		if (!newList)
 			return nullptr;
 		newList->Srcs = newList->Allocs = list->Srcs;
@@ -697,14 +697,14 @@ namespace Core
 	{
 		if (!list)
 			return nullptr;
-		IdList *newList = (IdList *)SysEx::TagAlloc(ctx, sizeof(*newList));
+		IdList *newList = (IdList *)_tagalloc(ctx, sizeof(*newList));
 		if (!newList)
 			return nullptr;
 		newList->Ids.length = list->Ids.length;
-		newList->Ids.data = (IdList::IdListItem *)SysEx::TagAlloc(ctx, list->Ids.length * sizeof(list->Ids[0]));
+		newList->Ids.data = (IdList::IdListItem *)_tagalloc(ctx, list->Ids.length * sizeof(list->Ids[0]));
 		if (!newList->Ids.data)
 		{
-			SysEx::TagFree(ctx, newList);
+			_tagfree(ctx, newList);
 			return nullptr;
 		}
 		// Note that because the size of the allocation for p->a[] is not necessarily a power of two, sqlite3IdListAppend() may not be called
@@ -722,7 +722,7 @@ namespace Core
 	{
 		if (!select)
 			return nullptr;
-		Select *newSelect = (Select *)SysEx::TagAlloc(ctx, sizeof(*select));
+		Select *newSelect = (Select *)_tagalloc(ctx, sizeof(*select));
 		if (!newSelect)
 			return nullptr;
 		newSelect->EList = ListDup(ctx, select->EList, flags);
@@ -759,10 +759,10 @@ namespace Core
 		Context *ctx = parse->Ctx;
 		if (!list)
 		{
-			list = (ExprList *)SysEx::TagAlloc(ctx, sizeof(ExprList));
+			list = (ExprList *)_tagalloc(ctx, sizeof(ExprList));
 			if (!list)
 				goto no_mem;
-			list->Ids = (ExprList::ExprListItem *)SysEx::TagAlloc(ctx, sizeof(list->Ids[0]));
+			list->Ids = (ExprList::ExprListItem *)_tagalloc(ctx, sizeof(list->Ids[0]));
 			if (!list->Ids)
 				goto no_mem;
 		}
@@ -811,7 +811,7 @@ no_mem:
 			ExprList::ExprListItem *item = &list->Ids[list->Exprs-1];
 			_assert(list->Exprs > 0);
 			_assert(ctx->MallocFailed || item->Expr == span->Expr);
-			SysEx::TagFree(ctx, item->Span);
+			_tagfree(ctx, item->Span);
 			item->Span = SysEx::TagStrNDup(ctx, (char *)span->Start, (int)(span->End - span->Start));
 		}
 	}
@@ -835,11 +835,11 @@ no_mem:
 		for (item = list->Ids, i = 0; i < list->Exprs; i++, item++)
 		{
 			Delete(ctx, item->Expr);
-			SysEx::TagFree(ctx, item->Name);
-			SysEx::TagFree(ctx, item->Span);
+			_tagfree(ctx, item->Name);
+			_tagfree(ctx, item->Span);
 		}
-		SysEx::TagFree(ctx, list->Ids);
-		SysEx::TagFree(ctx, list);
+		_tagfree(ctx, list->Ids);
+		_tagfree(ctx, list);
 	}
 
 #pragma region Walker - Expression Tree Walker
@@ -1001,7 +1001,7 @@ no_mem:
 		if (src->Srcs != 1) return false;			// Single term in FROM clause
 		if (src->Ids[0].Select) return false;		// FROM is not a subquery or view
 		Table *table = src->Ids[0].Table;
-		if (SysEx_NEVER(table == nullptr)) return false;
+		if (_NEVER(table == nullptr)) return false;
 		_assert(!table->Select);					// FROM clause is not a view
 		if (IsVirtual(table)) return false;			// FROM clause not a virtual table
 		ExprList *list = select->EList;
@@ -1020,7 +1020,7 @@ no_mem:
 
 		// Check to see if an existing table or index can be used to satisfy the query.  This is preferable to generating a new ephemeral table.
 		Select *select = (ExprHasProperty(expr, EP_xIsSelect) ? expr->x.Select : nullptr); // SELECT to the right of IN operator
-		if (SysEx_ALWAYS(parse->Errs == 0) && IsCandidateForInOpt(select))
+		if (_ALWAYS(parse->Errs == 0) && IsCandidateForInOpt(select))
 		{
 			_assert(select); // Because of isCandidateForInOpt(p)
 			_assert(select->EList); // Because of isCandidateForInOpt(p)
@@ -1105,7 +1105,7 @@ no_mem:
 	{
 		int reg = 0; // Register storing resulting
 		Vdbe *v = parse->GetVdbe();
-		if (SysEx_NEVER(!v))
+		if (_NEVER(!v))
 			return 0;
 		CachePush(parse);
 		// This code must be run in its entirety every time it is encountered if any of the following is true:
@@ -1156,10 +1156,10 @@ no_mem:
 				if (Select(parse, expr->x.Select, &dest))
 					return 0;
 				ExprList *list = expr->x.Select->EList;
-				if (SysEx_ALWAYS(list && list->Exprs > 0))
+				if (_ALWAYS(list && list->Exprs > 0))
 					keyInfo.Colls[0] = BinaryCompareCollSeq(parse, expr->Left, list->Ids[0].Expr);
 			}
-			else if (SysEx_ALWAYS(expr->x.List))
+			else if (_ALWAYS(expr->x.List))
 			{
 				// Case 2:     expr IN (exprlist)
 				// For each expression, build an index key from the evaluation and store it in the temporary table. If <expr> is a column, then use
@@ -1343,7 +1343,7 @@ no_mem:
 
 	__device__ static char *Dup8bytes(Vdbe *v, const char *in)
 	{
-		char *out = (char *)SysEx::TagAlloc(v->Db, 8);
+		char *out = (char *)_tagalloc(v->Db, 8);
 		if (out)
 			_memcpy(out, in, 8);
 		return out;
@@ -1357,7 +1357,7 @@ no_mem:
 	// like the continuation of the number.
 	__device__ static void CodeReal(Vdbe *v, const char *z, bool negateFlag, int mem)
 	{
-		if (SysEx_ALWAYS(z))
+		if (_ALWAYS(z))
 		{
 			double value;
 			ConvertEx::Atof(z, &value, _strlen30(z), TEXTENCODE_UTF8);
@@ -1408,7 +1408,7 @@ no_mem:
 	{
 		if (p->TempReg)
 		{
-			if (parse->TempReg.length < __arrayStaticLength(parse->TempReg.data))
+			if (parse->TempReg.length < _lengthof(parse->TempReg.data))
 				parse->TempReg[parse->TempReg.length++] = p->Reg;
 			p->TempReg = 0;
 		}
@@ -1455,7 +1455,7 @@ no_mem:
 				minLru = p->Lru;
 			}
 		}
-		if (SysEx_ALWAYS(idxLru >= 0))
+		if (_ALWAYS(idxLru >= 0))
 		{
 			p = &parse->ColCaches[idxLru];
 			p->Level = parse->CacheLevel;
@@ -2192,7 +2192,7 @@ no_mem:
 		// This routine is called for terms to INSERT or UPDATE.  And the only other place where expressions can be converted into TK_REGISTER is
 		// in WHERE clause processing.  So as currently implemented, there is no way for a TK_REGISTER to exist here.  But it seems prudent to
 		// keep the ALWAYS() in case the conditions above change with future modifications or enhancements. */
-		if (SysEx_ALWAYS(expr->OP != TK_REGISTER))
+		if (_ALWAYS(expr->OP != TK_REGISTER))
 		{  
 			int mem = ++parse->Mems;
 			v->AddOp2(OP_Copy, inReg, mem);
@@ -2501,7 +2501,7 @@ no_mem:
 				int i;
 				ExprList::ExprListItem *item;
 				for (i = list->Exprs, item = list->Ids; i > 0; i--, item++)
-					if (SysEx_ALWAYS(item->Expr))
+					if (_ALWAYS(item->Expr))
 						item->Expr->Flags |= EP_FixedDest;
 			}
 			break; }
@@ -2590,7 +2590,7 @@ no_mem:
 	{
 		_assert(jumpIfNull == AFF_BIT_JUMPIFNULL || jumpIfNull == 0);
 		Vdbe *v = parse->V;
-		if (SysEx_NEVER(!v)) return;  // Existence of VDBE checked by caller
+		if (_NEVER(!v)) return;  // Existence of VDBE checked by caller
 
 		int regFree1 = 0;
 		int regFree2 = 0;
@@ -2698,7 +2698,7 @@ no_mem:
 	{
 		Vdbe *v = parse->V;
 		_assert(jumpIfNull == AFF_BIT_JUMPIFNULL || jumpIfNull == 0);
-		if (SysEx_NEVER(v == nullptr)) return; // Existence of VDBE checked by caller
+		if (_NEVER(v == nullptr)) return; // Existence of VDBE checked by caller
 
 		int regFree1 = 0;
 		int regFree2 = 0;
@@ -2846,9 +2846,9 @@ no_mem:
 		{
 			if (!ExprHasProperty(b, EP_IntValue) || a->u.I != b->u.I) return 2;
 		}
-		else if (a->OP != TK_COLUMN && SysEx_ALWAYS(a->OP != TK_AGG_COLUMN) && a->u.Token)
+		else if (a->OP != TK_COLUMN && _ALWAYS(a->OP != TK_AGG_COLUMN) && a->u.Token)
 		{
-			if (ExprHasProperty(b, EP_IntValue) || SysEx_NEVER(b->u.Token == 0)) return 2;
+			if (ExprHasProperty(b, EP_IntValue) || _NEVER(b->u.Token == 0)) return 2;
 			if (_strcmp(a->u.Token, b->u.Token))
 				return (a->OP == TK_COLLATE ? 1 : 2);
 		}
@@ -2882,7 +2882,7 @@ no_mem:
 		// The NEVER() on the second term is because sqlite3FunctionUsesThisSrc() is always called before sqlite3ExprAnalyzeAggregates() and so the
 		// TK_COLUMNs have not yet been converted into TK_AGG_COLUMN.  If sqlite3FunctionUsesThisSrc() is used differently in the future, the
 		// NEVER() will need to be removed.
-		if (expr->OP == TK_COLUMN || SysEx_NEVER(expr->OP == TK_AGG_COLUMN))
+		if (expr->OP == TK_COLUMN || _NEVER(expr->OP == TK_AGG_COLUMN))
 		{
 			int i;
 			SrcCount *p = walker->u.SrcCount;
@@ -2940,7 +2940,7 @@ no_mem:
 			ASSERTCOVERAGE(expr->OP == TK_AGG_COLUMN);
 			ASSERTCOVERAGE(expr->OP == TK_COLUMN);
 			// Check to see if the column is in one of the tables in the FROM clause of the aggregate query
-			if (SysEx_ALWAYS(srcList != nullptr))
+			if (_ALWAYS(srcList != nullptr))
 			{
 				int i;
 				SrcList::SrcListItem *item;
@@ -3069,7 +3069,7 @@ no_mem:
 
 	__device__ void Expr::ReleaseTempReg(Parse *parse, int reg)
 	{
-		if (reg && parse->TempReg.length < __arrayStaticLength(parse->TempReg.data))
+		if (reg && parse->TempReg.length < _lengthof(parse->TempReg.data))
 		{
 			int i;
 			Parse::ColCache *p;

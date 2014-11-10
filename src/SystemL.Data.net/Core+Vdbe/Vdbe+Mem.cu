@@ -36,7 +36,7 @@ namespace Core {
 		_assert(!preserve || mem->Flags & (MEM_Blob | MEM_Str));
 
 		if (newSize < 32) newSize = 32;
-		if (SysEx::TagAllocSize(mem->Db, mem->Malloc) < newSize)
+		if (_tagallocsize(mem->Db, mem->Malloc) < newSize)
 			if (preserve && mem->Z == mem->Malloc)
 			{
 				mem->Z = mem->Malloc = (char *)SysEx::TagRellocOrFree(mem->Db, mem->Z, newSize);
@@ -44,8 +44,8 @@ namespace Core {
 			}
 			else
 			{
-				SysEx::TagFree(mem->Db, mem->Malloc);
-				mem->Malloc = (char *)SysEx::TagAlloc(mem->Db, newSize);
+				_tagfree(mem->Db, mem->Malloc);
+				mem->Malloc = (char *)_tagalloc(mem->Db, newSize);
 			}
 
 			if (mem->Z && preserve && mem->Malloc && mem->Z != mem->Malloc)
@@ -151,7 +151,7 @@ namespace Core {
 	__device__ RC Vdbe::MemFinalize(Mem *mem, FuncDef *func)
 	{
 		RC rc = RC_OK;
-		if (SysEx_ALWAYS(func && func->Finalize))
+		if (_ALWAYS(func && func->Finalize))
 		{
 			_assert((mem->Flags & MEM_Null) != 0 || func == mem->u.Def);
 			_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
@@ -163,7 +163,7 @@ namespace Core {
 			ctx.Func = func;
 			func->Finalize(&ctx); // IMP: R-24505-23230
 			_assert((mem->Flags & MEM_Dyn) == 0 && !mem->Del);
-			SysEx::TagFree(mem->Db, mem->Malloc);
+			_tagfree(mem->Db, mem->Malloc);
 			_memcpy(mem, &ctx.S, sizeof(ctx.S));
 			rc = ctx.IsError;
 		}
@@ -193,7 +193,7 @@ namespace Core {
 	__device__ void Vdbe::MemRelease(Mem *mem)
 	{
 		VdbeMemRelease(mem);
-		SysEx::TagFree(mem->Db, mem->Malloc);
+		_tagfree(mem->Db, mem->Malloc);
 		mem->Z = mem->Malloc = nullptr;
 		mem->Del = nullptr;
 	}
@@ -255,7 +255,7 @@ namespace Core {
 		if (mem->R == (double)mem->u.I
 			&& mem->u.I > SMALLEST_INT64
 #if defined(__i486__) || defined(__x86_64__)
-			&& SysEx_ALWAYS(mem->u.I < LARGEST_INT64)
+			&& _ALWAYS(mem->u.I < LARGEST_INT64)
 #else
 			&& mem->u.I < LARGEST_INT64
 #endif
@@ -364,13 +364,13 @@ namespace Core {
 		_assert(db);
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		MemRelease(mem);
-		mem->Malloc = (char *)SysEx::TagAlloc(db, 64);
+		mem->Malloc = (char *)_tagalloc(db, 64);
 		if (db->MallocFailed)
 			mem->Flags = MEM_Null;
 		else
 		{
 			_assert(mem->Malloc);
-			mem->u.RowSet = RowSet_Init(db, mem->Malloc, SysEx::TagAllocSize(db, mem->Malloc));
+			mem->u.RowSet = RowSet_Init(db, mem->Malloc, _tagallocsize(db, mem->Malloc));
 			_assert(mem->u.RowSet != 0);
 			mem->Flags = MEM_RowSet;
 		}
@@ -643,7 +643,7 @@ namespace Core {
 
 	__device__ Mem *Mem_New(Context *db)
 	{
-		Mem *p = (Mem *)SysEx::TagAlloc(db, sizeof(*p));
+		Mem *p = (Mem *)_tagalloc(db, sizeof(*p));
 		if (p)
 		{
 			p->Flags = MEM_Null;
@@ -665,7 +665,7 @@ namespace Core {
 #ifdef ENABLE_STAT3
 		if (op == TK_REGISTER) op = expr->Op2;
 #else
-		if (SysEx_NEVER(op == TK_REGISTER)) op = expr->OP2;
+		if (_NEVER(op == TK_REGISTER)) op = expr->OP2;
 #endif
 
 		// Handle negative integers in a single step.  This is needed in the case when the value is -9223372036854775808.
@@ -745,7 +745,7 @@ namespace Core {
 
 no_mem:
 		db->MallocFailed = true;
-		SysEx::TagFree(db, memAsString);
+		_tagfree(db, memAsString);
 		Mem_Free(mem);
 		*value = nullptr;
 		return RC_NOMEM;
@@ -760,7 +760,7 @@ no_mem:
 	{
 		if (!mem) return;
 		Vdbe::MemRelease(mem);
-		SysEx::TagFree(mem->Db, mem);
+		_tagfree(mem->Db, mem);
 	}
 
 	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode)

@@ -88,12 +88,12 @@ namespace Core
 
 		__device__ inline RC OpenAndAlloc(const char *path, IO::VFile **file, OPEN flags, OPEN *outFlags)
 		{
-			IO::VFile *file2 = (IO::VFile *)SysEx::Alloc(SizeOsFile);
+			IO::VFile *file2 = (IO::VFile *)_alloc(SizeOsFile);
 			if (!file2)
 				return RC_NOMEM;
 			RC rc = Open(path, file2, flags, outFlags);
 			if (rc != RC_OK)
-				SysEx::Free(file2);
+				_free(file2);
 			else
 				*file = file2;
 			return rc;

@@ -293,7 +293,7 @@ namespace Core
 	{
 		int i = 0;
 		do { i++; v >>= 7; }
-		while (v != 0 && SysEx_ALWAYS(i < 9));
+		while (v != 0 && _ALWAYS(i < 9));
 		return i;
 	}
 

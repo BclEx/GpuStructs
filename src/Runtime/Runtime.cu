@@ -8,17 +8,39 @@
 #endif
 #define LARGEST_INT64 (0xffffffff|(((long long)0x7fffffff)<<32))
 #define SMALLEST_INT64 (((long long)-1) - LARGEST_INT64)
-#define SysEx_NEVER(X) (X)
+#define _NEVER(X) (X)
 
 ///////////////////////////////////////////////////////////////////////////////
 // RUNTIME
-__device__ static cudaRuntime __curt = { -2 };
-__device__ static int (*cudaRuntimeInitialize)(cudaRuntime *curt) = nullptr;
+//__device__ static cudaRuntime __curt = { -2 };
+//__device__ static int (*cudaRuntimeInitialize)(cudaRuntime *curt) = nullptr;
+
+//////////////////////
+// FUNC
+#pragma region FUNC
+
+#ifndef OMIT_BLOB_LITERAL
+__device__ void *_taghextoblob(void *tag, const char *z, size_t size)
+{
+	char *b = (char *)_tagalloc(tag, size / 2 + 1);
+	size--;
+	if (b)
+	{
+		int bIdx = 0;
+		for (int i = 0; i < size; i += 2, bIdx++)
+			b[bIdx] = (_hextobyte(z[i]) << 4) | _hextobyte(z[i + 1]);
+		b[bIdx] = 0;
+	}
+	return b;
+}
+#endif
+
+#pragma endregion
 
 //////////////////////
 // STDARG
 
-///////////////////////////////////////////////////////////////////////////////
+//////////////////////
 // PRINT
 #pragma region PRINT
 
@@ -29,32 +51,32 @@ __device__ static int (*cudaRuntimeInitialize)(cudaRuntime *curt) = nullptr;
 
 enum TYPE : unsigned char
 {
-	TYPE_RADIX = 1, // Integer types.  %d, %x, %o, and so forth
-	TYPE_FLOAT = 2, // Floating point.  %f
-	TYPE_EXP = 3, // Exponentional notation. %e and %E
-	TYPE_GENERIC = 4, // Floating or exponential, depending on exponent. %g
-	TYPE_SIZE = 5, // Return number of characters processed so far. %n
-	TYPE_STRING = 6, // Strings. %s
-	TYPE_DYNSTRING = 7, // Dynamically allocated strings. %z
-	TYPE_PERCENT = 8, // Percent symbol. %%
-	TYPE_CHARX = 9, // Characters. %c
+	TYPE_RADIX = 1,			// Integer types.  %d, %x, %o, and so forth
+	TYPE_FLOAT = 2,			// Floating point.  %f
+	TYPE_EXP = 3,			// Exponentional notation. %e and %E
+	TYPE_GENERIC = 4,		// Floating or exponential, depending on exponent. %g
+	TYPE_SIZE = 5,			// Return number of characters processed so far. %n
+	TYPE_STRING = 6,		// Strings. %s
+	TYPE_DYNSTRING = 7,		// Dynamically allocated strings. %z
+	TYPE_PERCENT = 8,		// Percent symbol. %%
+	TYPE_CHARX = 9,			// Characters. %c
 	// The rest are extensions, not normally found in printf()
-	TYPE_SQLESCAPE = 10, // Strings with '\'' doubled.  %q
-	TYPE_SQLESCAPE2 = 11, // Strings with '\'' doubled and enclosed in '', NULL pointers replaced by SQL NULL.  %Q
-	TYPE_TOKEN = 12, // a pointer to a Token structure
-	TYPE_SRCLIST = 13, // a pointer to a SrcList
-	TYPE_POINTER = 14, // The %p conversion
-	TYPE_SQLESCAPE3 = 15, // %w -> Strings with '\"' doubled
-	TYPE_ORDINAL = 16, // %r -> 1st, 2nd, 3rd, 4th, etc.  English only
+	TYPE_SQLESCAPE = 10,	// Strings with '\'' doubled.  %q
+	TYPE_SQLESCAPE2 = 11,	// Strings with '\'' doubled and enclosed in '', NULL pointers replaced by SQL NULL.  %Q
+	TYPE_TOKEN = 12,		// a pointer to a Token structure
+	TYPE_SRCLIST = 13,		// a pointer to a SrcList
+	TYPE_POINTER = 14,		// The %p conversion
+	TYPE_SQLESCAPE3 = 15,	// %w -> Strings with '\"' doubled
+	TYPE_ORDINAL = 16,		// %r -> 1st, 2nd, 3rd, 4th, etc.  English only
 	//
-	TYPE_INVALID = 0, // Any unrecognized conversion type
+	TYPE_INVALID = 0,		// Any unrecognized conversion type
 };
 
 enum FLAG : unsigned char
 {
-	FLAG_SIGNED = 1,     // True if the value to convert is signed
-	FLAG_INTERN = 2,     // True if for internal use only
-	FLAG_STRING = 4,     // Allow infinity precision
+	FLAG_SIGNED = 1,	// True if the value to convert is signed
+	FLAG_INTERN = 2,	// True if for internal use only
+	FLAG_STRING = 4,	// Allow infinity precision
 };
 
 // Each builtin conversion character (ex: the 'd' in "%d") is described by an instance of the following structure
@@ -114,7 +136,7 @@ __device__ static char GetDigit(double64 *val, int *cnt)
 #endif
 
 __constant__ static const char _spaces[] = "                             ";
-__device__ static void AppendSpace(StringBuilder *b, int length)
+__device__ static void AppendSpace(TextBuilder *b, int length)
 {
 	while (length >= (int)sizeof(_spaces)-1)
 	{
@@ -126,7 +148,7 @@ __device__ static void AppendSpace(StringBuilder *b, int length)
 }
 
 __constant__ static const char _ord[] = "thstndrd";
-__device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va_list args)
+__device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_list args)
 {
 	char buf[BUFSIZE]; // Conversion buffer
 	char *bufpt = nullptr; // Pointer to the conversion buffer
@@ -234,7 +256,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 		const Info *info = &_info[0]; // Pointer to the appropriate info structure
 		TYPE type = TYPE_INVALID; // Conversion paradigm
 		int i;
-		for (i = 0; i < __arrayStaticLength(_info); i++)
+		for (i = 0; i < _lengthof(_info); i++)
 		{
 			if (c == _info[i].Fmttype)
 			{
@@ -317,7 +339,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			else
 			{
 				outLength = precision + 10;
-				out_ = extra = (char *)__curt.Alloc(outLength);
+				out_ = extra = (char *)_alloc(outLength);
 				if (!out_)
 				{
 					b->MallocFailed = true;
@@ -382,7 +404,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			if (type == TYPE_FLOAT) realvalue += rounder;
 			// Normalize realvalue to within 10.0 > realvalue >= 1.0
 			exp = 0;
-			if (_isNaN((double)realvalue))
+			if (_isnan((double)realvalue))
 			{
 				bufpt = "NaN";
 				length = 3;
@@ -425,7 +447,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			e2 = (type == TYPE_EXP ? 0 : exp);
 			if (e2+precision+width > BUFSIZE - 15)
 			{
-				bufpt = extra = (char *)__curt.Alloc(e2+precision+width+15);
+				bufpt = extra = (char *)_alloc(e2+precision+width+15);
 				if (!bufpt)
 				{
 					b->MallocFailed = true;
@@ -528,7 +550,7 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			n += i + 1 + needQuote*2;
 			if (n > BUFSIZE)
 			{
-				bufpt = extra = (char *)__curt.Alloc(n);
+				bufpt = extra = (char *)_alloc(n);
 				if (!bufpt)
 				{
 					b->MallocFailed = true;
@@ -587,11 +609,11 @@ __device__ void vxprintf(StringBuilder *b, bool useExtended, const char *fmt, va
 			if (nspace > 0) AppendSpace(b, nspace);
 		}
 		if (extra != nullptr)
-			__curt.Free(extra);
+			_free(extra);
 	}
 }
 
-__device__ void StringBuilder::Append(const char *z, int length)
+__device__ void TextBuilder::Append(const char *z, int length)
 {
 	_assert(z != nullptr || length == 0);
 	if (Overflowed | MallocFailed)
@@ -603,7 +625,7 @@ __device__ void StringBuilder::Append(const char *z, int length)
 	_assert(Text != nullptr || Index == 0);
 	if (length < 0)
 		length = _strlen30(z);
-	if (length == 0 || SysEx_NEVER(z == nullptr))
+	if (length == 0 || _NEVER(z == nullptr))
 		return;
 	if (Index + length >= Size)
 	{
@@ -629,9 +651,9 @@ __device__ void StringBuilder::Append(const char *z, int length)
 			else
 				Size = (int)newSize;
 			if (AllocType == 1)
-				newText = (char *)__curt.TagRealloc(Tag, oldText, Size);
+				newText = (char *)_tagrealloc(Tag, oldText, Size);
 			else
-				newText = (char *)__curt.Realloc(oldText, Size);
+				newText = (char *)_realloc(oldText, Size);
 			if (newText)
 			{
 				if (oldText == nullptr && Index > 0) _memcpy(newText, Text, Index);
@@ -650,7 +672,7 @@ __device__ void StringBuilder::Append(const char *z, int length)
 	Index += length;
 }
 
-__device__ char *StringBuilder::ToString()
+__device__ char *TextBuilder::ToString()
 {
 	if (Text)
 	{
@@ -658,9 +680,9 @@ __device__ char *StringBuilder::ToString()
 		if (AllocType && Text == Base)
 		{
 			if (AllocType == 1)
-				Text = (char *)__curt.TagAlloc(Tag, Index + 1);
+				Text = (char *)_tagalloc(Tag, Index + 1);
 			else
-				Text = (char *)__curt.Alloc(Index + 1);
+				Text = (char *)_alloc(Index + 1);
 			if (Text)
 				_memcpy(Text, Base, Index + 1);
 			else
@@ -670,19 +692,19 @@ __device__ char *StringBuilder::ToString()
 	return Text;
 }
 
-__device__ void StringBuilder::Reset()
+__device__ void TextBuilder::Reset()
 {
 	if (Text != Base)
 	{
 		if (AllocType == 1)
-			__curt.TagFree(Tag, Text);
+			_tagfree(Tag, Text);
 		else
-			__curt.Free(Text);
+			_free(Text);
 	}
 	Text = nullptr;
 }
 
-__device__ void StringBuilder::Init(StringBuilder *b, char *text, int capacity, int maxSize)
+__device__ void TextBuilder::Init(TextBuilder *b, char *text, int capacity, int maxSize)
 {
 	b->Text = b->Base = text;
 	b->Tag = nullptr;
@@ -696,53 +718,46 @@ __device__ void StringBuilder::Init(StringBuilder *b, char *text, int capacity, 
 
 __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args)
 {
-	if (!RuntimeInitialize()) return nullptr;
+	//if (!RuntimeInitialize()) return nullptr;
 	_assert(tag != nullptr);
 	char base[PRINT_BUF_SIZE];
-	StringBuilder b;
-	StringBuilder::Init(&b, base, sizeof(base), 0); //:? tag->Limit[LIMIT_LENGTH]);
+	TextBuilder b;
+	TextBuilder::Init(&b, base, sizeof(base), 0); //? tag->Limit[LIMIT_LENGTH]);
 	b.Tag = tag;
-	vxprintf(&b, 1, fmt, args);
+	vxprintf(&b, true, fmt, args);
 	char *z = b.ToString();
-	if (b.MallocFailed)
-		__curt.TagAllocFailed(tag);
+	//? if (b.MallocFailed) _tagallocfailed(tag);
 	return z;
 }
 
 __device__ char *_vmprintf(const char *fmt, va_list args)
 {
-	if (!RuntimeInitialize()) return nullptr;
+	//if (!RuntimeInitialize()) return nullptr;
 	char base[PRINT_BUF_SIZE];
-	StringBuilder b;
-	StringBuilder::Init(&b, base, sizeof(base), CORE_MAX_LENGTH);
+	TextBuilder b;
+	TextBuilder::Init(&b, base, sizeof(base), CORE_MAX_LENGTH);
 	b.AllocType = 2;
-	vxprintf(&b, 0, fmt, args);
+	vxprintf(&b, false, fmt, args);
 	return b.ToString();
 }
 
 __device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list args)
 {
 	if (bufLen <= 0) return (char *)buf;
-	StringBuilder b;
-	StringBuilder::Init(&b, (char *)buf, (int)bufLen, 0);
+	TextBuilder b;
+	TextBuilder::Init(&b, (char *)buf, (int)bufLen, 0);
 	b.AllocType = 0;
-	vxprintf(&b, 0, fmt, args);
+	vxprintf(&b, false, fmt, args);
 	return b.ToString();
 }
 
 #pragma endregion
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // VISUAL
 #pragma region VISUAL
 #ifdef VISUAL
-#ifdef _LCcpu
-void RuntimeVisualRender::Dispose() { }
-void RuntimeVisualRender::Keyboard(unsigned char key) { }
-void RuntimeVisualRender::Display() { }
-void RuntimeVisualRender::Initialize() { }
-#else
+#if __CUDACC__
 #include "RuntimeHost.h"
 
 #define MAX(a,b) (a > b ? a : b)
@@ -754,7 +769,7 @@ void RuntimeVisualRender::Initialize() { }
 #define BLOCK2COLOR make_float4(0, 0, 1, 1)
 #define MARKERCOLOR make_float4(1, 1, 0, 1)
 
-__global__ static void RenderHeap(quad4 *b, struct runtimeHeap_s *heap, unsigned int offset)
+__global__ static void RenderHeap(struct runtimeHeap_s *heap, quad4 *b, unsigned int offset)
 {
 	int index = offset;
 	// heap
@@ -782,7 +797,7 @@ __global__ static void RenderHeap(quad4 *b, struct runtimeHeap_s *heap, unsigned
 	}
 }
 
-__global__ static void RenderBlock(quad4 *b, size_t blocks, unsigned int blocksY, struct runtimeHeap_s *heap, unsigned int offset)
+__global__ static void RenderBlock(struct runtimeHeap_s *heap, quad4 *b, size_t blocks, unsigned int blocksY, unsigned int offset)
 {
 	unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -822,24 +837,23 @@ __global__ static void Keypress(struct runtimeHeap_s *heap, unsigned char key)
 	_runtimeSetHeap(heap);
 	switch (key)
 	{
-	case 'a':
-		_printf("Test\n");
-		break;
-	case 'A':
-		printf("Test\n");
-		break;
-	case 'b':
-		_printf("Test %d\n", threadIdx.x);
-		break;
-	case 'B':
-		printf("Test %d\n", threadIdx.x);
-		break;
-	case 'c':
-		_assert(true);
-		break;
-	case 'd':
-		_assert(false);
-		break;
+	case 'a': _printf("Test\n"); break;
+	case 'A': printf("Test\n"); break;
+	case 'b': _printf("Test %d\n", threadIdx.x); break;
+	case 'B': printf("Test %d\n", threadIdx.x); break;
+	case 'c': _assert(true); break;
+	case 'C': assert(true); break;
+	case 'd': _assert(false); break;
+	case 'D': assert(false); break;
+	case 'e': _transfer("test", 1); break;
+	case 'f': _throw("test", 1); break;
+	case 'g': {
+		va_list args;
+		va_start(args, 1, "2");
+		int a1 = va_arg(args, int);
+		char *a2 = va_arg(args, char *);
+		va_end(args);
+		break; }
 	}
 }
 
@@ -848,26 +862,26 @@ inline size_t GetRuntimeRenderQuads(size_t blocks)
 	return 2 + (blocks * 2);
 }
 
-static void LaunchRuntimeRender(float4 *b, size_t blocks, runtimeHeap *heap)
+static void LaunchRuntimeRender(cudaDeviceHeap &host, float4 *b, size_t blocks)
 {
-	checkCudaErrors(cudaRuntimeSetHeap(heap), exit(0));
+	cudaCheckErrors(cudaDeviceHeapSelect(host), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
-	RenderHeap<<<heapGrid, heapBlock>>>((quad4 *)b, heap, 0);
+	RenderHeap<<<heapGrid, heapBlock>>>((runtimeHeap *)host.heap, (quad4 *)b, 0);
 	//
 	dim3 blockBlock(16, 16, 1);
 	dim3 blockGrid((unsigned int)MAX(BLOCKPITCH / 16, 1), (unsigned int)MAX(blocks / BLOCKPITCH / 16, 1), 1);
-	RenderBlock<<<blockGrid, blockBlock>>>((quad4 *)b, blocks, (unsigned int)blocks / BLOCKPITCH, heap, 2);
+	RenderBlock<<<blockGrid, blockBlock>>>((runtimeHeap *)host.heap, (quad4 *)b, blocks, (unsigned int)blocks / BLOCKPITCH, 2);
 }
 
-static void LaunchRuntimeKeypress(cudaRuntimeHost &host, unsigned char key)
+static void LaunchRuntimeKeypress(cudaDeviceHeap &host, unsigned char key)
 {
 	if (key == 'z')
 	{
-		cudaDeviceSynchronizeEx(host);
+		cudaDeviceHeapSynchronize(host);
 		return;
 	}
-	checkCudaErrors(cudaRuntimeSetHeap(host.heap), exit(0));
+	cudaCheckErrors(cudaDeviceHeapSelect(host), exit(0));
 	dim3 heapBlock(1, 1, 1);
 	dim3 heapGrid(1, 1, 1);
 	Keypress<<<heapGrid, heapBlock>>>((runtimeHeap *)host.heap, key);
@@ -878,17 +892,17 @@ static GLuint _runtimeVbo;
 static GLsizei _runtimeVboSize;
 static struct cudaGraphicsResource *_runtimeVboResource;
 
-static void RuntimeRunCuda(size_t blocks, runtimeHeap *heap, struct cudaGraphicsResource **resource)
+static void RuntimeRunCuda(cudaDeviceHeap &host, size_t blocks, struct cudaGraphicsResource **resource)
 {
 	// map OpenGL buffer object for writing from CUDA
-	checkCudaErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
+	cudaCheckErrors(cudaGraphicsMapResources(1, resource, nullptr), exit(0));
 	float4 *b;
 	size_t size;
-	checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&b, &size, *resource), exit(0));
+	cudaCheckErrors(cudaGraphicsResourceGetMappedPointer((void **)&b, &size, *resource), exit(0));
 	//printf("CUDA mapped VBO: May access %ld bytes\n", size);
-	LaunchRuntimeRender(b, blocks, heap);
+	LaunchRuntimeRender(host, b, blocks);
 	// unmap buffer object
-	checkCudaErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
+	cudaCheckErrors(cudaGraphicsUnmapResources(1, resource, nullptr), exit(0));
 }
 
 static void RuntimeCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsResource **resource, unsigned int vbo_res_flags)
@@ -902,7 +916,7 @@ static void RuntimeCreateVBO(size_t blocks, GLuint *vbo, struct cudaGraphicsReso
 	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	// register this buffer object with CUDA
-	checkCudaErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
+	cudaCheckErrors(cudaGraphicsGLRegisterBuffer(resource, *vbo, vbo_res_flags), exit(0));
 	SDK_CHECK_ERROR_GL();
 }
 
@@ -923,23 +937,14 @@ void RuntimeVisualRender::Dispose()
 
 void RuntimeVisualRender::Keyboard(unsigned char key)
 {
-	switch (key)
-	{
-	case 'a':
-	case 'b':
-	case 'c':
-	case 'd':
-	case 'z':
-		LaunchRuntimeKeypress(_runtimeHost, key);
-		break;
-	}
+	LaunchRuntimeKeypress(_runtimeHost, key);
 }
 
 void RuntimeVisualRender::Display()
 {
 	size_t blocks = _runtimeHost.blocksLength / _runtimeHost.blockSize;
 	// run CUDA kernel to generate vertex positions
-	RuntimeRunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_runtimeVboResource);
+	RuntimeRunCuda(_runtimeHost, blocks, &_runtimeVboResource);
 
 	//gluLookAt(0, 0, 200, 0, 0, 0, 0, 1, 0);
 	//glScalef(.02, .02, .02);
@@ -968,7 +973,7 @@ void RuntimeVisualRender::Initialize()
 	// create VBO
 	RuntimeCreateVBO(blocks, &_runtimeVbo, &_runtimeVboResource, cudaGraphicsMapFlagsWriteDiscard);
 	// run the cuda part
-	RuntimeRunCuda(blocks, (runtimeHeap *)_runtimeHost.heap, &_runtimeVboResource);
+	RuntimeRunCuda(_runtimeHost, blocks, &_runtimeVboResource);
 }
 
 #undef MAX
@@ -980,6 +985,11 @@ void RuntimeVisualRender::Initialize()
 #undef BLOCK2COLOR
 #undef MARKERCOLOR
 
+#else
+void RuntimeVisualRender::Dispose() { }
+void RuntimeVisualRender::Keyboard(unsigned char key) { }
+void RuntimeVisualRender::Display() { }
+void RuntimeVisualRender::Initialize() { }
 #endif
 #endif
 #pragma endregion

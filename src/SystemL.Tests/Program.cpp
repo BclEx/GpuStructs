@@ -1,14 +1,14 @@
-#include <RuntimeEx.h>
+#include <RuntimeHost.h>
 
-extern void coreTest0_host(cudaRuntimeHost &r);
-static cudaRuntimeHost _runtimeHost;
+extern void coreTest0_host(cudaDeviceHeap &r);
+static cudaDeviceHeap _deviceHeap;
 
 void main(int argc, char **argv)
 {
-	_runtimeHost = cudaRuntimeInit(256, 4096); cudaRuntimeSetHeap(_runtimeHost.heap);
+	_deviceHeap = cudaDeviceHeapCreate(256, 4096); cudaDeviceHeapSelect(_deviceHeap);
 
-	coreTest0_host(_runtimeHost);
+	coreTest0_host(_deviceHeap);
 
-	cudaRuntimeEnd(_runtimeHost); cudaDeviceReset();
+	cudaDeviceHeapDestroy(_deviceHeap); cudaDeviceReset();
 	printf("\nEnd\n"); char c; scanf("%c", &c);
 }

@@ -25,13 +25,13 @@ fallocDisposeCtx(ctx);
 
 int main()
 {
-cudaFallocHost fallocHost = cudaFallocInit(1);
+cudaDeviceFalloc fallocHost = cudaDeviceFallocCreate(1);
 
 // test
 TestFalloc<<<1, 1>>>(fallocHost.heap);
 
 // free and exit
-cudaFallocEnd(fallocHost);
+cudaDeviceFallocDestroy(fallocHost);
 printf("\ndone.\n"); // char c; scanf("%c", &c);
 return 0;
 }
@@ -49,7 +49,7 @@ typedef struct
 	size_t blockSize;
 	size_t blocksLength;
 	size_t length;
-} cudaFallocHost;
+} cudaDeviceFalloc;
 
 //
 //	cudaFallocSetHeap
@@ -57,10 +57,10 @@ typedef struct
 extern "C" cudaError_t cudaFallocSetHeap(void *heap);
 
 //
-//	cudaFallocInit
+//	cudaDeviceFallocCreate
 //
-//	Call this to initialize a falloc heap. If the buffer size needs to be changed, call cudaFallocEnd()
-//	before re-calling cudaFallocInit().
+//	Call this to initialize a falloc heap. If the buffer size needs to be changed, call cudaDeviceFallocDestroy()
+//	before re-calling cudaDeviceFallocCreate().
 //
 //	The default size for the buffer is 1 megabyte. The buffer is filled linearly and
 //	is completely used.
@@ -69,18 +69,18 @@ extern "C" cudaError_t cudaFallocSetHeap(void *heap);
 //		length - Length, in bytes, of total space to reserve (in device global memory) for output.
 //
 //	Returns:
-//		cudaFallocHost if all is well.
+//		cudaDeviceFalloc if all is well.
 //
 // default 2k blocks, 1-meg heap
-extern "C" cudaFallocHost cudaFallocInit(size_t blockSize = 2046, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
+extern "C" cudaDeviceFalloc cudaDeviceFallocCreate(size_t blockSize = 2046, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
 
 //
-//	cudaFallocEnd
+//	cudaDeviceFallocDestroy
 //
-//	Cleans up all memories allocated by cudaFallocInit() for a heap.
-//	Call this at exit, or before calling cudaFallocInit() again.
+//	Cleans up all memories allocated by cudaDeviceFallocCreate() for a heap.
+//	Call this at exit, or before calling cudaDeviceFallocCreate() again.
 //
-extern "C" void cudaFallocEnd(cudaFallocHost &host);
+extern "C" void cudaDeviceFallocDestroy(cudaDeviceFalloc &host);
 #pragma endregion
 
 
@@ -94,9 +94,9 @@ extern "C" void cudaFallocEnd(cudaFallocHost &host);
 class FallocVisualRender : public IVisualRender
 {
 private:
-	cudaFallocHost _fallocHost;
+	cudaDeviceFalloc _fallocHost;
 public:
-	FallocVisualRender(cudaFallocHost fallocHost)
+	FallocVisualRender(cudaDeviceFalloc fallocHost)
 		: _fallocHost(fallocHost) { }
 	virtual void Dispose();
 	virtual void Keyboard(unsigned char key);

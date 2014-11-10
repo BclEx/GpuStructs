@@ -161,7 +161,7 @@ namespace Core
             {
                 if (wal.ExclusiveMode_ == Wal.MODE.HEAPMEMORY)
                 {
-                    wal.WiData[id] = SysEx.Alloc<Pid>(4, WALINDEX_PGSZ, true);
+                    wal.WiData[id] = C._alloc<Pid>(4, WALINDEX_PGSZ, true);
                     if (wal.WiData[id] != null) rc = RC.NOMEM;
                 }
                 else

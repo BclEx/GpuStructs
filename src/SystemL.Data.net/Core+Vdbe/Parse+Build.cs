@@ -134,7 +134,7 @@ namespace Core
 
 
             // Get the VDBE program ready for execution
-            if (v != null && SysEx.ALWAYS(Errs == 0) && !ctx.MallocFailed)
+            if (v != null && C._ALWAYS(Errs == 0) && !ctx.MallocFailed)
             {
 #if DEBUG && !WINRT
                 TextWriter trace = ((ctx.Flags & BContext.FLAG.VdbeTrace) != 0 ? Console.Out : null);
@@ -186,8 +186,8 @@ namespace Core
                 string errMsg = string.Empty;
                 RunParser(sql, ref errMsg);
                 Context ctx = Ctx;
-                SysEx.TagFree(ctx, ref errMsg);
-                SysEx.TagFree(ctx, ref sql);
+                C._tagfree(ctx, ref errMsg);
+                C._tagfree(ctx, ref sql);
                 RestoreMembers();  //  memcpy(pParse.nVar, saveBuf, SAVE_SZ);
                 Nested--;
             }
@@ -273,8 +273,8 @@ namespace Core
 #if !OMIT_ANALYZE
             Parse.DeleteIndexSamples(ctx, p);
 #endif
-            SysEx.TagFree(ctx, ref p.ColAff);
-            SysEx.TagFree(ctx, ref p);
+            C._tagfree(ctx, ref p.ColAff);
+            C._tagfree(ctx, ref p);
         }
 
         public static void UnlinkAndDeleteIndex(Context ctx, int db, string indexName)
@@ -283,7 +283,7 @@ namespace Core
             Hash hash = ctx.DBs[db].Schema.IndexHash;
             int indexNameLength = indexName.Length;
             Index index = hash.Insert(indexName, indexNameLength, (Index)null);
-            if (SysEx.ALWAYS(index != null))
+            if (C._ALWAYS(index != null))
             {
                 if (index.Table.Index == index)
                     index.Table.Index = index.Next;
@@ -291,9 +291,9 @@ namespace Core
                 {
                     // Justification of ALWAYS();  The index must be on the list of indices.
                     Index p = index.Table.Index;
-                    while (SysEx.ALWAYS(p != null) && p.Next != index)
+                    while (C._ALWAYS(p != null) && p.Next != index)
                         p = p.Next;
-                    if (SysEx.ALWAYS(p != null && p.Next == index))
+                    if (C._ALWAYS(p != null && p.Next == index))
                         p.Next = index.Next;
                 }
                 FreeIndex(ctx, ref index);
@@ -312,7 +312,7 @@ namespace Core
                 Context.DB db = ctx.DBs[i];
                 if (db.Bt == null)
                 {
-                    SysEx.TagFree(ctx, ref db.Name);
+                    C._tagfree(ctx, ref db.Name);
                     continue;
                 }
                 if (j < i)
@@ -372,13 +372,13 @@ namespace Core
                 Column col = table.Cols[i];
                 if (col != null)
                 {
-                    SysEx.TagFree(ctx, ref col.Name);
+                    C._tagfree(ctx, ref col.Name);
                     Expr.Delete(ctx, ref col.Dflt);
-                    SysEx.TagFree(ctx, ref col.Dflt);
-                    SysEx.TagFree(ctx, ref col.Type);
-                    SysEx.TagFree(ctx, ref col.Coll);
+                    C._tagfree(ctx, ref col.Dflt);
+                    C._tagfree(ctx, ref col.Type);
+                    C._tagfree(ctx, ref col.Coll);
                 }
-                SysEx.TagFree(ctx, ref table.Cols.data);
+                C._tagfree(ctx, ref table.Cols.data);
             }
         }
 
@@ -420,8 +420,8 @@ namespace Core
 
             // Delete the Table structure itself.
             DeleteColumnNames(ctx, table);
-            SysEx.TagFree(ctx, ref table.Name);
-            SysEx.TagFree(ctx, ref table.ColAff);
+            C._tagfree(ctx, ref table.Name);
+            C._tagfree(ctx, ref table.ColAff);
             Select.Delete(ctx, ref table.Select);
 #if !OMIT_CHECK
             Expr.Delete(ctx, ref table.Check);
@@ -429,7 +429,7 @@ namespace Core
 #if !OMIT_VIRTUALTABLE
             VTable.Clear(ctx, table);
 #endif
-            SysEx.TagFree(ctx, ref table);
+            C._tagfree(ctx, ref table);
 
             // Verify that no lookaside memory was used by schema tables
             Debug.Assert(lookaside != null || lookaside == ctx.Lookaside.Outs);
@@ -441,7 +441,7 @@ namespace Core
             Debug.Assert(db >= 0 && db < ctx.DBs.length);
             Debug.Assert(tableName != null);
             Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
-            SysEx.ASSERTCOVERAGE(tableName.Length == 0);  // Zero-length table names are allowed
+            C.ASSERTCOVERAGE(tableName.Length == 0);  // Zero-length table names are allowed
             Context.DB db2 = ctx.DBs[db];
             Table table = db2.Schema.TableHash.Insert(tableName, tableName.Length, (Table)null);
             DeleteTable(ctx, ref table);
@@ -490,7 +490,7 @@ namespace Core
         {
             string nameAsString = NameFromToken(ctx, name);// Name we are searching for
             int i = FindDbName(ctx, nameAsString); // Database number
-            SysEx.TagFree(ctx, ref nameAsString);
+            C._tagfree(ctx, ref nameAsString);
             return i;
         }
 
@@ -498,7 +498,7 @@ namespace Core
         {
             Context ctx = Ctx;
             int db; // Database holding the object
-            if (SysEx.ALWAYS(name2 != null) && name2.length > 0)
+            if (C._ALWAYS(name2 != null) && name2.length > 0)
             {
                 if (ctx.Init.Busy)
                 {
@@ -686,7 +686,7 @@ namespace Core
             return;
 
         begin_table_error:
-            SysEx.TagFree(ctx, ref name);
+            C._tagfree(ctx, ref name);
             return;
         }
 
@@ -711,7 +711,7 @@ namespace Core
                 if (string.Equals(nameAsString, table.Cols[i].Name, StringComparison.OrdinalIgnoreCase))
                 {
                     ErrorMsg("duplicate column name: %s", nameAsString);
-                    SysEx.TagFree(ctx, ref nameAsString);
+                    C._tagfree(ctx, ref nameAsString);
                     return;
                 }
             }
@@ -730,7 +730,7 @@ namespace Core
         public void AddNotNull(byte onError)
         {
             Table table = NewTable;
-            if (table == null || SysEx.NEVER(table.Cols.length < 1))
+            if (table == null || C._NEVER(table.Cols.length < 1))
                 return;
             table.Cols[table.Cols.length - 1].NotNull = onError;
         }
@@ -752,7 +752,7 @@ namespace Core
         public void AddColumnType(Token type)
         {
             Table table = NewTable;
-            if (table == null || SysEx.NEVER(table.Cols.length < 1))
+            if (table == null || C._NEVER(table.Cols.length < 1))
                 return;
             Column col = table.Cols[table.Cols.length - 1];
             Debug.Assert(col.Type == null);
@@ -775,7 +775,7 @@ namespace Core
                     // is required by pragma table_info.
                     Expr.Delete(ctx, ref col.Dflt);
                     col.Dflt = Expr.Dup(ctx, span.Expr, EXPRDUP.REDUCE);
-                    SysEx.TagFree(ctx, ref col.Dflt);
+                    C._tagfree(ctx, ref col.Dflt);
                     col.Dflt = span.Start.Substring(0, span.Start.Length - span.End.Length);
                 }
             }
@@ -882,7 +882,7 @@ namespace Core
                 }
             }
             else
-                SysEx.TagFree(ctx, ref collName);
+                C._tagfree(ctx, ref collName);
         }
 
         public CollSeq LocateCollSeq(string name)
@@ -980,11 +980,11 @@ namespace Core
                 IdentPut(stmt, ref k, col.Name);
                 Debug.Assert(col.Affinity - AFF.TEXT >= 0);
                 Debug.Assert(col.Affinity - AFF.TEXT < _createTableStmt_Types.Length);
-                SysEx.ASSERTCOVERAGE(col.Affinity == AFF.TEXT);
-                SysEx.ASSERTCOVERAGE(col.Affinity == AFF.NONE);
-                SysEx.ASSERTCOVERAGE(col.Affinity == AFF.NUMERIC);
-                SysEx.ASSERTCOVERAGE(col.Affinity == AFF.INTEGER);
-                SysEx.ASSERTCOVERAGE(col.Affinity == AFF.REAL);
+                C.ASSERTCOVERAGE(col.Affinity == AFF.TEXT);
+                C.ASSERTCOVERAGE(col.Affinity == AFF.NONE);
+                C.ASSERTCOVERAGE(col.Affinity == AFF.NUMERIC);
+                C.ASSERTCOVERAGE(col.Affinity == AFF.INTEGER);
+                C.ASSERTCOVERAGE(col.Affinity == AFF.REAL);
 
                 string type = azType[col.affinity - SQLITE_AFF_TEXT];
                 int typeLength = type.Length;
@@ -1046,7 +1046,7 @@ namespace Core
             if (!ctx.Init.Busy)
             {
                 Vdbe v = GetVdbe();
-                if (SysEx.NEVER(v == null))
+                if (C._NEVER(v == null))
                     return;
                 v.AddOp1(OP.Close, 0);
 
@@ -1120,7 +1120,7 @@ namespace Core
                     "UPDATE %Q.%s " +
                     "SET type='%s', name=%Q, tbl_name=%Q, rootpage=#%d, sql=%Q " +
                     "WHERE rowid=#%d", args);
-                SysEx.TagFree(ctx, ref stmt);
+                C._tagfree(ctx, ref stmt);
                 ChangeCookie(ctx);
 
 #if !OMIT_AUTOINCREMENT
@@ -1208,13 +1208,13 @@ namespace Core
 
             // Locate the end of the CREATE VIEW statement.  Make sEnd point to the end.
             Token end = LastToken;
-            if (SysEx.ALWAYS(end.data[0] != 0) && end.data[0] != ';')
+            if (C._ALWAYS(end.data[0] != 0) && end.data[0] != ';')
                 end.data = end.data.Substring(end.length);
             end.length = 0;
 
             int n = (int)(begin.data.Length - end.data.Length);
             string z = begin.data;
-            while (SysEx.ALWAYS(n > 0) && char.IsWhiteSpace(z[n - 1])) { n--; }
+            while (C._ALWAYS(n > 0) && char.IsWhiteSpace(z[n - 1])) { n--; }
             end.data = z.Substring(n - 1);
             end.length = 1;
 
@@ -1590,7 +1590,7 @@ namespace Core
             if (fromCol == null)
             {
                 int col = table.Cols.length - 1;
-                if (SysEx.NEVER(col < 0))
+                if (C._NEVER(col < 0))
                     goto fk_end;
                 if (toCol != null && toCol.Exprs != 1)
                 {
@@ -1676,7 +1676,7 @@ namespace Core
             fkey = null;
 
         fk_end:
-            SysEx.TagFree(ctx, ref fkey);
+            C._tagfree(ctx, ref fkey);
 #endif
             Expr.ListDelete(ctx, ref fromCol);
             Expr.ListDelete(ctx, ref toCol);
@@ -2094,7 +2094,7 @@ namespace Core
                     memId,
                     stmt };
                 NestedParse("INSERT INTO %Q.%s VALUES('index',%Q,%Q,#%d,%Q);", args);
-                SysEx.TagFree(ctx, ref stmt);
+                C._tagfree(ctx, ref stmt);
 
                 // Fill the index with data and reparse the schema. Code an OP_Expire to invalidate all pre-compiled statements.
                 if (tableName != null)
@@ -2132,12 +2132,12 @@ namespace Core
         exit_create_index:
             if (index != null)
             {
-                SysEx.Free(ctx, ref index.ColAff);
-                SysEx.Free(ctx, ref index);
+                C._free(ctx, ref index.ColAff);
+                C._free(ctx, ref index);
             }
             ExprList.Delete(ctx, ref list);
             SrcList.Delete(ctx, ref tableName);
-            SysEx.Free(ctx, ref name);
+            C._free(ctx, ref name);
             return r;
         }
 
@@ -2249,9 +2249,9 @@ namespace Core
         {
             if (list == null) return;
             for (int i = 0; i < list.Ids.length; i++)
-                SysEx.TagFree(ctx, ref list.Ids[i].Name);
-            SysEx.TagFree(ctx, ref list.Ids);
-            SysEx.TagFree(ctx, ref list);
+                C._tagfree(ctx, ref list.Ids[i].Name);
+            C._tagfree(ctx, ref list.Ids);
+            C._tagfree(ctx, ref list);
         }
 
         public static int IdListIndex(IdList list, string name)
@@ -2347,16 +2347,16 @@ namespace Core
             SrcList.SrcListItem item;
             for (i = 0, item = list.Ids[0]; i < list.Srcs; i++, item = list.Ids[i])
             {
-                SysEx.TagFree(ctx, ref item.Database);
-                SysEx.TagFree(ctx, ref item.Name);
-                SysEx.TagFree(ctx, ref item.Alias);
-                SysEx.TagFree(ctx, ref item.Index);
+                C._tagfree(ctx, ref item.Database);
+                C._tagfree(ctx, ref item.Name);
+                C._tagfree(ctx, ref item.Alias);
+                C._tagfree(ctx, ref item.Index);
                 DeleteTable(ctx, ref item.Table);
                 Select.Delete(ctx, ref item.Select);
                 Expr.Delete(ctx, ref item.On);
                 IdListDelete(ctx, ref item.Using);
             }
-            SysEx.TagFree(ctx, ref list);
+            C._tagfree(ctx, ref list);
         }
 
 
@@ -2372,7 +2372,7 @@ namespace Core
                 goto append_from_error;
             }
             list = SrcListAppend(ctx, list, table, database);
-            if (list == null || SysEx.NEVER(list.Srcs == 0))
+            if (list == null || C._NEVER(list.Srcs == 0))
                 goto append_from_error;
             SrcList.SrcListItem item = list.Ids[list.Srcs - 1];
             Debug.Assert(alias != null);
@@ -2394,7 +2394,7 @@ namespace Core
         public void SrcListIndexedBy(SrcList list, Token indexedBy)
         {
             Debug.Assert(indexedBy != null);
-            if (list != null && SysEx.ALWAYS(list.Srcs > 0))
+            if (list != null && C._ALWAYS(list.Srcs > 0))
             {
                 SrcList.SrcListItem item = list.Ids[list.Srcs - 1];
                 Debug.Assert(!item.NotIndexed && item.Index == null);
@@ -2475,7 +2475,7 @@ namespace Core
 #endif
 )
                 {
-                    SysEx.TagFree(Ctx, ref nameAsString);
+                    C._tagfree(Ctx, ref nameAsString);
                     return;
                 }
                 v.AddOp4(OP.Savepoint, op, 0, 0, nameAsString, Vdbe.P4T.DYNAMIC);
@@ -2639,7 +2639,7 @@ namespace Core
                 ReindexDatabases(this, null);
                 return;
             }
-            else if (SysEx.NEVER(name2 == null) || string.IsNullOrEmpty(name2.data))
+            else if (C._NEVER(name2 == null) || string.IsNullOrEmpty(name2.data))
             {
                 Debug.Assert(name1.data != null);
                 string collName = NameFromToken(ctx, name1);
@@ -2648,10 +2648,10 @@ namespace Core
                 if (coll != null)
                 {
                     ReindexDatabases(this, collName);
-                    SysEx.TagFree(ctx, ref collName);
+                    C._tagfree(ctx, ref collName);
                     return;
                 }
-                SysEx.TagFree(ctx, ref collName);
+                C._tagfree(ctx, ref collName);
             }
             Token objName = new Token();  // Name of the table or index to be reindexed
             int db = TwoPartName(name1, name2, ref objName); // The database index number
@@ -2664,11 +2664,11 @@ namespace Core
             if (table != null)
             {
                 ReindexTable(this, table, null);
-                SysEx.TagFree(ctx, ref z);
+                C._tagfree(ctx, ref z);
                 return;
             }
             Index index = sqlite3FindIndex(ctx, z, dbName); // An index associated with pTab
-            SysEx.TagFree(ctx, ref z);
+            C._tagfree(ctx, ref z);
             if (index != null)
             {
                 BeginWriteOperation(0, db);
@@ -2700,7 +2700,7 @@ namespace Core
             }
             if (Errs != 0)
             {
-                SysEx.TagFree(ctx, ref key);
+                C._tagfree(ctx, ref key);
                 key = null;
             }
             return key;

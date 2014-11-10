@@ -64,7 +64,7 @@ namespace Core
 
 		__device__ inline int InvokeBusyHandler()
 		{
-			if (SysEx_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
+			if (_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
 				return 0;
 			int rc = BusyHandler->Func(BusyHandler->Arg, BusyHandler->Busys);
 			if (rc == 0)

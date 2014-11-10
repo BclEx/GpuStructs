@@ -107,7 +107,7 @@ namespace Core
                     break;
                 }
                 if ((p.Flags & EP.Collate) != 0)
-                    p = (SysEx.ALWAYS(p.Left != null) && (p.Left.Flags & EP.Collate) != 0 ? p.Left : p.Right);
+                    p = (C._ALWAYS(p.Left != null) && (p.Left.Flags & EP.Collate) != 0 ? p.Left : p.Right);
                 else
                     break;
             }
@@ -436,10 +436,10 @@ namespace Core
                     long i = 0;
                     bool ok = !ConvertEx.Atoi64(z.Substring(1), out i, length - 1, TEXTENCODE.UTF8);
                     expr.ColumnIdx = x = (yVars)i;
-                    SysEx.ASSERTCOVERAGE(i == 0);
-                    SysEx.ASSERTCOVERAGE(i == 1);
-                    SysEx.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER] - 1);
-                    SysEx.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER]);
+                    C.ASSERTCOVERAGE(i == 0);
+                    C.ASSERTCOVERAGE(i == 1);
+                    C.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER] - 1);
+                    C.ASSERTCOVERAGE(i == ctx.Limits[(int)LIMIT.VARIABLE_NUMBER]);
                     if (!ok || i < 1 || i > ctx.Limits[(int)LIMIT.VARIABLE_NUMBER])
                     {
                         parse.ErrorMsg("variable number must be between ?1 and ?%d", ctx.Limits[(int)LIMIT.VARIABLE_NUMBER]);
@@ -473,7 +473,7 @@ namespace Core
                     }
                     if (z[0] != '?' || parse.Vars[x - 1] == null)
                     {
-                        SysEx.TagFree(ctx, ref parse.Vars.data[x - 1]);
+                        C._tagfree(ctx, ref parse.Vars.data[x - 1]);
                         parse.Vars[x - 1] = z.Substring(0, length);
                     }
                 }
@@ -492,14 +492,14 @@ namespace Core
                 Delete(ctx, ref expr.Left);
                 Delete(ctx, ref expr.Right);
                 if (!E.ExprHasProperty(expr, EP.Reduced) && (expr.Flags2 & EP2.MallocedToken) != 0)
-                    SysEx.TagFree(ctx, ref expr.u.Token);
+                    C._tagfree(ctx, ref expr.u.Token);
                 if (E.ExprHasProperty(expr, EP.xIsSelect))
                     Select.Delete(ctx, ref expr.x.Select);
                 else
                     ListDelete(ctx, ref expr.x.List);
             }
             if (!E.ExprHasProperty(expr, EP.Static))
-                SysEx.TagFree(ctx, ref expr);
+                C._tagfree(ctx, ref expr);
         }
 
         #region Clone
@@ -620,7 +620,7 @@ namespace Core
             newList.Ids = new ExprList.ExprListItem[i];
             if (newList.Ids == null)
             {
-                SysEx.TagFree(ctx, ref newList.Ids);
+                C._tagfree(ctx, ref newList.Ids);
                 return null;
             }
             ExprList.ExprListItem oldItem;
@@ -691,7 +691,7 @@ namespace Core
             newList.Ids.data = new IdList.IdListItem[list.Ids.length];
             if (newList.Ids.data == null)
             {
-                SysEx.TagFree(ctx, ref newList);
+                C._tagfree(ctx, ref newList);
                 return null;
             }
             // Note that because the size of the allocation for p->a[] is not necessarily a power of two, sqlite3IdListAppend() may not be called
@@ -799,7 +799,7 @@ namespace Core
                 ExprList.ExprListItem item = list.Ids[list.Exprs - 1];
                 Debug.Assert(list.Exprs > 0);
                 Debug.Assert(ctx.MallocFailed || item.Expr == span.Expr);
-                SysEx.TagFree(ctx, ref item.Span);
+                C._tagfree(ctx, ref item.Span);
                 item.Span = span.Start.Substring(0, span.Start.Length <= span.End.Length ? span.Start.Length : span.Start.Length - span.End.Length);
             }
         }
@@ -807,8 +807,8 @@ namespace Core
         public static void ListCheckLength(Parse parse, ExprList list, string object_)
         {
             int max = parse.Ctx.Limits[(int)LIMIT.COLUMN];
-            SysEx.ASSERTCOVERAGE(list != null && list.Exprs == max);
-            SysEx.ASSERTCOVERAGE(list != null && list.Exprs == max + 1);
+            C.ASSERTCOVERAGE(list != null && list.Exprs == max);
+            C.ASSERTCOVERAGE(list != null && list.Exprs == max + 1);
             if (list != null && list.Exprs > max)
                 parse.ErrorMsg("too many columns in %s", object_);
         }
@@ -824,11 +824,11 @@ namespace Core
             {
                 item = list.Ids[i];
                 Delete(ctx, ref item.Expr);
-                SysEx.TagFree(ctx, ref item.Name);
-                SysEx.TagFree(ctx, ref item.Span);
+                C._tagfree(ctx, ref item.Name);
+                C._tagfree(ctx, ref item.Span);
             }
-            SysEx.TagFree(ctx, ref list.Ids);
-            SysEx.TagFree(ctx, ref list);
+            C._tagfree(ctx, ref list.Ids);
+            C._tagfree(ctx, ref list);
         }
 
         #region Walker - Expression Tree Walker
@@ -854,15 +854,15 @@ namespace Core
                 case TK.COLUMN:
                 case TK.AGG_FUNCTION:
                 case TK.AGG_COLUMN:
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.ID);
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.COLUMN);
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.AGG_FUNCTION);
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.AGG_COLUMN);
+                    C.ASSERTCOVERAGE(expr.OP == TK.ID);
+                    C.ASSERTCOVERAGE(expr.OP == TK.COLUMN);
+                    C.ASSERTCOVERAGE(expr.OP == TK.AGG_FUNCTION);
+                    C.ASSERTCOVERAGE(expr.OP == TK.AGG_COLUMN);
                     walker.u.I = 0;
                     return WRC.Abort;
                 default:
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.SELECT); // selectNodeIsConstant will disallow
-                    SysEx.ASSERTCOVERAGE(expr.OP == TK.EXISTS); // selectNodeIsConstant will disallow
+                    C.ASSERTCOVERAGE(expr.OP == TK.SELECT); // selectNodeIsConstant will disallow
+                    C.ASSERTCOVERAGE(expr.OP == TK.EXISTS); // selectNodeIsConstant will disallow
                     return WRC.Continue;
             }
         }
@@ -980,8 +980,8 @@ namespace Core
             if (select.Prior != null) return false;         // Not a compound SELECT
             if ((select.SelFlags & (SF.Distinct | SF.Aggregate)) != 0)
             {
-                SysEx.ASSERTCOVERAGE((select.SelFlags & (SF.Distinct | SF.Aggregate)) == SF.Distinct);
-                SysEx.ASSERTCOVERAGE((select.SelFlags & (SF.Distinct | SF.Aggregate)) == SF.Aggregate);
+                C.ASSERTCOVERAGE((select.SelFlags & (SF.Distinct | SF.Aggregate)) == SF.Distinct);
+                C.ASSERTCOVERAGE((select.SelFlags & (SF.Distinct | SF.Aggregate)) == SF.Aggregate);
                 return false; // No DISTINCT keyword and no aggregate functions
             }
             Debug.Assert(select.GroupBy == null);           // Has no GROUP BY clause
@@ -993,7 +993,7 @@ namespace Core
             if (src.Srcs != 1) return false;                // Single term in FROM clause
             if (src.Ids[0].Select != null) return false;    // FROM is not a subquery or view
             Table table = src.Ids[0].Table;
-            if (SysEx.NEVER(table == null)) return false;
+            if (C._NEVER(table == null)) return false;
             Debug.Assert(table.Select == null);             // FROM clause is not a view
             if (E.IsVirtual(table)) return false;           // FROM clause not a virtual table
             ExprList list = select.EList;
@@ -1012,7 +1012,7 @@ namespace Core
 
             // Check to see if an existing table or index can be used to satisfy the query.  This is preferable to generating a new ephemeral table.
             Select select = (E.ExprHasProperty(expr, EP.xIsSelect) ? expr.x.Select : null); // SELECT to the right of IN operator
-            if (SysEx.ALWAYS(parse.Errs == 0) && IsCandidateForInOpt(select))
+            if (C._ALWAYS(parse.Errs == 0) && IsCandidateForInOpt(select))
             {
                 Debug.Assert(select != null); // Because of isCandidateForInOpt(p)
                 Debug.Assert(select.EList != null); // Because of isCandidateForInOpt(p)
@@ -1078,7 +1078,7 @@ namespace Core
                 }
                 else
                 {
-                    SysEx.ASSERTCOVERAGE(parse.QueryLoops > (double)1);
+                    C.ASSERTCOVERAGE(parse.QueryLoops > (double)1);
                     parse.QueryLoops = (double)1;
                     if (expr.Left.ColumnIdx < 0 && !E.ExprHasAnyProperty(expr, EP.xIsSelect))
                         type = IN_INDEX.ROWID;
@@ -1096,7 +1096,7 @@ namespace Core
         {
             int reg = 0; // Register storing resulting
             Vdbe v = parse.GetVdbe();
-            if (SysEx.NEVER(v == null))
+            if (C._NEVER(v == null))
                 return 0;
             CachePush(parse);
 
@@ -1148,10 +1148,10 @@ namespace Core
                             if (Select(parse, expr.x.Select, ref dest) != 0)
                                 return 0;
                             ExprList list = expr.x.Select.EList;
-                            if (SysEx.ALWAYS(list != null && list.Exprs > 0))
+                            if (C._ALWAYS(list != null && list.Exprs > 0))
                                 keyInfo.Colls[0] = BinaryCompareCollSeq(parse, expr.Left, list.Ids[0].Expr);
                         }
-                        else if (SysEx.ALWAYS(expr.x.List != null))
+                        else if (C._ALWAYS(expr.x.List != null))
                         {
                             // Case 2:     expr IN (exprlist)
                             // For each expression, build an index key from the evaluation and store it in the temporary table. If <expr> is a column, then use
@@ -1210,8 +1210,8 @@ namespace Core
                 case TK.SELECT:
                 default:
                     {
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.EXISTS);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.SELECT);
+                        C.ASSERTCOVERAGE(expr.OP == TK.EXISTS);
+                        C.ASSERTCOVERAGE(expr.OP == TK.SELECT);
                         Debug.Assert(expr.OP == TK.EXISTS || expr.OP == TK.SELECT);
                         Debug.Assert(E.ExprHasProperty(expr, EP.xIsSelect));
 
@@ -1344,7 +1344,7 @@ namespace Core
 
         static void CodeReal(Vdbe v, string z, bool negateFlag, int mem)
         {
-            if (SysEx.ALWAYS(!string.IsNullOrEmpty(z)))
+            if (C._ALWAYS(!string.IsNullOrEmpty(z)))
             {
                 double value = 0;
                 //string zV;
@@ -1444,7 +1444,7 @@ namespace Core
                     minLru = p.lru;
                 }
             }
-            if (SysEx.ALWAYS(idxLru >= 0))
+            if (C._ALWAYS(idxLru >= 0))
             {
                 p = parse.ColCaches[idxLru];
                 p.Level = parse.CacheLevel;
@@ -1719,18 +1719,18 @@ namespace Core
                         Debug.Assert(toOP == OP.ToNumeric || aff != AFF.NUMERIC);
                         Debug.Assert(toOP == OP.ToInt || aff != AFF.INTEGER);
                         Debug.Assert(toOP == OP.ToReal || aff != AFF.REAL);
-                        SysEx.ASSERTCOVERAGE(toOP == OP.ToText);
-                        SysEx.ASSERTCOVERAGE(toOP == OP.ToBlob);
-                        SysEx.ASSERTCOVERAGE(toOP == OP.ToNumeric);
-                        SysEx.ASSERTCOVERAGE(toOP == OP.ToInt);
-                        SysEx.ASSERTCOVERAGE(toOP == OP.ToReal);
+                        C.ASSERTCOVERAGE(toOP == OP.ToText);
+                        C.ASSERTCOVERAGE(toOP == OP.ToBlob);
+                        C.ASSERTCOVERAGE(toOP == OP.ToNumeric);
+                        C.ASSERTCOVERAGE(toOP == OP.ToInt);
+                        C.ASSERTCOVERAGE(toOP == OP.ToReal);
                         if (inReg != target)
                         {
                             v.AddOp2(OP.SCopy, inReg, target);
                             inReg = target;
                         }
                         v.AddOp1(v, toOP, inReg);
-                        SysEx.ASSERTCOVERAGE(UsedAsColumnCache(parse, inReg, inReg));
+                        C.ASSERTCOVERAGE(UsedAsColumnCache(parse, inReg, inReg));
                         CacheAffinityChange(parse, inReg, 1);
                         break;
                     }
@@ -1749,31 +1749,31 @@ namespace Core
                         Debug.Assert(TK.GE == OP.Ge);
                         Debug.Assert(TK.EQ == OP.Eq);
                         Debug.Assert(TK.NE == OP.Ne);
-                        SysEx.ASSERTCOVERAGE(op == TK.LT);
-                        SysEx.ASSERTCOVERAGE(op == TK.LE);
-                        SysEx.ASSERTCOVERAGE(op == TK.GT);
-                        SysEx.ASSERTCOVERAGE(op == TK.GE);
-                        SysEx.ASSERTCOVERAGE(op == TK.EQ);
-                        SysEx.ASSERTCOVERAGE(op == TK.NE);
+                        C.ASSERTCOVERAGE(op == TK.LT);
+                        C.ASSERTCOVERAGE(op == TK.LE);
+                        C.ASSERTCOVERAGE(op == TK.GT);
+                        C.ASSERTCOVERAGE(op == TK.GE);
+                        C.ASSERTCOVERAGE(op == TK.EQ);
+                        C.ASSERTCOVERAGE(op == TK.NE);
                         r1 = CodeTemp(parse, expr.Left, ref regFree1);
                         r2 = CodeTemp(parse, expr.Right, ref regFree2);
                         CodeCompare(parse, expr.Left, expr.Right, op, r1, r2, inReg, SQLITE_STOREP2);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
 
                 case TK.IS:
                 case TK.ISNOT:
                     {
-                        SysEx.ASSERTCOVERAGE(op == TK_IS);
-                        SysEx.ASSERTCOVERAGE(op == TK_ISNOT);
+                        C.ASSERTCOVERAGE(op == TK_IS);
+                        C.ASSERTCOVERAGE(op == TK_ISNOT);
                         r1 = CodeTemp(parse, expr.Left, ref regFree1);
                         r2 = CodeTemp(parse, expr.Right, ref regFree2);
                         op = (op == TK_IS ? TK_EQ : TK_NE);
                         CodeCompare(parse, expr.Left, expr.Right, op, r1, r2, inReg, SQLITE_STOREP2 | SQLITE_NULLEQ);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
 
@@ -1801,22 +1801,22 @@ namespace Core
                         Debug.Assert(TK.LSHIFT == OP.ShiftLeft);
                         Debug.Assert(TK.RSHIFT == OP.ShiftRight);
                         Debug.Assert(TK.CONCAT == OP.Concat);
-                        SysEx.ASSERTCOVERAGE(op == TK.AND);
-                        SysEx.ASSERTCOVERAGE(op == TK.OR);
-                        SysEx.ASSERTCOVERAGE(op == TK.PLUS);
-                        SysEx.ASSERTCOVERAGE(op == TK.MINUS);
-                        SysEx.ASSERTCOVERAGE(op == TK.REM);
-                        SysEx.ASSERTCOVERAGE(op == TK.BITAND);
-                        SysEx.ASSERTCOVERAGE(op == TK.BITOR);
-                        SysEx.ASSERTCOVERAGE(op == TK.SLASH);
-                        SysEx.ASSERTCOVERAGE(op == TK.LSHIFT);
-                        SysEx.ASSERTCOVERAGE(op == TK.RSHIFT);
-                        SysEx.ASSERTCOVERAGE(op == TK.CONCAT);
+                        C.ASSERTCOVERAGE(op == TK.AND);
+                        C.ASSERTCOVERAGE(op == TK.OR);
+                        C.ASSERTCOVERAGE(op == TK.PLUS);
+                        C.ASSERTCOVERAGE(op == TK.MINUS);
+                        C.ASSERTCOVERAGE(op == TK.REM);
+                        C.ASSERTCOVERAGE(op == TK.BITAND);
+                        C.ASSERTCOVERAGE(op == TK.BITOR);
+                        C.ASSERTCOVERAGE(op == TK.SLASH);
+                        C.ASSERTCOVERAGE(op == TK.LSHIFT);
+                        C.ASSERTCOVERAGE(op == TK.RSHIFT);
+                        C.ASSERTCOVERAGE(op == TK.CONCAT);
                         r1 = CodeTemp(parse, expr.Left, ref regFree1);
                         r2 = CodeTemp(parse, expr.Right, ref regFree2);
                         v.AddOp3(op, r2, r1, target);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
 
@@ -1841,7 +1841,7 @@ namespace Core
                             v.AddOp2(OP.Integer, 0, r1);
                             r2 = CodeTemp(parse, expr.Left, ref regFree2);
                             v.AddOp3(OP.Subtract, r2, r1, target);
-                            SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                            C.ASSERTCOVERAGE(regFree2 == 0);
                         }
                         inReg = target;
                         break;
@@ -1852,10 +1852,10 @@ namespace Core
                     {
                         Debug.Assert(TK.BITNOT == OP.BitNot);
                         Debug.Assert(TK.NOT == OP.Not);
-                        SysEx.ASSERTCOVERAGE(op == TK.BITNOT);
-                        SysEx.ASSERTCOVERAGE(op == TK.NOT);
+                        C.ASSERTCOVERAGE(op == TK.BITNOT);
+                        C.ASSERTCOVERAGE(op == TK.NOT);
                         r1 = CodeTemp(parse, expr.Left, ref regFree1);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
                         inReg = target;
                         v.AddOp2(op, r1, inReg);
                         break;
@@ -1866,11 +1866,11 @@ namespace Core
                     {
                         Debug.Assert(TK.ISNULL == OP.IsNull);
                         Debug.Assert(TK.NOTNULL == OP.NotNull);
-                        SysEx.ASSERTCOVERAGE(op == TK.ISNULL);
-                        SysEx.ASSERTCOVERAGE(op == TK.NOTNULL);
+                        C.ASSERTCOVERAGE(op == TK.ISNULL);
+                        C.ASSERTCOVERAGE(op == TK.NOTNULL);
                         v.AddOp2(OP.Integer, 1, target);
                         r1 = CodeTemp(parse, expr.Left, ref regFree1);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
                         int addr = v.AddOp1(op, r1);
                         v.AddOp2(OP.AddImm, target, -1);
                         v.JumpHere(addr);
@@ -1894,8 +1894,8 @@ namespace Core
                 case TK.FUNCTION:
                     {
                         Debug.Assert(!E.ExprHasProperty(expr, EP.xIsSelect));
-                        SysEx.ASSERTCOVERAGE(op == TK.CONST_FUNC);
-                        SysEx.ASSERTCOVERAGE(op == TK.FUNCTION);
+                        C.ASSERTCOVERAGE(op == TK.CONST_FUNC);
+                        C.ASSERTCOVERAGE(op == TK.FUNCTION);
                         ExprList farg = (E.ExprHasAnyProperty(expr, EP.TokenOnly) ? farg = null : expr.x.List); // List of function arguments
                         int fargLength = (farg != null ? farg.Exprs : 0); // Number of function arguments
                         Debug.Assert(!E.ExprHasProperty(expr, EP.IntValue));
@@ -1977,8 +1977,8 @@ namespace Core
                 case TK.EXISTS:
                 case TK.SELECT:
                     {
-                        SysEx.ASSERTCOVERAGE(op == TK.EXISTS);
-                        SysEx.ASSERTCOVERAGE(op == TK.SELECT);
+                        C.ASSERTCOVERAGE(op == TK.EXISTS);
+                        C.ASSERTCOVERAGE(op == TK.SELECT);
                         inReg = CodeSubselect(parse, expr, 0, false);
                         break;
                     }
@@ -2014,8 +2014,8 @@ namespace Core
                         Expr right = item.Expr;
                         r1 = CodeTemp(parse, left, ref regFree1);
                         r2 = CodeTemp(parse, right, ref regFree2);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         r3 = GetTempReg(parse);
                         r4 = GetTempReg(parse);
                         CodeCompare(parse, left, right, OP.Ge, r1, r2, r3, SQLITE_STOREP2);
@@ -2023,7 +2023,7 @@ namespace Core
                         right = item.Expr;
                         ReleaseTempReg(parse, regFree2);
                         r2 = CodeTemp(parse, right, ref regFree2);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         CodeCompare(parse, left, right, OP.Le, r1, r2, r4, SQLITE_STOREP2);
                         v.AddOp3(OP.And, r3, r4, target);
                         ReleaseTempReg(parse, r3);
@@ -2112,10 +2112,10 @@ namespace Core
                         if ((x = expr.Left) != null)
                         {
                             Expr cacheX = x; // Cached expression X
-                            SysEx.ASSERTCOVERAGE(x.OP == TK.COLUMN);
-                            SysEx.ASSERTCOVERAGE(x.OP == TK.REGISTER);
+                            C.ASSERTCOVERAGE(x.OP == TK.COLUMN);
+                            C.ASSERTCOVERAGE(x.OP == TK.REGISTER);
                             cacheX.Table = CodeTemp(parse, x, ref regFree1);
-                            SysEx.ASSERTCOVERAGE(regFree1 == 0);
+                            C.ASSERTCOVERAGE(regFree1 == 0);
                             cacheX.OP = TK.REGISTER;
                             opCompare.OP = TK.EQ;
                             opCompare.Left = cacheX;
@@ -2135,10 +2135,10 @@ namespace Core
                             else
                                 test = elems[i].Expr;
                             int nextCase = v.MakeLabel(); // GOTO label for next WHEN clause
-                            SysEx.ASSERTCOVERAGE(test.OP == TK.COLUMN);
+                            C.ASSERTCOVERAGE(test.OP == TK.COLUMN);
                             IfFalse(parse, test, nextCase, SQLITE_JUMPIFNULL);
-                            SysEx.ASSERTCOVERAGE(elems[i + 1].Expr.OP == TK.COLUMN);
-                            SysEx.ASSERTCOVERAGE(elems[i + 1].Expr.OP == TK.REGISTER);
+                            C.ASSERTCOVERAGE(elems[i + 1].Expr.OP == TK.COLUMN);
+                            C.ASSERTCOVERAGE(elems[i + 1].Expr.OP == TK.REGISTER);
                             Code(parse, elems[i + 1].Expr, target);
                             v.AddOp2(OP.Goto, 0, endLabel);
                             CachePop(parse, 1);
@@ -2219,7 +2219,7 @@ namespace Core
             // This routine is called for terms to INSERT or UPDATE.  And the only other place where expressions can be converted into TK_REGISTER is
             // in WHERE clause processing.  So as currently implemented, there is no way for a TK_REGISTER to exist here.  But it seems prudent to
             // keep the ALWAYS() in case the conditions above change with future modifications or enhancements. */
-            if (SysEx.ALWAYS(expr.OP != TK.REGISTER))
+            if (C._ALWAYS(expr.OP != TK.REGISTER))
             {
                 int mem = ++parse.Mems;
                 v.AddOp2(OP.Copy, inReg, mem);
@@ -2529,12 +2529,12 @@ namespace Core
                 case TK.NULL:
                 case TK.STRING:
                     {
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.BLOB);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.VARIABLE);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.INTEGER);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.FLOAT);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.NULL);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.STRING);
+                        C.ASSERTCOVERAGE(expr.OP == TK.BLOB);
+                        C.ASSERTCOVERAGE(expr.OP == TK.VARIABLE);
+                        C.ASSERTCOVERAGE(expr.OP == TK.INTEGER);
+                        C.ASSERTCOVERAGE(expr.OP == TK.FLOAT);
+                        C.ASSERTCOVERAGE(expr.OP == TK.NULL);
+                        C.ASSERTCOVERAGE(expr.OP == TK.STRING);
                         // Single-instruction constants with a fixed destination are better done in-line.  If we factor them, they will just end
                         // up generating an OP_SCopy to move the value to the destination register.
                         return false;
@@ -2577,7 +2577,7 @@ namespace Core
                             int i = list.Exprs;
                             ExprList.ExprListItem item; ;
                             for (i = list.Exprs, item = list.Ids[0]; i > 0; i--, item = list.Ids[list.Exprs - i])
-                                if (SysEx.ALWAYS(item.Expr != null))
+                                if (C._ALWAYS(item.Expr != null))
                                     item.Expr.Flags |= EP.FixedDest;
                         }
                         break;
@@ -2653,21 +2653,21 @@ namespace Core
             ReleaseTempReg(parse, regFree1);
 
             // Ensure adequate test coverage
-            SysEx.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull == 0 && regFree1 == 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull == 0 && regFree1 != 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull != 0 && regFree1 == 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull != 0 && regFree1 != 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull == 0 && regFree1 == 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull == 0 && regFree1 != 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull != 0 && regFree1 == 0);
-            SysEx.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull != 0 && regFree1 != 0);
+            C.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull == 0 && regFree1 == 0);
+            C.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull == 0 && regFree1 != 0);
+            C.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull != 0 && regFree1 == 0);
+            C.ASSERTCOVERAGE(jumpIfTrue == 0 && jumpIfNull != 0 && regFree1 != 0);
+            C.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull == 0 && regFree1 == 0);
+            C.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull == 0 && regFree1 != 0);
+            C.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull != 0 && regFree1 == 0);
+            C.ASSERTCOVERAGE(jumpIfTrue != 0 && jumpIfNull != 0 && regFree1 != 0);
         }
 
         public void IfTrue(Parse parse, int dest, AFF jumpIfNull)
         {
             Debug.Assert(jumpIfNull == AFF.BIT_JUMPIFNULL || jumpIfNull == 0);
             Vdbe v = parse.V;
-            if (SysEx.NEVER(v == null)) return; // Existance of VDBE checked by caller
+            if (C._NEVER(v == null)) return; // Existance of VDBE checked by caller
 
             int regFree1 = 0;
             int regFree2 = 0;
@@ -2679,7 +2679,7 @@ namespace Core
                 case TK.AND:
                     {
                         int d2 = sqlite3VdbeMakeLabel(v);
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         CachePush(parse);
                         Left.IfFalse(parse, d2, jumpIfNull ^ AFF.BIT_JUMPIFNULL);
                         Right.IfTrue(parse, dest, jumpIfNull);
@@ -2689,14 +2689,14 @@ namespace Core
                     }
                 case TK.OR:
                     {
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         Left.IfTrue(parse, dest, jumpIfNull);
                         Right.IfTrue(parse, dest, jumpIfNull);
                         break;
                     }
                 case TK.NOT:
                     {
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         Left.IfFalse(parse, dest, jumpIfNull);
                         break;
                     }
@@ -2713,31 +2713,31 @@ namespace Core
                         Debug.Assert(TK.GE == OP.Ge);
                         Debug.Assert(TK.EQ == OP.Eq);
                         Debug.Assert(TK.NE == OP.Ne);
-                        SysEx.ASSERTCOVERAGE(op == TK.LT);
-                        SysEx.ASSERTCOVERAGE(op == TK.LE);
-                        SysEx.ASSERTCOVERAGE(op == TK.GT);
-                        SysEx.ASSERTCOVERAGE(op == TK.GE);
-                        SysEx.ASSERTCOVERAGE(op == TK.EQ);
-                        SysEx.ASSERTCOVERAGE(op == TK.NE);
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(op == TK.LT);
+                        C.ASSERTCOVERAGE(op == TK.LE);
+                        C.ASSERTCOVERAGE(op == TK.GT);
+                        C.ASSERTCOVERAGE(op == TK.GE);
+                        C.ASSERTCOVERAGE(op == TK.EQ);
+                        C.ASSERTCOVERAGE(op == TK.NE);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         r2 = CodeTemp(parse, Right, ref regFree2);
                         CodeCompare(parse, Left, pRight, op, r1, r2, dest, jumpIfNull);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
                 case TK.IS:
                 case TK.ISNOT:
                     {
-                        SysEx.ASSERTCOVERAGE(op == TK.IS);
-                        SysEx.ASSERTCOVERAGE(op == TK.ISNOT);
+                        C.ASSERTCOVERAGE(op == TK.IS);
+                        C.ASSERTCOVERAGE(op == TK.ISNOT);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         r2 = CodeTemp(parse, Right, ref regFree2);
                         op = (op == TK.IS ? TK.EQ : TK.NE);
                         CodeCompare(parse, Left, Right, op, r1, r2, dest, AFF.BIT_NULLEQ);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
                 case TK.ISNULL:
@@ -2745,16 +2745,16 @@ namespace Core
                     {
                         Debug.Assert(TK.ISNULL == OP.IsNull);
                         Debug.Assert(TK.NOTNULL == OP.NotNull);
-                        SysEx.ASSERTCOVERAGE(op == TK.ISNULL);
-                        SysEx.ASSERTCOVERAGE(op == TK.NOTNULL);
+                        C.ASSERTCOVERAGE(op == TK.ISNULL);
+                        C.ASSERTCOVERAGE(op == TK.NOTNULL);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         v.AddOp2(op, r1, dest);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
                         break;
                     }
                 case TK.BETWEEN:
                     {
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         ExprCodeBetween(parse, this, dest, 1, jumpIfNull);
                         break;
                     }
@@ -2773,8 +2773,8 @@ namespace Core
                     {
                         r1 = CodeTemp(parse, this, ref regFree1);
                         v.AddOp3(OP.If, r1, dest, jumpIfNull != 0 ? 1 : 0);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         break;
                     }
             }
@@ -2786,7 +2786,7 @@ namespace Core
         {
             Vdbe v = parse.V;
             Debug.Assert(jumpIfNull == AFF.BIT_JUMPIFNULL || jumpIfNull == 0);
-            if (SysEx.NEVER(v == null)) return; // Existance of VDBE checked by caller
+            if (C._NEVER(v == null)) return; // Existance of VDBE checked by caller
 
             int regFree1 = 0;
             int regFree2 = 0;
@@ -2823,7 +2823,7 @@ namespace Core
             {
                 case TK.AND:
                     {
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         Left.IfFalse(parse, dest, jumpIfNull);
                         Right.IfFalse(parse, dest, jumpIfNull);
                         break;
@@ -2831,7 +2831,7 @@ namespace Core
                 case TK.OR:
                     {
                         int d2 = v.MakeLabel();
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         CachePush(parse);
                         Left.IfTrue(parse, d2, jumpIfNull ^ (int)AFF.BIT_JUMPIFNULL);
                         Right.IfFalse(parse, dest, jumpIfNull);
@@ -2852,46 +2852,46 @@ namespace Core
                 case TK.NE:
                 case TK.EQ:
                     {
-                        SysEx.ASSERTCOVERAGE(op == TK.LT);
-                        SysEx.ASSERTCOVERAGE(op == TK.LE);
-                        SysEx.ASSERTCOVERAGE(op == TK.GT);
-                        SysEx.ASSERTCOVERAGE(op == TK.GE);
-                        SysEx.ASSERTCOVERAGE(op == TK.EQ);
-                        SysEx.ASSERTCOVERAGE(op == TK.NE);
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(op == TK.LT);
+                        C.ASSERTCOVERAGE(op == TK.LE);
+                        C.ASSERTCOVERAGE(op == TK.GT);
+                        C.ASSERTCOVERAGE(op == TK.GE);
+                        C.ASSERTCOVERAGE(op == TK.EQ);
+                        C.ASSERTCOVERAGE(op == TK.NE);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         r2 = CodeTemp(parse, Right, ref regFree2);
                         CodeCompare(parse, Left, pRight, op, r1, r2, dest, jumpIfNull);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
                 case TK.IS:
                 case TK.ISNOT:
                     {
-                        SysEx.ASSERTCOVERAGE(OP == TK.IS);
-                        SysEx.ASSERTCOVERAGE(OP == TK.ISNOT);
+                        C.ASSERTCOVERAGE(OP == TK.IS);
+                        C.ASSERTCOVERAGE(OP == TK.ISNOT);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         r2 = CodeTemp(parse, Right, ref regFree2);
                         op = (OP == TK.IS ? TK.NE : TK.EQ);
                         CodeCompare(parse, Left, Right, op, r1, r2, dest, SQLITE_NULLEQ);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(regFree2 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree2 == 0);
                         break;
                     }
                 case TK.ISNULL:
                 case TK.NOTNULL:
                     {
-                        SysEx.ASSERTCOVERAGE(op == TK.ISNULL);
-                        SysEx.ASSERTCOVERAGE(op == TK.NOTNULL);
+                        C.ASSERTCOVERAGE(op == TK.ISNULL);
+                        C.ASSERTCOVERAGE(op == TK.NOTNULL);
                         r1 = CodeTemp(parse, Left, ref regFree1);
                         v.AddOp2(op, r1, dest);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
                         break;
                     }
                 case TK.BETWEEN:
                     {
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         ExprCodeBetween(parse, this, dest, 0, jumpIfNull);
                         break;
                     }
@@ -2913,8 +2913,8 @@ namespace Core
                     {
                         r1 = CodeTemp(parse, this, ref regFree1);
                         v.AddOp3(OP.IfNot, r1, dest, jumpIfNull != 0 ? 1 : 0);
-                        SysEx.ASSERTCOVERAGE(regFree1 == 0);
-                        SysEx.ASSERTCOVERAGE(jumpIfNull == 0);
+                        C.ASSERTCOVERAGE(regFree1 == 0);
+                        C.ASSERTCOVERAGE(jumpIfNull == 0);
                         break;
                     }
             }
@@ -2947,7 +2947,7 @@ namespace Core
             }
             else if (a.OP != TK.COLUMN && a.u.Token != null)
             {
-                if (E.ExprHasProperty(b, EP.IntValue) || SysEx.NEVER(b.u.Token == null)) return 2;
+                if (E.ExprHasProperty(b, EP.IntValue) || C._NEVER(b.u.Token == null)) return 2;
                 if (!string.Equals(a.u.Token, b.u.Token, StringComparison.OrdinalIgnoreCase))
                     return (a.OP == TK.COLLATE ? 1 : 2);
             }
@@ -2981,7 +2981,7 @@ namespace Core
             // The NEVER() on the second term is because sqlite3FunctionUsesThisSrc() is always called before sqlite3ExprAnalyzeAggregates() and so the
             // TK_COLUMNs have not yet been converted into TK_AGG_COLUMN.  If sqlite3FunctionUsesThisSrc() is used differently in the future, the
             // NEVER() will need to be removed.
-            if (expr.OP == TK.COLUMN || SysEx.NEVER(expr.OP == TK.AGG_COLUMN))
+            if (expr.OP == TK.COLUMN || C._NEVER(expr.OP == TK.AGG_COLUMN))
             {
                 int i;
                 SrcCount p = walker.u.SrcCount;
@@ -3036,10 +3036,10 @@ namespace Core
                 case TK.AGG_COLUMN:
                 case TK.COLUMN:
                     {
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.AGG_COLUMN);
-                        SysEx.ASSERTCOVERAGE(expr.OP == TK.COLUMN);
+                        C.ASSERTCOVERAGE(expr.OP == TK.AGG_COLUMN);
+                        C.ASSERTCOVERAGE(expr.OP == TK.COLUMN);
                         // Check to see if the column is in one of the tables in the FROM clause of the aggregate query
-                        if (SysEx.ALWAYS(srcList != null))
+                        if (C._ALWAYS(srcList != null))
                         {
                             int i;
                             SrcList.SrcListItem item;

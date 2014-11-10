@@ -73,14 +73,14 @@ bitvec_set_rehash:
 		if (p->_set >= BITVEC_MXHASH)
 		{
 			uint32 *values;
-			if (!(values = (uint32 *)SysEx::ScratchAlloc(sizeof(p->u.Hash)))) return RC_NOMEM;
+			if (!(values = (uint32 *)_stackalloc(sizeof(p->u.Hash)))) return RC_NOMEM;
 			_memcpy(values, p->u.Hash, sizeof(p->u.Hash));
 			_memset(p->u.Sub, 0, sizeof(p->u.Sub));
 			p->_divisor = ((p->_size + BITVEC_NPTR - 1) / BITVEC_NPTR);
 			int rc = p->Set(index);
 			for (unsigned int j = 0; j < BITVEC_NINT; j++)
 				if (values[j]) rc |= p->Set(values[j]);
-			SysEx::ScratchFree(values);
+			_stackfree(values);
 			return (RC)rc;
 		}
 bitvec_set_end:
@@ -136,8 +136,8 @@ bitvec_set_end:
 		int rc = -1;
 		// Allocate the Bitvec to be tested and a linear array of bits to act as the reference
 		Bitvec *bitvec = new Bitvec(size);
-		unsigned char *v = (unsigned char *)SysEx::Alloc((size + 7) / 8 + 1, true);
-		void *tmpSpace = SysEx::Alloc(BITVEC_SZ);
+		unsigned char *v = (unsigned char *)_alloc2((size + 7) / 8 + 1, true);
+		void *tmpSpace = _alloc(BITVEC_SZ);
 		int pc = 0;
 		int i, nx, op;
 		if (!bitvec || !v || !tmpSpace)
@@ -198,8 +198,8 @@ bitvec_set_end:
 
 		// Free allocated structure
 bitvec_end:
-		SysEx::Free(tmpSpace);
-		SysEx::Free(v);
+		_free(tmpSpace);
+		_free(v);
 		Bitvec::Destroy(bitvec);
 		return rc;
 	}

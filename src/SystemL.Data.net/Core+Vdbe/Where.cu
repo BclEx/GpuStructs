@@ -166,7 +166,7 @@ namespace Core
 		wc->MaskSet = maskSet;
 		wc->Outer = nullptr;
 		wc->Terms = 0;
-		wc->Slots.length = __arrayStaticLength(wc->Statics);
+		wc->Slots.length = _lengthof(wc->Statics);
 		wc->Slots.data = wc->Statics;
 		wc->WctrlFlags = wctrlFlags;
 	}
@@ -175,12 +175,12 @@ namespace Core
 	__device__ static void WhereOrInfoDelete(Context *ctx, WhereOrInfo *p)
 	{
 		WhereClauseClear(&p->WC);
-		SysEx::TagFree(ctx, p);
+		_tagfree(ctx, p);
 	}
 	__device__ static void WhereAndInfoDelete(Context *ctx, WhereAndInfo *p)
 	{
 		WhereClauseClear(&p->WC);
-		SysEx::TagFree(ctx, p);
+		_tagfree(ctx, p);
 	}
 
 	__device__ static void WhereClauseClear(WhereClause *wc)
@@ -198,7 +198,7 @@ namespace Core
 				WhereAndInfoDelete(ctx, a->u.AndInfo);
 		}
 		if (wc->Slots.data != wc->Statics)
-			SysEx::TagFree(ctx, wc->Slots.data);
+			_tagfree(ctx, wc->Slots.data);
 	}
 
 	__device__ static int WhereClauseInsert(WhereClause *wc, Expr *p, TERM wtFlags)
@@ -208,7 +208,7 @@ namespace Core
 		{
 			WhereTerm *old = wc->Slots.data;
 			Context *ctx = wc->Parse->Ctx;
-			wc->Slots.data = (WhereTerm *)SysEx::TagAlloc(ctx, sizeof(wc->Slots[0])*wc->Slots.length*2);
+			wc->Slots.data = (WhereTerm *)_tagalloc(ctx, sizeof(wc->Slots[0])*wc->Slots.length*2);
 			if (!wc->Slots.data)
 			{
 				if (wtFlags & TERM_DYNAMIC)
@@ -218,8 +218,8 @@ namespace Core
 			}
 			_memcpy(wc->Slots.data, old, sizeof(wc->Slots[0])*wc->Terms);
 			if (old != wc->Statics)
-				SysEx::TagFree(ctx, old);
-			wc->Slots.length = SysEx::TagAllocSize(ctx, wc->Slots.data)/sizeof(wc->Slots[0]);
+				_tagfree(ctx, old);
+			wc->Slots.length = _tagallocsize(ctx, wc->Slots.data)/sizeof(wc->Slots[0]);
 		}
 		int idx;
 		WhereTerm *term = &wc->Slots[idx = wc->Terms++];
@@ -256,7 +256,7 @@ namespace Core
 
 	__device__ static void CreateMask(WhereMaskSet *maskSet, int cursor)
 	{
-		_assert(maskSet->n < __arrayStaticLength(maskSet->ix));
+		_assert(maskSet->n < _lengthof(maskSet->ix));
 		maskSet->ix[maskSet->n++] = cursor;
 	}
 
@@ -298,7 +298,7 @@ namespace Core
 			mask |= ExprTableUsage(maskSet, s->Where);
 			mask |= ExprTableUsage(maskSet, s->Having);
 			SrcList *src = s->Src;
-			if (SysEx_ALWAYS(src != nullptr))
+			if (_ALWAYS(src != nullptr))
 			{
 				for (int i = 0; i < src->Srcs; i++)
 				{
@@ -406,7 +406,7 @@ namespace Core
 								CollSeq *coll = Expr::BinaryCompareCollSeq(parse, x->Left, x->Right);
 								if (!coll) coll = parse->Ctx->DefaultColl;
 								for (j = 0; idx->Columns[j] != origColumn; j++)
-									if (SysEx_NEVER(j >= idx->Columns.length)) return nullptr;
+									if (_NEVER(j >= idx->Columns.length)) return nullptr;
 								if (_strcmp(coll->Name, idx->CollNames[j]))
 									continue;
 							}
@@ -418,7 +418,7 @@ namespace Core
 							else if (!result)
 								result = term;
 						}
-						if ((term->EOperator & WO_EQUIV) != 0 && equivsLength < __arrayStaticLength(equivs))
+						if ((term->EOperator & WO_EQUIV) != 0 && equivsLength < _lengthof(equivs))
 						{
 							Expr *x = term->Expr->Right->SkipCollate();
 							_assert(x->OP == TK_COLUMN);
@@ -549,7 +549,7 @@ findTerm_success:
 		_assert((term->WtFlags & (TERM_DYNAMIC|TERM_ORINFO|TERM_ANDINFO)) == 0);
 		_assert(expr->OP == TK_OR);
 		WhereOrInfo *orInfo; // Additional information associated with pTerm
-		term->u.OrInfo = orInfo = (WhereOrInfo *)SysEx::TagAlloc(ctx, sizeof(*orInfo), true);
+		term->u.OrInfo = orInfo = (WhereOrInfo *)_tagalloc(ctx, sizeof(*orInfo), true);
 		if (!orInfo) return;
 		term->WtFlags |= TERM_ORINFO;
 		WhereClause *orWc = &orInfo->WC; // Breakup of pTerm into subterms
@@ -570,7 +570,7 @@ findTerm_success:
 			{
 				_assert((orTerm->WtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
 				chngToIN = 0;
-				WhereAndInfo *andInfo = (WhereAndInfo *)SysEx::TagAlloc(ctx, sizeof(*andInfo), true);
+				WhereAndInfo *andInfo = (WhereAndInfo *)_tagalloc(ctx, sizeof(*andInfo), true);
 				if (andInfo)
 				{
 					WhereTerm *andTerm;
@@ -883,7 +883,7 @@ findTerm_success:
 					// alphabetic range where case conversions will mess up the inequality.  To avoid this, make sure to also run the full
 					// LIKE on all candidate expressions by clearing the isComplete flag
 					if (c == 'A'-1) isComplete = false; // EV: R-64339-08207
-					c = __tolower(c);
+					c = _tolower(c);
 				}
 				*cRef = c + 1;
 			}
@@ -977,7 +977,7 @@ findTerm_success:
 			if (expr->OP == TK_COLUMN && expr->ColumnIdx == index->Columns[column] && expr->TableIdx == baseId)
 			{
 				CollSeq *coll = list->Ids[i].Expr->CollSeq(parse);
-				if (SysEx_ALWAYS(coll) && !_strcmp(coll->Name, collName))
+				if (_ALWAYS(coll) && !_strcmp(coll->Name, collName))
 					return i;
 			}
 		}
@@ -1297,7 +1297,7 @@ findTerm_success:
 		bytes += columns*sizeof(int); // Index.aiColumn
 		bytes += columns*sizeof(char*); // Index.azColl
 		bytes += columns; // Index.aSortOrder
-		Index *index = (Index *)SysEx::TagAlloc(parse->Ctx, bytes, true); // Object describing the transient index
+		Index *index = (Index *)_tagalloc(parse->Ctx, bytes, true); // Object describing the transient index
 		if (!index) return;
 		level->Plan.u.Index = index;
 		index->CollNames = (char **)&index[1];
@@ -1320,7 +1320,7 @@ findTerm_success:
 					idxCols |= mask;
 					index->Columns[n] = term->u.LeftColumn;
 					CollSeq *coll = Expr::BinaryCompareCollSeq(parse, x->Left, x->Right); // Collating sequence to on a column
-					index->CollNames[n] = SysEx_ALWAYS(coll) ? coll->Name : "BINARY";
+					index->CollNames[n] = _ALWAYS(coll) ? coll->Name : "BINARY";
 					n++;
 				}
 			}
@@ -1418,7 +1418,7 @@ findTerm_success:
 		}
 
 		// Allocate the sqlite3_index_info structure
-		IIndexInfo *idxInfo = (IIndexInfo *)SysEx::TagAlloc(parse->Ctx, sizeof(IIndexInfo) + (sizeof(IIndexInfo::Constraint) + sizeof(IIndexInfo::ConstraintUsage))*terms + sizeof(IIndexInfo::Orderby)*orderBys);
+		IIndexInfo *idxInfo = (IIndexInfo *)_tagalloc(parse->Ctx, sizeof(IIndexInfo) + (sizeof(IIndexInfo::Constraint) + sizeof(IIndexInfo::ConstraintUsage))*terms + sizeof(IIndexInfo::Orderby)*orderBys);
 		if (!idxInfo)
 		{
 			parse->ErrorMsg("out of memory");
@@ -1475,7 +1475,7 @@ findTerm_success:
 			else if (!vtable->ErrMsg) parse->ErrorMsg("%s", ErrStr(rc));
 			else parse->ErrorMsg("%s", vtable->ErrMsg);
 		}
-		SysEx::Free(vtable->ErrMsg);
+		_free(vtable->ErrMsg);
 		vtable->ErrMsg = nullptr;
 		for (int i = 0; i < p->Constraints.length; i++)
 			if (!p->Constraints[i].Usable && p->ConstraintUsages[i].ArgvIndex > 0)
@@ -1540,7 +1540,7 @@ findTerm_success:
 			}
 			_memset(usage, 0, sizeof(usage[0])*idxInfo->Constraints.length);
 			if (idxInfo->NeedToFreeIdxStr)
-				SysEx::Free(idxInfo->IdxStr);
+				_free(idxInfo->IdxStr);
 			idxInfo->IdxStr = nullptr;
 			idxInfo->IdxNum = 0;
 			idxInfo->NeedToFreeIdxStr = false;
@@ -1714,7 +1714,7 @@ findTerm_success:
 							return RC_NOMEM;
 						}
 						c = coll->Cmp(coll->User, sampleBytes, sampleZ, n, z);
-						SysEx::TagFree(ctx, sampleZ);
+						_tagfree(ctx, sampleZ);
 					}
 					else
 #endif
@@ -2250,7 +2250,7 @@ cancel:
 						inMul *= 25;
 						inEst = true;
 					}
-					else if (SysEx_ALWAYS(expr->x.List && expr->x.List->Exprs))
+					else if (_ALWAYS(expr->x.List && expr->x.List->Exprs))
 						inMul *= expr->x.List->Exprs; // "x IN (value, value, ...)"
 				}
 				else if (term->EOperator & WO_ISNULL)
@@ -2549,8 +2549,8 @@ cancel:
 			BestVirtualIndex(p);
 			_assert(indexInfo || p->Parse->Ctx->MallocFailed);
 			if (indexInfo && indexInfo->NeedToFreeIdxStr)
-				SysEx::Free(indexInfo->IdxStr);
-			SysEx::TagFree(p->Parse->Ctx, indexInfo);
+				_free(indexInfo->IdxStr);
+			_tagfree(p->Parse->Ctx, indexInfo);
 		}
 		else
 #endif
@@ -2774,7 +2774,7 @@ cancel:
 					((flags & WHERE_TEMP_INDEX) ? "" : " "),
 					((flags & WHERE_TEMP_INDEX) ? "" : level->Plan.u.Index->Name),
 				where);
-				SysEx::TagFree(ctx, where);
+				_tagfree(ctx, where);
 			}
 			else if (flags & (WHERE_ROWID_EQ|WHERE_ROWID_RANGE))
 			{
@@ -3133,8 +3133,8 @@ cancel:
 						constraints++;
 						ASSERTCOVERAGE(rangeEnd->wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
 					}
-					SysEx::TagFree(parse->Ctx, startAffs);
-					SysEx::TagFree(parse->Ctx, endAffs);
+					_tagfree(parse->Ctx, startAffs);
+					_tagfree(parse->Ctx, endAffs);
 
 					// Top of the loop body
 					level->P2 = v->CurrentAddr();
@@ -3418,7 +3418,7 @@ cancel:
 
 	__device__ static void WhereInfoFree(Context *ctx, WhereInfo *winfo)
 	{
-		if (SysEx_ALWAYS(winfo))
+		if (_ALWAYS(winfo))
 		{
 			for (int i = 0; i < winfo->Levels; i++)
 			{
@@ -3426,21 +3426,21 @@ cancel:
 				if (info)
 				{
 					// _assert(!info->NeedToFreeIdxStr || ctx->MallocFailed);
-					if (info->NeedToFreeIdxStr) SysEx::Free(info->IdxStr);
-					SysEx::TagFree(ctx, info);
+					if (info->NeedToFreeIdxStr) _free(info->IdxStr);
+					_tagfree(ctx, info);
 				}
 				if (winfo->Data[i].Plan.WsFlags & WHERE_TEMP_INDEX)
 				{
 					Index *index = winfo->Data[i].Plan.u.Index;
 					if (index)
 					{
-						SysEx::TagFree(ctx, index->ColAff);
-						SysEx::TagFree(ctx, index);
+						_tagfree(ctx, index->ColAff);
+						_tagfree(ctx, index);
 					}
 				}
 			}
 			WhereClauseClear(winfo->WC);
-			SysEx::TagFree(ctx, winfo);
+			_tagfree(ctx, winfo);
 		}
 	}
 
@@ -3477,10 +3477,10 @@ cancel:
 		// field (type Bitmask) it must be aligned on an 8-byte boundary on some architectures. Hence the ROUND8() below.
 		Context *ctx = parse->Ctx; // Database connection
 		int bytesWInfo = SysEx_ROUND8(sizeof(WhereInfo)+(tabListLength-1)*sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
-		WhereInfo *winfo = (WhereInfo *)SysEx::TagAlloc(ctx, bytesWInfo +  sizeof(WhereClause) + sizeof(WhereMaskSet), true); // Will become the return value of this function
+		WhereInfo *winfo = (WhereInfo *)_tagalloc(ctx, bytesWInfo +  sizeof(WhereClause) + sizeof(WhereMaskSet), true); // Will become the return value of this function
 		if (ctx->MallocFailed)
 		{
-			SysEx::TagFree(ctx, winfo);
+			_tagfree(ctx, winfo);
 			winfo = nullptr;
 			goto whereBeginError;
 		}
@@ -3682,7 +3682,7 @@ cancel:
 					//       The NEVER() comes about because rule (2) above prevents An indexable full-table-scan from reaching rule (3).
 					//   (4) The plan cost must be lower than prior plans, where "cost" is defined by the compareCost() function above. 
 					if ((sWBI.Cost.Used & sWBI.NotValid) == 0 && // (1)
-						(unconstrained == 0 || !sWBI.Src->Index || SysEx_NEVER((sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) != 0)) && // (3)
+						(unconstrained == 0 || !sWBI.Src->Index || _NEVER((sWBI.Cost.Plan.WsFlags & WHERE_NOT_FULLSCAN) != 0)) && // (3)
 						(bestJ < 0 || CompareCost(&sWBI.Cost, &bestPlan))) // (4)
 					{
 						WHERETRACE("   === table %d (%s) is best so far\n       cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=%08x\n",
@@ -3933,7 +3933,7 @@ whereBeginError:
 					v->AddOp2(in_->EndLoopOp, in_->Cur, in_->AddrInTop);
 					v->JumpHere(in_->AddrInTop-1);
 				}
-				SysEx::TagFree(ctx, level->u.in.InLoops);
+				_tagfree(ctx, level->u.in.InLoops);
 			}
 			v->ResolveLabel(level->AddrBrk);
 			if (level->LeftJoin)

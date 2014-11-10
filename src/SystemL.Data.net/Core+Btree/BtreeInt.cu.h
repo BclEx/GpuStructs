@@ -172,7 +172,7 @@ namespace Core
 		int MaxErrors;		// Stop accumulating errors when this reaches zero
 		int Errors;			// Number of messages written to zErrMsg so far
 		bool MallocFailed;	// A memory allocation error has occurred
-		Text::StringBuilder ErrMsg; // Accumulate the error message text here
+		TextBuilder ErrMsg; // Accumulate the error message text here
 	} IntegrityCk;
 
 	BTS __device__ inline operator|=(BTS a, int b) { return (BTS)(a | b); }

@@ -67,9 +67,9 @@ namespace Core
                     else
                     {
                         Debug.Assert(rawSql[rawSqlIdx] == ':' || rawSql[rawSqlIdx] == '$' || rawSql[rawSqlIdx] == '@');
-                        SysEx.ASSERTCOVERAGE(rawSql[rawSqlIdx] == ':');
-                        SysEx.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '$');
-                        SysEx.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '@');
+                        C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == ':');
+                        C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '$');
+                        C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '@');
                         idx = p.ParameterIndex(rawSql.Substring(rawSqlIdx, tokenLength), tokenLength);
                         Debug.Assert(idx > 0);
                     }
@@ -120,7 +120,7 @@ namespace Core
 	{
 		if (vdbe != null)
 		{
-			SysEx.BeginBenignAlloc();
+			C._benignalloc_begin();
 			Explain p = new Explain();
 			if (p)
 			{
@@ -130,7 +130,7 @@ namespace Core
 				p.Str.UseMalloc = 2;
 			}
 			else
-				SysEx.EndBenignAlloc();
+				C._benignalloc_end();
 		}
 	}
 
@@ -148,7 +148,7 @@ namespace Core
 			if (p->Indents && endsWithNL(p))
 			{
 				int n = p->Indents;
-				if (n > __arrayStaticLength(p->Indents)) n = __arrayStaticLength(p->Indents);
+				if (n > _lengthof(p->Indents)) n = _lengthof(p->Indents);
 				sqlite3AppendSpace(&p->Str, p->Indents[n-1]);
 			}   
 			va_start(ap, format);
@@ -168,7 +168,7 @@ namespace Core
 	{
 		Explain *p;
 		if (vdbe && (p = vdbe->Explain)!=0 ){
-			if (p->Str.zText && p->Indents.Length < __arrayStaticLength(p->Indents))
+			if (p->Str.zText && p->Indents.Length < _lengthof(p->Indents))
 			{
 				const char *z = p->str.zText;
 				int i = p->str.nChar-1;
@@ -193,11 +193,11 @@ namespace Core
 	{
 		if (vdbe && vdbe->Explain)
 		{
-			SysEx::Free(vdbe->ExplainString);
+			_free(vdbe->ExplainString);
 			sqlite3ExplainNL(vdbe);
 			vdbe->ExplainString = vdbe->Explain->Str.ToString();
-			SysEx::Free(vdbe->Explain); vdbe->Explain = nullptr;
-			SysEx::EndBenignAlloc();
+			_free(vdbe->Explain); vdbe->Explain = nullptr;
+			_benignalloc_end();
 		}
 	}
 

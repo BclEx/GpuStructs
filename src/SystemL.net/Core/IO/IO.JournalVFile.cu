@@ -57,7 +57,7 @@ namespace Core { namespace IO
 	{
 		if (Real)
 			Real->Close();
-		SysEx::Free(Buffer);
+		_free(Buffer);
 		return RC_OK;
 	}
 
@@ -119,7 +119,7 @@ namespace Core { namespace IO
 		JournalVFile *p = (JournalVFile *)file;
 		if (bufferLength > 0)
 		{
-			p->Buffer = (char *)SysEx::Alloc(bufferLength, true);
+			p->Buffer = (char *)_alloc2(bufferLength, true);
 			if (!p->Buffer)
 				return RC_NOMEM;
 		}

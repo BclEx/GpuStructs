@@ -60,7 +60,7 @@ namespace Core
 		for (chunk = p->Chunk; chunk; chunk = nextChunk)
 		{
 			nextChunk = chunk->NextChunk;
-			SysEx::TagFree(p->Db, chunk);
+			_tagfree(p->Db, chunk);
 		}
 		p->Chunk = nullptr;
 		p->Fresh.length = 0;
@@ -75,7 +75,7 @@ namespace Core
 		_assert(p);
 		if (!p->Fresh.length)
 		{
-			RowSetChunk *newChunk = (RowSetChunk *)SysEx::TagAlloc(p->Db, sizeof(*newChunk));
+			RowSetChunk *newChunk = (RowSetChunk *)_tagalloc(p->Db, sizeof(*newChunk));
 			if (!newChunk)
 				return nullptr;
 			newChunk->NextChunk = p->Chunk;
@@ -162,7 +162,7 @@ namespace Core
 			p = next;
 		}
 		p = nullptr;
-		for (i = 0; i < __arrayStaticLength(buckets); i++)
+		for (i = 0; i < _lengthof(buckets); i++)
 			p = rowSetEntryMerge(p, buckets[i]);
 		return p;
 	}

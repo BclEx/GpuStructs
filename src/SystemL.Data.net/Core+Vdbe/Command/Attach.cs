@@ -83,13 +83,13 @@ namespace Core.Command
             {
                 if (rc == RC.NOMEM) ctx.MallocFailed = true;
                 sqlite3_result_error(fctx, err, -1);
-                SysEx.Free(ref err);
+                C._free(ref err);
                 return;
             }
             Debug.Assert(vfs != null);
             flags |= VSystem.OPEN.MAIN_DB;
             rc = Btree.Open(vfs, path, ctx, ref newDB.Bt, 0, flags);
-            SysEx.Free(ref path);
+            C._free(ref path);
 
             ctx.DBs.length++;
             if (rc == RC.CONSTRAINT)
@@ -171,7 +171,7 @@ namespace Core.Command
                 if (rc == RC.NOMEM || rc == RC.IOERR_NOMEM)
                 {
                     ctx.MallocFailed = true;
-                    SysEx.TagFree(ctx, ref errDyn);
+                    C._tagfree(ctx, ref errDyn);
                     errDyn = SysEx.Mprintf(ctx, "out of memory");
                 }
                 else if (errDyn == null)
@@ -185,7 +185,7 @@ namespace Core.Command
             if (errDyn != null)
             {
                 sqlite3_result_error(fctx, errDyn, -1);
-                SysEx.TagFree(ctx, ref errDyn);
+                C._tagfree(ctx, ref errDyn);
             }
             if (rc != 0) sqlite3_result_error_code(fctx, rc);
         }
@@ -324,7 +324,7 @@ namespace Core
     {
         public bool FixInit(Parse parse, int db, string type, Token name)
         {
-            if (SysEx.NEVER(db < 0) || db == 1) return false;
+            if (C._NEVER(db < 0) || db == 1) return false;
             Context ctx = parse.Ctx;
             Debug.Assert(ctx.DBs.length > db);
             Parse = parse;

@@ -742,7 +742,7 @@ namespace Core
                     //        a[1] = win32IoerrRetryDelay;
                     //    return RC.OK;
                     //case FCNTL.TEMPFILENAME:
-                    //    var tfile = SysEx::Alloc(Vfs->MaxPathname, true);
+                    //    var tfile = _alloc(Vfs->MaxPathname, true);
                     //    if (tfile)
                     //    {
                     //        getTempname(Vfs->MaxPathname, tfile);

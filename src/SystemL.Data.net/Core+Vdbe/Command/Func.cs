@@ -25,7 +25,7 @@ namespace Core.Command
             CollSeq coll = GetFuncCollSeq(fctx);
             Debug.Assert(coll != null);
             Debug.Assert(mask == -1 || mask == 0);
-            SysEx.ASSERTCOVERAGE(mask == 0);
+            C.ASSERTCOVERAGE(mask == 0);
             int best = 0;
             if (sqlite3_value_type(argv[0]) == TYPE.NULL) return;
             for (int i = 1; i < argc; i++)
@@ -33,7 +33,7 @@ namespace Core.Command
                 if (sqlite3_value_type(argv[i]) == TYPE.NULL) return;
                 if ((sqlite3MemCompare(argv[best], argv[i], coll) ^ mask) >= 0)
                 {
-                    SysEx.ASSERTCOVERAGE(mask == 0);
+                    C.ASSERTCOVERAGE(mask == 0);
                     best = i;
                 }
             }
@@ -287,7 +287,7 @@ namespace Core.Command
                     return;
                 }
                 ConvertEx.Atof(buf, ref r, buf.Length, TEXTENCODE.UTF8);
-                SysEx.Free(ref buf);
+                C._free(ref buf);
             }
             sqlite3_result_double(fctx, r);
         }
@@ -298,8 +298,8 @@ namespace Core.Command
         {
             Context ctx = sqlite3_context_db_handle(fctx);
             Debug.Assert(bytes > 0);
-            SysEx.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH]);
-            SysEx.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH] + 1);
+            C.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH]);
+            C.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH] + 1);
             T[] z;
             if (bytes > ctx.Limits[(int)LIMIT.LENGTH])
             {
@@ -324,7 +324,7 @@ namespace Core.Command
             if (z2 != null)
             {
                 string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToUpperInvariant()); //: Many
-                sqlite3_result_text(fctx, z1, -1, null); //: SysEx::Free
+                sqlite3_result_text(fctx, z1, -1, null); //: _free
             }
         }
 
@@ -337,7 +337,7 @@ namespace Core.Command
             if (z2 != null)
             {
                 string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToLowerInvariant());
-                sqlite3_result_text(fctx, z1, -1, null); //: SysEx::Free
+                sqlite3_result_text(fctx, z1, -1, null); //: _free
             }
         }
 
@@ -373,7 +373,7 @@ namespace Core.Command
                     sqlite3_randomness(sizeof(char), ref p_);
                     p[i] = (char)(p_ & 0x7F);
                 }
-                sqlite3_result_blob(fctx, new string(p), n, null); //: SysEx::Free
+                sqlite3_result_blob(fctx, new string(p), n, null); //: _free
             }
         }
 
@@ -545,8 +545,8 @@ namespace Core.Command
 
             // Limit the length of the LIKE or GLOB pattern to avoid problems of deep recursion and N*N behavior in patternCompare().
             int pats = sqlite3_value_bytes(argv[0]);
-            SysEx.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH]);
-            SysEx.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH] + 1);
+            C.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH]);
+            C.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH] + 1);
             if (pats > ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH])
             {
                 sqlite3_result_error(fctx, "LIKE or GLOB pattern too complex", -1);
@@ -662,7 +662,7 @@ namespace Core.Command
                             z.Append[0] = 'X';
                             z.Append[1] = '\'';
                             sqlite3_result_text(fctx, z, -1, SysEx.DESTRUCTOR_TRANSIENT);
-                            SysEx.Free(ref z);
+                            C._free(ref z);
                         }
                         break;
                     }
@@ -691,7 +691,7 @@ namespace Core.Command
                             z.Append('\'');
                             j++;
                             //: z[j] = 0;
-                            sqlite3_result_text(fctx, z, j, null); //: SysEx.Free
+                            sqlite3_result_text(fctx, z, j, null); //: C._free
                         }
                         break;
                     }
@@ -746,7 +746,7 @@ namespace Core.Command
         //            *z2++ = 0x80 + (uint8)(c & 0x3F);
         //        }
         //    }
-        //    sqlite3_result_text(fctx, (char*)z, (int)(z2 - z), null); // SysEx::Free
+        //    sqlite3_result_text(fctx, (char*)z, (int)(z2 - z), null); // _free
         //}
 
         static void HexFunc(FuncContext fctx, int argc, Mem[] argv)
@@ -765,7 +765,7 @@ namespace Core.Command
                     zHex.Append(hexdigits[c & 0xf]);
                 }
                 //: *z = 0;
-                sqlite3_result_text(fctx, zHex, n * 2, null); //: SysEx.Free
+                sqlite3_result_text(fctx, zHex, n * 2, null); //: C._free
             }
         }
 
@@ -774,8 +774,8 @@ namespace Core.Command
             Context ctx = sqlite3_context_db_handle(fctx);
             Debug.Assert(argc == 1);
             long n = sqlite3_value_int64(argv[0]);
-            SysEx.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH]);
-            SysEx.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH] + 1);
+            C.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH]);
+            C.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH] + 1);
             if (n > ctx.Limits[(int)LIMIT.LENGTH])
                 sqlite3_result_error_toobig(fctx);
             else
@@ -817,7 +817,7 @@ namespace Core.Command
             if (j == 0 || j > sqlite3_context_db_handle(fctx).Limits[(int)LIMIT.LENGTH])
                 sqlite3_result_error_toobig(fctx);
             else
-                sqlite3_result_text(fctx, out_, j, null); //: SysEx::Free
+                sqlite3_result_text(fctx, out_, j, null); //: _free
         }
 
         static void TrimFunc(FuncContext fctx, int argc, Mem[] argv)

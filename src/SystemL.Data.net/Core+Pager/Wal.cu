@@ -91,7 +91,7 @@ namespace Core
 		{
 			if (wal->ExclusiveMode_ == Wal::MODE_HEAPMEMORY)
 			{
-				wal->WiData[id] = (uint32 volatile *)SysEx::Alloc(WALINDEX_PGSZ, true);
+				wal->WiData[id] = (uint32 volatile *)_alloc(WALINDEX_PGSZ, true);
 				if (!wal->WiData[id]) rc = RC_NOMEM;
 			}
 			else
@@ -506,7 +506,7 @@ namespace Core
 
 			// Malloc a buffer to read frames into.
 			int sizeFrame = sizePage + WAL_FRAME_HDRSIZE; // Number of bytes in buffer aFrame[]
-			uint8 *frames = (uint8 *)SysEx::Alloc(sizeFrame); // Malloc'd buffer to load entire frame
+			uint8 *frames = (uint8 *)_alloc(sizeFrame); // Malloc'd buffer to load entire frame
 			if (!frames)
 			{
 				rc = RC_NOMEM;
@@ -542,7 +542,7 @@ namespace Core
 				}
 			}
 
-			SysEx::Free(frames);
+			_free(frames);
 		}
 
 finished:
@@ -577,7 +577,7 @@ recovery_error:
 		if (wal->ExclusiveMode_ == Wal::MODE_HEAPMEMORY)
 			for (int i = 0; i < wal->WiData.length; i++)
 			{
-				SysEx::Free((void *)wal->WiData[i]);
+				_free((void *)wal->WiData[i]);
 				wal->WiData[i] = nullptr;
 			}
 		else
@@ -604,7 +604,7 @@ recovery_error:
 
 		// Allocate an instance of struct Wal to return.
 		*walOut = nullptr;
-		Wal *r = (Wal *)SysEx::Alloc(sizeof(Wal) + vfs->SizeOsFile, true); // Object to allocate and return
+		Wal *r = (Wal *)_alloc(sizeof(Wal) + vfs->SizeOsFile, true); // Object to allocate and return
 		if (!r)
 			return RC_NOMEM;
 
@@ -628,7 +628,7 @@ recovery_error:
 		{
 			walIndexClose(r, 0);
 			r->WalFile->Close();
-			SysEx::Free(r);
+			_free(r);
 		}
 		else
 		{
@@ -725,7 +725,7 @@ recovery_error:
 
 		_memset(subs, 0, sizeof(subs));
 		_assert(listLength <= HASHTABLE_NPAGE && listLength > 0);
-		_assert(HASHTABLE_NPAGE == (1 << (__arrayStaticLength(subs) - 1)));
+		_assert(HASHTABLE_NPAGE == (1 << (_lengthof(subs) - 1)));
 
 		for (int listIdx = 0; listIdx < listLength; listIdx++) // Index into input list
 		{
@@ -742,7 +742,7 @@ recovery_error:
 			subs[subIdx].ListLength = mergeLength;
 		}
 
-		for (subIdx++; subIdx < __arrayStaticLength(subs); subIdx++)
+		for (subIdx++; subIdx < _lengthof(subs); subIdx++)
 		{
 			if (listLength & (1 << subIdx))
 			{
@@ -763,7 +763,7 @@ recovery_error:
 
 	__device__ static void walIteratorFree(WalIterator *p)
 	{
-		SysEx::ScratchFree(p);
+		_stackfree(p);
 	}
 
 	__device__ static RC walIteratorInit(Wal *wal, WalIterator **iteratorOut)
@@ -775,7 +775,7 @@ recovery_error:
 		// Allocate space for the WalIterator object.
 		int segments = walFramePage(lastFrame) + 1; // Number of segments to merge
 		int bytes = sizeof(WalIterator) + (segments - 1) * sizeof(WalSegment) + lastFrame * sizeof(ht_slot); // Number of bytes to allocate
-		WalIterator *p = (WalIterator *)SysEx::ScratchAlloc(bytes); // Return value
+		WalIterator *p = (WalIterator *)_stackalloc(bytes); // Return value
 		if (!p)
 			return RC_NOMEM;
 		_memset(p, 0, bytes);
@@ -783,7 +783,7 @@ recovery_error:
 
 		// Allocate temporary space used by the merge-sort routine. This block of memory will be freed before this function returns.
 		RC rc = RC_OK;
-		ht_slot *tmp = (ht_slot *)SysEx::ScratchAlloc(sizeof(ht_slot) * (lastFrame > HASHTABLE_NPAGE ? HASHTABLE_NPAGE : lastFrame)); // Temp space used by merge-sort
+		ht_slot *tmp = (ht_slot *)_stackalloc(sizeof(ht_slot) * (lastFrame > HASHTABLE_NPAGE ? HASHTABLE_NPAGE : lastFrame)); // Temp space used by merge-sort
 		if (!tmp)
 			rc = RC_NOMEM;
 
@@ -813,7 +813,7 @@ recovery_error:
 				p->Segments[i].IDs = (Pid *)ids;
 			}
 		}
-		SysEx::ScratchFree(tmp);
+		_stackfree(tmp);
 
 		if (rc != RC_OK)
 			walIteratorFree(p);
@@ -960,12 +960,12 @@ walcheckpoint_out:
 
 	__device__ static void walLimitSize(Wal *wal, int64 max)
 	{
-		SysEx::BeginBenignAlloc();
+		_benignalloc_begin();
 		int64 size;
 		RC rc = wal->WalFile->get_FileSize(size);
 		if (rc == RC_OK && size > max)
 			rc = wal->WalFile->Truncate(max);
-		SysEx::EndBenignAlloc();
+		_benignalloc_end();
 		if (rc != RC_OK)
 			SysEx_LOG(rc, "cannot limit WAL size: %s", wal->WalName);
 	}
@@ -1004,13 +1004,13 @@ walcheckpoint_out:
 		WalFile->Close();
 		if (isDelete)
 		{
-			SysEx::BeginBenignAlloc();
+			_benignalloc_begin();
 			Vfs->Delete(WalName, 0);
-			SysEx::EndBenignAlloc();
+			_benignalloc_end();
 		}
 		WALTRACE("WAL%p: closed\n", this);
-		SysEx::Free((void *)WiData);
-		SysEx::Free(this);
+		_free((void *)WiData);
+		_free(this);
 		return rc;
 	}
 
@@ -1365,7 +1365,7 @@ walcheckpoint_out:
 
 	__device__ Pid Wal::DBSize()
 	{
-		return (SysEx_ALWAYS(ReadLock >= 0) ? Header.Pages : 0);
+		return (_ALWAYS(ReadLock >= 0) ? Header.Pages : 0);
 	}
 
 	__device__ RC Wal::BeginWriteTransaction()
@@ -1408,12 +1408,12 @@ walcheckpoint_out:
 	__device__ RC Wal::Undo(int (*undo)(void *, Pid), void *undoCtx)
 	{
 		RC rc = RC_OK;
-		if (SysEx_ALWAYS(WriteLock))
+		if (_ALWAYS(WriteLock))
 		{
 			// Restore the clients cache of the wal-index header to the state it was in before the client began writing to the database. 
 			_memcpy((void *)&Header, (void *)walIndexHeader(this), sizeof(Wal::IndexHeader));
 			Pid max = Header.MaxFrame;
-			for (Pid frame = Header.MaxFrame + 1;  SysEx_ALWAYS(rc == RC_OK) && frame <= max; frame++)
+			for (Pid frame = Header.MaxFrame + 1;  _ALWAYS(rc == RC_OK) && frame <= max; frame++)
 			{
 				// This call cannot fail. Unless the page for which the page number is passed as the second argument is (a) in the cache and 
 				// (b) has an outstanding reference, then xUndo is either a no-op (if (a) is false) or simply expels the page from the cache (if (b) is false).

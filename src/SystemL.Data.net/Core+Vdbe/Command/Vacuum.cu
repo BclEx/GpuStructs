@@ -138,7 +138,7 @@ namespace Core { namespace Command
 		if (main->get_Pager()->GetJournalMode() == IPager::JOURNALMODE_WAL)
 			ctx->NextPagesize = 0;
 
-		if (temp->SetPageSize(main->GetPageSize(), res, 0) || (!isMemDb && temp->SetPageSize(ctx->NextPagesize, res, false)) || SysEx_NEVER(ctx->MallocFailed))
+		if (temp->SetPageSize(main->GetPageSize(), res, 0) || (!isMemDb && temp->SetPageSize(ctx->NextPagesize, res, false)) || _NEVER(ctx->MallocFailed))
 		{
 			rc = RC_NOMEM;
 			goto end_of_vacuum;
@@ -208,13 +208,13 @@ namespace Core { namespace Command
 			_assert(Btree::IsInTrans(main) == 1);
 
 			// Copy Btree meta values
-			for (int i = 0; i < __arrayStaticLength(_runVacuum_copy); i+=2)
+			for (int i = 0; i < _lengthof(_runVacuum_copy); i+=2)
 			{
 				// GetMeta() and UpdateMeta() cannot fail in this context because we already have page 1 loaded into cache and marked dirty.
 				uint32 meta;
 				main->GetMeta(_runVacuum_copy[i], &meta);
 				rc = temp->UpdateMeta(_runVacuum_copy[i], meta+_runVacuum_copy[i+1]);
-				if (SysEx_NEVER(rc != RC_OK)) goto end_of_vacuum;
+				if (_NEVER(rc != RC_OK)) goto end_of_vacuum;
 			}
 			rc = sqlite3BtreeCopyFile(main, temp);
 			if (rc != RC_OK) goto end_of_vacuum;

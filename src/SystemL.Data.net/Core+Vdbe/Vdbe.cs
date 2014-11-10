@@ -126,7 +126,7 @@ namespace Core
                 //    for (int i = 0; i < rec.zBLOB.Length; i++)
                 //        sb.Append((char)rec.zBLOB[i]);
                 //    rec.Z = sb.ToString();
-                //    SysEx.Free(ref rec.zBLOB);
+                //    C._free(ref rec.zBLOB);
                 //    rec.flags &= ~MEM_Blob;
                 //}
                 rec.Flags &= ~(MEM.Real | MEM.Int);
@@ -277,9 +277,9 @@ namespace Core
         static void importVtabErrMsg(Vdbe p, VTable vtab)
         {
             Context db = p.Db;
-            SysEx.TagFree(db, ref p.ErrMsg);
+            C._tagfree(db, ref p.ErrMsg);
             p.ErrMsg = vtab.ErrMsg;
-            //SysEx.Free(vtab.zErrMsg );
+            //C._free(vtab.zErrMsg );
             vtab.ErrMsg = null;
         }
 

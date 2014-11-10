@@ -44,7 +44,7 @@ namespace Core
 		}
 		else if (p->Columns != columns)
 		{
-			SysEx::Free(p->ErrMsg);
+			_free(p->ErrMsg);
 			p->ErrMsg = __mprintf("sqlite3_get_table() called with two or more incompatible queries");
 			p->RC = RC_ERROR;
 			return true;
@@ -60,7 +60,7 @@ namespace Core
 				else
 				{
 					int n = _strlen30(argv[i]) + 1;
-					z = (char *)SysEx::Alloc(n);
+					z = (char *)_alloc(n);
 					if (!z) goto malloc_failed;
 					_memcpy(z, argv[i], n);
 				}
@@ -88,7 +88,7 @@ malloc_failed:
 		r.Columns = 0;
 		r.RC = RC_OK;
 		r.ResultsAlloc = 20;
-		r.Results.data = (char **)SysEx::Alloc(sizeof(char *)*r.ResultsAlloc);
+		r.Results.data = (char **)_alloc(sizeof(char *)*r.ResultsAlloc);
 		r.Results.length = 1;
 		if (!r.Results)
 			return (db->ErrCode = RC_NOMEM);
@@ -103,14 +103,14 @@ malloc_failed:
 			{
 				if (errMsg)
 				{
-					SysEx::Free(*errMsg);
+					_free(*errMsg);
 					*errMsg = __mprintf("%s", r.ErrMsg);
 				}
-				SysEx::Free(r.ErrMsg);
+				_free(r.ErrMsg);
 			}
 			return (db->ErrCode = r.RC); // Assume 32-bit assignment is atomic
 		}
-		SysEx::Free(r.ErrMsg);
+		_free(r.ErrMsg);
 		if (rc != RC_OK)
 		{
 			sqlite3_free_table(&r.Results[1]);
@@ -140,8 +140,8 @@ malloc_failed:
 			results--;
 			_assert(!results);
 			int n = PTR_TO_INT(results[0]);
-			for (int i = 1; i < n; i++) if (results[i]) SysEx::Free(results[i]);
-			SysEx::Free(results);
+			for (int i = 1; i < n; i++) if (results[i]) _free(results[i]);
+			_free(results);
 		}
 	}
 }

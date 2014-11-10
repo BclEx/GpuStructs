@@ -38,7 +38,7 @@ namespace Core
 			if (p->_divisor)
 				for (unsigned int index = 0; index < BITVEC_NPTR; index++)
 					Destroy(p->u.Sub[index]);
-			SysEx::Free(p);
+			_free(p);
 		}
 		__device__ inline uint32 get_Length() { return _size; }
 	};

@@ -28,7 +28,7 @@ namespace Core { namespace Command
 		Context::DB *dbObj = &ctx->DBs[db];
 
 		// Create new statistic tables if they do not exist, or clear them if they do already exist.
-		for (int i = 0; i < __arrayStaticLength(_tables); i++)
+		for (int i = 0; i < _lengthof(_tables); i++)
 		{
 			const char *table = _tables[i].Name;
 			Table *stat;
@@ -56,7 +56,7 @@ namespace Core { namespace Command
 		}
 
 		// Open the sqlite_stat[13] tables for writing.
-		for (int i = 0; i < __arrayStaticLength(_tables); i++)
+		for (int i = 0; i < _lengthof(_tables); i++)
 		{
 			v->AddOp3(OP_OpenWrite, statCur+i, roots[i], db);
 			v->ChangeP4(-1, (char *)3, Vdbe::P4T_INT32);
@@ -94,7 +94,7 @@ namespace Core { namespace Command
 		tRowcnt rows = (tRowcnt)sqlite3_value_int64(argv[0]);
 		int maxSamples = sqlite3_value_int(argv[1]);
 		int n = sizeof(*p) + sizeof(p->a[0])*maxSamples;
-		Stat3Accum *p = (Stat3Accum *)SysEx::Alloc(n);
+		Stat3Accum *p = (Stat3Accum *)_alloc(n);
 		if (!p)
 		{
 			sqlite3_result_error_nomem(funcCtx);
@@ -105,7 +105,7 @@ namespace Core { namespace Command
 		p->MaxSamples = maxSamples;
 		p->PSamples = rows/(maxSamples/3+1) + 1;
 		sqlite3_randomness(sizeof(p->Prn), &p->Prn);
-		sqlite3_result_blob(funcCtx, p, sizeof(p), SysEx::Free);
+		sqlite3_result_blob(funcCtx, p, sizeof(p), _free);
 	}
 	__device__ static const FuncDef Stat3InitFuncdef =
 	{
@@ -253,7 +253,7 @@ namespace Core { namespace Command
 		int regNewRowid = memId++;    // Rowid for the inserted record
 
 		Vdbe *v = parse->GetVdbe(); // The virtual machine being built up
-		if (!v || SysEx_NEVER(!table))
+		if (!v || _NEVER(!table))
 			return;
 		if (table->Id == 0 || !_strncmp(table->Name, "sqlite_", 7)) // Do not gather statistics on views or virtual tables + Do not gather statistics on system tables
 			return;
@@ -277,7 +277,7 @@ namespace Core { namespace Command
 			if (onlyIdx && onlyIdx != idx) continue;
 			v->VdbeNoopComment("Begin analysis of %s", idx->Name);
 			int cols = idx->Columns.length;
-			int *chngAddrs = (int *)SysEx::TagAlloc(ctx, sizeof(int)*cols); // Array of jump instruction addresses
+			int *chngAddrs = (int *)_tagalloc(ctx, sizeof(int)*cols); // Array of jump instruction addresses
 			if (!chngAddrs) continue;
 			KeyInfo *key = sqlite3IndexKeyinfo(parse, idx);
 			if (memId+1+(cols*2) > parse->Mems)
@@ -370,7 +370,7 @@ namespace Core { namespace Command
 				v->AddOp2(OP_AddImm, memId+i+1, 1);
 				v->AddOp3(OP_Column, idxCurId, i, memId+cols+i+1);
 			}
-			SysEx::TagFree(ctx, chngAddrs);
+			_tagfree(ctx, chngAddrs);
 
 			// Always jump here after updating the memId+1...memId+1+nCol counters
 			v->ResolveLabel(endOfLoop);
@@ -530,7 +530,7 @@ namespace Core { namespace Command
 						AnalyzeTable(parse, idx->Table, idx);
 					else if ((table = sqlite3LocateTable(parse, 0, z, nullptr)) != nullptr)
 						AnalyzeTable(parse, table, nullptr);
-					SysEx::TagFree(ctx, z);
+					_tagfree(ctx, z);
 				}
 			}
 		}
@@ -551,7 +551,7 @@ namespace Core { namespace Command
 						AnalyzeTable(parse, idx->Table, idx);
 					else if ((table = sqlite3LocateTable(parse, 0, z, dbName)) != nullptr)
 						AnalyzeTable(parse, table, nullptr);
-					SysEx::TagFree(ctx, z);
+					_tagfree(ctx, z);
 				}
 			}   
 		}
@@ -606,9 +606,9 @@ namespace Core { namespace Command
 			{
 				IndexSample *p = &idx->Samples[j];
 				if (p->Type == TYPE_TEXT || p->Type == TYPE_BLOB)
-					SysEx::TagFree(ctx, p->u.Z);
+					_tagfree(ctx, p->u.Z);
 			}
-			SysEx::TagFree(ctx, idx->Samples);
+			_tagfree(ctx, idx->Samples);
 		}
 		if (ctx && ctx->BytesFreed == 0)
 		{
@@ -631,7 +631,7 @@ namespace Core { namespace Command
 			return RC_NOMEM;
 		sqlite3_stmt *stmt = nullptr; // An SQL statement being run
 		RC rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0); // Result codes from subroutines
-		SysEx::TagFree(ctx, sql);
+		_tagfree(ctx, sql);
 		if (rc) return rc;
 
 		while (sqlite3_step(stmt) == SQLITE_ROW)
@@ -643,7 +643,7 @@ namespace Core { namespace Command
 			if (!idx) continue;
 			_assert(idx->Samples.length == 0);
 			idx->Samples.length = samplesLength;
-			idx->Samples.data = SysEx::TagAlloc(ctx, samplesLength*sizeof(IndexSample));
+			idx->Samples.data = _tagalloc(ctx, samplesLength*sizeof(IndexSample));
 			idx->AvgEq = idx->aiRowEst[1];
 			if (!idx->Samples.data)
 			{
@@ -660,7 +660,7 @@ namespace Core { namespace Command
 		if (!sql)
 			return RC_NOMEM;
 		rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0);
-		SysEx::TagFree(ctx, sql);
+		_tagfree(ctx, sql);
 		if (rc) return rc;
 
 		Index *prevIdx = nullptr; // Previous index in the loop
@@ -713,7 +713,7 @@ namespace Core { namespace Command
 					sample->u.Z = nullptr;
 				else
 				{
-					sample->u.Z = SysEx::TagAlloc(ctx, n);
+					sample->u.Z = _tagalloc(ctx, n);
 					if (!sample->u.Z)
 					{
 						ctx->MallocFailed = true;
@@ -761,7 +761,7 @@ namespace Core { namespace Command
 		else
 		{
 			rc = sqlite3_exec(ctx, sql, AnalysisLoader, &sInfo, 0);
-			SysEx::TagFree(ctx, sql);
+			_tagfree(ctx, sql);
 		}
 
 		// Load the statistics from the sqlite_stat3 table.

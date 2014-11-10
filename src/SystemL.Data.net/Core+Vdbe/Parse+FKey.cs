@@ -37,7 +37,7 @@ namespace Core
             else //: if (colsOut)
             {
                 Debug.Assert(colsLength > 1);
-                cols = new int[colsLength]; //: (int *)SysEx::TagAlloc(Ctx, colsLength*sizeof(int));
+                cols = new int[colsLength]; //: (int *)_tagalloc(Ctx, colsLength*sizeof(int));
                 if (cols == null) return 1;
                 colsOut = cols;
             }
@@ -95,7 +95,7 @@ namespace Core
             {
                 if (!DisableTriggers)
                     ErrorMsg("foreign key mismatch - \"%w\" referencing \"%w\"", fkey.From.Name, fkey.To);
-                SysEx.TagFree(Ctx, ref cols);
+                C._tagfree(Ctx, ref cols);
                 return 1;
             }
 
@@ -313,7 +313,7 @@ namespace Core
                 Expr.ListDelete(ctx, ref step.ExprList);
                 Select.Delete(ctx, ref step.Select);
                 Expr.Delete(ctx, ref p.When);
-                SysEx.TagFree(ctx, ref p);
+                C._tagfree(ctx, ref p);
             }
         }
 
@@ -434,7 +434,7 @@ namespace Core
                 if (regNew != 0) // A row is being added to the child table. If a parent row cannot be found, adding the child row has violated the FK constraint. 
                     FKLookupParent(this, db, to, index, fkey, cols, regNew, +1, isIgnore);
 
-                SysEx.TagFree(ctx, ref frees);
+                C._tagfree(ctx, ref frees);
             }
 
             // Loop through all the foreign key constraints that refer to this table
@@ -479,7 +479,7 @@ namespace Core
                     item.Name = null;
                     SrcListDelete(ctx, ref src);
                 }
-                SysEx.TagFree(ctx, ref cols);
+                C._tagfree(ctx, ref cols);
             }
         }
 
@@ -630,7 +630,7 @@ namespace Core
                         Expr.ListSetName(parse, list, fromCol, 0);
                     }
                 }
-                SysEx.TagFree(ctx, ref cols);
+                C._tagfree(ctx, ref cols);
 
                 string fromName = fkey.From.Name; // Name of child table
                 int fromNameLength = fromName.Length; // Length in bytes of zFrom
@@ -657,7 +657,7 @@ namespace Core
                 ctx.Lookaside.Enabled = false;
 
                 trigger = new Trigger();
-                //: trigger = (Trigger *)SysEx::TagAlloc(ctx, 
+                //: trigger = (Trigger *)_tagalloc(ctx, 
                 //:    sizeof(Trigger) + // Trigger
                 //:    sizeof(TriggerStep) + // Single step in trigger program
                 //:    fromNameLength + 1 // Space for pStep->target.z
@@ -764,7 +764,7 @@ namespace Core
                 FKTriggerDelete(ctx, fkey.Triggers[1]);
 #endif
                 next = fkey.NextFrom;
-                SysEx.TagFree(ctx, ref fkey);
+                C._tagfree(ctx, ref fkey);
             }
         }
     }

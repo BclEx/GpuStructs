@@ -75,7 +75,7 @@ namespace Core
             {
                 if (IVTable)
                     IVTable.Module.Disconnect(ref IVTable);
-                SysEx.TagFree(ctx, ref this);
+                C._tagfree(ctx, ref this);
             }
         }
 
@@ -151,8 +151,8 @@ namespace Core
             if (table.ModuleArgs != null)
             {
                 for (int i = 0; i < table.ModuleArgs.Length; i++)
-                    SysEx.TagFree(ctx, ref table.ModuleArgs[i]);
-                SysEx.TagFree(ctx, ref table.ModuleArgs);
+                    C._tagfree(ctx, ref table.ModuleArgs[i]);
+                C._tagfree(ctx, ref table.ModuleArgs);
             }
         }
 

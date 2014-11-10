@@ -6,7 +6,7 @@ __global__ static void fallocExample(void *f)
 	fallocFreeBlock((fallocHeap *)f, b);
 }
 
-void __fallocExample(cudaFallocHost &f)
+void __fallocExample(cudaDeviceFalloc &f)
 {
 	fallocExample<<<1, 1>>>(f.heap);
 }

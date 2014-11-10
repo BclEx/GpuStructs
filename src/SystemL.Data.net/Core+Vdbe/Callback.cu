@@ -11,7 +11,7 @@ namespace Core
 			char *external = SysEx::TagStrDup(ctx, name);
 			if (!external) return;
 			ctx->CollNeeded(ctx->CollNeededArg, ctx, encode, external);
-			SysEx::TagFree(ctx, external);
+			_tagfree(ctx, external);
 		}
 #ifndef OMIT_UTF16
 		if (ctx->CollNeeded16)
@@ -81,7 +81,7 @@ namespace Core
 		CollSeq *coll = (CollSeq *)ctx->CollSeqs.Find(name, nameLength);
 		if (!coll && create)
 		{
-			coll = (CollSeq *)SysEx::TagAlloc(ctx, 3*sizeof(*coll) + nameLength + 1);
+			coll = (CollSeq *)_tagalloc(ctx, 3*sizeof(*coll) + nameLength + 1);
 			if (coll)
 			{
 				coll[0].Name = (char *)&coll[3];
@@ -98,7 +98,7 @@ namespace Core
 				if (del)
 				{
 					ctx->MallocFailed = true;
-					SysEx::TagFree(ctx, del);
+					_tagfree(ctx, del);
 					coll = nullptr;
 				}
 			}
@@ -142,7 +142,7 @@ namespace Core
 	__device__ void Callback::FuncDefInsert(FuncDefHash *hash, FuncDef *def)
 	{
 		int nameLength = _strlen30(def->Name);
-		int h = (__tolower(def->Name[0]) + nameLength) % __arrayStaticLength(hash->data); // Hash value
+		int h = (_tolower(def->Name[0]) + nameLength) % _lengthof(hash->data); // Hash value
 		FuncDef *other = FunctionSearch(hash, h, def->Name, nameLength);
 		if (other)
 		{
@@ -163,7 +163,7 @@ namespace Core
 		_assert(args >= -2);
 		_assert(args >= -1 || !createFlag);
 		_assert(encode == TEXTENCODE_UTF8 || encode == TEXTENCODE_UTF16LE || encode == TEXTENCODE_UTF16BE);
-		int h = (__tolower(name[0]) + nameLength) % __arrayStaticLength(ctx->Funcs.data); // Hash value
+		int h = (_tolower(name[0]) + nameLength) % _lengthof(ctx->Funcs.data); // Hash value
 
 		// First search for a match amongst the application-defined functions.
 		FuncDef *best = nullptr; // Best match found so far
@@ -207,7 +207,7 @@ namespace Core
 
 		// If the createFlag parameter is true and the search did not reveal an exact match for the name, number of arguments and encoding, then add a
 		// new entry to the hash table and return it.
-		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)SysEx::TagAlloc(ctx, sizeof(*best)+nameLength+1)) != nullptr)
+		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)_tagalloc(ctx, sizeof(*best)+nameLength+1)) != nullptr)
 		{
 			best->Name = (char *)&best[1];
 			best->Args = (uint16)args;
@@ -246,7 +246,7 @@ namespace Core
 
 	__device__ Schema *Callback::SchemaGet(Context *ctx, Btree *bt)
 	{
-		Schema *p = (bt ? bt->Schema(sizeof(Schema), SchemaClear) : (Schema *)SysEx::TagAlloc(nullptr, sizeof(Schema), true));
+		Schema *p = (bt ? bt->Schema(sizeof(Schema), SchemaClear) : (Schema *)_tagalloc(nullptr, sizeof(Schema), true));
 		if (!p)
 			ctx->MallocFailed = true;
 		else if (!p->FileFormat)

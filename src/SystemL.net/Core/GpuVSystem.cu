@@ -1,8 +1,8 @@
 ﻿// os_win.c
 #define OS_GPU 1
 #if OS_GPU
-#include "Core.cu.h"
 #include <new.h>
+#include "Core.cu.h"
 
 namespace Core
 {
@@ -316,7 +316,7 @@ namespace Core
 		//
 		//		if (winIsDir(converted))
 		//		{
-		//			SysEx::Free(converted);
+		//			_free(converted);
 		//			return RC_CANTOPEN_ISDIR;
 		//		}
 		//
@@ -360,7 +360,7 @@ namespace Core
 		//			{
 		//				file->LastErrno = lastErrno;
 		//				winLogError(RC_CANTOPEN, file->LastErrno, "winOpen", utf8Name);
-		//				SysEx::Free(converted);
+		//				_free(converted);
 		//				if (isReadWrite && !isExclusive)
 		//					return Open(name, id, (OPEN)((flags|OPEN_READONLY) & ~(OPEN_CREATE|OPEN_READWRITE)), outFlags);
 		//				else
@@ -369,7 +369,7 @@ namespace Core
 		//
 		//			if (outFlags)
 		//				*outFlags = (isReadWrite ? OPEN_READWRITE : OPEN_READONLY);
-		//			SysEx::Free(converted);
+		//			_free(converted);
 		//			file->Opened = true;
 		//			file->Vfs = this;
 		//			file->H = h;

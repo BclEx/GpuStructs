@@ -1,9 +1,9 @@
 ﻿// os_win.c
 #define OS_WIN 1
 #if OS_WIN // This file is used for Windows only
-#include "Core.cu.h"
 #include <windows.h>
 #include <new.h>
+#include "Core.cu.h"
 
 namespace Core
 {
@@ -695,13 +695,13 @@ namespace Core
 		{
 			/// If no zName is given, restore all system calls to their default settings and return NULL
 			rc = RC_OK;
-			for (int i = 0; i < __arrayStaticLength(Syscalls); i++)
+			for (int i = 0; i < _lengthof(Syscalls); i++)
 				if (Syscalls[i].Default)
 					Syscalls[i].Current = Syscalls[i].Default;
 			return rc;
 		}
 		// If zName is specified, operate on only the one system call specified.
-		for (int i = 0; i < __arrayStaticLength(Syscalls); i++)
+		for (int i = 0; i < _lengthof(Syscalls); i++)
 		{
 			if (!strcmp(name, Syscalls[i].Name))
 			{
@@ -718,7 +718,7 @@ namespace Core
 
 	syscall_ptr WinVSystem::GetSystemCall(const char *name)
 	{
-		for (int i = 0; i < __arrayStaticLength(Syscalls); i++)
+		for (int i = 0; i < _lengthof(Syscalls); i++)
 			if (!strcmp(name, Syscalls[i].Name)) return Syscalls[i].Current;
 		return nullptr;
 	}
@@ -727,9 +727,9 @@ namespace Core
 	{
 		int i = -1;
 		if (name)
-			for (i = 0; i < __arrayStaticLength(Syscalls)-1; i++)
+			for (i = 0; i < _lengthof(Syscalls)-1; i++)
 				if (!strcmp(name, Syscalls[i].Name)) break;
-		for (i++; i < __arrayStaticLength(Syscalls); i++)
+		for (i++; i < _lengthof(Syscalls); i++)
 			if (Syscalls[i].Current) return Syscalls[i].Name;
 		return 0;
 	}
@@ -997,13 +997,13 @@ namespace Core
 		int c = osMultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0);
 		if (!c)
 			return nullptr;
-		LPWSTR wideName = (LPWSTR)SysEx::Alloc(c*sizeof(wideName[0]), true);
+		LPWSTR wideName = (LPWSTR)_alloc2(c*sizeof(wideName[0]), true);
 		if (!wideName)
 			return nullptr;
 		c = osMultiByteToWideChar(CP_UTF8, 0, name, -1, wideName, c);
 		if (!c)
 		{
-			SysEx::Free(wideName);
+			_free(wideName);
 			wideName = nullptr;
 		}
 		return wideName;
@@ -1014,13 +1014,13 @@ namespace Core
 		int c = osWideCharToMultiByte(CP_UTF8, 0, wideName, -1, 0, 0, 0, 0);
 		if (!c)
 			return nullptr;
-		char *name = (char *)SysEx::Alloc(c, true);
+		char *name = (char *)_alloc2(c, true);
 		if (!name)
 			return nullptr;
 		c = osWideCharToMultiByte(CP_UTF8, 0, wideName, -1, name, c, 0, 0);
 		if (!c)
 		{
-			SysEx::Free(name);
+			_free(name);
 			name = nullptr;
 		}
 		return name;
@@ -1032,13 +1032,13 @@ namespace Core
 		int c = osMultiByteToWideChar(codepage, 0, name, -1, NULL, 0)*sizeof(WCHAR);
 		if (!c)
 			return nullptr;
-		LPWSTR mbcsName = (LPWSTR)SysEx::Alloc(c*sizeof(mbcsName[0]), true);
+		LPWSTR mbcsName = (LPWSTR)_alloc2(c*sizeof(mbcsName[0]), true);
 		if (!mbcsName)
 			return nullptr;
 		c = osMultiByteToWideChar(codepage, 0, name, -1, mbcsName, c);
 		if (!c)
 		{
-			SysEx::Free(mbcsName);
+			_free(mbcsName);
 			mbcsName = nullptr;
 		}
 		return mbcsName;
@@ -1050,13 +1050,13 @@ namespace Core
 		int c = osWideCharToMultiByte(codepage, 0, wideName, -1, 0, 0, 0, 0);
 		if (!c)
 			return nullptr;
-		char *name = (char *)SysEx::Alloc(c, true);
+		char *name = (char *)_alloc2(c, true);
 		if (!name)
 			return nullptr;
 		c = osWideCharToMultiByte(codepage, 0, wideName, -1, name, c, 0, 0);
 		if (!c)
 		{
-			SysEx::Free(name);
+			_free(name);
 			name = nullptr;
 		}
 		return name;
@@ -1068,7 +1068,7 @@ namespace Core
 		if (!tmpWide)
 			return nullptr;
 		char *nameUtf8 = UnicodeToUtf8(tmpWide);
-		SysEx::Free(tmpWide);
+		_free(tmpWide);
 		return nameUtf8;
 	}
 
@@ -1078,7 +1078,7 @@ namespace Core
 		if (!tmpWide)
 			return nullptr;
 		char *nameMbcs = UnicodeToMbcs(tmpWide);
-		SysEx::Free(tmpWide);
+		_free(tmpWide);
 		return nameMbcs;
 	}
 
@@ -1100,7 +1100,7 @@ namespace Core
 		else if (type == WIN32_TEMP_DIRECTORY_TYPE)
 			directory = &temp_directory;
 		_assert(!directory || type == WIN32_DATA_DIRECTORY_TYPE || type == WIN32_TEMP_DIRECTORY_TYPE);
-		_assert(!directory || SysEx::MemdebugHasType(*directory, SysEx::MEMTYPE_HEAP));
+		_assert(!directory || _memdbg_hastype(*directory, MEMTYPE_HEAP));
 		if (directory)
 		{
 			char *valueUtf8 = nullptr;
@@ -1110,7 +1110,7 @@ namespace Core
 				if (!valueUtf8)
 					return RC_NOMEM;
 			}
-			SysEx::Free(*directory);
+			_free(*directory);
 			*directory = valueUtf8;
 			return RC_OK;
 		}
@@ -1139,9 +1139,9 @@ namespace Core
 			if (dwLen > 0)
 			{
 				// allocate a buffer and convert to UTF8
-				SysEx::BeginBenignAlloc();
+				_benignalloc_begin();
 				out = UnicodeToUtf8(tempWide);
-				SysEx::EndBenignAlloc();
+				_benignalloc_end();
 #if !OS_WINRT
 				// free the system buffer allocated by FormatMessage
 				osLocalFree(tempWide);
@@ -1156,9 +1156,9 @@ namespace Core
 			if (dwLen > 0)
 			{
 				// allocate a buffer and convert to UTF8
-				SysEx::BeginBenignAlloc();
+				_benignalloc_begin();
 				out = win32_MbcsToUtf8(temp);
-				SysEx::EndBenignAlloc();
+				_benignalloc_end();
 				// free the system buffer allocated by FormatMessage
 				osLocalFree(temp);
 			}
@@ -1171,7 +1171,7 @@ namespace Core
 			// copy a maximum of nBuf chars to output buffer
 			_snprintf(buf, bufLength, "%s", out);
 			// free the UTF8 buffer
-			SysEx::Free(out);
+			_free(out);
 		}
 		return RC_OK;
 	}
@@ -1287,7 +1287,7 @@ namespace Core
 		{
 			file->LastErrno = osGetLastError();
 			winLogError(RC_IOERR, file->LastErrno, "winceCreateLock1", filename);
-			SysEx::Free(name);
+			_free(name);
 			return RC_IOERR;
 		}
 		// Acquire the mutex before continuing
@@ -1301,7 +1301,7 @@ namespace Core
 		DWORD lastErrno = osGetLastError();
 		if (lastErrno == ERROR_ALREADY_EXISTS)
 			init = false;
-		SysEx::Free(name);
+		_free(name);
 
 		// If we succeeded in making the shared memory handle, map it.
 		bool logged = false;
@@ -1568,7 +1568,7 @@ namespace Core
 			int cnt = 0;
 			while (osDeleteFileW(DeleteOnClose) == 0 && osGetFileAttributesW(DeleteOnClose) != 0xffffffff && cnt++ < WINCE_DELETION_ATTEMPTS)
 				win32_Sleep(100);  // Wait a little before trying again
-			SysEx::Free(DeleteOnClose);
+			_free(DeleteOnClose);
 		}
 #endif
 		OSTRACE("CLOSE %d %s\n", H, rc ? "ok" : "failed");
@@ -2014,7 +2014,7 @@ namespace Core
 				a[1] = win32IoerrRetryDelay;
 			return RC_OK;
 		case FCNTL_TEMPFILENAME:
-			tfile = (char *)SysEx::Alloc(Vfs->MaxPathname, true);
+			tfile = (char *)_alloc2(Vfs->MaxPathname, true);
 			if (tfile)
 			{
 				getTempname(Vfs->MaxPathname, tfile);
@@ -2144,14 +2144,14 @@ namespace Core
 				if (deleteFlag)
 				{
 					SimulateIOErrorBenign(true);
-					SysEx::BeginBenignAlloc();
+					_benignalloc_begin();
 					vfs->Delete(p->Filename, false);
-					SysEx::EndBenignAlloc();
+					_benignalloc_end();
 					SimulateIOErrorBenign(false);
 				}
 				*pp = p->Next;
-				SysEx::Free(p->Regions);
-				SysEx::Free(p);
+				_free(p->Regions);
+				_free(p);
 			}
 			else
 				pp = &p->Next;
@@ -2162,14 +2162,14 @@ namespace Core
 		_assert(file->Shm == nullptr); // Not previously opened
 
 		// Allocate space for the new sqlite3_shm object.  Also speculatively allocate space for a new winShmNode and filename.
-		struct winShm *p = (struct winShm *)SysEx::Alloc(sizeof(*p), true); // The connection to be opened */
+		struct winShm *p = (struct winShm *)_alloc(sizeof(*p), true); // The connection to be opened */
 		if (!p) return RC_IOERR_NOMEM;
 		int nameLength = _strlen30(file->Path); // Size of zName in bytes
 		struct winShmNode *shmNode; // The underlying mmapped file
-		struct winShmNode *newNode = (struct winShmNode *)SysEx::Alloc(sizeof(*shmNode) + nameLength + 17, true); // Newly allocated winShmNode
+		struct winShmNode *newNode = (struct winShmNode *)_alloc(sizeof(*shmNode) + nameLength + 17, true); // Newly allocated winShmNode
 		if (!newNode)
 		{
-			SysEx::Free(p);
+			_free(p);
 			return RC_IOERR_NOMEM;
 		}
 		newNode->Filename = (char *)&newNode[1];
@@ -2182,7 +2182,7 @@ namespace Core
 			if (_strICmp(shmNode->Filename, newNode->Filename) == 0) break;
 		RC rc;
 		if (shmNode)
-			SysEx::Free(newNode);
+			_free(newNode);
 		else
 		{
 			shmNode = newNode;
@@ -2230,8 +2230,8 @@ namespace Core
 shm_open_err:
 		winShmSystemLock(shmNode, _SHM_UNLCK, WIN_SHM_DMS, 1);
 		winShmPurge(file->Vfs, 0); // This call frees pShmNode if required
-		SysEx::Free(p);
-		SysEx::Free(newNode);
+		_free(p);
+		_free(newNode);
 		winShmLeaveMutex();
 		return rc;
 	}
@@ -2247,7 +2247,7 @@ shm_open_err:
 		winShm **pp;
 		for (pp = &shmNode->First; (*pp) != p; pp = &(*pp)->Next) { }
 		*pp = p->Next;
-		SysEx::Free(p); // Free the connection p
+		_free(p); // Free the connection p
 		Shm = nullptr;
 		MutexEx::Leave(shmNode->Mutex);
 
@@ -2493,7 +2493,7 @@ shmpage_out:
 			if (multi)
 			{
 				__snprintf(tempPath, MAX_PATH-30, "%s", multi);
-				SysEx::Free(multi);
+				_free(multi);
 			}
 			else
 				return RC_IOERR_NOMEM;
@@ -2508,7 +2508,7 @@ shmpage_out:
 			if (utf8)
 			{
 				__snprintf(tempPath, MAX_PATH-30, "%s", utf8);
-				SysEx::Free(utf8);
+				_free(utf8);
 			}
 			else
 				return RC_IOERR_NOMEM;
@@ -2636,7 +2636,7 @@ shmpage_out:
 
 		if (winIsDir(converted))
 		{
-			SysEx::Free(converted);
+			_free(converted);
 			return RC_CANTOPEN_ISDIR;
 		}
 
@@ -2707,7 +2707,7 @@ shmpage_out:
 			{
 				file->LastErrno = lastErrno;
 				winLogError(RC_CANTOPEN, file->LastErrno, "winOpen", utf8Name);
-				SysEx::Free(converted);
+				_free(converted);
 				if (isReadWrite && !isExclusive)
 					return Open(name, id, (OPEN)((flags|OPEN_READONLY) & ~(OPEN_CREATE|OPEN_READWRITE)), outFlags);
 				else
@@ -2720,14 +2720,14 @@ shmpage_out:
 			if (isReadWrite && type == OPEN_MAIN_DB && (rc = winceCreateLock(name, file)) != RC_OK)
 			{
 				osCloseHandle(h);
-				SysEx::Free(converted);
+				_free(converted);
 				return rc;
 			}
 			if (isTemp)
 				file->DeleteOnClose = converted;
 			else
 #endif
-				SysEx::Free(converted);
+				_free(converted);
 			file->Opened = true;
 			file->Vfs = this;
 			file->H = h;
@@ -2818,7 +2818,7 @@ shmpage_out:
 			rc = winLogError(RC_IOERR_DELETE, lastErrno, "winDelete", filename);
 		else
 			logIoerr(cnt);
-		SysEx::Free(converted);
+		_free(converted);
 		OSTRACE("DELETE \"%s\" %s\n", filename, rc ? "failed" : "ok" );
 		return rc;
 	}
@@ -2852,7 +2852,7 @@ shmpage_out:
 				if (lastErrno != ERROR_FILE_NOT_FOUND && lastErrno != ERROR_PATH_NOT_FOUND)
 				{
 					winLogError(RC_IOERR_ACCESS, lastErrno, "winAccess", filename);
-					SysEx::Free(converted);
+					_free(converted);
 					return RC_IOERR_ACCESS;
 				}
 				else
@@ -2863,7 +2863,7 @@ shmpage_out:
 		else
 			attr = osGetFileAttributesA((char*)converted);
 #endif
-		SysEx::Free(converted);
+		_free(converted);
 		switch (flags)
 		{
 		case ACCESS_READ:
@@ -2952,27 +2952,27 @@ shmpage_out:
 			if (bytes == 0)
 			{
 				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameW1", (char *)converted);
-				SysEx::Free(converted);
+				_free(converted);
 				return RC_CANTOPEN_FULLPATH;
 			}
 			bytes += 3;
-			temp = (LPWSTR)SysEx::Alloc(bytes*sizeof(temp[0]), true);
+			temp = (LPWSTR)_alloc2(bytes*sizeof(temp[0]), true);
 			if (!temp)
 			{
-				SysEx::Free(converted);
+				_free(converted);
 				return RC_IOERR_NOMEM;
 			}
 			bytes = osGetFullPathNameW((LPCWSTR)converted, bytes, temp, 0);
 			if (bytes == 0)
 			{
 				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameW2", (char *)converted);
-				SysEx::Free(converted);
-				SysEx::Free(temp);
+				_free(converted);
+				_free(temp);
 				return RC_CANTOPEN_FULLPATH;
 			}
-			SysEx::Free(converted);
+			_free(converted);
 			out = UnicodeToUtf8(temp);
-			SysEx::Free(temp);
+			_free(temp);
 		}
 #ifdef WIN32_HAS_ANSI
 		else
@@ -2982,33 +2982,33 @@ shmpage_out:
 			if (bytes == 0)
 			{
 				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameA1", (char *)converted);
-				SysEx::Free(converted);
+				_free(converted);
 				return RC_CANTOPEN_FULLPATH;
 			}
 			bytes += 3;
-			temp = (char *)SysEx::Alloc(bytes*sizeof(temp[0]), true);
+			temp = (char *)_alloc2(bytes*sizeof(temp[0]), true);
 			if (!temp)
 			{
-				SysEx::Free(converted);
+				_free(converted);
 				return RC_IOERR_NOMEM;
 			}
 			bytes = osGetFullPathNameA((char*)converted, bytes, temp, 0);
 			if (bytes == 0)
 			{
 				winLogError(RC_ERROR, osGetLastError(), "GetFullPathNameA2", (char *)converted);
-				SysEx::Free(converted);
-				SysEx::Free(temp);
+				_free(converted);
+				_free(temp);
 				return RC_CANTOPEN_FULLPATH;
 			}
-			SysEx::Free(converted);
+			_free(converted);
 			out = win32_MbcsToUtf8(temp);
-			SysEx::Free(temp);
+			_free(temp);
 		}
 #endif
 		if (out)
 		{
 			_snprintf(full, MIN(fullLength, MaxPathname), "%s", out);
-			SysEx::Free(out);
+			_free(out);
 			return RC_OK;
 		}
 		return RC_IOERR_NOMEM;
@@ -3032,7 +3032,7 @@ shmpage_out:
 		else
 			h = osLoadLibraryA((char*)converted);
 #endif
-		SysEx::Free(converted);
+		_free(converted);
 		return (void *)h;
 	}
 
@@ -3160,7 +3160,7 @@ shmpage_out:
 		_winVfs.MaxPathname = 260;
 		_winVfs.Name = "win32";
 		// Double-check that the aSyscall[] array has been constructed correctly.  See ticket [bb3a86e890c8e96ab]
-		_assert(__arrayStaticLength(Syscalls) == 74);
+		_assert(_lengthof(Syscalls) == 74);
 #ifndef OMIT_WAL
 		// get memory map allocation granularity
 		memset(&winSysInfo, 0, sizeof(SYSTEM_INFO));

@@ -128,7 +128,7 @@ namespace Core { namespace IO
 		__device__ inline RC CloseAndFree()
 		{
 			RC rc = Close();
-			SysEx::Free(this);
+			_free(this);
 			return rc;
 		}
 

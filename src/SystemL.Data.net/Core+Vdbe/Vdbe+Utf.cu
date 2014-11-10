@@ -70,7 +70,7 @@ namespace Core
 		// Variable zOut is set to point at the output buffer, space obtained from sqlite3_malloc().
 		zIn = (u8*)mem->z; // Input iterator
 		zTerm = &zIn[mem->n]; // End of input
-		zOut = SysEx::TagAlloc(mem->Ctx, len); // Output buffer
+		zOut = _tagalloc(mem->Ctx, len); // Output buffer
 		if (!zOut)
 			return RC_NOMEM;
 		z = zOut; // Output iterator

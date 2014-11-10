@@ -675,10 +675,10 @@ namespace Core.Command
                         i++;
                     }
                 }
-                SysEx.ASSERTCOVERAGE(n == (ulong)(zdtBuf.Length - 1));
-                SysEx.ASSERTCOVERAGE(n == (ulong)zdtBuf.Length);
-                SysEx.ASSERTCOVERAGE(n == (ulong)ctx.Limits[(int)LIMIT.LENGTH] + 1);
-                SysEx.ASSERTCOVERAGE(n == (ulong)ctx.Limits[(int)LIMIT.LENGTH]);
+                C.ASSERTCOVERAGE(n == (ulong)(zdtBuf.Length - 1));
+                C.ASSERTCOVERAGE(n == (ulong)zdtBuf.Length);
+                C.ASSERTCOVERAGE(n == (ulong)ctx.Limits[(int)LIMIT.LENGTH] + 1);
+                C.ASSERTCOVERAGE(n == (ulong)ctx.Limits[(int)LIMIT.LENGTH]);
                 if (n < (ulong)zdtBuf.Capacity)
                     z = zdtBuf;
                 else if (n > (ulong)ctx.Limits[(int)LIMIT.LENGTH])

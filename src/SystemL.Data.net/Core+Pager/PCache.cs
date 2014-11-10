@@ -181,7 +181,7 @@ namespace Core
                 if (page.Data == null)
                 {
                     //page.Page = page;
-                    page.Data = SysEx.Alloc(SizePage);
+                    page.Data = C._alloc(SizePage);
                     //page.Extra = this;
                     page.Cache = this;
                     page.ID = id;
@@ -298,7 +298,7 @@ namespace Core
                     next = p.DirtyNext;
                     // This routine never gets call with a positive pgno except right after sqlite3PcacheCleanAll().  So if there are dirty pages, it must be that pgno==0.
                     Debug.Assert(p.ID > 0);
-                    if (SysEx.ALWAYS(p.ID > id))
+                    if (C._ALWAYS(p.ID > id))
                     {
                         Debug.Assert((p.Flags & PgHdr.PGHDR.DIRTY) != 0);
                         MakeClean(p);
@@ -364,7 +364,7 @@ namespace Core
                 p = @in;
                 @in = p.Dirty;
                 p.Dirty = null;
-                for (i = 0; SysEx.ALWAYS(i < N_SORT_BUCKET - 1); i++)
+                for (i = 0; C._ALWAYS(i < N_SORT_BUCKET - 1); i++)
                 {
                     if (a[i] == null)
                     {
@@ -377,7 +377,7 @@ namespace Core
                         a[i] = null;
                     }
                 }
-                if (SysEx.NEVER(i == N_SORT_BUCKET - 1))
+                if (C._NEVER(i == N_SORT_BUCKET - 1))
                     // To get here, there need to be 2^(N_SORT_BUCKET) elements in the input list.  But that is impossible.
                     a[i] = MergeDirtyList(a[i], p);
             }
@@ -452,7 +452,7 @@ namespace Core
 
         public static byte[] PageAlloc2(int size)
         {
-            return SysEx.Alloc(size);
+            return C._alloc(size);
         }
 
         public static void PageFree(ref PgHdr p)
@@ -462,7 +462,7 @@ namespace Core
 
         public static void PageFree2(ref byte[] p)
         {
-            SysEx.Free(ref p);
+            C._free(ref p);
         }
 
         #endregion

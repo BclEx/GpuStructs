@@ -141,7 +141,7 @@ namespace Core.Command
             if (main.get_Pager().GetJournalMode() == IPager.JOURNALMODE.WAL)
                 ctx.NextPagesize = 0;
 
-            if (temp.SetPageSize(main.GetPageSize(), res, 0) != 0 || (!isMemDb && temp.SetPageSize(ctx->NextPagesize, res, false) != 0) || SysEx.NEVER(ctx.MallocFailed))
+            if (temp.SetPageSize(main.GetPageSize(), res, 0) != 0 || (!isMemDb && temp.SetPageSize(ctx->NextPagesize, res, false) != 0) || C._NEVER(ctx.MallocFailed))
             {
                 rc = RC.NOMEM;
                 goto end_of_vacuum;
@@ -216,7 +216,7 @@ namespace Core.Command
                     uint meta = 0;
                     main.GetMeta(_runVacuum_copy[i], ref meta);
                     rc = temp.UpdateMeta(temp, _runVacuum_copy[i], (uint)(meta + _runVacuum_copy[i + 1]));
-                    if (SysEx.NEVER(rc != RC.OK)) goto end_of_vacuum;
+                    if (C._NEVER(rc != RC.OK)) goto end_of_vacuum;
                 }
 
                 rc = sqlite3BtreeCopyFile(main, temp);

@@ -5,7 +5,7 @@
 #if __CUDACC__
 #define TEST(id) \
 	__global__ void coreTest##id(void *r); \
-	void coreTest##id##_host(cudaRuntimeHost &r) { coreTest##id<<<1, 1>>>(r.heap); cudaRuntimeExecute(r); } \
+	void coreTest##id##_host(cudaDeviceHeap &r) { coreTest##id<<<1, 1>>>(r.heap); cudaDeviceHeapSynchronize(r); } \
 	__global__ void coreTest##id(void *r) \
 { \
 	_runtimeSetHeap(r); \
@@ -13,7 +13,7 @@
 #else
 #define TEST(id) \
 	__global__ void coreTest##id(void *r); \
-	void coreTest##id##_host(cudaRuntimeHost &r) { coreTest##id(r.heap); cudaRuntimeExecute(r); } \
+	void coreTest##id##_host(cudaDeviceHeap &r) { coreTest##id(r.heap); cudaDeviceHeapSynchronize(r); } \
 	__global__ void coreTest##id(void *r) \
 { \
 	_runtimeSetHeap(r); \

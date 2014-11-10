@@ -261,7 +261,7 @@ namespace Core { namespace Command
 				return;
 			}
 			ConvertEx::Atof(buf, &r, _strlen30(buf), TEXTENCODE_UTF8);
-			SysEx::Free(buf);
+			_free(buf);
 		}
 		sqlite3_result_double(fctx, r);
 	}
@@ -301,8 +301,8 @@ namespace Core { namespace Command
 			if (z1)
 			{
 				for(int i = 0; i < n; i++)
-					z1[i] = __toupper(z2[i]);
-				sqlite3_result_text(fctx, z1, n, SysEx::Free);
+					z1[i] = _toupper(z2[i]);
+				sqlite3_result_text(fctx, z1, n, _free);
 			}
 		}
 	}
@@ -318,8 +318,8 @@ namespace Core { namespace Command
 			if (z1)
 			{
 				for (int i = 0; i < n; i++)
-					z1[i] = __tolower(z2[i]);
-				sqlite3_result_text(fctx, z1, n, SysEx::Free);
+					z1[i] = _tolower(z2[i]);
+				sqlite3_result_text(fctx, z1, n, _free);
 			}
 		}
 	}
@@ -351,7 +351,7 @@ namespace Core { namespace Command
 		if (p)
 		{
 			sqlite3_randomness(n, p);
-			sqlite3_result_blob(fctx, (char *)p, n, SysEx::Free);
+			sqlite3_result_blob(fctx, (char *)p, n, _free);
 		}
 	}
 
@@ -425,12 +425,12 @@ namespace Core { namespace Command
 				{
 					if (noCase)
 					{
-						c2 = __tolower(c2);
-						c = __tolower(c);
+						c2 = _tolower(c2);
+						c = _tolower(c);
 						while (c2 != 0 && c2 != c)
 						{
 							c2 = SysEx::Utf8Read(&string);
-							c2 = __tolower(c2);
+							c2 = _tolower(c2);
 						}
 					}
 					else
@@ -493,8 +493,8 @@ namespace Core { namespace Command
 				c2 = SysEx::Utf8Read(&string);
 				if (noCase)
 				{
-					c = __tolower(c);
-					c2 = __tolower(c2);
+					c = _tolower(c);
+					c2 = _tolower(c2);
 				}
 				if (c != c2)
 					return false;
@@ -633,7 +633,7 @@ namespace Core { namespace Command
 				z[0] = 'X';
 				z[1] = '\'';
 				sqlite3_result_text(fctx, z, -1, DESTRUCTOR_TRANSIENT);
-				SysEx::Free(z);
+				_free(z);
 			}
 			break; }
 
@@ -655,7 +655,7 @@ namespace Core { namespace Command
 				}
 				z[j++] = '\'';
 				z[j] = 0;
-				sqlite3_result_text(fctx, z, j, SysEx::Free);
+				sqlite3_result_text(fctx, z, j, _free);
 			}
 			break; }
 
@@ -707,7 +707,7 @@ namespace Core { namespace Command
 				*z2++ = 0x80 + (uint8)(c & 0x3F);
 			}
 		}
-		sqlite3_result_text(fctx, (char *)z, (int)(z2 - z), SysEx::Free);
+		sqlite3_result_text(fctx, (char *)z, (int)(z2 - z), _free);
 	}
 
 	__device__ static void HexFunc(FuncContext *fctx, int argc, Mem **argv)
@@ -727,7 +727,7 @@ namespace Core { namespace Command
 				*(z++) = _hexdigits[c&0xf];
 			}
 			*z = 0;
-			sqlite3_result_text(fctx, zHex, n*2, SysEx::Free);
+			sqlite3_result_text(fctx, zHex, n*2, _free);
 		}
 	}
 
@@ -789,7 +789,7 @@ namespace Core { namespace Command
 				if (outLength-1 > ctx->Limits[LIMIT_LENGTH])
 				{
 					sqlite3_result_error_toobig(fctx);
-					SysEx::Free(out);
+					_free(out);
 					return;
 				}
 				uint8 *oldOut = out;
@@ -797,7 +797,7 @@ namespace Core { namespace Command
 				if (!out)
 				{
 					sqlite3_result_error_nomem(fctx);
-					SysEx::Free(oldOut);
+					_free(oldOut);
 					return;
 				}
 				_memcpy(&out[j], replacement, replacementLength);
@@ -810,7 +810,7 @@ namespace Core { namespace Command
 		j += stringLength - i;
 		_assert(j <= outLength);
 		out[j] = 0;
-		sqlite3_result_text(fctx, (char*)out, j, SysEx::Free);
+		sqlite3_result_text(fctx, (char*)out, j, _free);
 	}
 
 	__device__ static const unsigned char _trimOneLength[] = { 1 };
@@ -891,7 +891,7 @@ namespace Core { namespace Command
 				}
 			}
 			if (charSet)
-				SysEx::Free(chars);
+				_free(chars);
 		}
 		sqlite3_result_text(fctx, (char *)in, inLength, DESTRUCTOR_TRANSIENT);
 	}
@@ -919,7 +919,7 @@ namespace Core { namespace Command
 		if (z[i])
 		{
 			uint8 prevcode = _soundexCode[z[i]&0x7f];
-			r[0] = __toupper(z[i]);
+			r[0] = _toupper(z[i]);
 			int j;
 			for (j = 1; j < 4 && z[i]; i++)
 			{
@@ -955,7 +955,7 @@ namespace Core { namespace Command
 		if (file && sqlite3_load_extension(ctx, file, proc, &errMsg))
 		{
 			sqlite3_result_error(fctx, errMsg, -1);
-			SysEx::Free(errMsg);
+			_free(errMsg);
 		}
 	}
 #endif
@@ -1201,7 +1201,7 @@ namespace Core { namespace Command
 			return 0;
 		_assert(!ExprHasProperty(expr, EP_xIsSelect));
 		FuncDef *def = sqlite3FindFunction(ctx, expr->u.Token, _strlen30(expr->u.Token), 2, TEXTENCODE_UTF8, 0);
-		if (SysEx_NEVER(def == nullptr) || (def->Flags & FUNC_LIKE) == 0)
+		if (_NEVER(def == nullptr) || (def->Flags & FUNC_LIKE) == 0)
 			return 0;
 
 		/* The memcpy() statement assumes that the wildcard characters are

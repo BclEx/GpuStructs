@@ -64,7 +64,7 @@ namespace Core { namespace Command
 		Context::DB *newDB;
 		if (ctx->DBs.data == ctx->DbStatics)
 		{
-			newDB = (Context::DB *)SysEx::TagAlloc(ctx, sizeof(ctx->DBs[0])*3);
+			newDB = (Context::DB *)_tagalloc(ctx, sizeof(ctx->DBs[0])*3);
 			if (!newDB) return;
 			_memcpy(newDB, ctx->DBs.data, sizeof(ctx->DBs[0])*2);
 		}
@@ -87,13 +87,13 @@ namespace Core { namespace Command
 		{
 			if (rc == RC_NOMEM) ctx->MallocFailed = true;
 			sqlite3_result_error(fctx, err, -1);
-			SysEx::Free(err);
+			_free(err);
 			return;
 		}
 		_assert(vfs);
 		flags |= VSystem::OPEN_MAIN_DB;
 		rc = Btree::Open(vfs, path, ctx, &newDB->Bt, (Btree::OPEN)0, flags);
-		SysEx::Free(path);
+		_free(path);
 		ctx->DBs.length++;
 		if (rc == RC_CONSTRAINT)
 		{
@@ -175,7 +175,7 @@ namespace Core { namespace Command
 			if (rc == RC_NOMEM || rc == RC_IOERR_NOMEM)
 			{
 				ctx->MallocFailed = true;
-				SysEx::TagFree(ctx, errDyn);
+				_tagfree(ctx, errDyn);
 				errDyn = SysEx::Mprintf(ctx, "out of memory");
 			}
 			else if (errDyn == nullptr)
@@ -189,7 +189,7 @@ attach_error:
 		if (errDyn)
 		{
 			sqlite3_result_error(fctx, errDyn, -1);
-			SysEx::TagFree(ctx, errDyn);
+			_tagfree(ctx, errDyn);
 		}
 		if (rc) sqlite3_result_error_code(fctx, rc);
 	}
@@ -331,7 +331,7 @@ namespace Core {
 
 	__device__ bool DbFixer::FixInit(Core::Parse *parse, int db, const char *typeName, const Token *name)
 	{
-		if (SysEx_NEVER(db < 0) || db == 1) return false;
+		if (_NEVER(db < 0) || db == 1) return false;
 		Context *ctx = parse->Ctx;
 		_assert(ctx->DBs.length > db);
 		Parse = parse;
@@ -344,7 +344,7 @@ namespace Core {
 
 	__device__ bool DbFixer::FixSrcList(SrcList *list)
 	{
-		if (SysEx_NEVER(list == nullptr)) return false;
+		if (_NEVER(list == nullptr)) return false;
 		const char *db = DB;
 		int i;
 		SrcList::SrcListItem *item;
@@ -355,7 +355,7 @@ namespace Core {
 				Parse->ErrorMsg("%s %T cannot reference objects in database %s", Type, Name, item->Database);
 				return true;
 			}
-			SysEx::TagFree(Parse->Ctx, item->Database);
+			_tagfree(Parse->Ctx, item->Database);
 			item->Database = nullptr;
 			item->Schema = Schema;
 #if !defined(OMIT_VIEW) || !defined(OMIT_TRIGGER)

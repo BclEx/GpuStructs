@@ -16,7 +16,7 @@ namespace Core
 			Select::Delete(ctx, tmp->Select);
 			IdList::Delete(ctx, tmp->IdList);
 
-			SysEx::TagFree(ctx, tmp);
+			_tagfree(ctx, tmp);
 		}
 	}
 
@@ -85,7 +85,7 @@ namespace Core
 		// To maintain backwards compatibility, ignore the database name on pTableName if we are reparsing our of SQLITE_MASTER.
 		if (ctx->Init.Busy && db != 1)
 		{
-			SysEx::TagFree(ctx, tableName->Ids[0].Database);
+			_tagfree(ctx, tableName->Ids[0].Database);
 			tableName->Ids[0].Database = nullptr;
 		}
 
@@ -175,7 +175,7 @@ namespace Core
 			trTm = TK_BEFORE;
 
 		// Build the Trigger object
-		trigger = (Trigger *)SysEx::TagAlloc(ctx, sizeof(Trigger), true);
+		trigger = (Trigger *)_tagalloc(ctx, sizeof(Trigger), true);
 		if (!trigger) goto trigger_cleanup;
 		trigger->Name = name; name = nullptr;
 		trigger->Table = SysEx::TagStrDup(ctx, tableName->Ids[0].Name);
@@ -189,7 +189,7 @@ namespace Core
 		parse->NewTrigger = trigger;
 
 trigger_cleanup:
-		SysEx::TagFree(ctx, name);
+		_tagfree(ctx, name);
 		SrcListDelete(ctx, tableName);
 		IdListDelete(ctx, columns);
 		Expr::Delete(ctx, when);
@@ -207,7 +207,7 @@ trigger_cleanup:
 		Token nameToken; // Trigger name for error reporting
 
 		parse->NewTrigger = nullptr;
-		if (SysEx_NEVER(parse->Errs) || !trig) goto triggerfinish_cleanup;
+		if (_NEVER(parse->Errs) || !trig) goto triggerfinish_cleanup;
 		char *name = trig->Name; // Name of trigger
 		int db = sqlite3SchemaToIndex(ctx, trig->Schema); // Database containing the trigger
 		trig->StepList = stepList;
@@ -230,7 +230,7 @@ trigger_cleanup:
 			parse->BeginWriteOperation(0, db);
 			char *z = SysEx::TagStrNDup(ctx, (char *)all->data, all->length);
 			parse->NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx->DBs[db].Name, SCHEMA_TABLE(db), name, trig->table, z);
-			SysEx::TagFree(ctx, z);
+			_tagfree(ctx, z);
 			parse->ChangeCookie(db);
 			v->AddParseSchemaOp(db, SysEx::Mprintf(ctx, "type='trigger' AND name='%q'", name));
 		}
@@ -260,7 +260,7 @@ triggerfinish_cleanup:
 
 	TriggerStep *sqlite3TriggerSelectStep(Context *ctx, Select *select)
 	{
-		TriggerStep *triggerStep = (TriggerStep *)SysEx::TagAlloc(ctx, sizeof(TriggerStep), true);
+		TriggerStep *triggerStep = (TriggerStep *)_tagalloc(ctx, sizeof(TriggerStep), true);
 		if (!triggerStep)
 		{
 			SelectDelete(ctx, select);
@@ -274,7 +274,7 @@ triggerfinish_cleanup:
 
 	static TriggerStep *TriggerStepAllocate(Context *ctx, uint8 op, Token *name)
 	{
-		TriggerStep *triggerStep = (TriggerStep *)SysEx::TagAlloc(ctx, sizeof(TriggerStep) + name->length, true);
+		TriggerStep *triggerStep = (TriggerStep *)_tagalloc(ctx, sizeof(TriggerStep) + name->length, true);
 		if (triggerStep)
 		{
 			char *z = (char *)&triggerStep[1];
@@ -335,11 +335,11 @@ triggerfinish_cleanup:
 	{
 		if (!trigger) return;
 		DeleteTriggerStep(ctx, trigger->StepList);
-		SysEx::TagFree(ctx, trigger->Name);
-		SysEx::TagFree(ctx, trigger->Table);
+		_tagfree(ctx, trigger->Name);
+		_tagfree(ctx, trigger->Table);
 		ExprDelete(ctx, trigger->When);
 		IdListDelete(ctx, trigger->Columns);
-		SysEx::TagFree(ctx, trigger);
+		_tagfree(ctx, trigger);
 	}
 
 	void sqlite3DropTrigger(Parse *parse, SrcList *name, int noErr)
@@ -420,7 +420,7 @@ drop_trigger_cleanup:
 		{
 			parse->BeginWriteOperation(0, db);
 			parse->OpenMasterTable(db);
-			int base_ = v->AddOpList(__arrayStaticLength(_dropTrigger), _dropTrigger);
+			int base_ = v->AddOpList(_lengthof(_dropTrigger), _dropTrigger);
 			v->ChangeP4(base_+1, trigger->Name, Vdbe::P4T_TRANSIENT);
 			v->ChangeP4(base_+4, "trigger", Vdbe::P4T_STATIC);
 			parse->ChangeCookie(db);
@@ -435,7 +435,7 @@ drop_trigger_cleanup:
 	{
 		_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 		Trigger *trigger = ctx->DBs[db].Schema->TriggerHash.Insert(name, _strlen30(name), 0);
-		if (SysEx_ALWAYS(trigger))
+		if (_ALWAYS(trigger))
 		{
 			if (trigger->Schema == trigger->TabSchema)
 			{
@@ -584,7 +584,7 @@ drop_trigger_cleanup:
 			to->Errs = from->Errs;
 		}
 		else
-			SysEx::TagFree(from->Ctx, from->ErrMsg);
+			_tagfree(from->Ctx, from->ErrMsg);
 	}
 
 	static TriggerPrg *CodeRowTrigger(Parse *parse, Trigger *trigger, Table *table, int orconf)
@@ -597,12 +597,12 @@ drop_trigger_cleanup:
 
 		// Allocate the TriggerPrg and SubProgram objects. To ensure that they are freed if an error occurs, link them into the Parse.pTriggerPrg 
 		// list of the top-level Parse object sooner rather than later.
-		TriggerPrg *prg = (TriggerPrg *)SysEx::TagAlloc(ctx, sizeof(TriggerPrg), true); // Value to return
+		TriggerPrg *prg = (TriggerPrg *)_tagalloc(ctx, sizeof(TriggerPrg), true); // Value to return
 		if (!prg) return nullptr;
 		prg->Next = top->TriggerPrg;
 		top->TriggerPrg = prg;
 		SubProgram *program; // Sub-vdbe for trigger program
-		prg->Program = program = (SubProgram *)SysEx::TagAlloc(ctx, sizeof(SubProgram), true);
+		prg->Program = program = (SubProgram *)_tagalloc(ctx, sizeof(SubProgram), true);
 		if (!program) return nullptr;
 		top->Vdbe->LinkSubProgram(program);
 		prg->Trigger = trigger;
@@ -611,7 +611,7 @@ drop_trigger_cleanup:
 		prg->Colmasks[1] = 0xffffffff;
 
 		// Allocate and populate a new Parse context to use for coding the trigger sub-program.
-		Parse *subParse = (Parse *)SysEx::ScratchAlloc(ctx, sizeof(Parse), true); // Parse context for sub-vdbe
+		Parse *subParse = (Parse *)_stackalloc(ctx, sizeof(Parse), true); // Parse context for sub-vdbe
 		if (!subParse) return nullptr;
 		NameContext sNC; _memset(&sNC, 0, sizeof(sNC)); // Name context for sub-vdbe
 		sNC.Parse = subParse;
@@ -673,7 +673,7 @@ drop_trigger_cleanup:
 
 		_assert(!subParse->Ainc && !subParse->ZombieTab);
 		_assert(!subParse->TriggerPrg && !subParse->MaxArgs);
-		SysEx::ScratchFree(ctx, subParse);
+		_stackfree(ctx, subParse);
 
 		return prg;
 	}

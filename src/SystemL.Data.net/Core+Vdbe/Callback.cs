@@ -13,7 +13,7 @@ namespace Core
                 string external = name;
                 if (external == null) return;
                 ctx.CollNeeded(ctx.CollNeededArg, ctx, encode, external);
-                SysEx.TagFree(ctx, ref external);
+                C._tagfree(ctx, ref external);
             }
 #if !OMIT_UTF16
             if (ctx.CollNeeded16 != null)
@@ -101,7 +101,7 @@ namespace Core
                     if (del2 != null)
                     {
                         ctx.MallocFailed = true;
-                        SysEx.TagFree(ctx, ref del2); del2 = null;
+                        C._tagfree(ctx, ref del2); del2 = null;
                         coll = null;
                     }
                 }

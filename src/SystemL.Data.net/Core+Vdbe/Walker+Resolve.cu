@@ -55,7 +55,7 @@ namespace Core
 			expr->u.Token = SysEx::TagStrDup(ctx, expr->u.Token);
 			expr->Flags2 |= EP2_MallocedToken;
 		}
-		SysEx::TagFree(ctx, dup);
+		_tagfree(ctx, dup);
 	}
 
 	__device__ static bool NameInUsingClause(IdList *using_, const char *colName)
@@ -69,11 +69,11 @@ namespace Core
 	__device__ bool Walker::MatchSpanName(const char *span, const char *colName, const char *table, const char *dbName)
 	{
 		int n;
-		for (n = 0; SysEx_ALWAYS(span[n]) && span[n] != '.'; n++) { }
+		for (n = 0; _ALWAYS(span[n]) && span[n] != '.'; n++) { }
 		if (dbName && (_strncmp(span, dbName, n) || dbName[n] != 0))
 			return false;
 		span += n + 1;
-		for (n = 0; SysEx_ALWAYS(span[n]) && span[n] != '.'; n++) { }
+		for (n = 0; _ALWAYS(span[n]) && span[n] != '.'; n++) { }
 		if (table && (_strncmp(span, table, n) || table[n] != 0))
 			return false;
 		span += n + 1;

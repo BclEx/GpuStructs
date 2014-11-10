@@ -145,10 +145,10 @@ namespace Core
             if (p == null)
             {
                 // Memory is not available in the SQLITE_CONFIG_PAGECACHE pool.  Get it from sqlite3Malloc instead.
-                p = new PgHdr(); //SysEx::Alloc(bytes);
+                p = new PgHdr(); //_alloc(bytes);
                 //if (p != null)
                 {
-                    var size = bytes; //SysEx::AllocSize(p);
+                    var size = bytes; //_allocsize(p);
                     MutexEx.Enter(_pcache1.Mutex);
                     StatusEx.StatusAdd(StatusEx.STATUS.PAGECACHE_OVERFLOW, size);
                     MutexEx.Leave(_pcache1.Mutex);
@@ -185,7 +185,7 @@ namespace Core
                 StatusEx.StatusAdd(StatusEx.STATUS.PAGECACHE_OVERFLOW, -freed);
                 MutexEx.Leave(_pcache1.Mutex);
 #endif
-                SysEx.Free(ref p.Data);
+                C._free(ref p.Data);
             }
             return freed;
         }
@@ -229,7 +229,7 @@ namespace Core
 
         private static void FreePage(ref PgHdr1 p)
         {
-            if (SysEx.ALWAYS(p != null))
+            if (C._ALWAYS(p != null))
             {
                 var cache = p.Cache;
                 Debug.Assert(MutexEx.Held(p.Cache.Group.Mutex));
@@ -258,10 +258,10 @@ namespace Core
                 newLength = 256;
             MutexEx.Leave(p.Group.Mutex);
             if (p.Hash.Length != 0)
-                SysEx.BeginBenignAlloc();
+                C._benignalloc_begin();
             var newHash = new PgHdr1[newLength];
             if (p.Hash.Length != 0)
-                SysEx.EndBenignAlloc();
+                C._benignalloc_end();
             MutexEx.Enter(p.Group.Mutex);
             if (newHash != null)
             {
@@ -541,9 +541,9 @@ namespace Core
             // Step 5. If a usable page buffer has still not been found, attempt to allocate a new one. 
             if (page == null)
             {
-                if (createFlag) SysEx.BeginBenignAlloc();
+                if (createFlag) C._benignalloc_begin();
                 page = AllocPage(this);
-                if (createFlag) SysEx.EndBenignAlloc();
+                if (createFlag) C._benignalloc_end();
             }
             if (page != null)
             {
@@ -648,8 +648,8 @@ namespace Core
             group.MaxPinned = group.MaxPages + 10 - group.MinPages;
             EnforceMaxPage(group);
             MutexEx.Leave(group.Mutex);
-            //SysEx.Free(ref cache.Hash);
-            //SysEx.Free(ref cache);
+            //C._free(ref cache.Hash);
+            //C._free(ref cache);
             cache = null;
         }
 

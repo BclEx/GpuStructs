@@ -120,18 +120,18 @@ namespace Core {
 	{
 		if (vdbe)
 		{
-			SysEx::BeginBenignAlloc();
-			Explain *p = (Explain *)SysEx::Alloc(sizeof(Explain), true);
+			_benignalloc_begin();
+			Explain *p = (Explain *)_alloc(sizeof(Explain), true);
 			if (p)
 			{
 				p->Vdbe = vdbe;
-				SysEx::Free(vdbe->Explain);
+				_free(vdbe->Explain);
 				vdbe->Explain = p;
 				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), CORE_MAX_LENGTH);
 				p->Str.UseMalloc = 2;
 			}
 			else
-				SysEx::EndBenignAlloc();
+				_benignalloc_end();
 		}
 	}
 
@@ -149,7 +149,7 @@ namespace Core {
 			if (p->Indents && endsWithNL(p))
 			{
 				int n = p->Indents;
-				if (n > __arrayStaticLength(p->Indents)) n = __arrayStaticLength(p->Indents);
+				if (n > _lengthof(p->Indents)) n = _lengthof(p->Indents);
 				sqlite3AppendSpace(&p->Str, p->Indents[n-1]);
 			}   
 			va_start(ap, format);
@@ -169,7 +169,7 @@ namespace Core {
 	{
 		Explain *p;
 		if (vdbe && (p = vdbe->Explain)!=0 ){
-			if (p->Str.zText && p->Indents.Length < __arrayStaticLength(p->Indents))
+			if (p->Str.zText && p->Indents.Length < _lengthof(p->Indents))
 			{
 				const char *z = p->str.zText;
 				int i = p->str.nChar-1;
@@ -194,11 +194,11 @@ namespace Core {
 	{
 		if (vdbe && vdbe->Explain)
 		{
-			SysEx::Free(vdbe->ExplainString);
+			_free(vdbe->ExplainString);
 			sqlite3ExplainNL(vdbe);
 			vdbe->ExplainString = vdbe->Explain->Str.ToString();
-			SysEx::Free(vdbe->Explain); vdbe->Explain = nullptr;
-			SysEx::EndBenignAlloc();
+			_free(vdbe->Explain); vdbe->Explain = nullptr;
+			_benignalloc_end();
 		}
 	}
 

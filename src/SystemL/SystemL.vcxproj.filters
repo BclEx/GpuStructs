@@ -2,42 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Program.cpp" />
-    <ClCompile Include="..\SystemL.net\Core\Bitvec.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\ConvertEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\Hash.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\WinVSystem.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\StatusEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\SysEx.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\VSystem.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu">
-      <Filter>Core\IO</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu">
-      <Filter>Core</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h">
@@ -87,5 +51,49 @@
     <Filter Include="Core\IO">
       <UniqueIdentifier>{1ee250da-47a5-4fb0-ae2b-f264b71953e9}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Program.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\Bitvec.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\ConvertEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\GpuVSystem.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\Hash.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\StatusEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\SysEx+Random.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\SysEx+Utf.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\SysEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\VSystem.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu">
+      <Filter>Core\IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu">
+      <Filter>Core\IO</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu">
+      <Filter>Core\IO</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\SystemL.net\Core\WinVSystem.cu">
+      <Filter>Core</Filter>
+    </None>
   </ItemGroup>
 </Project>

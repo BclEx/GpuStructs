@@ -19,18 +19,18 @@ typedef struct
 	size_t blocksLength;
 	size_t length;
 	cudaAssertHandler assertHandler;
-} cudaRuntimeHost;
+} cudaDeviceHeap;
 
 //
-//	cudaRuntimeSetHeap
+//	cudaDeviceHeapSelect
 //
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap);
+extern "C" cudaError_t cudaDeviceHeapSelect(cudaDeviceHeap &host);
 
 //
-//	cudaRuntimeInit
+//	cudaDeviceHeapCreate
 //
-//	Call this to initialize a runtime heap. If the buffer size needs to be changed, call cudaRuntimeEnd()
-//	before re-calling cudaRuntimeInit().
+//	Call this to initialize a runtime heap. If the buffer size needs to be changed, call cudaDeviceHeapDestroy()
+//	before re-calling cudaDeviceHeapCreate().
 //
 //	The default size for the buffer is 1 megabyte. The buffer is filled linearly and
 //	is completely used.
@@ -39,24 +39,24 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap);
 //		length - Length, in bytes, of total space to reserve (in device global memory) for output.
 //
 // default 2k blocks, 1-meg heap
-extern "C" cudaRuntimeHost cudaRuntimeInit(size_t blockSize = 256, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
+extern "C" cudaDeviceHeap cudaDeviceHeapCreate(size_t blockSize = 256, size_t length = 1048576, cudaError_t *error = nullptr, void *reserved = nullptr);
 
 //
-//	cudaRuntimeEnd
+//	cudaDeviceHeapDestroy
 //
-//	Cleans up all memory allocated by cudaRuntimeInit() for a heap.
-//	Call this at exit, or before calling cudaRuntimeInit() again.
+//	Cleans up all memory allocated by cudaDeviceHeapCreate() for a heap.
+//	Call this at exit, or before calling cudaDeviceHeapCreate() again.
 //
-extern "C" void cudaRuntimeEnd(cudaRuntimeHost &host);
+extern "C" void cudaDeviceHeapDestroy(cudaDeviceHeap &host);
 
-//	cudaRuntimeSetHandler
+//	cudaDeviceHeapSetHandler
 //
 //	Sets runtime handler for assert
 //
-extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler handler);
+extern "C" void cudaDeviceHeapSetHandler(cudaDeviceHeap &host, cudaAssertHandler handler);
 
 //
-//	cudaDeviceSynchronizeEx
+//	cudaDeviceHeapSynchronize
 //
 //	Dumps all printfs in the output buffer to the specified file pointer. If the output pointer is not specified,
 //	the default "stdout" is used.
@@ -68,7 +68,7 @@ extern "C" void cudaRuntimeSetHandler(cudaRuntimeHost &host, cudaAssertHandler h
 //	Returns:
 //		cudaSuccess if all is well.
 //
-extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stream = nullptr, bool showThreadID = true);
+extern "C" cudaError_t cudaDeviceHeapSynchronize(cudaDeviceHeap &host, void *stream = nullptr, bool showThreadID = true);
 
 #pragma endregion
 
@@ -77,8 +77,8 @@ extern "C" cudaError_t cudaDeviceSynchronizeEx(cudaRuntimeHost &host, void *stre
 // EX
 // Extra methods for host-side code
 #pragma region EX
-extern cudaError _lastError;
-#define checkCudaErrors(action, failure) if ((_lastError = action) != cudaSuccess) failure;
+extern cudaError __cudaLastError;
+#define cudaCheckErrors(action, failure) if ((__cudaLastError = action) != cudaSuccess) { printf("CudaError: %s \"%s\"\n", #action, cudaGetErrorString(__cudaLastError)); failure; }
 
 inline int __convertSMVer2Cores(int major, int minor)
 {
@@ -157,9 +157,9 @@ inline int gpuGetMaxGflopsDeviceId()
 class RuntimeVisualRender : public IVisualRender
 {
 private:
-	cudaRuntimeHost _runtimeHost;
+	cudaDeviceHeap _runtimeHost;
 public:
-	RuntimeVisualRender(cudaRuntimeHost runtimeHost)
+	RuntimeVisualRender(cudaDeviceHeap runtimeHost)
 		: _runtimeHost(runtimeHost) { }
 	virtual void Dispose();
 	virtual void Keyboard(unsigned char key);

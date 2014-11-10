@@ -38,11 +38,11 @@ typedef struct __align__(8)
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 200
 __shared__ static runtimeHeap *__runtimeHeap;
 extern "C" __device__ static void _runtimeSetHeap(void *heap) { __runtimeHeap = (runtimeHeap *)heap; }
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaSuccess; }
+extern "C" cudaError_t cudaDeviceHeapSelect(cudaDeviceHeap &host) { return cudaSuccess; }
 #else
 __device__ runtimeHeap *__runtimeHeap;
 extern "C" __device__ void _runtimeSetHeap(void *heap) { }
-extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbol(__runtimeHeap, &heap, sizeof(__runtimeHeap)); }
+extern "C" cudaError_t cudaDeviceHeapSelect(cudaDeviceHeap &host) { return cudaMemcpyToSymbol(__runtimeHeap, &host.heap, sizeof(__runtimeHeap)); }
 #endif
 
 #pragma endregion
@@ -53,14 +53,14 @@ extern "C" cudaError_t cudaRuntimeSetHeap(void *heap) { return cudaMemcpyToSymbo
 
 #define RUNTIME_MAGIC (unsigned short)0xC811
 
-extern "C" __device__ __static__ char *__runtimeMoveNext(char *&end, char *&bufptr)
+extern "C" __device__ __static__ char *__heap_movenext(char *&end, char *&bufptr)
 {
 	if (!__runtimeHeap) __THROW;
 	// thread/block restriction check
 	runtimeRestriction restriction = __runtimeHeap->restriction;
-	if (restriction.blockid != RUNTIME_UNRESTRICTED && restriction.blockid != (blockIdx.x + gridDim.x*blockIdx.y))
+	if (restriction.blockid != CURT_UNRESTRICTED && restriction.blockid != (blockIdx.x + gridDim.x*blockIdx.y))
 		return nullptr;
-	if (restriction.threadid != RUNTIME_UNRESTRICTED && restriction.threadid != (threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z))
+	if (restriction.threadid != CURT_UNRESTRICTED && restriction.threadid != (threadIdx.x + blockDim.x*threadIdx.y + blockDim.x*blockDim.y*threadIdx.z))
 		return nullptr;
 	// advance pointer
 	char *start = __runtimeHeap->blocks;
@@ -75,14 +75,14 @@ extern "C" __device__ __static__ char *__runtimeMoveNext(char *&end, char *&bufp
 extern "C" __device__ __static__ void runtimeRestrict(int threadid, int blockid)
 {
 	int threadMax = blockDim.x * blockDim.y * blockDim.z;
-	if ((threadid < threadMax && threadid >= 0) || threadid == RUNTIME_UNRESTRICTED)
+	if ((threadid < threadMax && threadid >= 0) || threadid == CURT_UNRESTRICTED)
 		__runtimeHeap->restriction.threadid = threadid;
 	int blockMax = gridDim.x * gridDim.y;
-	if ((blockid < blockMax && blockid >= 0) || blockid == RUNTIME_UNRESTRICTED)
+	if ((blockid < blockMax && blockid >= 0) || blockid == CURT_UNRESTRICTED)
 		__runtimeHeap->restriction.blockid = blockid;
 }
 
-extern "C" __device__ __static__ void __runtimeWriteHeader(unsigned short type, char *ptr, char *fmtptr)
+extern "C" __device__ __static__ void __heap_writeheader(unsigned short type, char *ptr, char *fmtptr)
 {
 	runtimeBlockHeader header;
 	header.magic = RUNTIME_MAGIC;
@@ -93,7 +93,7 @@ extern "C" __device__ __static__ void __runtimeWriteHeader(unsigned short type, 
 	*(runtimeBlockHeader *)(void *)ptr = header;
 }
 
-extern "C" __device__ __static__ char *__runtimeWrite(char *dest, const char *src, int maxLength, char *end)
+extern "C" __device__ __static__ char *__heap_write(char *dest, const char *src, int maxLength, char *end)
 {
 	// initialization and overflow check
 	if (!dest || dest >= end) //|| !src)
@@ -102,7 +102,7 @@ extern "C" __device__ __static__ char *__runtimeWrite(char *dest, const char *sr
 	// chunks that size, and blockSize is aligned with RUNTIME_ALIGNSIZE.
 	int *lenptr = (int *)(void *)dest;
 	int len = 0;
-	dest += RUNTIME_ALIGNSIZE;
+	dest += __HEAP_ALIGNSIZE;
 	// now copy the string
 	if (maxLength == 0)
 		maxLength = __runtimeHeap->blockSize;
@@ -116,7 +116,7 @@ extern "C" __device__ __static__ char *__runtimeWrite(char *dest, const char *sr
 			break;
 	}
 	// now write out the padding bytes, and we have our length.
-	while (dest < end && ((unsigned long long)dest & (RUNTIME_ALIGNSIZE - 1)) != 0)
+	while (dest < end && ((unsigned long long)dest & (__HEAP_ALIGNSIZE - 1)) != 0)
 	{
 		len++;
 		*dest++ = 0;
@@ -133,12 +133,12 @@ extern "C" __device__ __static__ char *__runtimeWrite(char *dest, const char *sr
 
 #define ASSERT_PREAMBLE \
 	char *start, *end, *bufptr, *fmtstart; \
-	if ((start = __runtimeMoveNext(end, bufptr)) == nullptr) return;
+	if ((start = __heap_movenext(end, bufptr)) == nullptr) return;
 #define ASSERT_ARG(argname) \
 	bufptr = __copyArg(bufptr, argname, end);
 #define ASSERT_POSTAMBLE \
-	fmtstart = bufptr; end = __runtimeWrite(bufptr, fmt, 0, end); \
-	__runtimeWriteHeader(RUNTIMETYPE_ASSERT, start, (end ? fmtstart : nullptr));
+	fmtstart = bufptr; end = __heap_write(bufptr, fmt, 0, end); \
+	__heap_writeheader(__HEAP_HEADER_ASSERT, start, (end ? fmtstart : nullptr));
 
 extern "C" __device__ __static__ void __assertWrite(const char *fmt, const char *file, unsigned int line)
 {
@@ -157,7 +157,7 @@ extern "C" __device__ __static__ void __assertWrite(const char *fmt, const char 
 #pragma region EMBED
 //#ifdef __EMBED__
 
-__constant__ unsigned char _runtimeUpperToLower[256] = {
+__constant__ unsigned char __curtUpperToLower[256] = {
 	0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
 	18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
 	36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
@@ -175,7 +175,7 @@ __constant__ unsigned char _runtimeUpperToLower[256] = {
 	252,253,254,255
 };
 
-__constant__ unsigned char _runtimeCtypeMap[256] = {
+__constant__ unsigned char __curtCtypeMap[256] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 00..07    ........ */
 	0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00,  /* 08..0f    ........ */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  /* 10..17    ........ */
