@@ -49,7 +49,7 @@ namespace Core
         public StringBuilder Text; // The string collected so far
         public int Size { get { return Text.Length; } } // Amount of space allocated in zText
         public int MaxSize;		// Maximum allowed string length
-        public bool MallocFailed;  // Becomes true if any memory allocation fails
+        public bool AllocFailed;  // Becomes true if any memory allocation fails
         public bool Overflowed { get { return MaxSize > 0 && Text.Length > MaxSize; } } // Becomes true if string size exceeds limits
 
         public void Append(string z, int length)
@@ -602,7 +602,7 @@ namespace Core
                             out_ = extra = new char[outLength];
                             if (out_ == null)
                             {
-                                b.MallocFailed = true;
+                                b.AllocFailed = true;
                                 return;
                             }
                         }
@@ -729,7 +729,7 @@ namespace Core
                             buf = extra = new char[e2 + precision + width + 15];
                             if (buf == null)
                             {
-                                b.MallocFailed = true;
+                                b.AllocFailed = true;
                                 return;
                             }
                         }
@@ -839,7 +839,7 @@ namespace Core
                                 buf = extra = new char[n];
                                 if (buf == null)
                                 {
-                                    b.MallocFailed = true;
+                                    b.AllocFailed = true;
                                     return;
                                 }
                                 bufpt = 0;
@@ -962,7 +962,7 @@ namespace Core
         //////////////////////
         // SNPRINTF
         #region SNPRINTF
-        public static void _snprintf(StringBuilder buf, int bufLen, string fmt, params object[] args)
+        public static void __snprintf(StringBuilder buf, int bufLen, string fmt, params object[] args)
         {
             buf.EnsureCapacity(BUFSIZE);
             __vsnprintf(buf, bufLen, fmt, args);

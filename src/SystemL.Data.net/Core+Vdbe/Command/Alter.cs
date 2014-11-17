@@ -10,9 +10,9 @@ namespace Core.Command
     {
         static void RenameTableFunc(FuncContext fctx, int notUsed, Mem[] argv)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
-            string sql = Mem.Text(argv[0]);
-            string tableName = Mem.Text(argv[1]);
+            Context ctx = Vdbe.Context_Ctx(fctx);
+            string sql = Vdbe.Value_Text(argv[0]);
+            string tableName = Vdbe.Value_Text(argv[1]);
             if (string.IsNullOrEmpty(sql))
                 return;
             int length = 0;
@@ -41,17 +41,17 @@ namespace Core.Command
                 Debug.Assert(length > 0);
             } while (token != TK.LP && token != TK.USING);
 
-            string r = SysEx.Mprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + (int)tname.length));
-            sqlite3_result_text(fctx, r, -1, E.DESTRUCTOR_DYNAMIC);
+            string r = C._mtagprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + (int)tname.length));
+            Vdbe.Result_Text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
         }
 
 #if !OMIT_FOREIGN_KEY
         static void RenameParentFunc(FuncContext fctx, int notUsed, Mem[] argv)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
-            string input = Mem.Text(argv[0]);
-            string oldName = Mem.Text(argv[1]);
-            string newName = Mem.Text(argv[2]);
+            Context ctx = Vdbe.Context_Ctx(fctx);
+            string input = Vdbe.Value_Text(argv[0]);
+            string oldName = Vdbe.Value_Text(argv[1]);
+            string newName = Vdbe.Value_Text(argv[2]);
 
             int zIdx;         // Pointer to token
             int zLeft = 0;    // Pointer to remainder of String
@@ -62,14 +62,14 @@ namespace Core.Command
             int n; // Length of token z
             for (int z = 0; z < input.Length; z += n)
             {
-                n = sqlite3GetToken(input, z, ref token);
+                n = Parse.GetToken(input, z, ref token);
                 if (token == TK.REFERENCES)
                 {
                     string parent;
                     do
                     {
                         z += n;
-                        n = sqlite3GetToken(input, z, ref token);
+                        n = Parse.GetToken(input, z, ref token);
                     } while (token == TK.SPACE);
 
                     parent = (z + n < input.Length ? input.Substring(z, n) : string.Empty);
@@ -77,7 +77,7 @@ namespace Core.Command
                     Parse.Dequote(ref parent);
                     if (oldName.Equals(parent, StringComparison.OrdinalIgnoreCase))
                     {
-                        string out_ = SysEx.Mprintf(ctx, "%s%.*s\"%w\"", output, z - zLeft, input.Substring(zLeft), newName);
+                        string out_ = C._mtagprintf(ctx, "%s%.*s\"%w\"", output, z - zLeft, input.Substring(zLeft), newName);
                         C._tagfree(ctx, ref output);
                         output = out_;
                         z += n;
@@ -87,8 +87,8 @@ namespace Core.Command
                 }
             }
 
-            string r = SysEx.Mprintf(ctx, "%s%s", output, input.Substring(zLeft));
-            sqlite3_result_text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
+            string r = C._mtagprintf(ctx, "%s%s", output, input.Substring(zLeft));
+            Vdbe.Result_Text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
             C._tagfree(ctx, ref output);
         }
 #endif
@@ -96,9 +96,9 @@ namespace Core.Command
 #if !OMIT_TRIGGER
         static void RenameTriggerFunc(FuncContext fctx, int notUsed, Mem[] argv)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
-            string sql = Mem.Text(argv[0]);
-            string tableName = Mem.Text(argv[1]);
+            Context ctx = Vdbe.Context_Ctx(fctx);
+            string sql = Vdbe.Value_Text(argv[0]);
+            string tableName = Vdbe.Value_Text(argv[1]);
 
             int z = 0, zLoc = 0;
             int length = 1;
@@ -124,7 +124,7 @@ namespace Core.Command
                 do
                 {
                     z += length;
-                    length = (z == sql.Length ? 1 : sqlite3GetToken(sql, z, ref token));
+                    length = (z == sql.Length ? 1 : Parse.GetToken(sql, z, ref token));
                 } while (token == TK.SPACE);
                 Debug.Assert(length > 0);
 
@@ -140,36 +140,35 @@ namespace Core.Command
             } while (dist != 2 || (token != TK.WHEN && token != TK.FOR && token != TK.BEGIN));
 
             // Variable tname now contains the token that is the old table-name in the CREATE TRIGGER statement.
-            string r = SysEx.Mprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + tname.length));
-            sqlite3_result_text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
+            string r = C._mtagprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + tname.length));
+            Vdbe.Result_Text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
         }
 #endif
 
         static FuncDef[] _alterTableFuncs = new FuncDef[] {
             FUNCTION("sqlite_rename_table",   2, 0, 0, RenameTableFunc),
 #if !OMIT_TRIGGER
-FUNCTION("sqlite_rename_trigger", 2, 0, 0, RenameTriggerFunc),
+            FUNCTION("sqlite_rename_trigger", 2, 0, 0, RenameTriggerFunc),
 #endif
 #if !OMIT_FOREIGN_KEY
-FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
+            FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
 #endif
   };
         public static void Functions()
         {
             FuncDefHash hash = Context.GlobalFunctions;
-            FuncDef[] funcs = _alterTableFuncs;
             for (int i = 0; i < _alterTableFuncs.Length; i++)
-                sqlite3FuncDefInsert(hash, funcs[i]);
+                hash.Insert(_alterTableFuncs[i]);
         }
 
         static string WhereOrName(Context ctx, string where_, string constant)
         {
             string newExpr;
             if (string.IsNullOrEmpty(where_))
-                newExpr = SysEx.Mprintf(ctx, "name=%Q", constant);
+                newExpr = C._mtagprintf(ctx, "name=%Q", constant);
             else
             {
-                newExpr = SysEx.Mprintf(ctx, "%s OR name=%Q", where_, constant);
+                newExpr = C._mtagprintf(ctx, "%s OR name=%Q", where_, constant);
                 C._tagfree(ctx, ref where_);
             }
             return newExpr;
@@ -179,7 +178,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
         static string WhereForeignKeys(Parse parse, Table table)
         {
             string where_ = string.Empty;
-            for (FKey p = sqlite3FkReferences(table); p != null; p = p.NextTo)
+            for (FKey p = FKey.FkReferences(table); p != null; p = p.NextTo)
                 where_ = WhereOrName(parse.Ctx, where_, p.From.Name);
             return where_;
         }
@@ -197,7 +196,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
                     if (trig.Schema == tempSchema)
                         where_ = WhereOrName(ctx, where_, trig.Name);
             if (!string.IsNullOrEmpty(where_))
-                where_ = SysEx.Mprintf(ctx, "type='trigger' AND (%s)", where_);
+                where_ = C._mtagprintf(ctx, "type='trigger' AND (%s)", where_);
             return where_;
         }
 
@@ -229,7 +228,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             v.AddOp4(OP.DropTable, db, 0, 0, table.Name, 0);
 
             // Reload the table, index and permanent trigger schemas.
-            where_ = SysEx.Mprintf(ctx, "tbl_name=%Q", name);
+            where_ = C._mtagprintf(ctx, "tbl_name=%Q", name);
             if (where_ == null) return;
             v.AddParseSchemaOp(db, where_);
 
@@ -421,16 +420,16 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             // The VDBE should have been allocated before this routine is called. If that allocation failed, we would have quit before reaching this point
             if (C._ALWAYS(v != null))
             {
-                int r1 = parse.GetTempReg();
-                int r2 = parse.GetTempReg();
+                int r1 = Expr.GetTempReg(parse);
+                int r2 = Expr.GetTempReg(parse);
                 v.AddOp3(OP.ReadCookie, db, r1, BTREE_FILE_FORMAT);
                 v.UsesBtree(db);
                 v.AddOp2(OP.Integer, minFormat, r2);
                 int j1 = v.AddOp3(OP.Ge, r2, 0, r1);
                 v.AddOp3(OP.SetCookie, db, BTREE_FILE_FORMAT, r2);
                 v.JumpHere(j1);
-                parse.ReleaseTempReg(r1);
-                parse.ReleaseTempReg(r2);
+                Expr.ReleaseTempReg(parse, r1);
+                Expr.ReleaseTempReg(parse, r2);
             }
         }
 
@@ -567,7 +566,7 @@ FUNCTION("sqlite_rename_parent",  3, 0, 0, RenameParentFunc),
             int allocs = (((newTable.Cols.length - 1) / 8) * 8) + 8;
             Debug.Assert(allocs >= newTable.Cols.length && allocs % 8 == 0 && allocs - newTable.Cols.length < 8);
             newTable.Cols.data = new Column[allocs];
-            newTable.Name = SysEx.Mprintf(ctx, "sqlite_altertab_%s", table.Name);
+            newTable.Name = C._mtagprintf(ctx, "sqlite_altertab_%s", table.Name);
             if (newTable.Cols.data == null || newTable.Name == null)
             {
                 ctx.MallocFailed = true;

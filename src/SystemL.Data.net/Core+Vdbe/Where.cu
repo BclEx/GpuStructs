@@ -549,7 +549,7 @@ findTerm_success:
 		_assert((term->WtFlags & (TERM_DYNAMIC|TERM_ORINFO|TERM_ANDINFO)) == 0);
 		_assert(expr->OP == TK_OR);
 		WhereOrInfo *orInfo; // Additional information associated with pTerm
-		term->u.OrInfo = orInfo = (WhereOrInfo *)_tagalloc(ctx, sizeof(*orInfo), true);
+		term->u.OrInfo = orInfo = (WhereOrInfo *)_tagalloc2(ctx, sizeof(*orInfo), true);
 		if (!orInfo) return;
 		term->WtFlags |= TERM_ORINFO;
 		WhereClause *orWc = &orInfo->WC; // Breakup of pTerm into subterms
@@ -570,7 +570,7 @@ findTerm_success:
 			{
 				_assert((orTerm->WtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
 				chngToIN = 0;
-				WhereAndInfo *andInfo = (WhereAndInfo *)_tagalloc(ctx, sizeof(*andInfo), true);
+				WhereAndInfo *andInfo = (WhereAndInfo *)_tagalloc2(ctx, sizeof(*andInfo), true);
 				if (andInfo)
 				{
 					WhereTerm *andTerm;
@@ -1297,7 +1297,7 @@ findTerm_success:
 		bytes += columns*sizeof(int); // Index.aiColumn
 		bytes += columns*sizeof(char*); // Index.azColl
 		bytes += columns; // Index.aSortOrder
-		Index *index = (Index *)_tagalloc(parse->Ctx, bytes, true); // Object describing the transient index
+		Index *index = (Index *)_tagalloc2(parse->Ctx, bytes, true); // Object describing the transient index
 		if (!index) return;
 		level->Plan.u.Index = index;
 		index->CollNames = (char **)&index[1];
@@ -1619,7 +1619,7 @@ findTerm_success:
 		bool isEq = false;
 		if (type == TYPE_INTEGER)
 		{
-			v = sqlite3_value_int64(pVal);
+			v = sqlite3_value_int64(val);
 			r = v;
 			for (i = 0; i < index->Samples.length; i++)
 			{
@@ -2638,7 +2638,7 @@ cancel:
 			if (level->u.in.InLoops.length == 0)
 				level->AddrNxt = v->MakeLabel();
 			level->u.in.InLoops.length++;
-			level->u.in.InLoops = SysEx::TagRellocOrFree(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
+			level->u.in.InLoops = _tagrelloc_or_free(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
 			WhereLevel::InLoop *in = level->u.in.InLoops;
 			if (in)
 			{
@@ -2671,7 +2671,7 @@ cancel:
 		parse->Mems += regs;
 
 		Vdbe *v = parse->V; // The vm under construction
-		char *affs = SysEx::TagStrDup(parse->Ctx, sqlite3IndexAffinityStr(v, index)); // Affinity string to return
+		char *affs = _tagstrdup(parse->Ctx, sqlite3IndexAffinityStr(v, index)); // Affinity string to return
 		if (!affs)
 			parse->Ctx->MallocFailed = true;
 
@@ -3070,7 +3070,7 @@ cancel:
 					// Generate code to evaluate all constraint terms using == or IN and store the values of those terms in an array of registers starting at baseId.
 					char *startAffs; // Affinity for start of range constraint
 					int baseId = CodeAllEqualityTerms(parse, level, wc, notReady, extraRegs, &startAffs); // Base register holding constraint values
-					char *endAffs = SysEx::TagStrDup(parse->Ctx, startAffs); // Affinity for end of range constraint
+					char *endAffs = _tagstrdup(parse->Ctx, startAffs); // Affinity for end of range constraint
 					addrNxt = level->AddrNxt;
 
 					// If we are doing a reverse order scan on an ascending index, or  a forward order scan on a descending index, interchange the start and end terms (rangeStart and rangeEnd).

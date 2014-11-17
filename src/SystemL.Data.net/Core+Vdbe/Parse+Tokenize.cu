@@ -329,7 +329,7 @@ namespace Core
 				break; }
 			case TK_ILLEGAL: {
 				_tagfree(ctx, *errMsg);
-				*errMsg = SysEx::Mprintf(ctx, "unrecognized token: \"%T\"", &LastToken);
+				*errMsg = _mprintf(ctx, "unrecognized token: \"%T\"", &LastToken);
 				errs++;
 				goto abort_parse; }
 			case TK_SEMI: {

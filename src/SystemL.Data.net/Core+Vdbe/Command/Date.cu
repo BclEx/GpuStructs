@@ -208,9 +208,9 @@ zulu_time:
 		return false;
 	}
 
-	__device__ static bool SetDateTimeToCurrent(FuncContext *funcCtx, DateTime *p)
+	__device__ static bool SetDateTimeToCurrent(FuncContext *fctx, DateTime *p)
 	{
-		Context *ctx = sqlite3_context_db_handle(funcCtx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		if (ctx->Vfs->CurrentTimeInt64(&p->JD) == RC_OK)
 		{
 			p->ValidJD = true;
@@ -219,12 +219,12 @@ zulu_time:
 		return true;
 	}
 
-	__device__ static bool ParseDateOrTime(FuncContext *funcCtx, const char *date, DateTime *p)
+	__device__ static bool ParseDateOrTime(FuncContext *fctx, const char *date, DateTime *p)
 	{
 		double r;
-		if (ParseYyyyMmDd(date, p) == 0) return 0;
-		else if (ParseHhMmSs(date, p) == 0) return 0;
-		else if (!_strcmp(date, "now")) return SetDateTimeToCurrent(funcCtx, p);
+		if (ParseYyyyMmDd(date, p) == 0) return false;
+		else if (ParseHhMmSs(date, p) == 0) return false;
+		else if (!_strcmp(date, "now")) return SetDateTimeToCurrent(fctx, p);
 		else if (ConvertEx::Atof(date, &r, _strlen30(date), TEXTENCODE_UTF8))
 		{
 			p->JD = (int64)(r*86400000.0 + 0.5);
@@ -294,20 +294,20 @@ zulu_time:
 	{
 		int rc;
 #if (!defined(HAVE_LOCALTIME_R) || !HAVE_LOCALTIME_R) && (!defined(HAVE_LOCALTIME_S) || !HAVE_LOCALTIME_S)
-#if SQLITE_THREADSAFE>0
-		sqlite3_mutex *mutex = sqlite3MutexAlloc(SQLITE_MUTEX_STATIC_MASTER);
+#if THREADSAFE > 0
+		MutexEx *mutex = MutexEx::Alloc(MUTEX_STATIC_MASTER);
 #endif
 		MutexEx::Enter(mutex);
 		tm *x = localtime(t);
 #ifndef OMIT_BUILTIN_TEST
-		if (sqlite3GlobalConfig.bLocaltimeFault) x = nullptr;
+		if (_localtimeFault) x = nullptr;
 #endif
 		if (x) *tm_ = *x;
 		MutexEx::Leave(mutex);
 		rc = (x == nullptr);
 #else
 #ifndef OMIT_BUILTIN_TEST
-		if (sqlite3GlobalConfig.bLocaltimeFault) return 1;
+		if (_localtimeFault) return 1;
 #endif
 #if defined(HAVE_LOCALTIME_R) && HAVE_LOCALTIME_R
 		rc = (localtime_r(t, tm_) == 0);
@@ -318,7 +318,7 @@ zulu_time:
 		return rc;
 	}
 
-	__device__ static int64 LocaltimeOffset(DateTime *p, FuncContext *funcCtx, RC *rc)
+	__device__ static int64 LocaltimeOffset(DateTime *p, FuncContext *fctx, RC *rc)
 	{
 		// Initialize the contents of sLocal to avoid a compiler warning.
 		tm sLocal;
@@ -346,7 +346,7 @@ zulu_time:
 		time_t t = (time_t)(x.JD/1000 - 21086676*(int64)10000); //210866760000L
 		if (OsLocaltime(&t, &sLocal))
 		{
-			sqlite3_result_error(funcCtx, "local time unavailable", -1);
+			Vdbe::Result_Error(fctx, "local time unavailable", -1);
 			*rc = RC_ERROR;
 			return 0;
 		}
@@ -367,9 +367,9 @@ zulu_time:
 	}
 #endif
 
-	__device__ static bool ParseModifier(FuncContext *funcCtx, const char *mod, DateTime *p)
+	__device__ static RC ParseModifier(FuncContext *fctx, const char *mod, DateTime *p)
 	{
-		bool rc = true;
+		RC rc = RC_ERROR;
 		int n;
 		double r;
 		char *z, zBuf[30];
@@ -385,7 +385,7 @@ zulu_time:
 			if (!_strcmp(z, "localtime"))
 			{
 				ComputeJD(p);
-				p->JD += LocaltimeOffset(p, funcCtx, &rc);
+				p->JD += LocaltimeOffset(p, fctx, &rc);
 				ClearYMD_HMS_TZ(p);
 			}
 			break; }
@@ -396,18 +396,18 @@ zulu_time:
 			{
 				p->JD = (p->JD + 43200)/86400 + 21086676*(int64)10000000;
 				ClearYMD_HMS_TZ(p);
-				rc = false;
+				rc = RC_OK;
 			}
 #ifndef OMIT_LOCALTIME
 			else if (!_strcmp(z, "utc"))
 			{
 				ComputeJD(p);
-				int64 c1 = LocaltimeOffset(p, funcCtx, &rc);
+				int64 c1 = LocaltimeOffset(p, fctx, &rc);
 				if (rc == RC_OK)
 				{
 					p->JD -= c1;
 					ClearYMD_HMS_TZ(p);
-					p->JD += c1 - LocaltimeOffset(p, funcCtx, &rc);
+					p->JD += c1 - LocaltimeOffset(p, fctx, &rc);
 				}
 			}
 #endif
@@ -424,7 +424,7 @@ zulu_time:
 				if (Z > n) Z -= 7;
 				p->JD += (n - Z)*86400000;
 				ClearYMD_HMS_TZ(p);
-				rc = false;
+				rc = RC_OK;
 			}
 			break; }
 		case 's': {
@@ -440,17 +440,17 @@ zulu_time:
 			if (!_strcmp(z, "month"))
 			{
 				p->D = 1;
-				rc = false;
+				rc = RC_OK;
 			}
 			else if (!_strcmp(z, "year"))
 			{
 				ComputeYMD(p);
 				p->M = 1;
 				p->D = 1;
-				rc = false;
+				rc = RC_OK;
 			}
 			else if (!_strcmp(z, "day"))
-				rc = false;
+				rc = RC_OK;
 			break; }
 		case '+':
 		case '-':
@@ -467,7 +467,7 @@ zulu_time:
 			for (n = 1; z[n] && z[n] != ':' && !_isspace(z[n]); n++) { }
 			if (!ConvertEx::Atof(z, &r, n, TEXTENCODE_UTF8))
 			{
-				rc = true;
+				rc = RC_ERROR;
 				break;
 			}
 			if (z[n] == ':')
@@ -487,7 +487,7 @@ zulu_time:
 				ComputeJD(p);
 				ClearYMD_HMS_TZ(p);
 				p->JD += tx.JD;
-				rc = false;
+				rc = RC_OK;
 				break;
 			}
 			z += n;
@@ -496,7 +496,7 @@ zulu_time:
 			if (n > 10 || n < 3) break;
 			if (z[n-1] == 's') { z[n-1] = 0; n--; }
 			ComputeJD(p);
-			rc = false;
+			rc = RC_OK;
 			double rounder = (r < 0 ? -0.5 : +0.5);
 			if (n == 3 && !_strcmp(z, "day")) p->JD += (int64)(r*86400000.0 + rounder);
 			else if (n == 4 && !_strcmp(z, "hour")) p->JD += (int64)(r*(86400000.0/24.0) + rounder);
@@ -526,7 +526,7 @@ zulu_time:
 					p->JD += (int64)((r - y)*365.0*86400000.0 + rounder);
 			}
 			else
-				rc = true;
+				rc = RC_ERROR;
 			ClearYMD_HMS_TZ(p);
 			break; }
 		default: break;
@@ -534,79 +534,79 @@ zulu_time:
 		return rc;
 	}
 
-	__device__ static bool IsDate(FuncContext *funcCtx, int argc, Mem **argv, DateTime *p)
+	__device__ static bool IsDate(FuncContext *fctx, int argc, Mem **argv, DateTime *p)
 	{
 		int i;
 		const unsigned char *z;
 		_memset(p, 0, sizeof(*p));
 		if (argc == 0)
-			return SetDateTimeToCurrent(funcCtx, p);
+			return SetDateTimeToCurrent(fctx, p);
 		TYPE type;
-		if ((type = sqlite3_value_type(argv[0])) == TYPE_FLOAT || type == TYPE_INTEGER)
+		if ((type = Vdbe::Value_Type(argv[0])) == TYPE_FLOAT || type == TYPE_INTEGER)
 		{
-			p->JD = (int64)(sqlite3_value_double(argv[0])*86400000.0 + 0.5);
+			p->JD = (int64)(Vdbe::Value_Double(argv[0])*86400000.0 + 0.5);
 			p->ValidJD = true;
 		}
 		else
 		{
-			z = sqlite3_value_text(argv[0]);
-			if (!z || ParseDateOrTime(funcCtx, (char *)z, p)) return true;
+			z = Vdbe::Value_Text(argv[0]);
+			if (!z || ParseDateOrTime(fctx, (char *)z, p)) return true;
 		}
 		for (i = 1; i < argc; i++)
 		{
-			z = sqlite3_value_text(argv[i]);
-			if (!z || ParseModifier(funcCtx, (char *)z, p)) return true;
+			z = Vdbe::Value_Text(argv[i]);
+			if (!z || ParseModifier(fctx, (char *)z, p)) return true;
 		}
-		return 0;
+		return false;
 	}
 
-	__device__ static void JuliandayFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void JuliandayFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		DateTime x;
-		if (!IsDate(funcCtx, argc, argv, &x))
+		if (!IsDate(fctx, argc, argv, &x))
 		{
 			ComputeJD(&x);
-			sqlite3_result_double(funcCtx, x.iJD/86400000.0);
+			Vdbe::Result_Double(fctx, x.iJD/86400000.0);
 		}
 	}
 
-	__device__ static void DatetimeFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void DatetimeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		DateTime x;
-		if (!IsDate(funcCtx, argc, argv, &x))
+		if (!IsDate(fctx, argc, argv, &x))
 		{
 			char buf[100];
 			ComputeYMD_HMS(&x);
-			sqlite3_snprintf(sizeof(buf), buf, "%04d-%02d-%02d %02d:%02d:%02d", x.Y, x.M, x.D, x.h, x.m, (int)(x.s));
-			sqlite3_result_text(funcCtx, buf, -1, SQLITE_TRANSIENT);
+			__snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d", x.Y, x.M, x.D, x.h, x.m, (int)(x.s));
+			Vdbe::Result_Text(fctx, buf, -1, DESTRUCTOR_TRANSIENT);
 		}
 	}
 
-	__device__ static void TimeFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void TimeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		DateTime x;
-		if (!IsDate(funcCtx, argc, argv, &x))
+		if (!IsDate(fctx, argc, argv, &x))
 		{
 			char buf[100];
 			ComputeHMS(&x);
-			sqlite3_snprintf(sizeof(buf), buf, "%02d:%02d:%02d", x.h, x.m, (int)x.s);
-			sqlite3_result_text(funcCtx, buf, -1, SQLITE_TRANSIENT);
+			__snprintf(buf, sizeof(buf), "%02d:%02d:%02d", x.h, x.m, (int)x.s);
+			Vdbe::Result_Text(fctx, buf, -1, DESTRUCTOR_TRANSIENT);
 		}
 	}
 
-	__device__ static void DateFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void DateFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		DateTime x;
-		if (!IsDate(funcCtx, argc, argv, &x))
+		if (!IsDate(fctx, argc, argv, &x))
 		{
 			char buf[100];
 			ComputeYMD(&x);
-			sqlite3_snprintf(sizeof(buf), buf, "%04d-%02d-%02d", x.Y, x.M, x.D);
-			sqlite3_result_text(funcCtx, buf, -1, SQLITE_TRANSIENT);
+			__snprintf(buf, sizeof(buf), "%04d-%02d-%02d", x.Y, x.M, x.D);
+			Vdbe::Result_Text(fctx, buf, -1, DESTRUCTOR_TRANSIENT);
 		}
 	}
 
-	__device__ static void StrftimeFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void StrftimeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		DateTime x;
 		uint64 n;
@@ -614,8 +614,8 @@ zulu_time:
 		char *z;
 		const char *fmt = (const char *)Mem_Text(argv[0]);
 		char buf[100];
-		if (!fmt || IsDate(funcCtx, argc-1, argv+1, &x)) return;
-		Context *ctx = sqlite3_context_db_handle(funcCtx);
+		if (!fmt || IsDate(fctx, argc-1, argv+1, &x)) return;
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		for (i = 0, n = 1; fmt[i]; i++, n++)
 		{
 			if (fmt[i] == '%')
@@ -660,7 +660,7 @@ zulu_time:
 			z = buf;
 		else if (n > (uint64)ctx->Limits[LIMIT_LENGTH])
 		{
-			sqlite3_result_error_toobig(funcCtx);
+			Vdbe::Result_ErrorOverflow(fctx);
 			return;
 		}
 		else
@@ -668,7 +668,7 @@ zulu_time:
 			z = (char *)_tagalloc(ctx, (int)n);
 			if (!z)
 			{
-				sqlite3_result_error_nomem(funcCtx);
+				Vdbe::Result_ErrorNoMem(fctx);
 				return;
 			}
 		}
@@ -683,14 +683,14 @@ zulu_time:
 				i++;
 				switch (fmt[i])
 				{
-				case 'd': sqlite3_snprintf(3, &z[j], "%02d", x.D); j+=2; break;
+				case 'd': __snprintf(&z[j], 3, "%02d", x.D); j+=2; break;
 				case 'f': {
 					double s = x.s;
 					if (s > 59.999) s = 59.999;
-					sqlite3_snprintf(7, &z[j], "%06.3f", s);
+					__snprintf(&z[j], 7, "%06.3f", s);
 					j += _strlen30(&z[j]);
 					break; }
-				case 'H': sqlite3_snprintf(3, &z[j], "%02d", x.h); j+=2; break;
+				case 'H': __snprintf(&z[j], 3, "%02d", x.h); j+=2; break;
 				case 'W': // Fall thru
 				case 'j': {
 					DateTime y = x;
@@ -702,63 +702,63 @@ zulu_time:
 					if (fmt[i] == 'W')
 					{
 						int wd = (int)(((x.JD+43200000)/86400000)%7); // 0=Monday, 1=Tuesday, ... 6=Sunday
-						sqlite3_snprintf(3, &z[j],"%02d",(days+7-wd)/7);
+						__snprintf(&z[j], 3, "%02d", (days+7-wd)/7);
 						j += 2;
 					}
 					else
 					{
-						sqlite3_snprintf(4, &z[j],"%03d",days+1);
+						__snprintf(&z[j], 4, "%03d", days+1);
 						j += 3;
 					}
 					break; }
 				case 'J': {
-					sqlite3_snprintf(20, &z[j], "%.16g", x.JD/86400000.0);
+					__snprintf(&z[j], 20, "%.16g", x.JD/86400000.0);
 					j += _strlen30(&z[j]);
 					break; }
-				case 'm':  sqlite3_snprintf(3, &z[j], "%02d", x.M); j+=2; break;
-				case 'M':  sqlite3_snprintf(3, &z[j], "%02d", x.m); j+=2; break;
+				case 'm': __snprintf(3, &z[j], 3, "%02d", x.M); j+=2; break;
+				case 'M': __snprintf(3, &z[j], 3, "%02d", x.m); j+=2; break;
 				case 's': {
-					sqlite3_snprintf(30, &z[j], "%lld", (int64)(x.JD/1000 - 21086676*(int64)10000));
+					__snprintf(&z[j], 30, "%lld", (int64)(x.JD/1000 - 21086676*(int64)10000));
 					j += _strlen30(&z[j]);
 					break; }
-				case 'S':  sqlite3_snprintf(3, &z[j], "%02d",(int)x.s); j+=2; break;
+				case 'S':  __snprintf(&z[j], 3, "%02d",(int)x.s); j+=2; break;
 				case 'w': {
 					z[j++] = (char)(((x.JD+129600000)/86400000) % 7) + '0';
 					break; }
 				case 'Y': {
-					sqlite3_snprintf(5, &z[j], "%04d", x.Y); j += _strlen30(&z[j]);
+					__snprintf(&z[j], 5, "%04d", x.Y); j += _strlen30(&z[j]);
 					break; }
 				default: z[j++] = '%'; break; }
 			}
 		}
 		z[j] = 0;
-		sqlite3_result_text(funcCtx, z, -1, (z == buf ? SQLITE_TRANSIENT : SQLITE_DYNAMIC));
+		Vdbe::Result_Text(fctx, z, -1, (z == buf ? DESTRUCTOR_TRANSIENT : DESTRUCTOR_DYNAMIC));
 	}
 
-	__device__ static void CtimeFunc(FuncContext *funcCtx, int notUsed, Mem **notUsed2)
+	__device__ static void CtimeFunc(FuncContext *fctx, int notUsed, Mem **notUsed2)
 	{
-		TimeFunc(funcCtx, 0, 0);
+		TimeFunc(fctx, 0, 0);
 	}
 
-	__device__ static void CdateFunc(FuncContext *funcCtx, int notUsed, Mem **notUsed2)
+	__device__ static void CdateFunc(FuncContext *fctx, int notUsed, Mem **notUsed2)
 	{
-		DateFunc(funcCtx, 0, 0);
+		DateFunc(fctx, 0, 0);
 	}
 
-	__device__ static void CtimestampFunc(FuncContext *funcCtx, int notUsed, Mem **notUsed2)
+	__device__ static void CtimestampFunc(FuncContext *fctx, int notUsed, Mem **notUsed2)
 	{
-		DatetimeFunc(funcCtx, 0, 0);
+		DatetimeFunc(fctx, 0, 0);
 	}
 
 #else
 
-	__device__ static void CurrentTimeFunc(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void CurrentTimeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		char *format = (char *)sqlite3_user_data(funcCtx);
-		Context *ctx = sqlite3_context_db_handle(funcCtx);
-		int64 iT;
-		if (ctx->Vfs->CurrentTimeInt64(&iT)) return;
-		time_t t = iT/1000 - 10000*(int64)21086676;
+		char *format = (char *)Vdbe::User_Data(fctx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		int64 now;
+		if (ctx->Vfs->CurrentTimeInt64(&now)) return;
+		time_t t = now/1000 - 10000*(int64)21086676;
 		tm *tm_;
 		tm sNow;
 #ifdef HAVE_GMTIME_R
@@ -774,7 +774,7 @@ zulu_time:
 		{
 			char buf[20];
 			strftime(buf, 20, format, &sNow);
-			sqlite3_result_text(funcCtx, buf, -1, SQLITE_TRANSIENT);
+			Vbde::Result_Text(fctx, buf, -1, DESTRUCTUR_TRANSIENT);
 		}
 	}
 
@@ -801,9 +801,9 @@ zulu_time:
 
 	__device__ void Date_::RegisterDateTimeFunctions()
 	{
-		FuncDefHash *hash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
+		FuncDefHash *hash = Context::GlobalFunctions;
 		for (int i = 0; i < _lengthof(_dateTimeFuncs); i++)
-			sqlite3FuncDefInsert(hash, &_dateTimeFuncs[i]);
+			hash->Insert(&_dateTimeFuncs[i]);
 	}
 
 } }

@@ -234,9 +234,9 @@ namespace Core.Command
             return false;
         }
 
-        static bool SetDateTimeToCurrent(FuncContext funcCtx, DateTime p)
+        static bool SetDateTimeToCurrent(FuncContext fctx, DateTime p)
         {
-            Context ctx = sqlite3_context_db_handle(funcCtx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             if (ctx.Vfs.CurrentTimeInt64(ref p.JD) == RC.OK)
             {
                 p.ValidJD = true;
@@ -245,12 +245,12 @@ namespace Core.Command
             return true;
         }
 
-        static bool ParseDateOrTime(FuncContext funcCtx, string date, ref DateTime p)
+        static bool ParseDateOrTime(FuncContext fctx, string date, ref DateTime p)
         {
             double r = 0.0;
             if (!ParseYyyyMmDd(date, p)) return false;
             else if (!ParseHhMmSs(date, p)) return false;
-            else if (date.Equals("now", StringComparison.InvariantCultureIgnoreCase)) return SetDateTimeToCurrent(funcCtx, p);
+            else if (date.Equals("now", StringComparison.InvariantCultureIgnoreCase)) return SetDateTimeToCurrent(fctx, p);
             else if (ConvertEx.Atof(date, ref r, date.Length, TEXTENCODE.UTF8))
             {
                 p.JD = (long)(r * 86400000.0 + 0.5);
@@ -323,7 +323,7 @@ namespace Core.Command
             MutexEx.Enter(mutex);
             tm x = localtime(t);
 #if !OMIT_BUILTIN_TEST
-            if (sqlite3GlobalConfig.bLocaltimeFault) x = null;
+            if (_localtimeFault) x = null;
 #endif
             if (x != null) tm_ = x;
             MutexEx.Leave(mutex);
@@ -331,7 +331,7 @@ namespace Core.Command
             return rc;
         }
 
-        static long LocaltimeOffset(DateTime p, FuncContext funcCtx, out int rc)
+        static long LocaltimeOffset(DateTime p, FuncContext fctx, out RC rc)
         {
             // Initialize the contents of sLocal to avoid a compiler warning.
             tm sLocal = new tm();
@@ -358,7 +358,7 @@ namespace Core.Command
             time_t t = (long)(x.JD / 1000 - 210866760000L);
             if (OsLocaltime(t, sLocal) != 0)
             {
-                sqlite3_result_error(funcCtx, "local time unavailable", -1);
+                Vdbe.Result_Error(fctx, "local time unavailable", -1);
                 rc = RC.ERROR;
                 return 0;
             }
@@ -379,9 +379,9 @@ namespace Core.Command
         }
 #endif
 
-        static bool ParseModifier(FuncContext funcCtx, string mod, DateTime p)
+        static RC ParseModifier(FuncContext fctx, string mod, DateTime p)
         {
-            bool rc = true;
+            RC rc = RC.ERROR;
             int n;
             double r = 0;
             StringBuilder z = new StringBuilder(mod.ToLower());
@@ -395,7 +395,7 @@ namespace Core.Command
                         if (z.ToString() == "localtime")
                         {
                             ComputeJD(p);
-                            p.JD += LocaltimeOffset(p, funcCtx, out rc);
+                            p.JD += LocaltimeOffset(p, fctx, out rc);
                             ClearYMD_HMS_TZ(p);
                         }
                         break;
@@ -408,18 +408,18 @@ namespace Core.Command
                         {
                             p.JD = (long)((p.JD + 43200) / 86400 + 210866760000000L);
                             ClearYMD_HMS_TZ(p);
-                            rc = 0;
+                            rc = RC.OK;
                         }
 #if !OMIT_LOCALTIME
                         else if (z.ToString() == "utc")
                         {
                             ComputeJD(p);
-                            long c1 = LocaltimeOffset(p, funcCtx, out rc);
-                            if (rc == RC._OK)
+                            long c1 = LocaltimeOffset(p, fctx, out rc);
+                            if (rc == RC.OK)
                             {
                                 p.JD -= c1;
                                 ClearYMD_HMS_TZ(p);
-                                p.JD += c1 - LocaltimeOffset(p, funcCtx, out rc);
+                                p.JD += c1 - LocaltimeOffset(p, fctx, out rc);
                             }
                         }
 #endif
@@ -438,7 +438,7 @@ namespace Core.Command
                             if (Z > n) Z -= 7;
                             p.JD += (n - Z) * 86400000;
                             ClearYMD_HMS_TZ(p);
-                            rc = false;
+                            rc = RC.OK;
                         }
                         break;
                     }
@@ -456,17 +456,17 @@ namespace Core.Command
                         if (z.ToString() == "month")
                         {
                             p.D = 1;
-                            rc = false;
+                            rc = RC.OK;
                         }
                         else if (z.ToString() == "year")
                         {
                             ComputeYMD(p);
                             p.M = 1;
                             p.D = 1;
-                            rc = false;
+                            rc = RC.OK;
                         }
                         else if (z.ToString() == "day")
-                            rc = false;
+                            rc = RC.OK;
                         break;
                     }
                 case '+':
@@ -485,7 +485,7 @@ namespace Core.Command
                         for (n = 1; n < z.Length && z[n] != ':' && !char.IsWhiteSpace(z[n]); n++) { }
                         if (!ConvertEx.Atof(z.ToString(), ref r, n, TEXTENCODE.UTF8))
                         {
-                            rc = true;
+                            rc = RC.ERROR;
                             break;
                         }
                         if (z[n] == ':')
@@ -505,15 +505,15 @@ namespace Core.Command
                             ComputeJD(p);
                             ClearYMD_HMS_TZ(p);
                             p.JD += tx.JD;
-                            rc = false;
+                            rc = RC.OK;
                             break;
                         }
-                        while (sqlite3Isspace(z[n])) n++; z = z.Remove(0, n);
+                        while (char.IsWhiteSpace(z[n])) n++; z = z.Remove(0, n);
                         n = z.Length;
                         if (n > 10 || n < 3) break;
                         if (z[n - 1] == 's') z.Length = --n;
                         ComputeJD(p);
-                        rc = false;
+                        rc = RC.OK;
                         double rounder = (r < 0 ? -0.5 : +0.5);
                         if (n == 3 && z.ToString() == "day") p.JD += (long)(r * 86400000.0 + rounder);
                         else if (n == 4 && z.ToString() == "hour") p.JD += (long)(r * (86400000.0 / 24.0) + rounder);
@@ -543,7 +543,7 @@ namespace Core.Command
                                 p.JD += (long)((r - y) * 365.0 * 86400000.0 + rounder);
                         }
                         else
-                            rc = true;
+                            rc = RC.ERROR;
                         ClearYMD_HMS_TZ(p);
                         break;
                     }
@@ -552,92 +552,92 @@ namespace Core.Command
             return rc;
         }
 
-        static bool IsDate(FuncContext funcCtx, int argc, Mem[] argv, out DateTime p)
+        static bool IsDate(FuncContext fctx, int argc, Mem[] argv, out DateTime p)
         {
             int i;
             string z;
             p = new DateTime();
             if (argc == 0)
-                SetDateTimeToCurrent(funcCtx, p);
+                SetDateTimeToCurrent(fctx, p);
             TYPE type;
-            if ((type = sqlite3_value_type(argv[0])) == TYPE.FLOAT || type == TYPE.INTEGER)
+            if ((type = Vdbe.Value_Type(argv[0])) == TYPE.FLOAT || type == TYPE.INTEGER)
             {
-                p.JD = (long)(sqlite3_value_double(argv[0]) * 86400000.0 + 0.5);
+                p.JD = (long)(Vdbe.Value_Double(argv[0]) * 86400000.0 + 0.5);
                 p.ValidJD = true;
             }
             else
             {
-                z = sqlite3_value_text(argv[0]);
-                if (z == null || ParseDateOrTime(funcCtx, z, ref p)) return true;
+                z = Vdbe.Value_Text(argv[0]);
+                if (z == null || ParseDateOrTime(fctx, z, ref p)) return true;
             }
             for (i = 1; i < argc; i++)
             {
-                z = sqlite3_value_text(argv[i]);
-                if (z == null || ParseModifier(funcCtx, z, p)) return true;
+                z = Vdbe.Value_Text(argv[i]);
+                if (z == null || ParseModifier(fctx, z, p) != RC.OK) return true;
             }
             return false;
         }
 
-        static void JuliandayFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void JuliandayFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             DateTime x;
-            if (!IsDate(funcCtx, argc, argv, out x))
+            if (!IsDate(fctx, argc, argv, out x))
             {
                 ComputeJD(x);
-                sqlite3_result_double(funcCtx, x.JD / 86400000.0);
+                Vdbe.Result_Double(fctx, x.JD / 86400000.0);
             }
         }
 
-        static void DatetimeFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void DatetimeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             DateTime x;
-            if (!IsDate(funcCtx, argc, argv, out x))
+            if (!IsDate(fctx, argc, argv, out x))
             {
                 _zdtBuf.Length = 0;
                 ComputeYMD_HMS(x);
-                sqlite3_snprintf(100, _zdtBuf, "%04d-%02d-%02d %02d:%02d:%02d", x.Y, x.M, x.D, x.h, x.m, (int)(x.s));
-                sqlite3_result_text(funcCtx, _zdtBuf, -1, SQLITE_TRANSIENT);
+                C.__snprintf(_zdtBuf, 100, "%04d-%02d-%02d %02d:%02d:%02d", x.Y, x.M, x.D, x.h, x.m, (int)(x.s));
+                Vdbe.Result_Text(fctx, _zdtBuf, -1, DESTRUCTOR_TRANSIENT);
             }
         }
 
-        static void TimeFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void TimeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             DateTime x;
-            if (!IsDate(funcCtx, argc, argv, out x))
+            if (!IsDate(fctx, argc, argv, out x))
             {
                 _zdtBuf.Length = 0;
                 ComputeHMS(x);
-                sqlite3_snprintf(100, _zdtBuf, "%02d:%02d:%02d", x.h, x.m, (int)x.s);
-                sqlite3_result_text(funcCtx, _zdtBuf, -1, SQLITE_TRANSIENT);
+                C.__snprintf(_zdtBuf, 100, "%02d:%02d:%02d", x.h, x.m, (int)x.s);
+                Vdbe.Result_Text(fctx, _zdtBuf, -1, DESTRUCTOR_TRANSIENT);
             }
         }
 
-        static void DateFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void DateFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             DateTime x;
-            if (!IsDate(funcCtx, argc, argv, out x))
+            if (!IsDate(fctx, argc, argv, out x))
             {
                 _zdtBuf.Length = 0;
                 ComputeYMD(x);
-                sqlite3_snprintf(100, _zdtBuf, "%04d-%02d-%02d", x.Y, x.M, x.D);
-                sqlite3_result_text(funcCtx, _zdtBuf, -1, SQLITE_TRANSIENT);
+                C.__snprintf(_zdtBuf, 100, "%04d-%02d-%02d", x.Y, x.M, x.D);
+                Vdbe.Result_Text(fctx, _zdtBuf, -1, DESTRUCTOR_TRANSIENT);
             }
         }
 
-        static void StrftimeFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void StrftimeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             {
                 DateTime x = new DateTime();
                 ulong n;
                 int i, j;
                 StringBuilder z;
-                string fmt = sqlite3_value_text(argv[0]);
+                string fmt = Vdbe.Value_Text(argv[0]);
                 StringBuilder zdtBuf = new StringBuilder(100);
-                sqlite3_value[] argv1 = new sqlite3_value[argc - 1];
+                Mem[] argv1 = new Mem[argc - 1];
                 for (i = 0; i < argc - 1; i++)
                     argv[i + 1].memcopy(ref argv1[i]);
-                if (fmt == null || IsDate(funcCtx, argc - 1, argv1, out x)) return;
-                Context ctx = sqlite3_context_db_handle(funcCtx);
+                if (fmt == null || IsDate(fctx, argc - 1, argv1, out x)) return;
+                Context ctx = Vdbe.Context_Ctx(fctx);
                 for (i = 0, n = 1; i < fmt.Length; i++, n++)
                 {
                     if (fmt[i] == '%')
@@ -683,7 +683,7 @@ namespace Core.Command
                     z = zdtBuf;
                 else if (n > (ulong)ctx.Limits[(int)LIMIT.LENGTH])
                 {
-                    sqlite3_result_error_toobig(funcCtx);
+                    Vdbe.Result_ErrorOverflow(fctx);
                     return;
                 }
                 else
@@ -691,7 +691,7 @@ namespace Core.Command
                     z = new StringBuilder((int)n);
                     if (z == null)
                     {
-                      sqlite3_result_error_nomem(funcCtx);
+                      Vdbe.Result_ErrorNoMem(fctx);
                       return;
                     }
                 }
@@ -707,17 +707,17 @@ namespace Core.Command
                         _zdtTemp.Length = 0;
                         switch ((char)fmt[i])
                         {
-                            case 'd': sqlite3_snprintf(3, _zdtTemp, "%02d", x.D); z.Append(_zdtTemp); j += 2; break;
+                            case 'd': C.__snprintf(_zdtTemp, 3, "%02d", x.D); z.Append(_zdtTemp); j += 2; break;
                             case 'f':
                                 {
                                     double s = x.s;
                                     if (s > 59.999) s = 59.999;
-                                    sqlite3_snprintf(7, _zdtTemp, "%06.3f", s);
+                                    C.__snprintf(_zdtTemp, 7, "%06.3f", s);
                                     z.Append(_zdtTemp);
                                     j = z.Length;
                                     break;
                                 }
-                            case 'H': sqlite3_snprintf(3, _zdtTemp, "%02d", x.h); z.Append(_zdtTemp); j += 2; break;
+                            case 'H': C.__snprintf(_zdtTemp, 3, "%02d", x.h); z.Append(_zdtTemp); j += 2; break;
                             case 'W': // Fall thru
                             case 'j':
                                 {
@@ -731,13 +731,13 @@ namespace Core.Command
                                     if (fmt[i] == 'W')
                                     {
                                         int wd = (int)(((x.JD + 43200000) / 86400000) % 7);  // 0=Monday, 1=Tuesday, ... 6=Sunday
-                                        sqlite3_snprintf(3, _zdtTemp, "%02d", (days + 7 - wd) / 7);
+                                        C.__snprintf(_zdtTemp, 3, "%02d", (days + 7 - wd) / 7);
                                         z.Append(_zdtTemp);
                                         j += 2;
                                     }
                                     else
                                     {
-                                        sqlite3_snprintf(4, _zdtTemp, "%03d", days + 1);
+                                        C.__snprintf(_zdtTemp, 4, "%03d", days + 1);
                                         z.Append(_zdtTemp);
                                         j += 3;
                                     }
@@ -745,21 +745,21 @@ namespace Core.Command
                                 }
                             case 'J':
                                 {
-                                    sqlite3_snprintf(20, _zdtTemp, "%.16g", x.JD / 86400000.0);
-                                    z.Append(_zdtTemp);
-                                    j = sqlite3Strlen30(z);
-                                    break;
-                                }
-                            case 'm': sqlite3_snprintf(3, _zdtTemp, "%02d", x.M); z.Append(_zdtTemp); j += 2; break;
-                            case 'M': sqlite3_snprintf(3, _zdtTemp, "%02d", x.m); z.Append(_zdtTemp); j += 2; break;
-                            case 's':
-                                {
-                                    sqlite3_snprintf(30, _zdtTemp, "%lld", (long)(x.JD / 1000 - 210866760000L));
+                                    C.__snprintf(_zdtTemp, 20, "%.16g", x.JD / 86400000.0);
                                     z.Append(_zdtTemp);
                                     j = z.Length;
                                     break;
                                 }
-                            case 'S': sqlite3_snprintf(3, _zdtTemp, "%02d", (int)x.s); z.Append(_zdtTemp); j += 2; break;
+                            case 'm': C.__snprintf(_zdtTemp, 3, "%02d", x.M); z.Append(_zdtTemp); j += 2; break;
+                            case 'M': C.__snprintf(_zdtTemp, 3, "%02d", x.m); z.Append(_zdtTemp); j += 2; break;
+                            case 's':
+                                {
+                                    C.__snprintf(_zdtTemp, 30, "%lld", (long)(x.JD / 1000 - 210866760000L));
+                                    z.Append(_zdtTemp);
+                                    j = z.Length;
+                                    break;
+                                }
+                            case 'S': C.__snprintf(_zdtTemp, 3, "%02d", (int)x.s); z.Append(_zdtTemp); j += 2; break;
                             case 'w':
                                 {
                                     z.Append((((x.JD + 129600000) / 86400000) % 7));
@@ -767,38 +767,38 @@ namespace Core.Command
                                 }
                             case 'Y':
                                 {
-                                    sqlite3_snprintf(5, _zdtTemp, "%04d", x.Y);
+                                    C.__snprintf(_zdtTemp, 5, "%04d", x.Y);
                                     z.Append(_zdtTemp);
-                                    j = sqlite3Strlen30(z);
+                                    j = z.Length;
                                     break;
                                 }
                             default: z.Append('%'); break;
                         }
                     }
                 }
-                sqlite3_result_text(funcCtx, z, -1, z == (zdtBuf ? SQLITE_TRANSIENT : SQLITE_DYNAMIC);
+                Vdbe.Result_Text(fctx, z, -1, z == (zdtBuf ? DESTRUCTOR_TRANSIENT : DESTRUCTOR_DYNAMIC);
             }
         }
 
-        static void CtimeFunc(FuncContext funcCtx, int notUsed, Mem[] notUsed2)
+        static void CtimeFunc(FuncContext fctx, int notUsed, Mem[] notUsed2)
         {
-            TimeFunc(funcCtx, 0, null);
+            TimeFunc(fctx, 0, null);
         }
 
-        static void CdateFunc(FuncContext funcCtx, int notUsed, Mem[] notUsed2)
+        static void CdateFunc(FuncContext fctx, int notUsed, Mem[] notUsed2)
         {
-            DateFunc(funcCtx, 0, null);
+            DateFunc(fctx, 0, null);
         }
 
-        static void CtimestampFunc(FuncContext funcCtx, int notUsed, Mem[] notUsed2)
+        static void CtimestampFunc(FuncContext fctx, int notUsed, Mem[] notUsed2)
         {
-            DatetimeFunc(funcCtx, 0, null);
+            DatetimeFunc(fctx, 0, null);
         }
 #else
-        static void CurrentTimeFunc(FuncContext funcCtx, int argc, Mem[] argv)
+        static void CurrentTimeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string format = (string)sqlite3_user_data(funcCtx);
-            Context ctx = sqlite3_context_db_handle(funcCtx);
+            string format = (string)sqlite3_user_data(fctx);
+            Context ctx = sqlite3_context_db_handle(fctx);
             long iT;
             ctx.Vfs.CurrentTimeInt64(ref iT);
             time_t t = iT / 1000 - 10000 * (long)21086676;
@@ -810,7 +810,7 @@ namespace Core.Command
             //strftime(zdtBuf, 20, zFormat, pTm);
             MutexEx.Leave(mutex);
 
-            sqlite3_result_text(funcCtx, zdtBuf, -1, SQLITE_TRANSIENT);
+            sqlite3_result_text(fctx, zdtBuf, -1, SQLITE_TRANSIENT);
         }
 #endif
         #endregion
@@ -833,12 +833,12 @@ STR_FUNCTION("current_timestamp", 0, "%Y-%m-%d %H:%M:%S", 0, CurrentTimeFunc),
 #endif
 };
 
-        static void Date_RegisterDateTimeFunctions()
+        static void RegisterDateTimeFunctions()
         {
-            FuncDefHash pHash = sqlite3GlobalFunctions;
-            FuncDef[] aFunc = _dateTimeFuncs;
+            FuncDefHash hash = Context.GlobalFunctions;
+            FuncDef[] funcs = _dateTimeFuncs;
             for (int i = 0; i < _dateTimeFuncs.Length; i++)
-                sqlite3FuncDefInsert(pHash, aFunc[i]);
+                hash.Insert(_dateTimeFuncs[i]);
         }
     }
 }

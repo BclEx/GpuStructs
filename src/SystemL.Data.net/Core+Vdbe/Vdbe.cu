@@ -279,7 +279,7 @@ namespace Core
 	{
 		Context *db = p->Db;
 		_tagfree(db, p->ErrMsg);
-		p->ErrMsg = SysEx::TagStrDup(db, vtab->ErrMsg);
+		p->ErrMsg = _tagstrdup(db, vtab->ErrMsg);
 		_free(vtab->ErrMsg);
 		vtab->ErrMsg = nullptr;
 	}

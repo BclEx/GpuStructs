@@ -89,23 +89,23 @@ namespace Core { namespace Command
 	};
 
 #ifdef ENABLE_STAT3
-	__device__ static void Stat3Init_(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void Stat3Init_(FuncContext *fctx, int argc, Mem **argv)
 	{
-		tRowcnt rows = (tRowcnt)sqlite3_value_int64(argv[0]);
-		int maxSamples = sqlite3_value_int(argv[1]);
+		tRowcnt rows = (tRowcnt)Vdbe::Value_Int64(argv[0]);
+		int maxSamples = Vdbe::Value_Int(argv[1]);
 		int n = sizeof(*p) + sizeof(p->a[0])*maxSamples;
 		Stat3Accum *p = (Stat3Accum *)_alloc(n);
 		if (!p)
 		{
-			sqlite3_result_error_nomem(funcCtx);
+			Vdbe::Result_ErrorNoMem(fctx);
 			return;
 		}
 		p->a = (Stat3Accum::Stat3Sample *)&p[1];
 		p->Rows = rows;
 		p->MaxSamples = maxSamples;
 		p->PSamples = rows/(maxSamples/3+1) + 1;
-		sqlite3_randomness(sizeof(p->Prn), &p->Prn);
-		sqlite3_result_blob(funcCtx, p, sizeof(p), _free);
+		SysEx::Randomness(sizeof(p->Prn), &p->Prn);
+		Vdbe::Result_Blob(fctx, p, sizeof(p), _free);
 	}
 	__device__ static const FuncDef Stat3InitFuncdef =
 	{
@@ -122,14 +122,14 @@ namespace Core { namespace Command
 		nullptr             // pDestructor
 	};
 
-	__device__ static void Stat3Push_(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void Stat3Push_(FuncContext *fctx, int argc, Mem **argv)
 	{
-		tRowcnt eq = sqlite3_value_int64(argv[0]);
+		tRowcnt eq = Vdbe::Value_Int64(argv[0]);
 		if (eq == 0) return;
-		tRowcnt lt = sqlite3_value_int64(argv[1]);
-		tRowcnt dLt = sqlite3_value_int64(argv[2]);
-		int64 rowid = sqlite3_value_int64(argv[3]);
-		Stat3Accum *p = (Stat3Accum *)sqlite3_value_blob(argv[4]);
+		tRowcnt lt = Vdbe::Value_Int64(argv[1]);
+		tRowcnt dLt = Vdbe::Value_Int64(argv[2]);
+		int64 rowid = Vdbe::Value_Int64(argv[3]);
+		Stat3Accum *p = (Stat3Accum *)Vdbe::Value_Blob(argv[4]);
 		bool isPSample = false;
 		bool doInsert = false;
 		int min = p->Min;
@@ -196,21 +196,21 @@ namespace Core { namespace Command
 		nullptr             // pDestructor
 	};
 
-	__device__ static void Stat3Get_(FuncContext *funcCtx, int argc, Mem **argv)
+	__device__ static void Stat3Get_(FuncContext *fctx, int argc, Mem **argv)
 	{
-		int n = sqlite3_value_int(argv[1]);
-		Stat3Accum *p = (Stat3Accum *)sqlite3_value_blob(argv[0]);
+		int n = Vdbe::Value_Int(argv[1]);
+		Stat3Accum *p = (Stat3Accum *)Vdbe::Value_Blob(argv[0]);
 		_assert(p);
 		if (p->a.length <= n) return;
 		switch (argc)
 		{
-		case 2:  sqlite3_result_int64(funcCtx, p->a[n].Rowid); break;
-		case 3:  sqlite3_result_int64(funcCtx, p->a[n].Eq);    break;
-		case 4:  sqlite3_result_int64(funcCtx, p->a[n].Lt);    break;
-		default: sqlite3_result_int64(funcCtx, p->a[n].DLt);   break;
+		case 2:  Vdbe::Result_Int64(fctx, p->a[n].Rowid); break;
+		case 3:  Vdbe::Result_Int64(fctx, p->a[n].Eq);    break;
+		case 4:  Vdbe::Result_Int64(fctx, p->a[n].Lt);    break;
+		default: Vdbe::Result_Int64(fctx, p->a[n].DLt);   break;
 		}
 	}
-	__device__ static const FuncDef Stat3GetFuncdef =
+	__device__ static const FuncDef _stat3GetFuncdef =
 	{
 		-1,					// nArg
 		TEXTENCODE_UTF8,	// iPrefEnc
@@ -304,7 +304,7 @@ namespace Core { namespace Command
 			v->AddOp2(OP_Integer, 0, regNumLt);
 			v->AddOp2(OP_Integer, -1, regNumDLt);
 			v->AddOp3(OP_Null, 0, regSample, regAccum);
-			v->AddOp4(OP_Function, 1, regCount, regAccum, (char*)&Stat3InitFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regCount, regAccum, (char*)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(2);
 #endif
 
@@ -625,49 +625,47 @@ namespace Core { namespace Command
 		if (!sqlite3FindTable(ctx, "sqlite_stat3", dbName))
 			return RC_OK;
 
-		char *sql = SysEx::Mprintf(ctx, 
-			"SELECT idx,count(*) FROM %Q.sqlite_stat3 GROUP BY idx", dbName); // Text of the SQL statement
+		char *sql = _mtagprintf(ctx, "SELECT idx,count(*) FROM %Q.sqlite_stat3 GROUP BY idx", dbName); // Text of the SQL statement
 		if (!sql)
 			return RC_NOMEM;
-		sqlite3_stmt *stmt = nullptr; // An SQL statement being run
-		RC rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0); // Result codes from subroutines
+		Vdbe *stmt = nullptr; // An SQL statement being run
+		RC rc = Vdbe::Prepare(ctx, sql, -1, &stmt, 0); // Result codes from subroutines
 		_tagfree(ctx, sql);
 		if (rc) return rc;
 
-		while (sqlite3_step(stmt) == SQLITE_ROW)
+		while (stmt->Step() == RC_ROW)
 		{
-			char *indexName = (char *)sqlite3_column_text(stmt, 0); // Index name
+			char *indexName = (char *)Vdbe::Column_Text(stmt, 0); // Index name
 			if (!indexName) continue;
-			int samplesLength = sqlite3_column_int(stmt, 1); // Number of samples
+			int samplesLength = Vdbe::Column_Int(stmt, 1); // Number of samples
 			Index *idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
 			if (!idx) continue;
 			_assert(idx->Samples.length == 0);
 			idx->Samples.length = samplesLength;
 			idx->Samples.data = _tagalloc(ctx, samplesLength*sizeof(IndexSample));
-			idx->AvgEq = idx->aiRowEst[1];
+			idx->AvgEq = idx->RowEsts[1];
 			if (!idx->Samples.data)
 			{
 				ctx->MallocFailed = true;
-				sqlite3_finalize(stmt);
+				Vdbe::Finalize(stmt);
 				return RC_NOMEM;
 			}
 		}
-		rc = sqlite3_finalize(stmt);
+		rc = Vdbe::Finalize(stmt);
 		if (rc) return rc;
 
-		sql = SysEx::Mprintf(ctx, 
-			"SELECT idx,neq,nlt,ndlt,sample FROM %Q.sqlite_stat3", dbName);
+		sql = _mtagprintf(ctx, "SELECT idx,neq,nlt,ndlt,sample FROM %Q.sqlite_stat3", dbName);
 		if (!sql)
 			return RC_NOMEM;
-		rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0);
+		rc = Vdbe::Prepare(ctx, sql, -1, &stmt, 0);
 		_tagfree(ctx, sql);
 		if (rc) return rc;
 
 		Index *prevIdx = nullptr; // Previous index in the loop
 		int idxId = 0; // slot in pIdx->aSample[] for next sample
-		while (sqlite3_step(stmt) == SQLITE_ROW)
+		while (stmt->Step() == RC_ROW)
 		{
-			char *indexName = (char *)sqlite3_column_text(stmt, 0); // Index name
+			char *indexName = (char *)Vdbe::Column_Text(stmt, 0); // Index name
 			if (!indexName) continue;
 			Index *idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
 			if (!idx) continue;
@@ -680,9 +678,9 @@ namespace Core { namespace Command
 			}
 			_assert(idxId < idx->Samples.length);
 			IndexSample *sample = &idx->Samples[idxId]; // A slot in pIdx->aSample[]
-			sample->Eq = (tRowcnt)sqlite3_column_int64(stmt, 1);
-			sample->Lt = (tRowcnt)sqlite3_column_int64(stmt, 2);
-			sample->DLt = (tRowcnt)sqlite3_column_int64(stmt, 3);
+			sample->Eq = (tRowcnt)Vdbe::Column_Int64(stmt, 1);
+			sample->Lt = (tRowcnt)Vdbe::Column_Int64(stmt, 2);
+			sample->DLt = (tRowcnt)Vdbe::Column_Int64(stmt, 3);
 			if (idxId == idx->Samples.length-1)
 			{
 				if (sample->DLt > 0)
@@ -693,21 +691,21 @@ namespace Core { namespace Command
 				}
 				if (idx->AvgEq <= 0) idx->AvgEq = 1;
 			}
-			TYPE type = sqlite3_column_type(stmt, 4); // Datatype of a sample
+			TYPE type = Vdbe::Column_Type(stmt, 4); // Datatype of a sample
 			sample->Type = type;
 			switch (type)
 			{
 			case TYPE_INTEGER: {
-				sample->u.I = sqlite3_column_int64(stmt, 4);
+				sample->u.I = Vdbe::Column_Int64(stmt, 4);
 				break; }
 			case TYPE_FLOAT: {
-				sample->u.R = sqlite3_column_double(stmt, 4);
+				sample->u.R = Vdbe::Column_Double(stmt, 4);
 				break; }
 			case TYPE_NULL: {
 				break; }
 			default: _assert(type == TYPE_TEXT || type == TYPE_BLOB ); {
-				const char *z = (const char *)(type == TYPE_BLOB ? sqlite3_column_blob(stmt, 4) : sqlite3_column_text(stmt, 4));
-				int n = (z ? sqlite3_column_bytes(stmt, 4) : 0);
+				const char *z = (const char *)(type == TYPE_BLOB ? Vdbe::Column_Blob(stmt, 4) : Vdbe::Column_Text(stmt, 4));
+				int n = (z ? Vdbe::Column_Bytes(stmt, 4) : 0);
 				sample->Bytes = n;
 				if (n < 1 )
 					sample->u.Z = nullptr;
@@ -717,14 +715,14 @@ namespace Core { namespace Command
 					if (!sample->u.Z)
 					{
 						ctx->MallocFailed = true;
-						sqlite3_finalize(stmt);
+						Vdbe::Finalize(stmt);
 						return RC_NOMEM;
 					}
 					_memcpy(sample->u.Z, z, n);
 				} }
 			}
 		}
-		return sqlite3_finalize(stmt);
+		return Vdbe::Finalize(stmt);
 	}
 #endif
 
@@ -753,14 +751,13 @@ namespace Core { namespace Command
 			return RC_ERROR;
 
 		// Load new statistics out of the sqlite_stat1 table
-		char *sql = SysEx::Mprintf(ctx, 
-			"SELECT tbl,idx,stat FROM %Q.sqlite_stat1", sInfo.Database);
+		char *sql = _mtagprintf(ctx, "SELECT tbl,idx,stat FROM %Q.sqlite_stat1", sInfo.Database);
 		RC rc;
 		if (!sql)
 			rc = RC_NOMEM;
 		else
 		{
-			rc = sqlite3_exec(ctx, sql, AnalysisLoader, &sInfo, 0);
+			rc = Vdbe::Exec(ctx, sql, AnalysisLoader, &sInfo, 0);
 			_tagfree(ctx, sql);
 		}
 

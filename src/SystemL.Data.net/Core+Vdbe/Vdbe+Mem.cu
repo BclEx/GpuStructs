@@ -11,7 +11,7 @@ namespace Core {
 		_assert(newEncode == TEXTENCODE_UTF8 || newEncode == TEXTENCODE_UTF16LE || newEncode == TEXTENCODE_UTF16BE);
 		if (!(mem->Flags & MEM_Str) || mem->Encode == newEncode)
 			return RC_OK;
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex) );
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex) );
 #ifdef OMIT_UTF16
 		return RC_ERROR;
 #else
@@ -36,16 +36,16 @@ namespace Core {
 		_assert(!preserve || mem->Flags & (MEM_Blob | MEM_Str));
 
 		if (newSize < 32) newSize = 32;
-		if (_tagallocsize(mem->Db, mem->Malloc) < newSize)
+		if (_tagallocsize(mem->Ctx, mem->Malloc) < newSize)
 			if (preserve && mem->Z == mem->Malloc)
 			{
-				mem->Z = mem->Malloc = (char *)SysEx::TagRellocOrFree(mem->Db, mem->Z, newSize);
+				mem->Z = mem->Malloc = (char *)_tagrelloc_or_free(mem->Ctx, mem->Z, newSize);
 				preserve = false;
 			}
 			else
 			{
-				_tagfree(mem->Db, mem->Malloc);
-				mem->Malloc = (char *)_tagalloc(mem->Db, newSize);
+				_tagfree(mem->Ctx, mem->Malloc);
+				mem->Malloc = (char *)_tagalloc(mem->Ctx, newSize);
 			}
 
 			if (mem->Z && preserve && mem->Malloc && mem->Z != mem->Malloc)
@@ -64,7 +64,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemMakeWriteable(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		ExpandBlob(mem);
 		MEM f = mem->Flags;
@@ -89,7 +89,7 @@ namespace Core {
 		{
 			_assert(mem->Flags & MEM_Blob);
 			_assert((mem->Flags & MEM_RowSet) == 0);
-			_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+			_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 			// Set nByte to the number of bytes required to store the expanded blob.
 			int bytes = mem->N + mem->u.Zero;
 			if (bytes <= 0)
@@ -106,7 +106,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemNulTerminate(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		if ((mem->Flags & MEM_Term) != 0 || (mem->Flags & MEM_Str) == 0)
 			return RC_OK; // Nothing to do
 		if (MemGrow(mem, mem->N + 2, true))
@@ -120,7 +120,7 @@ namespace Core {
 	__device__ RC Vdbe::MemStringify(Mem *mem, TEXTENCODE encode)
 	{
 		MEM f = mem->Flags;
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert(!(f & MEM_Zero));
 		_assert(!(f & (MEM_Str | MEM_Blob)));
 		_assert(f & (MEM_Int | MEM_Real));
@@ -154,16 +154,16 @@ namespace Core {
 		if (_ALWAYS(func && func->Finalize))
 		{
 			_assert((mem->Flags & MEM_Null) != 0 || func == mem->u.Def);
-			_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+			_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 			FuncContext ctx;
 			_memset(&ctx, 0, sizeof(ctx));
 			ctx.S.Flags = MEM_Null;
-			ctx.S.Db = mem->Db;
+			ctx.S.Ctx = mem->Ctx;
 			ctx.Mem = mem;
 			ctx.Func = func;
 			func->Finalize(&ctx); // IMP: R-24505-23230
 			_assert((mem->Flags & MEM_Dyn) == 0 && !mem->Del);
-			_tagfree(mem->Db, mem->Malloc);
+			_tagfree(mem->Ctx, mem->Malloc);
 			_memcpy(mem, &ctx.S, sizeof(ctx.S));
 			rc = ctx.IsError;
 		}
@@ -172,7 +172,7 @@ namespace Core {
 
 	__device__ void Vdbe::MemReleaseExternal(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		if (mem->Flags & MEM_Agg)
 		{
 			MemFinalize(mem, mem->u.Def);
@@ -193,12 +193,12 @@ namespace Core {
 	__device__ void Vdbe::MemRelease(Mem *mem)
 	{
 		VdbeMemRelease(mem);
-		_tagfree(mem->Db, mem->Malloc);
+		_tagfree(mem->Ctx, mem->Malloc);
 		mem->Z = mem->Malloc = nullptr;
 		mem->Del = nullptr;
 	}
 
-	__device__ static int64 doubleToInt64(double r)
+	__device__ static int64 DoubleToInt64(double r)
 	{
 #ifdef OMIT_FLOATING_POINT
 		return r; // When floating-point is omitted, double and int64 are the same thing
@@ -213,7 +213,7 @@ namespace Core {
 
 	__device__ int64 Vdbe::IntValue(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert(SysEx_HASALIGNMENT8(mem));
 		MEM flags = mem->Flags;
 		if (flags & MEM_Int) return mem->u.I;
@@ -231,7 +231,7 @@ namespace Core {
 
 	__device__ double Vdbe::RealValue(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert(SysEx_HASALIGNMENT8(mem));
 		if (mem->Flags & MEM_Real) return mem->R;
 		else if (mem->Flags & MEM_Int) return (double)mem->u.I;
@@ -243,9 +243,9 @@ namespace Core {
 	{
 		_assert(mem->Flags & MEM_Real);
 		_assert((mem->Flags & MEM_RowSet) == 0);
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert(SysEx_HASALIGNMENT8(mem));
-		mem->u.I = doubleToInt64(mem->R);
+		mem->u.I = DoubleToInt64(mem->R);
 		// Only mark the value as an integer if
 		//    (1) the round-trip conversion real->int->real is a no-op, and
 		//    (2) The integer is neither the largest nor the smallest possible integer (ticket #3922)
@@ -265,7 +265,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemIntegerify(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		_assert(SysEx_HASALIGNMENT8(mem));
 		mem->u.I = IntValue(mem);
@@ -275,7 +275,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemRealify(Mem *mem)
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert(SysEx_HASALIGNMENT8(mem));
 		mem->R = RealValue(mem);
 		MemSetTypeFlag(mem, MEM_Real);
@@ -287,7 +287,7 @@ namespace Core {
 		if ((mem->Flags & (MEM_Int | MEM_Real | MEM_Null)) == 0)
 		{
 			_assert((mem->Flags & (MEM_Blob | MEM_Str)) != 0);
-			_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+			_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 			if (ConvertEx::Atoi64(mem->Z, &mem->u.I, mem->N, mem->Encode) == 0)
 				MemSetTypeFlag(mem, MEM_Int);
 			else
@@ -360,17 +360,17 @@ namespace Core {
 
 	__device__ void Vdbe::MemSetRowSet(Mem *mem)
 	{
-		Context *db = mem->Db;
-		_assert(db);
+		Context *ctx = mem->Ctx;
+		_assert(ctx);
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		MemRelease(mem);
-		mem->Malloc = (char *)_tagalloc(db, 64);
-		if (db->MallocFailed)
+		mem->Malloc = (char *)_tagalloc(ctx, 64);
+		if (ctx->MallocFailed)
 			mem->Flags = MEM_Null;
 		else
 		{
 			_assert(mem->Malloc);
-			mem->u.RowSet = RowSet_Init(db, mem->Malloc, _tagallocsize(db, mem->Malloc));
+			mem->u.RowSet = RowSet_Init(ctx, mem->Malloc, _tagallocsize(ctx, mem->Malloc));
 			_assert(mem->u.RowSet != 0);
 			mem->Flags = MEM_RowSet;
 		}
@@ -378,13 +378,13 @@ namespace Core {
 
 	__device__ bool Vdbe::MemTooBig(Mem *mem)
 	{
-		_assert(mem->Db);
+		_assert(mem->Ctx);
 		if (mem->Flags & (MEM_Str | MEM_Blob))
 		{
 			int n = mem->N;
 			if (mem->Flags & MEM_Zero)
 				n += mem->u.Zero;
-			return (n > mem->Db->Limits[LIMIT_LENGTH]);
+			return (n > mem->Ctx->Limits[LIMIT_LENGTH]);
 		}
 		return false; 
 	}
@@ -442,9 +442,9 @@ namespace Core {
 
 	__device__ void Vdbe::MemMove(Mem *to, Mem *from)
 	{
-		_assert(!from->Db || MutexEx::Held(from->Db->Mutex));
-		_assert(!to->Db || MutexEx::Held(to->Db->Mutex));
-		_assert(!from->Db || !to->Db || from->Db == to->Db);
+		_assert(!from->Ctx || MutexEx::Held(from->Ctx->Mutex));
+		_assert(!to->Ctx || MutexEx::Held(to->Ctx->Mutex));
+		_assert(!from->Ctx || !to->Ctx || from->Ctx == to->Ctx);
 		MemRelease(to);
 		_memcpy(to, from, sizeof(Mem));
 		from->Flags = MEM_Null;
@@ -454,7 +454,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *))
 	{
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		// If z is a NULL pointer, set pMem to contain an SQL NULL.
 		if (!z)
@@ -462,7 +462,7 @@ namespace Core {
 			MemSetNull(mem);
 			return RC_OK;
 		}
-		int  limit = (mem->Db ? mem->Db->Limits[LIMIT_LENGTH] : CORE_MAX_LENGTH); // Maximum allowed string or blob size
+		int  limit = (mem->Ctx ? mem->Ctx->Limits[LIMIT_LENGTH] : CORE_MAX_LENGTH); // Maximum allowed string or blob size
 		MEM flags = (encode == 0 ? MEM_Blob : MEM_Str); // New value for pMem->flags
 		int bytes = n; // New value for pMem->n
 		if (bytes < 0)
@@ -613,7 +613,7 @@ namespace Core {
 	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode)
 	{
 		if (!mem) return nullptr;
-		_assert(!mem->Db || MutexEx::Held(mem->Db->Mutex));
+		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert((encode & 3) == (encode & ~TEXTENCODE_UTF16_ALIGNED));
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		if (mem->Flags & MEM_Null) return nullptr;
@@ -636,31 +636,31 @@ namespace Core {
 			Vdbe::MemStringify(mem, encode);
 			_assert((1 & PTR_TO_INT(mem->Z)) == 0);
 		}
-		_assert(mem->Encode == (encode & ~TEXTENCODE_UTF16_ALIGNED) || !mem->Db || mem->Db->MallocFailed);
+		_assert(mem->Encode == (encode & ~TEXTENCODE_UTF16_ALIGNED) || !mem->Ctx || mem->Ctx->MallocFailed);
 		return (mem->Encode == (encode & ~TEXTENCODE_UTF16_ALIGNED) ? mem->Z : nullptr);
 	}
 
 
-	__device__ Mem *Mem_New(Context *db)
+	__device__ Mem *Mem_New(Context *ctx)
 	{
-		Mem *p = (Mem *)_tagalloc(db, sizeof(*p));
+		Mem *p = (Mem *)_tagalloc(ctx, sizeof(*p));
 		if (p)
 		{
 			p->Flags = MEM_Null;
 			p->Type = TYPE_NULL;
-			p->Db = db;
+			p->Ctx = ctx;
 		}
 		return p;
 	}
 
-	__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
+	__device__ RC Mem_FromExpr(Context *ctx, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
 	{
 		if (!expr)
 		{
 			*value = nullptr;
 			return RC_OK;
 		}
-		int op = expr->OP;
+		OP op = expr->OP;
 		// op can only be TK_REGISTER if we have compiled with SQLITE_ENABLE_STAT3. The ifdef here is to enable us to achieve 100% branch test coverage even when SQLITE_ENABLE_STAT3 is omitted.
 #ifdef ENABLE_STAT3
 		if (op == TK_REGISTER) op = expr->Op2;
@@ -683,13 +683,13 @@ namespace Core {
 		char *memAsString = nullptr;
 		if (op == TK_STRING || op == TK_FLOAT || op == TK_INTEGER)
 		{
-			mem = Mem_New(db);
+			mem = Mem_New(ctx);
 			if (!mem) goto no_mem;
 			if (ExprHasProperty(expr, EP_IntValue))
 				Vdbe::MemSetInt64(mem, (int64)expr->u.I * negInt);
 			else
 			{
-				memAsString = SysEx::Mprintf(db, "%s%s", neg, expr->u.Token);
+				memAsString = _mprintf(ctx, "%s%s", neg, expr->u.Token);
 				if (!memAsString) goto no_mem;
 				Mem_SetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
 				if (op == TK_FLOAT) mem->Type = TYPE_FLOAT;
@@ -705,7 +705,7 @@ namespace Core {
 		else if (op == TK_UMINUS)
 		{
 			// This branch happens for multiple negative signs.  Ex: -(-5)
-			if (Mem_FromExpr(db, expr->Left, encode, affinity, &mem) == RC_OK)
+			if (Mem_FromExpr(ctx, expr->Left, encode, affinity, &mem) == RC_OK)
 			{
 				Vdbe::MemNumerify(mem);
 				if (mem->u.I == SMALLEST_INT64)
@@ -722,7 +722,7 @@ namespace Core {
 		}
 		else if (op == TK_NULL)
 		{
-			mem = Mem_New(db);
+			mem = Mem_New(ctx);
 			if (!mem) goto no_mem;
 		}
 #ifndef OMIT_BLOB_LITERAL
@@ -730,12 +730,12 @@ namespace Core {
 		{
 			_assert(expr->u.Token[0] == 'x' || expr->u.Token[0] == 'X');
 			_assert(expr->u.Token[1] == '\'');
-			mem = Mem_New(db);
+			mem = Mem_New(ctx);
 			if (!mem) goto no_mem;
 			memAsString = &expr->u.Token[2];
 			int memAsStringLength = _strlen30(memAsString) - 1;
 			_assert(memAsString[memAsStringLength] == '\'');
-			Vdbe::MemSetStr(mem, (const char *)SysEx::HexToBlob(db, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
+			Vdbe::MemSetStr(mem, (const char *)_hextoblob(ctx, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
 		}
 #endif
 		if (mem)
@@ -744,8 +744,8 @@ namespace Core {
 		return RC_OK;
 
 no_mem:
-		db->MallocFailed = true;
-		_tagfree(db, memAsString);
+		ctx->MallocFailed = true;
+		_tagfree(ctx, memAsString);
 		Mem_Free(mem);
 		*value = nullptr;
 		return RC_NOMEM;
@@ -760,7 +760,7 @@ no_mem:
 	{
 		if (!mem) return;
 		Vdbe::MemRelease(mem);
-		_tagfree(mem->Db, mem);
+		_tagfree(mem->Ctx, mem);
 	}
 
 	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode)

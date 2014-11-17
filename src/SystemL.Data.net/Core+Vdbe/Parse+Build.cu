@@ -33,7 +33,7 @@ namespace Core
 			}
 		}
 		int bytes = sizeof(Core::TableLock) * (toplevel->TableLocks.length + 1);
-		toplevel->TableLocks.data = (Core::TableLock *)SysEx::TagRellocOrFree(toplevel->Ctx, toplevel->TableLocks.data, bytes);
+		toplevel->TableLocks.data = (Core::TableLock *)_tagrelloc_or_free(toplevel->Ctx, toplevel->TableLocks.data, bytes);
 		if (toplevel->TableLocks)
 		{
 			tableLock = &toplevel->TableLocks[toplevel->TableLocks.length++];
@@ -421,7 +421,7 @@ namespace Core
 	{
 		if (name)
 		{
-			char *nameAsString = SysEx::TagStrNDup(ctx, name->data, name->length);
+			char *nameAsString = _tagstrndup(ctx, name->data, name->length);
 			Parse::Dequote(nameAsString);
 			return nameAsString;
 		}
@@ -684,7 +684,7 @@ begin_table_error:
 		}
 		if ((table->Cols.length & 0x7) == 0)
 		{
-			Column *newCols = (Column *)SysEx::TagRealloc(ctx, table->Cols, (table->Cols.length + 8) * sizeof(table->Cols[0]));
+			Column *newCols = (Column *)_tagrealloc(ctx, table->Cols, (table->Cols.length + 8) * sizeof(table->Cols[0]));
 			if (!newCols)
 			{
 				_tagfree(ctx, nameAsString);
@@ -760,7 +760,7 @@ begin_table_error:
 				Expr::Delete(ctx, col->Dflt);
 				col->Dflt = Expr::ExprDup(ctx, span->Expr, EXPRDUP_REDUCE);
 				_tagfree(ctx, col->DfltName);
-				col->DfltName = SysEx::TagStrNDup(ctx, (char *)span->Start, (int)(span->End - span->Start));
+				col->DfltName = _tagstrndup(ctx, (char *)span->Start, (int)(span->End - span->Start));
 			}
 		}
 		Expr::Delete(ctx, span->Expr);
@@ -1084,7 +1084,7 @@ primary_key_exit:
 			else
 			{
 				n = (int)(end->data - NameToken.data) + 1;
-				stmt = SysEx::Mprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
+				stmt = _mprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
 			}
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
@@ -1114,7 +1114,7 @@ primary_key_exit:
 #endif
 
 			// Reparse everything to update our internal data structures
-			v->AddParseSchemaOp(db, SysEx::Mprintf(ctx, "tbl_name='%q'", table->Name));
+			v->AddParseSchemaOp(db, _mprintf(ctx, "tbl_name='%q'", table->Name));
 		}
 
 		// Add the table to the in-memory representation of the database.
@@ -1840,7 +1840,7 @@ fk_end:
 			int n;
 			Index *loop;
 			for (loop = table->Index, n = 1; loop; loop = loop->Next, n++) { }
-			name = SysEx::Mprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
+			name = _mprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
 			if (!name)
 				goto exit_create_index;
 		}
@@ -2052,7 +2052,7 @@ fk_end:
 			{
 				_assert(end != nullptr);
 				// A named index with an explicit CREATE INDEX statement
-				stmt = SysEx::Mprintf(ctx, "CREATE%s INDEX %.*s", (onError == OE_None ? "" : " UNIQUE"), (int)(end->data - nameAsToken->data) + 1, nameAsToken->data);
+				stmt = _mprintf(ctx, "CREATE%s INDEX %.*s", (onError == OE_None ? "" : " UNIQUE"), (int)(end->data - nameAsToken->data) + 1, nameAsToken->data);
 			}
 			else
 				stmt = nullptr; // An automatic index created by a PRIMARY KEY or UNIQUE constraint zStmt = sqlite3MPrintf("");
@@ -2071,7 +2071,7 @@ fk_end:
 			{
 				RefillIndex(index, memId);
 				ChangeCookie(db);
-				v->AddParseSchemaOp(db, SysEx::Mprintf(ctx, "name='%q' AND type='index'", index->Name));
+				v->AddParseSchemaOp(db, _mprintf(ctx, "name='%q' AND type='index'", index->Name));
 				v->AddOp1(OP_Expire, 0);
 			}
 		}
@@ -2186,7 +2186,7 @@ exit_drop_index:
 		if ((n & (n-1)) == 0)
 		{
 			int newSize = (n == 0 ? 1 : 2*n);
-			void *newArray = SysEx::TagRealloc(ctx, array_, size*entrySize);
+			void *newArray = _tagrealloc(ctx, array_, size*entrySize);
 			if (!newArray)
 			{
 				*index = -1;
@@ -2247,7 +2247,7 @@ exit_drop_index:
 		if (src->Srcs + extra > src->Allocs)
 		{
 			int allocs = src->Srcs + extra;
-			SrcList *newSrc = SysEx::TagRealloc(ctx, src, sizeof(*src) + (allocs - 1)*sizeof(src->Ids[0]));
+			SrcList *newSrc = _tagrealloc(ctx, src, sizeof(*src) + (allocs - 1)*sizeof(src->Ids[0]));
 			if (!newSrc)
 			{
 				_assert(ctx->MallocFailed);

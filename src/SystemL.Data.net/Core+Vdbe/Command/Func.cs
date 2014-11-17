@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.Text;
-using SystemStringBuilder = System.Text.StringBuilder;
 
 namespace Core.Command
 {
@@ -77,7 +76,7 @@ namespace Core.Command
                         while (zIdx < z.Length && z[zIdx] != '\0')
                         {
                             len++;
-                            SQLITE_SKIP_UTF8(z, ref zIdx);
+                            _strskiputf8(z, ref zIdx);
                         }
                         sqlite3_result_int(fctx, len);
                         break;
@@ -191,7 +190,7 @@ namespace Core.Command
                 len = 0;
                 if (p1 < 0)
                     for (z2 = z; z2 != string.Empty; len++)
-                        SQLITE_SKIP_UTF8(ref z2);
+                        _strskiputf8(ref z2);
             }
             long p2;
             bool negP2 = false;
@@ -234,11 +233,11 @@ namespace Core.Command
             {
                 while (z != null && p1 != 0)
                 {
-                    SQLITE_SKIP_UTF8(ref z);
+                    _strskiputf8(ref z);
                     p1--;
                 }
                 for (z2 = z; z2 != null && p2 != 0; p2--)
-                    SQLITE_SKIP_UTF8(ref z2);
+                    _strskiputf8(ref z2);
                 sqlite3_result_text(fctx, z, p1, p2 <= z.Length - p1 ? p2 : z.Length - p1, SQLITE_TRANSIENT);
             }
             else
@@ -444,7 +443,7 @@ namespace Core.Command
                         Debug.Assert(matchSet < 0x80); // '[' is a single-byte character
                         int stringIdx = 0;
                         while (stringIdx < string_.Length && !PatternCompare(inPattern.Substring(inPattern.Length - pattern.Length - 1), string_.Substring(stringIdx), info, escape))
-                            SysEx.SKIP_UTF8(string_, ref stringIdx);
+                            SysEx._strskiputf8(string_, ref stringIdx);
                         return (stringIdx < string_.Length);
                     }
                     while ((c2 = SysEx.Utf8Read(string_, ref string_)) != 0)
@@ -862,7 +861,7 @@ namespace Core.Command
                     int iz = 0;
                     for (nChar = 0; iz < zBytes.Length; nChar++)
                     {
-                        SQLITE_SKIP_UTF8(zBytes, ref iz);
+                        _strskiputf8(zBytes, ref iz);
                     }
                     if (nChar > 0)
                     {
@@ -877,7 +876,7 @@ namespace Core.Command
                         int iz1 = 0;
                         for (int ii = 0; ii < nChar; ii++)
                         {
-                            SQLITE_SKIP_UTF8(zBytes, ref iz1);
+                            _strskiputf8(zBytes, ref iz1);
                             aLen[ii] = iz1 - iz0;
                             azChar[ii] = new byte[aLen[ii]];
                             Buffer.BlockCopy(zBytes, iz0, azChar[ii], 0, azChar[ii].Length);
@@ -933,28 +932,8 @@ namespace Core.Command
             sqlite3_result_text(fctx, sb, inLength, SQLITE_TRANSIENT);
         }
 
-        /* IMP: R-25361-16150 This function is omitted from SQLite by default. It
-        ** is only available if the SQLITE_SOUNDEX compile-time option is used
-        ** when SQLite is built.
-        */
-#if SQLITE_SOUNDEX
-/*
-** Compute the soundex encoding of a word.
-**
-** IMP: R-59782-00072 The soundex(X) function returns a string that is the
-** soundex encoding of the string X. 
-*/
-static void soundexFunc(
-FuncContext context,
-int argc,
-sqlite3_value[] argv
-)
-{
-Debug.Assert(false); // TODO -- func_c
-char zResult[8];
-const u8 *zIn;
-int i, j;
-static const unsigned char iCode[] = {
+#if SOUNDEX
+        static const byte[] _soundexCode = {
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -964,572 +943,365 @@ static const unsigned char iCode[] = {
 0, 0, 1, 2, 3, 0, 1, 2, 0, 0, 2, 2, 4, 5, 5, 0,
 1, 2, 6, 2, 3, 0, 1, 0, 2, 0, 2, 0, 0, 0, 0, 0,
 };
-Debug.Assert( argc==1 );
-zIn = (u8*)sqlite3_value_text(argv[0]);
-if( zIn==0 ) zIn = (u8*)"";
-for(i=0; zIn[i] && !sqlite3Isalpha(zIn[i]); i++){}
-if( zIn[i] ){
-u8 prevcode = iCode[zIn[i]&0x7f];
-zResult[0] = sqlite3Toupper(zIn[i]);
-for(j=1; j<4 && zIn[i]; i++){
-int code = iCode[zIn[i]&0x7f];
-if( code>0 ){
-if( code!=prevcode ){
-prevcode = code;
-zResult[j++] = code + '0';
-}
-}else{
-prevcode = 0;
-}
-}
-while( j<4 ){
-zResult[j++] = '0';
-}
-zResult[j] = 0;
-sqlite3_result_text(context, zResult, 4, SQLITE_TRANSIENT);
-}else{
-/* IMP: R-64894-50321 The string "?000" is returned if the argument
-** is NULL or contains no ASCII alphabetic characters. */
-sqlite3_result_text(context, "?000", 4, SQLITE_STATIC);
-}
-}
-#endif //* SQLITE_SOUNDEX */
 
-#if !SQLITE_OMIT_LOAD_EXTENSION
-        /*
-** A function that loads a shared-library extension then returns NULL.
-*/
-        static void loadExt(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void SoundexFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string zFile = sqlite3_value_text(argv[0]);
-            string zProc;
-            sqlite3 db = (sqlite3)sqlite3_context_db_handle(context);
-            string zErrMsg = "";
-
-            if (argc == 2)
+            Debug.Assert(argc == 1);
+            string z = sqlite3_value_text(argv[0]);
+            if (z == null) z = string.Empty;
+            int i;
+            for (i = 0; z[i] && !char.IsLetter(z[i]); i++) { }
+            byte[] r = new byte[8];
+            if (z[i])
             {
-                zProc = sqlite3_value_text(argv[1]);
+                byte prevcode = _soundexCode[z[i] & 0x7f];
+                r[0] = char.ToUpperInvariant(z[i]);
+                int j;
+                for (j = 1; j < 4 && z[i]; i++)
+                {
+                    byte code = _soundexCode[z[i] & 0x7f];
+                    if (code > 0)
+                    {
+                        if (code != prevcode)
+                        {
+                            prevcode = code;
+                            r[j++] = code + '0';
+                        }
+                    }
+                    else
+                        prevcode = 0;
+                }
+                while (j < 4)
+                    r[j++] = '0';
+                r[j] = 0;
+                sqlite3_result_text(fctx, r, 4, DESTRUCTOR_TRANSIENT);
             }
             else
+                sqlite3_result_text(fctx, "?000", 4, DESTRUCTOR_STATIC); // IMP: R-64894-50321 The string "?000" is returned if the argument is NULL or contains no ASCII alphabetic characters.
+        }
+#endif
+
+#if !OMIT_LOAD_EXTENSION
+        static void LoadExtFunc(FuncContext fctx, int argc, Mem[] argv)
+        {
+            string file = sqlite3_value_text(argv[0]);
+            Context ctx = sqlite3_context_db_handle(fctx);
+            string errMsg = string.Empty;
+            string proc = (argc == 2 ? sqlite3_value_text(argv[1]) : string.Empty);
+            if (file != null && sqlite3_load_extension(ctx, file, proc, ref errMsg) != 0)
             {
-                zProc = "";
-            }
-            if (zFile != null && sqlite3_load_extension(db, zFile, zProc, ref zErrMsg) != 0)
-            {
-                sqlite3_result_error(context, zErrMsg, -1);
-                sqlite3DbFree(db, ref zErrMsg);
+                sqlite3_result_error(fctx, errMsg, -1);
+                C._tagfree(ctx, ref errMsg);
             }
         }
 #endif
 
-        /*
-** An instance of the following structure holds the context of a
-** sum() or avg() aggregate computation.
-*/
-        //typedef struct SumCtx SumCtx;
         public class SumCtx
         {
-            public double rSum;      /* Floating point sum */
-            public i64 iSum;         /* Integer sum */
-            public i64 cnt;          /* Number of elements summed */
-            public int overflow;     /* True if integer overflow seen */
-            public bool approx;      /* True if non-integer value was input to the sum */
+            public double RSum;     // Floating point sum
+            public long ISum;       // Integer sum
+            public long Count;      // Number of elements summed
+            public bool Overflow;   // True if integer overflow seen
+            public bool Approx;     // True if non-integer value was input to the sum
             public Mem _M;
-            public Mem Context
+
+            public static SumCtx ToCtx(Mem ctx)
             {
-                get
-                {
-                    return _M;
-                }
-                set
-                {
-                    _M = value;
-                    if (_M == null || _M.z == null)
-                        iSum = 0;
-                    else
-                        iSum = Convert.ToInt64(_M.z);
-                }
+                var p = Mem.ToSumCtx_(ctx);
+                p._M = ctx;
+                p.ISum = (ctx.z == null ? 0 : Convert.ToInt64(ctx.z));
+                return p;
             }
         };
 
-        /*
-        ** Routines used to compute the sum, average, and total.
-        **
-        ** The SUM() function follows the (broken) SQL standard which means
-        ** that it returns NULL if it sums over no inputs.  TOTAL returns
-        ** 0.0 in that case.  In addition, TOTAL always returns a float where
-        ** SUM might return an integer if it never encounters a floating point
-        ** value.  TOTAL never fails, but SUM might through an exception if
-        ** it overflows an integer.
-        */
-        static void sumStep(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void SumStep(FuncContext fctx, int argc, Mem[] argv)
         {
-            SumCtx p;
-
-            int type;
             Debug.Assert(argc == 1);
-            UNUSED_PARAMETER(argc);
-            Mem pMem = sqlite3_aggregate_context(context, 1);//sizeof(*p));
-            if (pMem._SumCtx == null)
-                pMem._SumCtx = new SumCtx();
-            p = pMem._SumCtx;
-            if (p.Context == null)
-                p.Context = pMem;
-            type = sqlite3_value_numeric_type(argv[0]);
-            if (p != null && type != SQLITE_NULL)
+            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 1));
+            TYPE type = sqlite3_value_numeric_type(argv[0]);
+            if (p != null && type != TYPE.NULL)
             {
-                p.cnt++;
-                if (type == SQLITE_INTEGER)
+                p.Count++;
+                if (type == TYPE.INTEGER)
                 {
-                    i64 v = sqlite3_value_int64(argv[0]);
-                    p.rSum += v;
-                    if (!(p.approx | p.overflow != 0) && 0 != sqlite3AddInt64(ref p.iSum, v))
-                    {
-                        p.overflow = 1;
-                    }
+                    long v = sqlite3_value_int64(argv[0]);
+                    p.RSum += v;
+                    if (!(p.Approx | p.Overflow) && sqlite3AddInt64(ref p.ISum, v) != 0)
+                        p.Overflow = true;
                 }
                 else
                 {
-                    p.rSum += sqlite3_value_double(argv[0]);
-                    p.approx = true;
+                    p.RSum += sqlite3_value_double(argv[0]);
+                    p.Approx = true;
                 }
             }
         }
-        static void sumFinalize(FuncContext context)
+
+        static void SumFinalize(FuncContext fctx)
         {
-            SumCtx p = null;
-            Mem pMem = sqlite3_aggregate_context(context, 0);
-            if (pMem != null)
-                p = pMem._SumCtx;
-            if (p != null && p.cnt > 0)
+            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            if (p != null && p.Count > 0)
             {
-                if (p.overflow != 0)
-                {
-                    sqlite3_result_error(context, "integer overflow", -1);
-                }
-                else if (p.approx)
-                {
-                    sqlite3_result_double(context, p.rSum);
-                }
+                if (p.Overflow)
+                    sqlite3_result_error(fctx, "integer overflow", -1);
+                else if (p.Approx)
+                    sqlite3_result_double(fctx, p.RSum);
                 else
-                {
-                    sqlite3_result_int64(context, p.iSum);
-                }
-                p.cnt = 0; // Reset for C#
+                    sqlite3_result_int64(fctx, p.ISum);
+                p.Count = 0; // Reset for C#
             }
         }
 
-        static void avgFinalize(FuncContext context)
+        static void AvgFinalize(FuncContext fctx)
         {
-            SumCtx p = null;
-            Mem pMem = sqlite3_aggregate_context(context, 0);
-            if (pMem != null)
-                p = pMem._SumCtx;
-            if (p != null && p.cnt > 0)
-            {
-                sqlite3_result_double(context, p.rSum / (double)p.cnt);
-            }
+            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            if (p != null && p.Count > 0)
+                sqlite3_result_double(fctx, p.RSum / (double)p.Count);
         }
 
-        static void totalFinalize(FuncContext context)
+        static void TotalFinalize(FuncContext fctx)
         {
-            SumCtx p = null;
-            Mem pMem = sqlite3_aggregate_context(context, 0);
-            if (pMem != null)
-                p = pMem._SumCtx;
-            /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-            sqlite3_result_double(context, p != null ? p.rSum : (double)0);
+            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            sqlite3_result_double(fctx, p != null ? p.RSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
         }
 
-        /*
-        ** The following structure keeps track of state information for the
-        ** count() aggregate function.
-        */
-        //typedef struct CountCtx CountCtx;
         public class CountCtx
         {
-            i64 _n;
+            long _n;
             Mem _M;
-            public Mem Context
+
+            public long N
             {
-                get
-                {
-                    return _M;
-                }
-                set
-                {
-                    _M = value;
-                    if (_M == null || _M.z == null)
-                        _n = 0;
-                    else
-                        _n = Convert.ToInt64(_M.z);
-                }
-            }
-            public i64 n
-            {
-                get
-                {
-                    return _n;
-                }
+                get { return _n; }
                 set
                 {
                     _n = value;
-                    if (_M != null)
-                        _M.z = _n.ToString();
+                    if (_M != null) _M.z = _n.ToString();
                 }
+            }
+
+            public static CountCtx ToCtx(Mem ctx)
+            {
+                if (ctx == null) return null;
+                return new CountCtx
+                {
+                    _M = ctx,
+                    _n = (_M == null || _M.z == null ? 0 : Convert.ToInt64(_M.z)),
+                };
             }
         }
 
-        /*
-        ** Routines to implement the count() aggregate function.
-        */
-        static void countStep(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void CountStep(FuncContext fctx, int argc, Mem[] argv)
         {
-            CountCtx p = new CountCtx();
-            p.Context = sqlite3_aggregate_context(context, 1);//sizeof(*p));
+            CountCtx p = CountCtx.ToCtx(sqlite3_aggregate_context(fctx, 1));
             if ((argc == 0 || SQLITE_NULL != sqlite3_value_type(argv[0])) && p.Context != null)
+                p.N++;
+        }
+
+        static void CountFinalize(FuncContext fctx)
+        {
+            CountCtx p = CountCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            sqlite3_result_int64(fctx, p != null ? p.N : 0);
+        }
+
+        static void MinMaxStep(FuncContext fctx, int notUsed1, Mem[] argv)
+        {
+            Mem arg = (Mem)argv[0];
+            Mem best = (Mem)sqlite3_aggregate_context(fctx, 1);
+            if (best == null) return;
+            if (sqlite3_value_type(argv[0]) == TYPE.NULL)
             {
-                p.n++;
+                if (best->Flags != 0) sqlite3SkipAccumulatorLoad(fctx);
             }
-#if !SQLITE_OMIT_DEPRECATED
-            /* The sqlite3_aggregate_count() function is deprecated.  But just to make
-** sure it still operates correctly, verify that its count agrees with our
-** internal count when using count(*) and when the total count can be
-** expressed as a 32-bit integer. */
-            Debug.Assert(argc == 1 || p == null || p.n > 0x7fffffff
-            || p.n == sqlite3_aggregate_count(context));
-#endif
-        }
-
-        static void countFinalize(FuncContext context)
-        {
-            CountCtx p = new CountCtx();
-            p.Context = sqlite3_aggregate_context(context, 0);
-            sqlite3_result_int64(context, p != null ? p.n : 0);
-        }
-
-        /*
-        ** Routines to implement min() and max() aggregate functions.
-        */
-        static void minmaxStep(
-        FuncContext context,
-        int NotUsed,
-        sqlite3_value[] argv
-        )
-        {
-            Mem pArg = (Mem)argv[0];
-            Mem pBest;
-            UNUSED_PARAMETER(NotUsed);
-
-            if (sqlite3_value_type(argv[0]) == SQLITE_NULL)
-                return;
-            pBest = (Mem)sqlite3_aggregate_context(context, 1);//sizeof(*pBest));
-            //if ( pBest == null ) return;
-
-            if (pBest.flags != 0)
+            else if (best.Flags != 0)
             {
-                bool max;
-                int cmp;
-                CollSeq pColl = GetFuncCollSeq(context);
-                /* This step function is used for both the min() and max() aggregates,
-                ** the only difference between the two being that the sense of the
-                ** comparison is inverted. For the max() aggregate, the
-                ** sqlite3_context_db_handle() function returns (void *)-1. For min() it
-                ** returns (void *)db, where db is the sqlite3* database pointer.
-                ** Therefore the next statement sets variable 'max' to 1 for the max()
-                ** aggregate, or 0 for min().
-                */
-                max = sqlite3_context_db_handle(context) != null && (int)sqlite3_user_data(context) != 0;
-                cmp = sqlite3MemCompare(pBest, pArg, pColl);
+                CollSeq coll = GetFuncCollSeq(fctx);
+                // This step function is used for both the min() and max() aggregates, the only difference between the two being that the sense of the
+                // comparison is inverted. For the max() aggregate, the sqlite3_user_data() function returns (void *)-1. For min() it
+                // returns (void *)db, where db is the sqlite3* database pointer. Therefore the next statement sets variable 'max' to 1 for the max()
+                // aggregate, or 0 for min().
+                bool max = ((int)sqlite3_user_data(fctx) != 0);
+                int cmp = sqlite3MemCompare(best, arg, coll);
                 if ((max && cmp < 0) || (!max && cmp > 0))
-                {
-                    sqlite3VdbeMemCopy(pBest, pArg);
-                }
+                    sqlite3VdbeMemCopy(best, arg);
             }
             else
             {
-                sqlite3VdbeMemCopy(pBest, pArg);
+                sqlite3VdbeMemCopy(best, arg);
             }
         }
 
-        static void minMaxFinalize(FuncContext context)
+        static void MinMaxFinalize(FuncContext fctx)
         {
-            sqlite3_value pRes;
-            pRes = (sqlite3_value)sqlite3_aggregate_context(context, 0);
-            if (pRes != null)
+            Mem r = (Mem)sqlite3_aggregate_context(fctx, 0);
+            if (r != null)
             {
-                if (ALWAYS(pRes.flags != 0))
-                {
-                    sqlite3_result_value(context, pRes);
-                }
-                sqlite3VdbeMemRelease(pRes);
+                if (r->Flags != 0)
+                    sqlite3_result_value(fctx, r);
+                sqlite3VdbeMemRelease(r);
             }
         }
 
-        /*
-        ** group_concat(EXPR, ?SEPARATOR?)
-        */
-        static void groupConcatStep(
-        FuncContext context,
-        int argc,
-        sqlite3_value[] argv
-        )
+        static void GroupConcatStep(FuncContext fctx, int argc, Mem[] argv)
         {
-            string zVal;
-            //StrAccum pAccum;
-            string zSep;
-            int nVal, nSep;
             Debug.Assert(argc == 1 || argc == 2);
-            if (sqlite3_value_type(argv[0]) == SQLITE_NULL)
-                return;
-            Mem pMem = sqlite3_aggregate_context(context, 1);//sizeof(*pAccum));
-            if (pMem._StrAccum == null)
-                pMem._StrAccum = new StrAccum(100);
-            //pAccum = pMem._StrAccum;
-
-            //if ( pMem._StrAccum != null )
-            //{
-            sqlite3 db = sqlite3_context_db_handle(context);
-            //int firstTerm = pMem._StrAccum.useMalloc == 0 ? 1 : 0;
-            //pMem._StrAccum.useMalloc = 2;
-            pMem._StrAccum.mxAlloc = db.aLimit[SQLITE_LIMIT_LENGTH];
-            if (pMem._StrAccum.Context == null) // first term
-                pMem._StrAccum.Context = pMem;
-            else
+            if (sqlite3_value_type(argv[0]) == TYPE.NULL) return;
+            TextBuilder b = Mem.ToTextBuilder_(sqlite3_aggregate_context(fctx, 1), 100);
+            if (b != null)
             {
-                if (argc == 2)
+                Context ctx = sqlite3_context_db_handle(fctx);
+                bool firstTerm = (b.Tag == null);
+                b.Tag = mem;
+                b.MaxSize = ctx.Limits[(int)LIMIT.LENGTH];
+                if (!firstTerm)
                 {
-                    zSep = sqlite3_value_text(argv[1]);
-                    nSep = sqlite3_value_bytes(argv[1]);
+                    string zSep;
+                    int nSep;
+                    if (argc == 2)
+                    {
+                        zSep = sqlite3_value_text(argv[1]);
+                        nSep = sqlite3_value_bytes(argv[1]);
+                    }
+                    else
+                    {
+                        zSep = ",";
+                        nSep = 1;
+                    }
+                    b.Append(zSep, nSep);
                 }
+                string zVal = sqlite3_value_text(argv[0]);
+                int nVal = sqlite3_value_bytes(argv[0]);
+                b.Append(zVal, nVal);
+            }
+        }
+
+        static void GroupConcatFinalize(FuncContext fctx)
+        {
+            TextBuilder b = Mem.ToTextBuilder_(sqlite3_aggregate_context(fctx, 0), 100);
+            if (b != null)
+            {
+                if (b.Overflowed)
+                    sqlite3_result_error_toobig(fctx);
+                else if (b.AllocFailed)
+                    sqlite3_result_error_nomem(context);
                 else
-                {
-                    zSep = ",";
-                    nSep = 1;
-                }
-                sqlite3StrAccumAppend(pMem._StrAccum, zSep, nSep);
-            }
-            zVal = sqlite3_value_text(argv[0]);
-            nVal = sqlite3_value_bytes(argv[0]);
-            sqlite3StrAccumAppend(pMem._StrAccum, zVal, nVal);
-            //}
-        }
-
-        static void groupConcatFinalize(FuncContext context)
-        {
-            //StrAccum pAccum = null;
-            Mem pMem = sqlite3_aggregate_context(context, 0);
-            if (pMem != null)
-            {
-                if (pMem._StrAccum == null)
-                    pMem._StrAccum = new StrAccum(100);
-                StrAccum pAccum = pMem._StrAccum;
-                //}
-                //if ( pAccum != null )
-                //{
-                if (pAccum.tooBig)
-                {
-                    sqlite3_result_error_toobig(context);
-                }
-                //else if ( pAccum.mallocFailed != 0 )
-                //{
-                //  sqlite3_result_error_nomem( context );
-                //}
-                else
-                {
-                    sqlite3_result_text(context, sqlite3StrAccumFinish(pAccum), -1,
-                    null); //sqlite3_free );
-                }
+                    sqlite3_result_text(fctx, b.ToString(), -1, null);
             }
         }
 
-        /*
-        ** This routine does per-connection function registration.  Most
-        ** of the built-in functions above are part of the global function set.
-        ** This routine only deals with those that are not global.
-        */
-        public struct sFuncs
-        {
-            public string zName;
-            public sbyte nArg;
-            public u8 argType;           /* 1: 0, 2: 1, 3: 2,...  N:  N-1. */
-            public u8 eTextRep;          /* 1: UTF-16.  0: UTF-8 */
-            public u8 needCollSeq;
-            public dxFunc xFunc; //(FuncContext*,int,sqlite3_value **);
+        //public struct sFuncs
+        //{
+        //    public string zName;
+        //    public sbyte nArg;
+        //    public u8 argType;           /* 1: 0, 2: 1, 3: 2,...  N:  N-1. */
+        //    public u8 eTextRep;          /* 1: UTF-16.  0: UTF-8 */
+        //    public u8 needCollSeq;
+        //    public dxFunc xFunc; //(FuncContext*,int,sqlite3_value **);
 
-            // Constructor
-            public sFuncs(string zName, sbyte nArg, u8 argType, u8 eTextRep, u8 needCollSeq, dxFunc xFunc)
-            {
-                this.zName = zName;
-                this.nArg = nArg;
-                this.argType = argType;
-                this.eTextRep = eTextRep;
-                this.needCollSeq = needCollSeq;
-                this.xFunc = xFunc;
-            }
-        };
+        //    // Constructor
+        //    public sFuncs(string zName, sbyte nArg, u8 argType, u8 eTextRep, u8 needCollSeq, dxFunc xFunc)
+        //    {
+        //        this.zName = zName;
+        //        this.nArg = nArg;
+        //        this.argType = argType;
+        //        this.eTextRep = eTextRep;
+        //        this.needCollSeq = needCollSeq;
+        //        this.xFunc = xFunc;
+        //    }
+        //};
 
-        public struct sAggs
+        //public struct sAggs
+        //{
+        //    public string zName;
+        //    public sbyte nArg;
+        //    public u8 argType;
+        //    public u8 needCollSeq;
+        //    public dxStep xStep; //(FuncContext*,int,sqlite3_value**);
+        //    public dxFinal xFinalize; //(FuncContext*);
+        //    // Constructor
+        //    public sAggs(string zName, sbyte nArg, u8 argType, u8 needCollSeq, dxStep xStep, dxFinal xFinalize)
+        //    {
+        //        this.zName = zName;
+        //        this.nArg = nArg;
+        //        this.argType = argType;
+        //        this.needCollSeq = needCollSeq;
+        //        this.xStep = xStep;
+        //        this.xFinalize = xFinalize;
+        //    }
+        //}
+
+        public static void RegisterBuiltinFunctions(Context ctx)
         {
-            public string zName;
-            public sbyte nArg;
-            public u8 argType;
-            public u8 needCollSeq;
-            public dxStep xStep; //(FuncContext*,int,sqlite3_value**);
-            public dxFinal xFinalize; //(FuncContext*);
-            // Constructor
-            public sAggs(string zName, sbyte nArg, u8 argType, u8 needCollSeq, dxStep xStep, dxFinal xFinalize)
-            {
-                this.zName = zName;
-                this.nArg = nArg;
-                this.argType = argType;
-                this.needCollSeq = needCollSeq;
-                this.xStep = xStep;
-                this.xFinalize = xFinalize;
-            }
-        }
-        static void sqlite3RegisterBuiltinFunctions(sqlite3 db)
-        {
-            int rc = sqlite3_overload_function(db, "MATCH", 2);
-            Debug.Assert(rc == SQLITE_NOMEM || rc == SQLITE_OK);
-            if (rc == SQLITE_NOMEM)
-            {
-                ////        db.mallocFailed = 1;
-            }
+            RC rc = sqlite3_overload_function(ctx, "MATCH", 2);
+            Debug.Assert(rc == RC.NOMEM || rc == RC.OK);
+            if (rc == RC.NOMEM)
+                ctx.MallocFailed = true;
         }
 
-        /*
-        ** Set the LIKEOPT flag on the 2-argument function with the given name.
-        */
-        static void setLikeOptFlag(sqlite3 db, string zName, int flagVal)
+        static void SetLikeOptFlag(Context ctx, string name, byte flagVal)
         {
-            FuncDef pDef;
-            pDef = sqlite3FindFunction(db, zName, sqlite3Strlen30(zName),
-            2, SQLITE_UTF8, 0);
-            if (ALWAYS(pDef != null))
-            {
-                pDef.flags = (byte)flagVal;
-            }
+            FuncDef def = sqlite3FindFunction(ctx, name, name.Length, 2, TEXTENCODE.UTF8, 0);
+            if (C._ALWAYS(def != null))
+                def.Flags = flagVal;
         }
 
-        /*
-        ** Register the built-in LIKE and GLOB functions.  The caseSensitive
-        ** parameter determines whether or not the LIKE operator is case
-        ** sensitive.  GLOB is always case sensitive.
-        */
-        static void sqlite3RegisterLikeFunctions(sqlite3 db, int caseSensitive)
+        public static void RegisterLikeFunctions(Context ctx, bool caseSensitive)
         {
-            CompareInfo pInfo;
-            if (caseSensitive != 0)
-            {
-                pInfo = _likeInfoAlt;
-            }
-            else
-            {
-                pInfo = _likeInfoNorm;
-            }
-            sqlite3CreateFunc(db, "like", 2, SQLITE_UTF8, pInfo, (dxFunc)likeFunc, null, null, null);
-            sqlite3CreateFunc(db, "like", 3, SQLITE_UTF8, pInfo, (dxFunc)likeFunc, null, null, null);
-            sqlite3CreateFunc(db, "glob", 2, SQLITE_UTF8,
-            _globInfo, (dxFunc)likeFunc, null, null, null);
-            setLikeOptFlag(db, "glob", SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE);
-            setLikeOptFlag(db, "like",
-            caseSensitive != 0 ? (SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE) : SQLITE_FUNC_LIKE);
+            CompareInfo info = (caseSensitive ? _likeInfoAlt : _likeInfoNorm);
+            sqlite3CreateFunc(ctx, "like", 2, TEXTENCODE.UTF8, info, (dxFunc)LikeFunc, null, null, null);
+            sqlite3CreateFunc(ctx, "like", 3, TEXTENCODE.UTF8, info, (dxFunc)LikeFunc, null, null, null);
+            sqlite3CreateFunc(ctx, "glob", 2, TEXTENCODE.UTF8, _globInfo, (dxFunc)LikeFunc, null, null, null);
+            SetLikeOptFlag(ctx, "glob", FUNC.LIKE | FUNC.CASE);
+            SetLikeOptFlag(ctx, "like", caseSensitive ? (FUNC.LIKE | FUNC.CASE) : FUNC.LIKE);
         }
 
-        /*
-        ** pExpr points to an expression which implements a function.  If
-        ** it is appropriate to apply the LIKE optimization to that function
-        ** then set aWc[0] through aWc[2] to the wildcard characters and
-        ** return TRUE.  If the function is not a LIKE-style function then
-        ** return FALSE.
-        */
-        static bool sqlite3IsLikeFunction(sqlite3 db, Expr pExpr, ref bool pIsNocase, char[] aWc)
+        public static bool IsLikeFunction(Context ctx, Expr expr, ref bool isNoCase, char[] wc)
         {
-            FuncDef pDef;
-            if (pExpr.op != TK_FUNCTION
-            || null == pExpr.x.pList
-            || pExpr.x.pList.nExpr != 2
-            )
-            {
+            if (expr.OP != TK.FUNCTION || expr.x.List == null || expr.x.List.Exprs != 2)
                 return false;
-            }
-            Debug.Assert(!ExprHasProperty(pExpr, EP_xIsSelect));
-            pDef = sqlite3FindFunction(db, pExpr.u.zToken, sqlite3Strlen30(pExpr.u.zToken),
-            2, SQLITE_UTF8, 0);
-            if (NEVER(pDef == null) || (pDef.flags & SQLITE_FUNC_LIKE) == 0)
-            {
+            Debug.Assert(!E.ExprHasProperty(expr, EP.xIsSelect));
+            FuncDef def = sqlite3FindFunction(ctx, expr.u.Token, expr.u.Token.Length, 2, TEXTENCODE.UTF8, 0);
+            if (C._NEVER(def == null) || (def.Flags & FUNC.LIKE) == 0)
                 return false;
-            }
-
-            /* The memcpy() statement assumes that the wildcard characters are
-            ** the first three statements in the compareInfo structure.  The
-            ** Debug.Asserts() that follow verify that assumption
-            */
-            //memcpy( aWc, pDef.pUserData, 3 );
-            aWc[0] = ((CompareInfo)pDef.pUserData).MatchAll;
-            aWc[1] = ((CompareInfo)pDef.pUserData).MatchOne;
-            aWc[2] = ((CompareInfo)pDef.pUserData).MatchSet;
-            // Debug.Assert((char*)&likeInfoAlt == (char*)&likeInfoAlt.matchAll);
-            // Debug.Assert(&((char*)&likeInfoAlt)[1] == (char*)&likeInfoAlt.matchOne);
-            // Debug.Assert(&((char*)&likeInfoAlt)[2] == (char*)&likeInfoAlt.matchSet);
-            pIsNocase = (pDef.flags & SQLITE_FUNC_CASE) == 0;
+            // The memcpy() statement assumes that the wildcard characters are the first three statements in the compareInfo structure.  The asserts() that follow verify that assumption
+            //: memcpy(wc, def.UserData, 3);
+            wc[0] = ((CompareInfo)def.UserData).MatchAll;
+            wc[1] = ((CompareInfo)def.UserData).MatchOne;
+            wc[2] = ((CompareInfo)def.UserData).MatchSet;
+            //: Debug.Assert((char *)&_likeInfoAlt == (char *)&_likeInfoAlt.MatchAll);
+            //: Debug.Assert(&((char *)&_likeInfoAlt)[1] == (char *)&_likeInfoAlt.MatchOne);
+            //: Debug.Assert(&((char *)&_likeInfoAlt)[2] == (char *)&_likeInfoAlt.MatchSet);
+            isNoCase = ((def.flags & FUNC.CASE) == 0);
             return true;
         }
 
-        /*
-        ** All all of the FuncDef structures in the aBuiltinFunc[] array above
-        ** to the global function hash table.  This occurs at start-time (as
-        ** a consequence of calling sqlite3_initialize()).
-        **
-        ** After this routine runs
-        */
-        static void sqlite3RegisterGlobalFunctions()
-        {
-            /*
-            ** The following array holds FuncDef structures for all of the functions
-            ** defined in this file.
-            **
-            ** The array cannot be constant since changes are made to the
-            ** FuncDef.pHash elements at start-time.  The elements of this array
-            ** are read-only after initialization is complete.
-            */
-            FuncDef[] aBuiltinFunc =  {
-FUNCTION("ltrim",              1, 1, 0, trimFunc         ),
-FUNCTION("ltrim",              2, 1, 0, trimFunc         ),
-FUNCTION("rtrim",              1, 2, 0, trimFunc         ),
-FUNCTION("rtrim",              2, 2, 0, trimFunc         ),
-FUNCTION("trim",               1, 3, 0, trimFunc         ),
-FUNCTION("trim",               2, 3, 0, trimFunc         ),
-FUNCTION("min",               -1, 0, 1, minmaxFunc       ),
+        // The following array holds FuncDef structures for all of the functions defined in this file.
+        //
+        // The array cannot be constant since changes are made to the FuncDef.pHash elements at start-time.  The elements of this array are read-only after initialization is complete.
+        FuncDef[] _builtinFunc =  {
+FUNCTION("ltrim",              1, 1, 0, TrimFunc         ),
+FUNCTION("ltrim",              2, 1, 0, TrimFunc         ),
+FUNCTION("rtrim",              1, 2, 0, TrimFunc         ),
+FUNCTION("rtrim",              2, 2, 0, TrimFunc         ),
+FUNCTION("trim",               1, 3, 0, TrimFunc         ),
+FUNCTION("trim",               2, 3, 0, TrimFunc         ),
+FUNCTION("min",               -1, 0, 1, MinMaxFunc       ),
 FUNCTION("min",                0, 0, 1, null                ),
-AGGREGATE("min",               1, 0, 1, minmaxStep,      minMaxFinalize ),
-FUNCTION("max",               -1, 1, 1, minmaxFunc       ),
+AGGREGATE("min",               1, 0, 1, MinMaxStep,      MinMaxFinalize),
+FUNCTION("max",               -1, 1, 1, MinMaxFunc       ),
 FUNCTION("max",                0, 1, 1, null                ),
-AGGREGATE("max",               1, 1, 1, minmaxStep,      minMaxFinalize ),
-FUNCTION("typeof",             1, 0, 0, typeofFunc       ),
-FUNCTION("length",             1, 0, 0, lengthFunc       ),
-FUNCTION("substr",             2, 0, 0, substrFunc       ),
-FUNCTION("substr",             3, 0, 0, substrFunc       ),
-FUNCTION("abs",                1, 0, 0, absFunc          ),
-#if !SQLITE_OMIT_FLOATING_POINT
-FUNCTION("round",              1, 0, 0, roundFunc        ),
-FUNCTION("round",              2, 0, 0, roundFunc        ),
+AGGREGATE("max",               1, 1, 1, MinMaxStep,      MinMaxFinalize),
+FUNCTION2("typeof",            1, 0, 0, TypeOfFunc       ),
+FUNCTION2("length",            1, 0, 0, LengthFunc       ),
+FUNCTION("substr",             2, 0, 0, SubstrFunc       ),
+FUNCTION("substr",             3, 0, 0, SubstrFunc       ),
+FUNCTION("abs",                1, 0, 0, AbsFunc          ),
+#if !OMIT_FLOATING_POINT
+FUNCTION("round",              1, 0, 0, RoundFunc        ),
+FUNCTION("round",              2, 0, 0, RoundFunc        ),
 #endif
-FUNCTION("upper",              1, 0, 0, upperFunc        ),
-FUNCTION("lower",              1, 0, 0, lowerFunc        ),
+FUNCTION("upper",              1, 0, 0, UpperFunc        ),
+FUNCTION("lower",              1, 0, 0, LowerFunc        ),
 FUNCTION("coalesce",           1, 0, 0, null             ),
 FUNCTION("coalesce",           0, 0, 0, null             ),
 /*  FUNCTION(coalesce,          -1, 0, 0, ifnullFunc       ), */
@@ -1545,20 +1317,20 @@ FUNCTION("nullif",             2, 0, 1, nullifFunc       ),
 FUNCTION("sqlite_version",     0, 0, 0, versionFunc      ),
 FUNCTION("sqlite_source_id",   0, 0, 0, sourceidFunc     ),
 FUNCTION("sqlite_log",         2, 0, 0, errlogFunc       ),
-#if !SQLITE_OMIT_COMPILEOPTION_DIAGS
+#if !OMIT_COMPILEOPTION_DIAGS
 FUNCTION("sqlite_compileoption_used",1, 0, 0, compileoptionusedFunc  ),
 FUNCTION("sqlite_compileoption_get", 1, 0, 0, compileoptiongetFunc  ),
-#endif //* SQLITE_OMIT_COMPILEOPTION_DIAGS */
+#endif
 FUNCTION("quote",              1, 0, 0, quoteFunc        ),
 FUNCTION("last_insert_rowid",  0, 0, 0, last_insert_rowid),
 FUNCTION("changes",            0, 0, 0, changes          ),
 FUNCTION("total_changes",      0, 0, 0, total_changes    ),
 FUNCTION("replace",            3, 0, 0, replaceFunc      ),
 FUNCTION("zeroblob",           1, 0, 0, zeroblobFunc     ),
-#if SQLITE_SOUNDEX
+#if SOUNDEX
 FUNCTION("soundex",            1, 0, 0, soundexFunc      ),
 #endif
-#if !SQLITE_OMIT_LOAD_EXTENSION
+#if !OMIT_LOAD_EXTENSION
 FUNCTION("load_extension",     1, 0, 0, loadExt          ),
 FUNCTION("load_extension",     2, 0, 0, loadExt          ),
 #endif
@@ -1572,29 +1344,24 @@ AGGREGATE("count",             1, 0, 0, countStep,       countFinalize  ),
 AGGREGATE("group_concat",      1, 0, 0, groupConcatStep, groupConcatFinalize),
 AGGREGATE("group_concat",      2, 0, 0, groupConcatStep, groupConcatFinalize),
 
-LIKEFUNC("glob", 2, _globInfo, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
-#if SQLITE_CASE_SENSITIVE_LIKE
-LIKEFUNC("like", 2, likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
-LIKEFUNC("like", 3, likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
+LIKEFUNC("glob", 2, _globInfo, FUNC.LIKE|FUNC.CASE),
+#if CASE_SENSITIVE_LIKE
+LIKEFUNC("like", 2, _likeInfoAlt, FUNC_LIKE|FUNC.CASE),
+LIKEFUNC("like", 3, _likeInfoAlt, FUNC_LIKE|FUNC.CASE),
 #else
-LIKEFUNC("like", 2, _likeInfoNorm, SQLITE_FUNC_LIKE),
-LIKEFUNC("like", 3, _likeInfoNorm, SQLITE_FUNC_LIKE),
+LIKEFUNC("like", 2, _likeInfoNorm, FUNC.LIKE),
+LIKEFUNC("like", 3, _likeInfoNorm, FUNC.LIKE),
 #endif
-FUNCTION("regexp",                2, 0, 0, regexpFunc          ),};
-            int i;
-#if SQLITE_OMIT_WSD
-FuncDefHash pHash = GLOBAL( FuncDefHash, sqlite3GlobalFunctions );
-FuncDef[] aFunc = (FuncDef[])GLOBAL( FuncDef, aBuiltinFunc );
-#else
+                                  };
+
+        public static void RegisterGlobalFunctions()
+        {
             FuncDefHash pHash = sqlite3GlobalFunctions;
-            FuncDef[] aFunc = aBuiltinFunc;
-#endif
-            for (i = 0; i < ArraySize(aBuiltinFunc); i++)
-            {
+            FuncDef[] aFunc = _builtinFunc;
+            for (int i = 0; i < _lengthof(_builtinFunc); i++)
                 sqlite3FuncDefInsert(pHash, aFunc[i]);
-            }
             sqlite3RegisterDateTimeFunctions();
-#if !SQLITE_OMIT_ALTERTABLE
+#if !OMIT_ALTERTABLE
             sqlite3AlterFunctions();
 #endif
         }

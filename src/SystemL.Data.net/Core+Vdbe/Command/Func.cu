@@ -69,7 +69,7 @@ namespace Core { namespace Command
 			while (*z)
 			{
 				len++;
-				SQLITE_SKIP_UTF8(z);
+				_strskiputf8(z);
 			}
 			sqlite3_result_int(fctx, len);
 			break; }
@@ -172,7 +172,7 @@ namespace Core { namespace Command
 			len = 0;
 			if (p1 < 0)
 				for (z2 = z; *z2; len++)
-					SQLITE_SKIP_UTF8(z2);
+					_strskiputf8(z2);
 		}
 		int64 p2;
 		bool negP2 = false;
@@ -215,11 +215,11 @@ namespace Core { namespace Command
 		{
 			while (*z && p1)
 			{
-				SQLITE_SKIP_UTF8(z);
+				_strskiputf8(z);
 				p1--;
 			}
 			for (z2 = z; *z2 && p2; p2--)
-				SQLITE_SKIP_UTF8(z2);
+				_strskiputf8(z2);
 			sqlite3_result_text(fctx, (char*)z, (int)(z2-z), SQLITE_TRANSIENT);
 		}
 		else
@@ -418,7 +418,7 @@ namespace Core { namespace Command
 					_assert(escape == 0); // This is GLOB, not LIKE
 					_assert(matchSet < 0x80); // '[' is a single-byte character
 					while (*string && !PatternCompare(&pattern[-1], string, info, escape))
-						SKIP_UTF8(string);
+						_strskiputf8(string);
 					return (*string != 0);
 				}
 				while ((c2 = SysEx::Utf8Read(&string)) != 0)
@@ -842,7 +842,7 @@ namespace Core { namespace Command
 		{
 			const unsigned char *z;
 			for (z = charSet, charSetLength = 0; *z; charSetLength++)
-				SKIP_UTF8(z);
+				_strskiputf8(z);
 			if (charSetLength > 0)
 			{
 				chars = (unsigned char **)ContextMalloc(fctx, ((int64)charSetLength)*(sizeof(char*)+1));
@@ -852,7 +852,7 @@ namespace Core { namespace Command
 				for (z = charSet, charSetLength = 0; *z; charSetLength++)
 				{
 					chars[charSetLength] = (unsigned char *)z;
-					SKIP_UTF8(z);
+					_strskiputf8(z);
 					charsLength[charSetLength] = (uint8)(z - chars[charSetLength]);
 				}
 			}
@@ -912,7 +912,7 @@ namespace Core { namespace Command
 	{
 		_assert(argc == 1);
 		const uint8 *z = (uint8 *)sqlite3_value_text(argv[0]);
-		if (!z) z = (uint8*) "";
+		if (!z) z = (uint8 *)"";
 		int i;
 		for (i = 0; z[i] && !_isalpha(z[i]); i++) { }
 		char r[8];
@@ -923,7 +923,7 @@ namespace Core { namespace Command
 			int j;
 			for (j = 1; j < 4 && z[i]; i++)
 			{
-				int code = _soundexCode[z[i]&0x7f];
+				uint8 code = _soundexCode[z[i]&0x7f];
 				if (code > 0)
 				{
 					if (code != prevcode)
@@ -960,211 +960,167 @@ namespace Core { namespace Command
 	}
 #endif
 
-
-	/*
-	** An instance of the following structure holds the fctx of a
-	** sum() or avg() aggregate computation.
-	*/
-	typedef struct SumCtx SumCtx;
-	struct SumCtx {
-		double rSum;      /* Floating point sum */
-		i64 iSum;         /* Integer sum */   
-		i64 cnt;          /* Number of elements summed */
-		u8 overflow;      /* True if integer overflow seen */
-		u8 approx;        /* True if non-integer value was input to the sum */
+	struct SumCtx
+	{
+		double RSum;	// Floating point sum
+		int64 ISum;		// Integer sum
+		int64 Count;	// Number of elements summed
+		bool overflow;	// True if integer overflow seen
+		bool approx;	// True if non-integer value was input to the sum
 	};
 
-	/*
-	** Routines used to compute the sum, average, and total.
-	**
-	** The SUM() function follows the (broken) SQL standard which means
-	** that it returns NULL if it sums over no inputs.  TOTAL returns
-	** 0.0 in that case.  In addition, TOTAL always returns a float where
-	** SUM might return an integer if it never encounters a floating point
-	** value.  TOTAL never fails, but SUM might through an exception if
-	** it overflows an integer.
-	*/
-	static void sumStep(sqlite3_context *fctx, int argc, sqlite3_value **argv){
-		SumCtx *p;
-		int type;
-		assert( argc==1 );
-		UNUSED_PARAMETER(argc);
-		p = sqlite3_aggregate_context(fctx, sizeof(*p));
-		type = sqlite3_value_numeric_type(argv[0]);
-		if( p && type!=SQLITE_NULL ){
+	__device__ static void SumStep(FuncContext *fctx, int argc, Mem **argv)
+	{
+		_assert(argc == 1);
+		SumCtx *p = sqlite3_aggregate_context(fctx, sizeof(*p));
+		TYPE type = sqlite3_value_numeric_type(argv[0]);
+		if (p && type != TYPE_NULL)
+		{
 			p->cnt++;
-			if( type==SQLITE_INTEGER ){
-				i64 v = sqlite3_value_int64(argv[0]);
-				p->rSum += v;
-				if( (p->approx|p->overflow)==0 && sqlite3AddInt64(&p->iSum, v) ){
-					p->overflow = 1;
-				}
-			}else{
-				p->rSum += sqlite3_value_double(argv[0]);
-				p->approx = 1;
+			if (type == TYPE_INTEGER)
+			{
+				int64 v = sqlite3_value_int64(argv[0]);
+				p->RSum += v;
+				if (!(p->Approx | p->Overflow) && sqlite3AddInt64(&p->iSum, v))
+					p->Overflow = true;
+			}
+			else
+			{
+				p->RSum += sqlite3_value_double(argv[0]);
+				p->Approx = true;
 			}
 		}
-	}
-	static void sumFinalize(sqlite3_context *fctx){
-		SumCtx *p;
-		p = sqlite3_aggregate_context(fctx, 0);
-		if( p && p->cnt>0 ){
-			if( p->overflow ){
-				sqlite3_result_error(fctx,"integer overflow",-1);
-			}else if( p->approx ){
-				sqlite3_result_double(fctx, p->rSum);
-			}else{
-				sqlite3_result_int64(fctx, p->iSum);
-			}
-		}
-	}
-	static void avgFinalize(sqlite3_context *fctx){
-		SumCtx *p;
-		p = sqlite3_aggregate_context(fctx, 0);
-		if( p && p->cnt>0 ){
-			sqlite3_result_double(fctx, p->rSum/(double)p->cnt);
-		}
-	}
-	static void totalFinalize(sqlite3_context *fctx){
-		SumCtx *p;
-		p = sqlite3_aggregate_context(fctx, 0);
-		/* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-		sqlite3_result_double(fctx, p ? p->rSum : (double)0);
 	}
 
-	/*
-	** The following structure keeps track of state information for the
-	** count() aggregate function.
-	*/
-	typedef struct CountCtx CountCtx;
-	struct CountCtx {
-		i64 n;
+	__device__ static void SumFinalize(FuncContext *fctx)
+	{
+		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
+		if (p && p->Count > 0)
+		{
+			if (p->Overflow)
+				sqlite3_result_error(fctx, "integer overflow", -1);
+			else if (p->Approx)
+				sqlite3_result_double(fctx, p->rSum);
+			else
+				sqlite3_result_int64(fctx, p->iSum);
+		}
+	}
+
+	__device__ static void AvgFinalize(FuncContext *fctx)
+	{
+		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
+		if (p && p->Cnt > 0)
+			sqlite3_result_double(fctx, p->rSum/(double)p->cnt);
+	}
+
+	__device__ static void TotalFinalize(FuncContext *fctx)
+	{
+		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
+		sqlite3_result_double(fctx, p ? p->rSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
+	}
+
+	struct CountCtx
+	{
+		int64 N;
 	};
 
-	/*
-	** Routines to implement the count() aggregate function.
-	*/
-	static void countStep(sqlite3_context *fctx, int argc, sqlite3_value **argv){
-		CountCtx *p;
-		p = sqlite3_aggregate_context(fctx, sizeof(*p));
-		if( (argc==0 || SQLITE_NULL!=sqlite3_value_type(argv[0])) && p ){
-			p->n++;
+	__device__ static void CountStep(FuncContext *fctx, int argc, Mem **argv)
+	{
+		CountCtx *p = sqlite3_aggregate_context(fctx, sizeof(*p));
+		if ((argc == 0 || TYPE_NULL != sqlite3_value_type(argv[0])) && p)
+			p->N++;
+	}
+
+	__device__ static void CountFinalize(FuncContext *fctx)
+	{
+		CountCtx *p = sqlite3_aggregate_context(fctx, 0);
+		sqlite3_result_int64(fctx, p ? p->N : 0);
+	}
+
+	__device__ static void MinMaxStep(FuncContext *fctx, int notUsed1, Mem **argv)
+	{
+		Mem *arg = (Mem *)argv[0];
+		Mem *best = (Mem *)sqlite3_aggregate_context(fctx, sizeof(*best));
+		if (!best) return;
+		if (sqlite3_value_type(argv[0]) == TYPE_NULL)
+		{
+			if (best->Flags) sqlite3SkipAccumulatorLoad(fctx);
 		}
-
-#ifndef SQLITE_OMIT_DEPRECATED
-		/* The sqlite3_aggregate_count() function is deprecated.  But just to make
-		** sure it still operates correctly, verify that its count agrees with our 
-		** internal count when using count(*) and when the total count can be
-		** expressed as a 32-bit integer. */
-		assert( argc==1 || p==0 || p->n>0x7fffffff
-			|| p->n==sqlite3_aggregate_count(fctx) );
-#endif
-	}   
-	static void countFinalize(sqlite3_context *fctx){
-		CountCtx *p;
-		p = sqlite3_aggregate_context(fctx, 0);
-		sqlite3_result_int64(fctx, p ? p->n : 0);
-	}
-
-	/*
-	** Routines to implement min() and max() aggregate functions.
-	*/
-	static void minmaxStep(
-		sqlite3_context *fctx, 
-		int NotUsed, 
-		sqlite3_value **argv
-		){
-			Mem *pArg  = (Mem *)argv[0];
-			Mem *pBest;
-			UNUSED_PARAMETER(NotUsed);
-
-			pBest = (Mem *)sqlite3_aggregate_context(fctx, sizeof(*pBest));
-			if( !pBest ) return;
-
-			if( sqlite3_value_type(argv[0])==SQLITE_NULL ){
-				if( pBest->flags ) sqlite3SkipAccumulatorLoad(fctx);
-			}else if( pBest->flags ){
-				int max;
-				int cmp;
-				CollSeq *pColl = sqlite3GetFuncCollSeq(fctx);
-				/* This step function is used for both the min() and max() aggregates,
-				** the only difference between the two being that the sense of the
-				** comparison is inverted. For the max() aggregate, the
-				** sqlite3_user_data() function returns (void *)-1. For min() it
-				** returns (void *)db, where db is the sqlite3* database pointer.
-				** Therefore the next statement sets variable 'max' to 1 for the max()
-				** aggregate, or 0 for min().
-				*/
-				max = sqlite3_user_data(fctx)!=0;
-				cmp = sqlite3MemCompare(pBest, pArg, pColl);
-				if( (max && cmp<0) || (!max && cmp>0) ){
-					sqlite3VdbeMemCopy(pBest, pArg);
-				}else{
-					sqlite3SkipAccumulatorLoad(fctx);
-				}
-			}else{
-				sqlite3VdbeMemCopy(pBest, pArg);
-			}
-	}
-	static void minMaxFinalize(sqlite3_context *fctx){
-		sqlite3_value *pRes;
-		pRes = (sqlite3_value *)sqlite3_aggregate_context(fctx, 0);
-		if( pRes ){
-			if( pRes->flags ){
-				sqlite3_result_value(fctx, pRes);
-			}
-			sqlite3VdbeMemRelease(pRes);
+		else if (best->Flags)
+		{
+			CollSeq *coll = sqlite3GetFuncCollSeq(fctx);
+			// This step function is used for both the min() and max() aggregates, the only difference between the two being that the sense of the
+			// comparison is inverted. For the max() aggregate, the sqlite3_user_data() function returns (void *)-1. For min() it
+			// returns (void *)db, where db is the sqlite3* database pointer. Therefore the next statement sets variable 'max' to 1 for the max()
+			// aggregate, or 0 for min().
+			bool max = (sqlite3_user_data(fctx) != 0);
+			int cmp = sqlite3MemCompare(best, arg, coll);
+			if ((max && cmp < 0) || (!max && cmp > 0))
+				sqlite3VdbeMemCopy(best, arg);
+			else
+				sqlite3SkipAccumulatorLoad(fctx);
+		}
+		else
+		{
+			sqlite3VdbeMemCopy(best, arg);
 		}
 	}
 
-	/*
-	** group_concat(EXPR, ?SEPARATOR?)
-	*/
-	static void groupConcatStep(
-		sqlite3_context *fctx,
-		int argc,
-		sqlite3_value **argv
-		){
-			const char *zVal;
-			StrAccum *pAccum;
-			const char *zSep;
-			int nVal, nSep;
-			assert( argc==1 || argc==2 );
-			if( sqlite3_value_type(argv[0])==SQLITE_NULL ) return;
-			pAccum = (StrAccum*)sqlite3_aggregate_context(fctx, sizeof(*pAccum));
-
-			if( pAccum ){
-				sqlite3 *db = sqlite3_context_db_handle(fctx);
-				int firstTerm = pAccum->useMalloc==0;
-				pAccum->useMalloc = 2;
-				pAccum->mxAlloc = db->aLimit[SQLITE_LIMIT_LENGTH];
-				if( !firstTerm ){
-					if( argc==2 ){
-						zSep = (char*)sqlite3_value_text(argv[1]);
-						nSep = sqlite3_value_bytes(argv[1]);
-					}else{
-						zSep = ",";
-						nSep = 1;
-					}
-					sqlite3StrAccumAppend(pAccum, zSep, nSep);
-				}
-				zVal = (char*)sqlite3_value_text(argv[0]);
-				nVal = sqlite3_value_bytes(argv[0]);
-				sqlite3StrAccumAppend(pAccum, zVal, nVal);
-			}
+	__device__ static void MinMaxFinalize(FuncContext *fctx)
+	{
+		Mem *r = (Mem *)sqlite3_aggregate_context(fctx, 0);
+		if (r)
+		{
+			if (r->Flags)
+				sqlite3_result_value(fctx, r);
+			sqlite3VdbeMemRelease(r);
+		}
 	}
-	static void groupConcatFinalize(sqlite3_context *fctx){
-		StrAccum *pAccum;
-		pAccum = sqlite3_aggregate_context(fctx, 0);
-		if( pAccum ){
-			if( pAccum->tooBig ){
+
+	__device__ static void GroupConcatStep(FuncContext *fctx, int argc, Mem **argv)
+	{
+		_assert(argc == 1 || argc == 2);
+		if (sqlite3_value_type(argv[0]) == TYPE_NULL) return;
+		TextBuilder *b = (TextBuilder *)sqlite3_aggregate_context(fctx, sizeof(*b));
+		if (b)
+		{
+			Context *ctx = sqlite3_context_db_handle(fctx);
+			bool firstTerm = (b->AllocType == 0);
+			b->AllocType = 2;
+			b->MaxSize = ctx->Limits[LIMIT_LENGTH];
+			if (!firstTerm)
+			{
+				const char *zSep;
+				int nSep;
+				if (argc == 2)
+				{
+					zSep = (char *)sqlite3_value_text(argv[1]);
+					nSep = sqlite3_value_bytes(argv[1]);
+				}
+				else
+				{
+					zSep = ",";
+					nSep = 1;
+				}
+				b->Append(zSep, nSep);
+			}
+			const char *zVal = (char *)sqlite3_value_text(argv[0]);
+			int nVal = sqlite3_value_bytes(argv[0]);
+			b->Append(zVal, nVal);
+		}
+	}
+
+	__device__ static void GroupConcatFinalize(FuncContext *fctx)
+	{
+		TextBuilder *b = sqlite3_aggregate_context(fctx, 0);
+		if (b)
+		{
+			if (b->Overflowed)
 				sqlite3_result_error_toobig(fctx);
-			}else if( pAccum->mallocFailed ){
+			else if (b->AllocFailed)
 				sqlite3_result_error_nomem(fctx);
-			}else{    
-				sqlite3_result_text(fctx, sqlite3StrAccumFinish(pAccum), -1, 
-					sqlite3_free);
-			}
+			else   
+				sqlite3_result_text(fctx, b->ToString(), -1,  _free);
 		}
 	}
 
@@ -1176,132 +1132,125 @@ namespace Core { namespace Command
 			ctx->MallocFailed = true;
 	}
 
-	static void setLikeOptFlag(sqlite3 *db, const char *zName, u8 flagVal){
-		FuncDef *pDef;
-		pDef = sqlite3FindFunction(db, zName, sqlite3Strlen30(zName),
-			2, SQLITE_UTF8, 0);
-		if( ALWAYS(pDef) ){
-			pDef->flags = flagVal;
-		}
-	}
-
-	__device__ void Func::RegisterLikeFunctions(Context *ctx, int caseSensitive)
+	static void SetLikeOptFlag(Context *ctx, const char *name, uint8 flagVal)
 	{
-		CompareInfo *info = (caseSensitive ? (CompareInfo *)&LikeInfoAlt : (CompareInfo*)&LikeInfoNorm);
-		sqlite3CreateFunc(db, "like", 2, SQLITE_UTF8, info, likeFunc, 0, 0, 0);
-		sqlite3CreateFunc(db, "like", 3, SQLITE_UTF8, info, likeFunc, 0, 0, 0);
-		sqlite3CreateFunc(db, "glob", 2, SQLITE_UTF8, (CompareInfo *)&globInfo, likeFunc, 0, 0, 0);
-		setLikeOptFlag(db, "glob", SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE);
-		setLikeOptFlag(db, "like", caseSensitive ? (SQLITE_FUNC_LIKE | SQLITE_FUNC_CASE) : SQLITE_FUNC_LIKE);
+		FuncDef *def = sqlite3FindFunction(ctx, name, _strlen30(name), 2, TEXTENCODE_UTF8, 0);
+		if (_ALWAYS(def))
+			def->Flags = flagVal;
 	}
 
-	__device__ int Func::IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc)
+	__device__ void Func::RegisterLikeFunctions(Context *ctx, bool caseSensitive)
+	{
+		CompareInfo *info = (caseSensitive ? (CompareInfo *)&_likeInfoAlt : (CompareInfo *)&_likeInfoNorm);
+		sqlite3CreateFunc(ctx, "like", 2, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
+		sqlite3CreateFunc(ctx, "like", 3, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
+		sqlite3CreateFunc(ctx, "glob", 2, TEXTENCODE_UTF8, (CompareInfo *)&globInfo, LikeFunc, 0, 0, 0);
+		SetLikeOptFlag(ctx, "glob", FUNC_LIKE | FUNC_CASE);
+		SetLikeOptFlag(ctx, "like", caseSensitive ? (FUNC_LIKE | FUNC_CASE) : FUNC_LIKE);
+	}
+
+	__device__ bool Func::IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc)
 	{
 		if (expr->OP != TK_FUNCTION  || !expr->x.List || expr->x.List->Exprs != 2)
-			return 0;
+			return false;
 		_assert(!ExprHasProperty(expr, EP_xIsSelect));
 		FuncDef *def = sqlite3FindFunction(ctx, expr->u.Token, _strlen30(expr->u.Token), 2, TEXTENCODE_UTF8, 0);
 		if (_NEVER(def == nullptr) || (def->Flags & FUNC_LIKE) == 0)
-			return 0;
-
-		/* The memcpy() statement assumes that the wildcard characters are
-		** the first three statements in the compareInfo structure.  The
-		** asserts() that follow verify that assumption
-		*/
-		memcpy(aWc, pDef->pUserData, 3);
-		assert( (char*)&likeInfoAlt == (char*)&likeInfoAlt.matchAll );
-		assert( &((char*)&likeInfoAlt)[1] == (char*)&likeInfoAlt.matchOne );
-		assert( &((char*)&likeInfoAlt)[2] == (char*)&likeInfoAlt.matchSet );
-		*pIsNocase = (pDef->flags & SQLITE_FUNC_CASE)==0;
-		return 1;
+			return false;
+		// The memcpy() statement assumes that the wildcard characters are the first three statements in the compareInfo structure.  The asserts() that follow verify that assumption
+		_memcpy(wc, def->UserData, 3);
+		_assert((char *)&_likeInfoAlt == (char*)&_likeInfoAlt.MatchAll);
+		_assert(&((char *)&_likeInfoAlt)[1] == (char*)&_likeInfoAlt.MatchOne);
+		_assert(&((char *)&_likeInfoAlt)[2] == (char*)&_likeInfoAlt.MatchSet);
+		*isNoCase = ((def->Flags & FUNC_CASE) == 0);
+		return true;
 	}
 
 	// The following array holds FuncDef structures for all of the functions defined in this file.
 	//
-	// The array cannot be constant since changes are made to the FuncDef.pHash elements at start-time.  The elements of this array
-	// are read-only after initialization is complete.
+	// The array cannot be constant since changes are made to the FuncDef.pHash elements at start-time.  The elements of this array are read-only after initialization is complete.
 	__device__ static FuncDef _builtinFuncs[] = {
-		FUNCTION(ltrim,              1, 1, 0, trimFunc         ),
-		FUNCTION(ltrim,              2, 1, 0, trimFunc         ),
-		FUNCTION(rtrim,              1, 2, 0, trimFunc         ),
-		FUNCTION(rtrim,              2, 2, 0, trimFunc         ),
-		FUNCTION(trim,               1, 3, 0, trimFunc         ),
-		FUNCTION(trim,               2, 3, 0, trimFunc         ),
-		FUNCTION(min,               -1, 0, 1, minmaxFunc       ),
-		FUNCTION(min,                0, 0, 1, 0                ),
-		AGGREGATE(min,               1, 0, 1, minmaxStep,      minMaxFinalize ),
-		FUNCTION(max,               -1, 1, 1, minmaxFunc       ),
-		FUNCTION(max,                0, 1, 1, 0                ),
-		AGGREGATE(max,               1, 1, 1, minmaxStep,      minMaxFinalize ),
-		FUNCTION2(typeof,            1, 0, 0, typeofFunc,  SQLITE_FUNC_TYPEOF),
-		FUNCTION2(length,            1, 0, 0, lengthFunc,  SQLITE_FUNC_LENGTH),
-		FUNCTION(instr,              2, 0, 0, instrFunc        ),
-		FUNCTION(substr,             2, 0, 0, substrFunc       ),
-		FUNCTION(substr,             3, 0, 0, substrFunc       ),
-		FUNCTION(unicode,            1, 0, 0, unicodeFunc      ),
-		FUNCTION(char,              -1, 0, 0, charFunc         ),
-		FUNCTION(abs,                1, 0, 0, absFunc          ),
-#ifndef OMIT_FLOATING_POINT
-		FUNCTION(round,              1, 0, 0, roundFunc        ),
-		FUNCTION(round,              2, 0, 0, roundFunc        ),
+		FUNCTION(ltrim,              1, 1, 0, TrimFunc         ),
+		FUNCTION(ltrim,              2, 1, 0, TrimFunc         ),
+		FUNCTION(rtrim,              1, 2, 0, TrimFunc         ),
+		FUNCTION(rtrim,              2, 2, 0, TrimFunc         ),
+		FUNCTION(trim,               1, 3, 0, TrimFunc         ),
+		FUNCTION(trim,               2, 3, 0, TrimFunc         ),
+		FUNCTION(min,               -1, 0, 1, MinMaxFunc       ),
+		FUNCTION(min,                0, 0, 1, nullptr          ),
+		AGGREGATE(min,               1, 0, 1, MinMaxStep,      MinMaxFinalize),
+		FUNCTION(max,               -1, 1, 1, MinMaxFunc       ),
+		FUNCTION(max,                0, 1, 1, nullptr          ),
+		AGGREGATE(max,               1, 1, 1, MinMaxStep,      MinMaxFinalize),
+		FUNCTION2(typeof,            1, 0, 0, TypeOfFunc,  FUNC_TYPEOF),
+		FUNCTION2(length,            1, 0, 0, LengthFunc,  FUNC_LENGTH),
+		FUNCTION(instr,              2, 0, 0, InstrFunc        ),
+		FUNCTION(substr,             2, 0, 0, SubstrFunc       ),
+		FUNCTION(substr,             3, 0, 0, SubstrFunc       ),
+		FUNCTION(unicode,            1, 0, 0, UnicodeFunc      ),
+		FUNCTION(char,              -1, 0, 0, CharFunc         ),
+		FUNCTION(abs,                1, 0, 0, AbsFunc          ),
+#ifndef FLOATING_POINT
+		FUNCTION(round,              1, 0, 0, RoundFunc        ),
+		FUNCTION(round,              2, 0, 0, RoundFunc        ),
 #endif
-		FUNCTION(upper,              1, 0, 0, upperFunc        ),
-		FUNCTION(lower,              1, 0, 0, lowerFunc        ),
-		FUNCTION(coalesce,           1, 0, 0, 0                ),
-		FUNCTION(coalesce,           0, 0, 0, 0                ),
-		FUNCTION2(coalesce,         -1, 0, 0, ifnullFunc,  SQLITE_FUNC_COALESCE),
-		FUNCTION(hex,                1, 0, 0, hexFunc          ),
-		FUNCTION2(ifnull,            2, 0, 0, ifnullFunc,  SQLITE_FUNC_COALESCE),
-		FUNCTION(random,             0, 0, 0, randomFunc       ),
-		FUNCTION(randomblob,         1, 0, 0, randomBlob       ),
-		FUNCTION(nullif,             2, 0, 1, nullifFunc       ),
-		FUNCTION(sqlite_version,     0, 0, 0, versionFunc      ),
-		FUNCTION(sqlite_source_id,   0, 0, 0, sourceidFunc     ),
-		FUNCTION(sqlite_log,         2, 0, 0, errlogFunc       ),
+		FUNCTION(upper,              1, 0, 0, UpperFunc        ),
+		FUNCTION(lower,              1, 0, 0, LowerFunc        ),
+		FUNCTION(coalesce,           1, 0, 0, nullptr          ),
+		FUNCTION(coalesce,           0, 0, 0, nullptr          ),
+		FUNCTION2(coalesce,         -1, 0, 0, IfNullFunc,  FUNC_COALESCE),
+		FUNCTION(hex,                1, 0, 0, HexFunc          ),
+		FUNCTION2(ifnull,            2, 0, 0, IfNullFunc,  FUNC_COALESCE),
+		FUNCTION(random,             0, 0, 0, RandomFunc       ),
+		FUNCTION(randomblob,         1, 0, 0, RandomBlob       ),
+		FUNCTION(nullif,             2, 0, 1, NullIfFunc       ),
+		FUNCTION(sqlite_version,     0, 0, 0, VersionFunc      ),
+		FUNCTION(sqlite_source_id,   0, 0, 0, SourceIdFunc     ),
+		FUNCTION(sqlite_log,         2, 0, 0, ErrlogFunc       ),
 #ifndef OMIT_COMPILEOPTION_DIAGS
-		FUNCTION(sqlite_compileoption_used,1, 0, 0, compileoptionusedFunc  ),
-		FUNCTION(sqlite_compileoption_get, 1, 0, 0, compileoptiongetFunc  ),
+		FUNCTION(sqlite_compileoption_used,1, 0, 0, CompileoptionusedFunc),
+		FUNCTION(sqlite_compileoption_get, 1, 0, 0, CompileoptiongetFunc),
 #endif
-		FUNCTION(quote,              1, 0, 0, quoteFunc        ),
-		FUNCTION(last_insert_rowid,  0, 0, 0, last_insert_rowid),
-		FUNCTION(changes,            0, 0, 0, changes          ),
-		FUNCTION(total_changes,      0, 0, 0, total_changes    ),
-		FUNCTION(replace,            3, 0, 0, replaceFunc      ),
-		FUNCTION(zeroblob,           1, 0, 0, zeroblobFunc     ),
+		FUNCTION(quote,              1, 0, 0, QuoteFunc        ),
+		FUNCTION(last_insert_rowid,  0, 0, 0, LastInsertRowid  ),
+		FUNCTION(changes,            0, 0, 0, Changes          ),
+		FUNCTION(total_changes,      0, 0, 0, TotalChanges     ),
+		FUNCTION(replace,            3, 0, 0, ReplaceFunc      ),
+		FUNCTION(zeroblob,           1, 0, 0, ZeroBlobFunc     ),
 #ifdef SOUNDEX
-		FUNCTION(soundex,            1, 0, 0, soundexFunc      ),
+		FUNCTION(soundex,            1, 0, 0, SoundexFunc      ),
 #endif
 #ifndef OMIT_LOAD_EXTENSION
-		FUNCTION(load_extension,     1, 0, 0, loadExt          ),
-		FUNCTION(load_extension,     2, 0, 0, loadExt          ),
+		FUNCTION(load_extension,     1, 0, 0, LoadExtFunc      ),
+		FUNCTION(load_extension,     2, 0, 0, LoadExtFunc      ),
 #endif
-		AGGREGATE(sum,               1, 0, 0, sumStep,         sumFinalize    ),
-		AGGREGATE(total,             1, 0, 0, sumStep,         totalFinalize    ),
-		AGGREGATE(avg,               1, 0, 0, sumStep,         avgFinalize    ),
-		// AGGREGATE(count,             0, 0, 0, countStep,       countFinalize  ),
-		{0,SQLITE_UTF8,SQLITE_FUNC_COUNT,0,0,0,countStep,countFinalize,"count",0,0},
-		AGGREGATE(count,             1, 0, 0, countStep,       countFinalize  ),
-		AGGREGATE(group_concat,      1, 0, 0, groupConcatStep, groupConcatFinalize),
-		AGGREGATE(group_concat,      2, 0, 0, groupConcatStep, groupConcatFinalize),
-
-		LIKEFUNC(glob, 2, &globInfo, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
+		AGGREGATE(sum,               1, 0, 0, SumStep,         SumFinalize),
+		AGGREGATE(total,             1, 0, 0, SumStep,         TotalFinalize),
+		AGGREGATE(avg,               1, 0, 0, SumStep,         AvgFinalize),
+		//AGGREGATE(count,             0, 0, 0, CountStep,       CountFinalize),
+		{0, TEXTENCODE_UTF8, FUNC_COUNT, 0, 0, 0, CountStep, CountFinalize, "count", 0, 0}, 
+		AGGREGATE(count,             1, 0, 0, CountStep,       CountFinalize),
+		AGGREGATE(group_concat,      1, 0, 0, GroupConcatStep, GroupConcatFinalize),
+		AGGREGATE(group_concat,      2, 0, 0, GroupConcatStep, GroupConcatFinalize),
+		LIKEFUNC(glob, 2, &globInfo, FUNC_LIKE|FUNC_CASE),
 #ifdef CASE_SENSITIVE_LIKE
-		LIKEFUNC(like, 2, &likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
-		LIKEFUNC(like, 3, &likeInfoAlt, SQLITE_FUNC_LIKE|SQLITE_FUNC_CASE),
+		LIKEFUNC(like, 2, &_likeInfoAlt, FUNC_LIKE|FUNC_CASE),
+		LIKEFUNC(like, 3, &_likeInfoAlt, FUNC_LIKE|FUNC_CASE),
 #else
-		LIKEFUNC(like, 2, &likeInfoNorm, SQLITE_FUNC_LIKE),
-		LIKEFUNC(like, 3, &likeInfoNorm, SQLITE_FUNC_LIKE),
+		LIKEFUNC(like, 2, &_likeInfoNorm, FUNC_LIKE),
+		LIKEFUNC(like, 3, &_likeInfoNorm, FUNC_LIKE),
 #endif
 	};
+
 	__device__ void Func::RegisterGlobalFunctions()
 	{
-		FuncDefHash *pHash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
-		FuncDef *aFunc = (FuncDef*)&GLOBAL(FuncDef, aBuiltinFunc);
-		for(int i = 0; i < ArraySize(aBuiltinFunc); i++)
-			sqlite3FuncDefInsert(pHash, &aFunc[i]);
-		sqlite3RegisterDateTimeFunctions();
+		FuncDefHash *hash = Context::GlobalFunctions;
+		FuncDef *func = (FuncDef *)_builtinFunc;
+		for (int i = 0; i < _lengthof(_builtinFunc); i++)
+			hash->Insert(&func[i]);
+		Date_::RegisterDateTimeFunctions();
 #ifndef OMIT_ALTERTABLE
-		sqlite3AlterFunctions();
+		Alter::Functions();
 #endif
 	}
 

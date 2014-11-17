@@ -186,6 +186,10 @@
     <None Include="Core+Vdbe\VTable.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Runtime.net\Runtime.net.csproj">
+      <Project>{06098f19-6185-43a5-ad77-b0e8c10ac885}</Project>
+      <Name>Runtime.net</Name>
+    </ProjectReference>
     <ProjectReference Include="..\SystemL.net\SystemL.net.csproj">
       <Project>{30180e7b-aabe-4f33-9c2c-f8a447024674}</Project>
       <Name>SystemL.net</Name>

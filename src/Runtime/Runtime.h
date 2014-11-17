@@ -59,7 +59,7 @@ template <typename TLength, typename T, size_t size> struct array_t3 { TLength l
 #define _lengthof(symbol) (sizeof(symbol) / sizeof(symbol[0]))
 
 // strskiputf8
-//#define SKIP_UTF8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
+//#define _strskiputf8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
 template <typename T> __device__ inline void _strskiputf8(const T *z)
 {
 	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }

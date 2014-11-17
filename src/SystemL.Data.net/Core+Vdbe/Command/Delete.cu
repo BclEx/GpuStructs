@@ -55,8 +55,8 @@ namespace Core { namespace Command
 		if (from)
 		{
 			_assert(from->Srcs == 1);
-			from->Ids[0].Name = SysEx::TagStrDup(vtx, view->Name);
-			from->Ids[0].Database = SysEx::TagStrDup(ctx, ctx->DBs[db].Name);
+			from->Ids[0].Name = _tagstrdup(vtx, view->Name);
+			from->Ids[0].Database = _tagstrdup(ctx, ctx->DBs[db].Name);
 			_assert(!from->Ids[0].On);
 			_assert(!from->Ids[0].Using);
 		}

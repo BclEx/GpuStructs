@@ -178,7 +178,7 @@ namespace Core
 		trigger = (Trigger *)_tagalloc(ctx, sizeof(Trigger), true);
 		if (!trigger) goto trigger_cleanup;
 		trigger->Name = name; name = nullptr;
-		trigger->Table = SysEx::TagStrDup(ctx, tableName->Ids[0].Name);
+		trigger->Table = _tagstrdup(ctx, tableName->Ids[0].Name);
 		trigger->Schema = ctx->DBs[db].Schema;
 		trigger->TabSchema = tab->Schema;
 		trigger->OP = (uint8)op;
@@ -228,11 +228,11 @@ trigger_cleanup:
 			Vdbe *v = parse->GetVdbe();
 			if (!v) goto triggerfinish_cleanup;
 			parse->BeginWriteOperation(0, db);
-			char *z = SysEx::TagStrNDup(ctx, (char *)all->data, all->length);
+			char *z = _tagstrndup(ctx, (char *)all->data, all->length);
 			parse->NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx->DBs[db].Name, SCHEMA_TABLE(db), name, trig->table, z);
 			_tagfree(ctx, z);
 			parse->ChangeCookie(db);
-			v->AddParseSchemaOp(db, SysEx::Mprintf(ctx, "type='trigger' AND name='%q'", name));
+			v->AddParseSchemaOp(db, _mprintf(ctx, "type='trigger' AND name='%q'", name));
 		}
 
 		if (ctx->Init.Busy)
@@ -484,7 +484,7 @@ drop_trigger_cleanup:
 			if (db == 0 || db >= 2)
 			{
 				_assert( db < ctx->DBs.length);
-				src->Ids[src->Srcs-1].Database = SysEx::TagStrDup(ctx, ctx->DBs[db].Name);
+				src->Ids[src->Srcs-1].Database = _tagstrdup(ctx, ctx->DBs[db].Name);
 			}
 		}
 		return src;
@@ -634,7 +634,7 @@ drop_trigger_cleanup:
 				(trigger->OP == TK_DELETE ? "DELETE" : ""),
 				tab->Name);
 #ifndef OMIT_TRACE
-			v->ChangeP4(-1, SysEx::Mprintf(ctx, "-- TRIGGER %s", trigger->Name), Vdbe::P4T_DYNAMIC);
+			v->ChangeP4(-1, _mprintf(ctx, "-- TRIGGER %s", trigger->Name), Vdbe::P4T_DYNAMIC);
 #endif
 
 			// If one was specified, code the WHEN clause. If it evaluates to false (or NULL) the sub-vdbe is immediately halted by jumping to the 

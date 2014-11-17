@@ -41,12 +41,12 @@ namespace Core { namespace Command
 		char *errDyn = nullptr;
 		if (ctx->DBs.length >= ctx->Limits[LIMIT_ATTACHED]+2)
 		{
-			errDyn = SysEx::Mprintf(ctx, "too many attached databases - max %d", ctx->Limits[LIMIT_ATTACHED]);
+			errDyn = _mprintf(ctx, "too many attached databases - max %d", ctx->Limits[LIMIT_ATTACHED]);
 			goto attach_error;
 		}
 		if (!ctx->AutoCommit)
 		{
-			errDyn = SysEx::Mprintf(ctx, "cannot ATTACH database within transaction");
+			errDyn = _mprintf(ctx, "cannot ATTACH database within transaction");
 			goto attach_error;
 		}
 		for (int i = 0; i < ctx->DBs.length; i++)
@@ -55,7 +55,7 @@ namespace Core { namespace Command
 			_assert(z && name);
 			if (!_strcmp(z, name))
 			{
-				errDyn = SysEx::Mprintf(ctx, "database %s is already in use", name);
+				errDyn = _mprintf(ctx, "database %s is already in use", name);
 				goto attach_error;
 			}
 		}
@@ -70,7 +70,7 @@ namespace Core { namespace Command
 		}
 		else
 		{
-			newDB = (Context::DB *)SysEx::TagRealloc(ctx, ctx->DBs.data, sizeof(ctx->DBs[0])*(ctx->DBs.length+1));
+			newDB = (Context::DB *)_tagrealloc(ctx, ctx->DBs.data, sizeof(ctx->DBs[0])*(ctx->DBs.length+1));
 			if (!newDB) return;
 		}
 		ctx->DBs.data = newDB;
@@ -98,7 +98,7 @@ namespace Core { namespace Command
 		if (rc == RC_CONSTRAINT)
 		{
 			rc = RC_ERROR;
-			errDyn = SysEx::Mprintf(ctx, "database is already attached");
+			errDyn = _mprintf(ctx, "database is already attached");
 		}
 		else if (rc == RC_OK)
 		{
@@ -107,7 +107,7 @@ namespace Core { namespace Command
 				rc = RC_NOMEM;
 			else if (newDB->Schema->FileFormat && newDB->Schema->Encode != CTXENCODE(ctx))
 			{
-				errDyn = SysEx::Mprintf(ctx, "attached databases must use the same text encoding as main database");
+				errDyn = _mprintf(ctx, "attached databases must use the same text encoding as main database");
 				rc = RC_ERROR;
 			}
 			Pager *pager = newDB->Bt->get_Pager();
@@ -115,7 +115,7 @@ namespace Core { namespace Command
 			newDB->Bt->SecureDelete(ctx->DBs[0].Bt->SecureDelete(true));
 		}
 		newDB->SafetyLevel = 3;
-		newDB->Name = SysEx::TagStrDup(ctx, name);
+		newDB->Name = _tagstrdup(ctx, name);
 		if (rc == RC_OK && !newDB->Name)
 			rc = RC_NOMEM;
 
@@ -131,7 +131,7 @@ namespace Core { namespace Command
 			{
 			case TYPE_INTEGER:
 			case TYPE_FLOAT:
-				errDyn = SysEx::TagStrDup(ctx, "Invalid key value");
+				errDyn = _tagstrdup(ctx, "Invalid key value");
 				rc = RC_ERROR;
 				break;
 
@@ -176,10 +176,10 @@ namespace Core { namespace Command
 			{
 				ctx->MallocFailed = true;
 				_tagfree(ctx, errDyn);
-				errDyn = SysEx::Mprintf(ctx, "out of memory");
+				errDyn = _mprintf(ctx, "out of memory");
 			}
 			else if (errDyn == nullptr)
-				errDyn = SysEx::Mprintf(ctx, "unable to open database: %s", file);
+				errDyn = _mprintf(ctx, "unable to open database: %s", file);
 			goto attach_error;
 		}
 		return;

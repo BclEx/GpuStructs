@@ -7,9 +7,9 @@ namespace Core { namespace Command
 {
 	__device__ static void RenameTableFunc(FuncContext *fctx, int notUsed, Mem **argv)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		unsigned char const *sql = Mem_Text(argv[0]);
-		unsigned char const *tableName = Mem_Text(argv[1]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		unsigned char const *sql = Vdbe::Value_Text(argv[0]);
+		unsigned char const *tableName = Vdbe::Value_Text(argv[1]);
 		if (!sql)
 			return;
 		unsigned char const *z = sql;
@@ -32,17 +32,17 @@ namespace Core { namespace Command
 			_assert(length > 0);
 		} while (token != TK_LP && token != TK_USING);
 
-		char *r = SysEx::Mprintf(ctx, "%.*s\"%w\"%s", ((uint8 *)tname.data) - sql, sql, tableName, tname.data + tname.length);
-		sqlite3_result_text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
+		char *r = _mtagprintf(ctx, "%.*s\"%w\"%s", ((uint8 *)tname.data) - sql, sql, tableName, tname.data + tname.length);
+		Vdbe::Result_Text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
 	}
 
 #ifndef OMIT_FOREIGN_KEY
-	__device__ static void RenameParentFunc(FuncContext *fctx, int notUsed, Mem **argv)
+	__device__ static void RenameParentFunc(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		unsigned char const *input = Mem_Text(argv[0]);
-		unsigned char const *oldName = Mem_Text(argv[1]);
-		unsigned char const *newName = Mem_Text(argv[2]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		unsigned char const *input = Vdbe::Value_Text(argv[0]);
+		unsigned char const *oldName = Vdbe::Value_Text(argv[1]);
+		unsigned char const *newName = Vdbe::Value_Text(argv[2]);
 
 		char *output = nullptr;
 		int n; // Length of token z
@@ -56,15 +56,15 @@ namespace Core { namespace Command
 				do
 				{
 					z += n;
-					n = sqlite3GetToken(z, &token);
+					n = Parse::GetToken(z, &token);
 				} while (token == TK_SPACE);
 
-				parent = SysEx::TagStrNDup(ctx, (const char *)z, n);
+				parent = _tagstrndup(ctx, (const char *)z, n);
 				if (parent == 0) break;
 				Parse::Dequote(parent);
 				if (!_strcmp((const char *)oldName, parent))
 				{
-					char *out_ = SysEx::Mprintf(ctx, "%s%.*s\"%w\"", (output ? output : ""), z - input, input, (const char *)newName);
+					char *out_ = _mtagprintf(ctx, "%s%.*s\"%w\"", (output ? output : ""), z - input, input, (const char *)newName);
 					_tagfree(ctx, output);
 					output = out_;
 					input = &z[n];
@@ -73,8 +73,8 @@ namespace Core { namespace Command
 			}
 		}
 
-		char *r = SysEx::Mprintf(ctx, "%s%s", (output ? output : ""), input);
-		sqlite3_result_text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
+		char *r = _mtagprintf(ctx, "%s%s", (output ? output : ""), input);
+		Vdbe::Result_Text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
 		_tagfree(ctx, output);
 	}
 #endif
@@ -82,9 +82,9 @@ namespace Core { namespace Command
 #ifndef OMIT_TRIGGER
 	__device__ static void RenameTriggerFunc(FuncContext *fctx, int notUsed, Mem **argv)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		unsigned char const *sql = Mem_Text(argv[0]);
-		unsigned char const *tableName = Mem_Text(argv[1]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		unsigned char const *sql = Vdbe::Value_Text(argv[0]);
+		unsigned char const *tableName = Vdbe::Value_Text(argv[1]);
 
 		unsigned char const *z = sql;
 		int length = 0;
@@ -123,8 +123,8 @@ namespace Core { namespace Command
 			} while (dist != 2 || (token != TK_WHEN && token != TK_FOR && token != TK_BEGIN));
 
 			// Variable tname now contains the token that is the old table-name in the CREATE TRIGGER statement.
-			char *r = SysEx::Mprintf(ctx, "%.*s\"%w\"%s", ((uint8 *)tname.data) - sql, sql, tableName, tname.data+tname.length);
-			sqlite3_result_text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
+			char *r = _mtagprintf(ctx, "%.*s\"%w\"%s", ((uint8 *)tname.data) - sql, sql, tableName, tname.data+tname.length);
+			Vdbe::Result_Text(fctx, r, -1, DESTRUCTOR_DYNAMIC);
 		}
 	}
 #endif
@@ -141,19 +141,18 @@ namespace Core { namespace Command
 	__device__ void Alter::Functions()
 	{
 		FuncDefHash *hash = Context::GlobalFunctions;
-		FuncDef *funcs = _alterTableFuncs;
 		for (int i = 0; i < _lengthof(_alterTableFuncs); i++)
-			sqlite3FuncDefInsert(hash, &funcs[i]);
+			hash->Insert(&_alterTableFuncs[i]);
 	}
 
 	__device__ static char *WhereOrName(Context *ctx, char *where_, char *constant)
 	{
 		char *newExpr;
 		if (!where_)
-			newExpr = SysEx::Mprintf(ctx, "name=%Q", constant);
+			newExpr = _mtagprintf(ctx, "name=%Q", constant);
 		else
 		{
-			newExpr = SysEx::Mprintf(ctx, "%s OR name=%Q", where_, constant);
+			newExpr = _mtagprintf(ctx, "%s OR name=%Q", where_, constant);
 			_tagfree(ctx, where_);
 		}
 		return newExpr;
@@ -188,7 +187,7 @@ namespace Core { namespace Command
 		}
 		if (where_)
 		{
-			char *newWhere = SysEx::Mprintf(ctx, "type='trigger' AND (%s)", where_);
+			char *newWhere = _mtagprintf(ctx, "type='trigger' AND (%s)", where_);
 			_tagfree(ctx, where_);
 			where_ = newWhere;
 		}
@@ -218,7 +217,7 @@ namespace Core { namespace Command
 		v->AddOp4(OP_DropTable, db, 0, 0, table->Name, 0);
 
 		// Reload the table, index and permanent trigger schemas.
-		char *where_ = SysEx::Mprintf(ctx, "tbl_name=%Q", name);
+		char *where_ = _mtagprintf(ctx, "tbl_name=%Q", name);
 		if (!where_) return;
 		v->AddParseSchemaOp(db, where_);
 
@@ -410,22 +409,21 @@ exit_rename_table:
 		// The VDBE should have been allocated before this routine is called. If that allocation failed, we would have quit before reaching this point
 		if (_ALWAYS(v))
 		{
-			int r1 = parse->GetTempReg();
-			int r2 = parse->GetTempReg();
+			int r1 = Expr::GetTempReg(parse);
+			int r2 = Expr::GetTempReg(parse);
 			v->AddOp3(OP_ReadCookie, db, r1, BTREE_FILE_FORMAT);
 			v->UsesBtree(db);
 			v->AddOp2(OP_Integer, minFormat, r2);
 			int j1 = v->AddOp3( OP_Ge, r2, 0, r1);
 			v->AddOp3(OP_SetCookie, db, BTREE_FILE_FORMAT, r2);
 			v->JumpHere(j1);
-			parse->ReleaseTempReg(r1);
-			parse->ReleaseTempReg(r2);
+			Expr::ReleaseTempReg(parse, r1);
+			Expr::ReleaseTempReg(parse, r2);
 		}
 	}
 
 	__device__ void Alter::FinishAddColumn(Parse *parse, Token *colDef)
 	{
-
 		Context *ctx = parse->Ctx; // The database connection
 		if (parse->Errs || ctx->MallocFailed) return;
 		Table *newTable = parse->NewTable; // Copy of pParse->pNewTable
@@ -491,7 +489,7 @@ exit_rename_table:
 		}
 
 		// Modify the CREATE TABLE statement.
-		char *colDefAsString = SysEx::TagStrNDup(ctx, (char *)colDef->data, colDef->length); // Null-terminated column definition
+		char *colDefAsString = _tagstrndup(ctx, (char *)colDef->data, colDef->length); // Null-terminated column definition
 		if (colDefAsString)
 		{
 			char *end = &colDefAsString[colDef->length-1];
@@ -558,7 +556,7 @@ exit_rename_table:
 		int allocs = (((newTable->Cols.length-1)/8)*8)+8;
 		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newtable->Cols.length < 8);
 		newTable->Cols.data = (Column *)_tagalloc(ctx, sizeof(Column)*allocs, true);
-		newTable->Name = SysEx::Mprintf(ctx, "sqlite_altertab_%s", table->Name);
+		newTable->Name = _mprintf(ctx, "sqlite_altertab_%s", table->Name);
 		if (!newTable->Cols || !newTable->Name)
 		{
 			ctx->MallocFailed = true;
@@ -568,7 +566,7 @@ exit_rename_table:
 		for (int i = 0; i < newTable->Cols.length; i++)
 		{
 			Column *col = &newTable->Cols[i];
-			col->Name = SysEx::TagStrDup(ctx, col->Name);
+			col->Name = _tagstrdup(ctx, col->Name);
 			col->Coll = nullptr;
 			col->Type = nullptr;
 			col->Dflt = nullptr;

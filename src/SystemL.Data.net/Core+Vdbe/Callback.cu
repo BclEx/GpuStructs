@@ -8,7 +8,7 @@ namespace Core
 		_assert(!ctx->CollNeeded || !ctx->CollNeeded16);
 		if (ctx->CollNeeded)
 		{
-			char *external = SysEx::TagStrDup(ctx, name);
+			char *external = _tagstrdup(ctx, name);
 			if (!external) return;
 			ctx->CollNeeded(ctx->CollNeededArg, ctx, encode, external);
 			_tagfree(ctx, external);

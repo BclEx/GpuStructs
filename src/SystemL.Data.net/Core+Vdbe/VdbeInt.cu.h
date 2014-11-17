@@ -104,7 +104,7 @@ namespace Core
 	MEM __device__ inline operator&=(MEM a, int b) { return (MEM)(a & b); }
 #define MemSetTypeFlag(p, f) (p->Flags = (MEM)((p->Flags&~(MEM_TypeMask|MEM_Zero))|(int)f))
 #ifdef _DEBUG
-#define memIsValid(M) ((M)->Flags & MEM_Invalid)==0
+#define MemIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif
 
 	struct Mem
@@ -181,7 +181,7 @@ namespace Core
 	struct Explain
 	{
 		Vdbe *Vdbe;				// Attach the explanation to this Vdbe
-		Text::StringBuilder Str; // The string being accumulated
+		TextBuilder Str;		// The string being accumulated
 		int IndentLength;		// Number of elements in aIndent
 		uint16 Indents[100];	// Levels of indentation
 		char ZBase[100];		// Initial space

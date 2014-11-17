@@ -52,7 +52,7 @@ namespace Core
 		if (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token != nullptr)
 		{
 			_assert((expr->Flags & (EP_Reduced|EP_TokenOnly)) == 0);
-			expr->u.Token = SysEx::TagStrDup(ctx, expr->u.Token);
+			expr->u.Token = _tagstrdup(ctx, expr->u.Token);
 			expr->Flags2 |= EP2_MallocedToken;
 		}
 		_tagfree(ctx, dup);

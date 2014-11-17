@@ -184,7 +184,7 @@ namespace Core
             trigger = new Trigger(); //: (Trigger *)_tagalloc(db, sizeof(Trigger), true);
             if (trigger == null) goto trigger_cleanup;
             trigger.Name = name;
-            trigger.Table = tableName.Ids[0].Name; //: SysEx::TagStrDup(ctx, tableName->Ids[0].Name);
+            trigger.Table = tableName.Ids[0].Name; //: _tagstrdup(ctx, tableName->Ids[0].Name);
             trigger.Schema = ctx.DBs[db].Schema;
             trigger.TabSchema = table.Schema;
             trigger.OP = (byte)op;
@@ -235,7 +235,7 @@ namespace Core
                 Vdbe v = parse.GetVdbe();
                 if (v == null) goto triggerfinish_cleanup;
                 parse.BeginWriteOperation(0, db);
-                string z = all.data.Substring(0, all.length); //: SysEx::TagStrNDup(ctx, (char *)all->data, all->length);
+                string z = all.data.Substring(0, all.length); //: _tagstrndup(ctx, (char *)all->data, all->length);
                 parse.NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx.DBs[db].Name, SCHEMA_TABLE(db), name, trig.Table, z);
                 C._tagfree(ctx, ref z);
                 parse.ChangeCookie(db);
@@ -515,7 +515,7 @@ namespace Core
                 if (db == 0 || db >= 2)
                 {
                     Debug.Assert(db < ctx.DBs.length);
-                    src.Ids[src.Srcs - 1].Database = ctx.DBs[db].Name; //: SysEx::TagStrDup(ctx, ctx->DBs[db].Name);
+                    src.Ids[src.Srcs - 1].Database = ctx.DBs[db].Name; //: _tagstrdup(ctx, ctx->DBs[db].Name);
                 }
             }
             return src;

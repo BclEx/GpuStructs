@@ -453,7 +453,7 @@ namespace Core
 			{
 				if (x > parse->Vars.length)
 				{
-					char **a = (char **)SysEx::TagRealloc(ctx, parse->Vars.data, x * sizeof(a[0]));
+					char **a = (char **)_tagrealloc(ctx, parse->Vars.data, x * sizeof(a[0]));
 					if (!a) return;  // Error reported through db->mallocFailed
 					parse->Vars.data = a;
 					_memset(&a[parse->Vars.length], 0, (x - parse->Vars.length)*sizeof(a[0]));
@@ -462,7 +462,7 @@ namespace Core
 				if (z[0] != '?' || parse->Vars[x-1] == nullptr)
 				{
 					_tagfree(ctx, parse->Vars[x-1]);
-					parse->Vars[x-1] = SysEx::TagStrNDup(ctx, z, length);
+					parse->Vars[x-1] = _tagstrndup(ctx, z, length);
 				}
 			}
 		} 
@@ -646,8 +646,8 @@ namespace Core
 		{
 			Expr *oldExpr = oldItem->Expr;
 			item->Expr = Dup(ctx, oldExpr, flags);
-			item->Name = SysEx::TagStrDup(ctx, oldItem->Name);
-			item->Span = SysEx::TagStrDup(ctx, oldItem->Span);
+			item->Name = _tagstrdup(ctx, oldItem->Name);
+			item->Span = _tagstrdup(ctx, oldItem->Span);
 			item->SortOrder = oldItem->SortOrder;
 			item->Done = false;
 			item->OrderByCol = oldItem->OrderByCol;
@@ -671,16 +671,16 @@ namespace Core
 			SrcList::SrcListItem *newItem = &newList->Ids[i];
 			SrcList::SrcListItem *oldItem = &list->Ids[i];
 			newItem->Schema = oldItem->Schema;
-			newItem->Database = SysEx::TagStrDup(ctx, oldItem->Database);
-			newItem->Name = SysEx::TagStrDup(ctx, oldItem->Name);
-			newItem->Alias = SysEx::TagStrDup(ctx, oldItem->Alias);
+			newItem->Database = _tagstrdup(ctx, oldItem->Database);
+			newItem->Name = _tagstrdup(ctx, oldItem->Name);
+			newItem->Alias = _tagstrdup(ctx, oldItem->Alias);
 			newItem->Jointype = oldItem->Jointype;
 			newItem->Cursor = oldItem->Cursor;
 			newItem->AddrFillSub = oldItem->AddrFillSub;
 			newItem->RegReturn = oldItem->RegReturn;
 			newItem->IsCorrelated = oldItem->IsCorrelated;
 			newItem->ViaCoroutine = oldItem->ViaCoroutine;
-			newItem->IndexName = SysEx::TagStrDup(ctx, oldItem->IndexName);
+			newItem->IndexName = _tagstrdup(ctx, oldItem->IndexName);
 			newItem->NotIndexed = oldItem->NotIndexed;
 			newItem->Index = oldItem->Index;
 			Core::Table *table = newItem->Table = oldItem->Table;
@@ -713,7 +713,7 @@ namespace Core
 		{
 			IdList::IdListItem *newItem = &newList->Ids[i];
 			IdList::IdListItem *oldItem = &list->Ids[i];
-			newItem->Name = SysEx::TagStrDup(ctx, oldItem->Name);
+			newItem->Name = _tagstrdup(ctx, oldItem->Name);
 			newItem->Idx = oldItem->Idx;
 		}
 		return newList;
@@ -769,7 +769,7 @@ namespace Core
 		else if ((list->Exprs & (list->Exprs-1)) == 0)
 		{
 			_assert(list->Exprs > 0);
-			ExprList::ExprListItem *ids = (ExprList::ExprListItem *)SysEx::TagRealloc(ctx, list->Ids, list->Exprs*2*sizeof(list->Ids[0]));
+			ExprList::ExprListItem *ids = (ExprList::ExprListItem *)_tagrealloc(ctx, list->Ids, list->Exprs*2*sizeof(list->Ids[0]));
 			if (!ids)
 				goto no_mem;
 			list->Ids = ids;
@@ -796,7 +796,7 @@ no_mem:
 			_assert(list->Exprs > 0);
 			ExprList::ExprListItem *item = &list->Ids[list->Exprs-1];
 			_assert(!item->Name);
-			item->Name = SysEx::TagStrNDup(ctx, name->data, name->length);
+			item->Name = _tagstrndup(ctx, name->data, name->length);
 			if (dequote && item->Name)
 				Parse::Dequote(item->Name);
 		}
@@ -812,7 +812,7 @@ no_mem:
 			_assert(list->Exprs > 0);
 			_assert(ctx->MallocFailed || item->Expr == span->Expr);
 			_tagfree(ctx, item->Span);
-			item->Span = SysEx::TagStrNDup(ctx, (char *)span->Start, (int)(span->End - span->Start));
+			item->Span = _tagstrndup(ctx, (char *)span->Start, (int)(span->End - span->Start));
 		}
 	}
 
@@ -1117,7 +1117,7 @@ no_mem:
 #ifndef OMIT_EXPLAIN
 		if (parse->Explain == 2)
 		{
-			char *msg = SysEx::Mprintf(parse->Ctx, "EXECUTE %s%s SUBQUERY %d", (testAddr >= 0 ? "" : "CORRELATED "), (expr->OP == TK_IN ? "LIST" : "SCALAR"), parse->NextSelectId);
+			char *msg = _mprintf(parse->Ctx, "EXECUTE %s%s SUBQUERY %d", (testAddr >= 0 ? "" : "CORRELATED "), (expr->OP == TK_IN ? "LIST" : "SCALAR"), parse->NextSelectId);
 			v->AddOp4(OP_Explain, parse->SelectId, 0, 0, msg, Vdbe::P4T_DYNAMIC);
 		}
 #endif

@@ -85,7 +85,7 @@ namespace Core
 #endif
 #ifdef VDBE_PROFILE
 			int Cnt;        // Number of times this instruction was executed
-			u64 Cycles;     // Total time spent executing this instruction
+			uint64 Cycles;  // Total time spent executing this instruction
 #endif
 		};
 
@@ -185,7 +185,7 @@ namespace Core
 		Vdbe *Prev, *Next;		// Linked list of VDBEs with the same Vdbe.db
 		array_t<VdbeCursor *> Cursors;   // One element of this array for each open cursor
 		array_t2<yVars, Mem> * Vars;   // Values for the OP_Variable opcode.
-		array_t2<yVars, char *> VarNames;// Name of variables
+		array_t2<yVars, char *> VarNames; // Name of variables
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
 		RC RC_;					// Value to return
@@ -245,7 +245,139 @@ namespace Core
 		__device__ int List();
 		__device__ int Halt();
 
-		// vdbemem
+#pragma region Vdbe+Api
+
+		// name1
+		__device__ static RC Finalize(Vdbe *p);
+		__device__ static RC Reset(Vdbe *p);
+		__device__ RC ClearBindings(Vdbe *p);
+		// value
+		__device__ static const void *Value_Blob(Mem *p);
+		__device__ static int Value_Bytes(Mem *p);
+		__device__ static int Value_Bytes16(Mem *p);
+		__device__ static double Value_Double(Mem *p);
+		__device__ static int Value_Int(Mem *p);
+		__device__ static int64 Value_Int64(Mem *p);
+		__device__ static const unsigned char *Value_Text(Mem *p);
+#ifndef OMIT_UTF16
+		__device__ static const void *Value_Text16(Mem *p);
+		__device__ static const void *Value_Text16be(Mem *P);
+		__device__ static const void *Value_Text16le(Mem *p);
+#endif
+		__device__ static TYPE Value_Type(Mem *p);
+
+		// results
+		__device__ static void Result_Blob(FuncContext *fctx, const void *z, int n, void (*del)(void *));
+		__device__ static void Result_Double(FuncContext *fctx, double value);
+		__device__ static void Result_Error(FuncContext *fctx, const char *z, int n);
+#ifndef OMIT_UTF16
+		__device__ static void Result_Error16(FuncContext *fctx, const void *z, int n);
+#endif
+		__device__ static void Result_Int(FuncContext *fctx, int value);
+		__device__ static void Result_Int64(FuncContext *fctx, int64 value);
+		__device__ static void Result_Null(FuncContext *fctx);
+		__device__ static void Result_Text(FuncContext *fctx, const char *z, int n, void (*del)(void *));
+#ifndef OMIT_UTF16
+		__device__ static void Result_Text16(FuncContext *fctx, const void *z, int n, void (*del)(void *));
+		__device__ static void Result_Text16be(FuncContext *fctx, const void *z, int n, void (*del)(void *));
+		__device__ static void Result_Text16le(FuncContext *fctx, const void *z, int n, void (*del)(void *));
+#endif
+		__device__ static void Result_Value(FuncContext *fctx, Mem *value);
+		__device__ static void Result_ZeroBlob(FuncContext *fctx, int n);
+		__device__ static void Result_ErrorCode(FuncContext *fctx, int errCode);
+		__device__ static void Result_ErrorOverflow(FuncContext *fctx);
+		__device__ static void Result_ErrorNoMem(FuncContext *fctx);
+
+		// step
+		__device__ RC Step2();
+		__device__ RC Step();
+
+		// name3
+		__device__ static void *User_Data(FuncContext *fctx);
+		__device__ static Context *Context_Ctx(FuncContext *fctx);
+		__device__ static void InvalidFunction(FuncContext *fctx, int notUsed1, Mem **notUsed2);
+		__device__ static void *Agregate_Context(FuncContext *fctx, int bytes);
+		__device__ static void *get_Auxdata(FuncContext *fctx, int arg);
+		__device__ static void set_Auxdata(FuncContext *fctx, int args, void *aux, void (*delete_)(void*));
+		__device__ int Column_Count(Vdbe *p);
+		__device__ int Data_Count(Vdbe *p);
+
+		// column
+		__device__ static const void *Column_Blob(Vdbe *p, int i);
+		__device__ static int Column_Bytes(Vdbe *p, int i);
+		__device__ static int Column_Bytes16(Vdbe *p, int i);
+		__device__ static double Column_Double(Vdbe *p, int i);
+		__device__ static int Column_Int(Vdbe *p, int i);
+		__device__ static int64 Column_Int64(Vdbe *p, int i);
+		__device__ static const unsigned char *Column_Text(Vdbe *p, int i);
+		__device__ static Mem *Column_Value(Vdbe *p, int i);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_Text16(Vdbe *p, int i);
+#endif
+		__device__ static TYPE Column_Type(Vdbe *p, int i);
+		__device__ static const char *Column_Name(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_Name16(Vdbe *p, int n);
+#endif
+#ifndef OMIT_DECLTYPE
+		__device__ static const char *Column_Decltype(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_Decltype16(Vdbe *p, int n);
+#endif
+#endif
+
+#if defined(OMIT_DECLTYPE) && defined(ENABLE_COLUMN_METADATA)
+#error "Must not define both OMIT_DECLTYPE and ENABLE_COLUMN_METADATA"
+#endif
+#ifndef OMIT_DECLTYPE
+		__device__ static const char *Column_Decltype(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_Decltype16(Vdbe *p, int n);
+#endif
+#endif
+#ifdef ENABLE_COLUMN_METADATA
+		__device__ static const char *Column_DatabaseName(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_DatabaseName16(Vdbe *p, int n);
+#endif
+		__device__ static const char *Column_TableName(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_TableName16(Vdbe *p, int n);
+#endif
+		__device__ static const char *Column_OriginName(Vdbe *p, int n);
+#ifndef OMIT_UTF16
+		__device__ static const void *Column_OriginName16(Vdbe *p, int n);
+#endif
+#endif
+		// bind
+		__device__ static RC Bind_Blob(Vdbe *p, int i, const void *z, int n, void (*del)(void *));
+		__device__ static RC Bind_Double(Vdbe *p, int i, double value);
+		__device__ static RC Bind_Int(Vdbe *p, int i, int value);
+		__device__ static RC Bind_Int64(Vdbe *p, int i, int64 value);
+		__device__ static RC Bind_Null(Vdbe *p, int i);
+		__device__ static RC Bind_Text(Vdbe *p, int i, const char *z, int n, void (*del)(void *));
+#ifndef OMIT_UTF16
+		__device__ static RC Bind_Text16(Vdbe *p, int i, const void *z, int n, void (*del)(void *));
+#endif
+		__device__ static RC Bind_Value(Vdbe *p, int i, const Mem *value);
+		__device__ static RC Bind_Zeroblob(Vdbe *p, int i, int n);
+		__device__ static int Bind_ParameterCount(Vdbe *p);
+		__device__ static const char *Bind_ParameterName(Vdbe *p, int i);
+		__device__ static int ParameterIndex(Vdbe *p, const char *name, int nameLength);
+		__device__ static int Bind_ParameterIndex(Vdbe *p, const char *name);
+		__device__ static RC TransferBindings(Vdbe *from, Vdbe *to);
+
+		// stmt		
+		__device__ static Context *Stmt_Ctx(Vdbe *p);
+		__device__ static bool Stmt_Readonly(Vdbe *p);
+		__device__ static bool Stmt_Busy(Vdbe *p);
+		__device__ static Vdbe *Stmt_Next(Context *ctx, Vdbe *p);
+		__device__ static int Stmt_Status(Vdbe *p, OP op, bool resetFlag);
+
+#pragma endregion
+
+#pragma region Vdbe+Mem
+
 		__device__ static RC ChangeEncoding(Mem *mem, TEXTENCODE newEncode); //@
 		__device__ static RC MemGrow(Mem *mem, size_t newSize, bool preserve); //@
 		__device__ static RC MemMakeWriteable(Mem *mem); //@
@@ -287,6 +419,8 @@ namespace Core
 		__device__ static RC MemFromBtree(BtCursor *cursor, int offset, int amount, bool key, Mem *mem); //@
 
 #define VdbeMemRelease(X) if((X)->Flags&(MEM_Agg|MEM_Dyn|MEM_RowSet|MEM_Frame)) Vdbe::MemReleaseExternal(X);
+
+#pragma endregion
 
 		__device__ static const char *sqlite3OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);

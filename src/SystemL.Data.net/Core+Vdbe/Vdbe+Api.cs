@@ -1,12 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.Text;
-//using Op = Sqlite3.VdbeOp;
 
 namespace Core
 {
     public partial class Vdbe
     {
+        #region Name1
+
         static bool VdbeSafety(Vdbe p)
         {
             if (p.Ctx == null)
@@ -27,1540 +28,798 @@ namespace Core
             return VdbeSafety(p);
         }
 
-        public static RC sqlite3_finalize(Vdbe p)
+        public static RC Finalize(Vdbe p)
         {
             if (p == null)
                 return RC.OK; // IMPLEMENTATION-OF: R-57228-12904 Invoking sqlite3_finalize() on a NULL pointer is a harmless no-op.
             Context ctx = p.Ctx;
             if (VdbeSafety(p)) return SysEx.MISUSE_BKPT();
             MutexEx.Enter(ctx.Mutex);
-            RC rc = sqlite3VdbeFinalize(ref v);
-            rc = sqlite3ApiExit(ctx, rc);
-            MutexEx.Leave(mutex);
-            sqlite3LeaveMutexAndCloseZombie(ctx);
+            RC rc = p.Finalize();
+            rc = SysEx.ApiExit(ctx, rc);
+            Main.LeaveMutexAndCloseZombie(ctx);
             return rc;
         }
 
-        /*
-        ** Terminate the current execution of an SQL statement and reset it
-        ** back to its starting state so that it can be reused. A success code from
-        ** the prior execution is returned.
-        **
-        ** This routine sets the error code and string returned by
-        ** sqlite3_errcode(), sqlite3_errmsg() and sqlite3_errmsg16().
-        */
-        public static int sqlite3_reset(Vdbe pStmt)
+        public static RC Reset(Vdbe p)
         {
-            int rc;
-            if (pStmt == null)
-            {
-                rc = SQLITE_OK;
-            }
-            else
-            {
-                Vdbe v = (Vdbe)pStmt;
-                sqlite3_mutex_enter(v.db.mutex);
-                rc = sqlite3VdbeReset(v);
-                sqlite3VdbeRewind(v);
-                Debug.Assert((rc & (v.db.errMask)) == rc);
-                rc = sqlite3ApiExit(v.db, rc);
-                sqlite3_mutex_leave(v.db.mutex);
-            }
-            return rc;
-        }
-
-        /*
-        ** Set all the parameters in the compiled SQL statement to NULL.
-        */
-        public static int sqlite3_clear_bindings(Vdbe pStmt)
-        {
-            int i;
-            int rc = SQLITE_OK;
-            Vdbe p = (Vdbe)pStmt;
-#if  SQLITE_THREADSAFE
-      sqlite3_mutex mutex = ( (Vdbe)pStmt ).db.mutex;
+            if (p == null)
+                return RC.OK;
+#if THREADSAFE
+            MutexEx mutex = p.Ctx.Mutex;
 #endif
-            sqlite3_mutex_enter(mutex);
-            for (i = 0; i < p.nVar; i++)
-            {
-                sqlite3VdbeMemRelease(p.aVar[i]);
-                p.aVar[i].flags = MEM_Null;
-            }
-            if (p.isPrepareV2 && p.expmask != 0)
-            {
-                p.expired = true;
-            }
-            sqlite3_mutex_leave(mutex);
+            MutexEx.Enter(mutex);
+            RC rc = p.Reset();
+            p.Rewind();
+            Debug.Assert((rc & (RC)p.Ctx.ErrMask) == rc);
+            rc = SysEx.ApiExit(p.Ctx, rc);
+            MutexEx.Leave(mutex);
             return rc;
         }
 
-
-        /**************************** sqlite3_value_  *******************************
-        ** The following routines extract information from a Mem or Mem
-        ** structure.
-        */
-        public static byte[] sqlite3_value_blob(Mem pVal)
+        public RC ClearBindings(Vdbe p)
         {
-            Mem p = pVal;
-            if ((p.flags & (MEM_Blob | MEM_Str)) != 0)
+#if  THREADSAFE
+            MutexEx mutex = Ctx.Mutex;
+#endif
+            MutexEx.Enter(mutex);
+            for (int i = 0; i < Vars.length; i++)
             {
-                sqlite3VdbeMemExpandBlob(p);
-                if (p.zBLOB == null && p.z != null)
+                MemRelease(p.Vars[i]);
+                p.Vars[i].Flags = MEM.Null;
+            }
+            if (p.IsPrepareV2 && p.Expmask != 0)
+                p.Expired = true;
+            MutexEx.Leave(mutex);
+            return RC.OK;
+        }
+
+        #endregion
+
+        #region Value
+        // The following routines extract information from a Mem or Mem structure.
+
+        public static byte[] Value_Blob(Mem p)
+        {
+            if ((p.Flags & (MEM.Blob | MEM.Str)) != 0)
+            {
+                MemExpandBlob(p);
+                if (p.ZBLOB == null && p.Z != null)
                 {
-                    if (p.z.Length == 0)
-                        p.zBLOB = sqlite3Malloc(1);
+                    if (p.Z.Length == 0)
+                        p.ZBLOB = new byte[1];
                     else
                     {
-                        p.zBLOB = sqlite3Malloc(p.z.Length);
-                        Debug.Assert(p.zBLOB.Length == p.z.Length);
-                        for (int i = 0; i < p.zBLOB.Length; i++)
-                            p.zBLOB[i] = (u8)p.z[i];
+                        p.ZBLOB = new byte[p.Z.Length];
+                        Debug.Assert(p.ZBLOB.Length == p.Z.Length);
+                        for (int i = 0; i < p.ZBLOB.Length; i++)
+                            p.ZBLOB[i] = (byte)p.Z[i];
                     }
-                    p.z = null;
+                    p.Z = null;
                 }
-                p.flags = (u16)(p.flags & ~MEM_Str);
-                p.flags |= MEM_Blob;
-                return p.n > 0 ? p.zBLOB : null;
+                p.Flags &= ~MEM.Str;
+                p.Flags |= MEM.Blob;
+                return (p.N != 0 ? p.ZBLOB : null);
             }
-            else
-            {
-                return sqlite3_value_text(pVal) == null ? null : Encoding.UTF8.GetBytes(sqlite3_value_text(pVal));
-            }
+            return (Value_Text(p) == null ? null : Encoding.UTF8.GetBytes(Value_Text(p)));
         }
 
-        public static int sqlite3_value_bytes(Mem pVal)
-        {
-            return sqlite3ValueBytes(pVal, SQLITE_UTF8);
-        }
+        public static int Value_Bytes(Mem p) { return sqlite3ValueBytes(p, TEXTENCODE.UTF8); }
+        public static int Balue_Bytes16(Mem p) { return sqlite3ValueBytes(p, TEXTENCODE.UTF16NATIVE); }
+        public static double Value_Double(Mem p) { return RealValue(p); }
+        public static int Value_Int(Mem p) { return (int)IntValue(p); }
+        public static long Value_Int64(Mem p) { return IntValue(p); }
+        public static string Value_Text(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF8); }
+#if  !OMIT_UTF16
+        public static string Value_Text16(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16NATIVE); }
+        public static string Value_Text16be(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16BE); }
+        public static string Value_Text16le(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16LE); }
+#endif
+        public static TYPE Value_Type(Mem p) { return p.Type; }
 
-        public static int sqlite3_value_bytes16(Mem pVal)
-        {
-            return sqlite3ValueBytes(pVal, SQLITE_UTF16NATIVE);
-        }
+        #endregion
 
-        public static double sqlite3_value_double(Mem pVal)
-        {
-            return sqlite3VdbeRealValue(pVal);
-        }
+        #region Result
+        // The following routines are used by user-defined functions to specify the function result.
+        //
+        // The setStrOrError() funtion calls sqlite3VdbeMemSetStr() to store the result as a string or blob but if the string or blob is too large, it
+        // then sets the error code to SQLITE_TOOBIG
 
-        public static int sqlite3_value_int(Mem pVal)
+        static void SetResultStrOrError(FuncContext fctx, string z, int o, int n, TEXTENCODE encode, Action del)
         {
-            return (int)sqlite3VdbeIntValue(pVal);
+            if (Vdbe.MemSetStr(fctx.S, z, o, n, encode, del) == RC.TOOBIG)
+                Vdbe.Result_ErrorOverflow(fctx);
         }
-
-        public static sqlite_int64 sqlite3_value_int64(Mem pVal)
-        {
-            return sqlite3VdbeIntValue(pVal);
-        }
-
-        public static string sqlite3_value_text(Mem pVal)
-        {
-            return sqlite3ValueText(pVal, SQLITE_UTF8);
-        }
-
-#if  !SQLITE_OMIT_UTF16
-        public static string sqlite3_value_text16(Mem pVal)
-        {
-            return sqlite3ValueText(pVal, SQLITE_UTF16NATIVE);
-        }
-        public static string sqlite3_value_text16be(Mem pVal)
-        {
-            return sqlite3ValueText(pVal, SQLITE_UTF16BE);
-        }
-        public static string sqlite3_value_text16le(Mem pVal)
-        {
-            return sqlite3ValueText(pVal, SQLITE_UTF16LE);
-        }
-#endif // * SQLITE_OMIT_UTF16 */
-
-        public static int sqlite3_value_type(Mem pval)
-        {
-            return pval.type;
-        }
-
-        /**************************** sqlite3_result_  *******************************
-        ** The following routines are used by user-defined functions to specify
-        ** the function result.
-        **
-        ** The setStrOrError() funtion calls sqlite3VdbeMemSetStr() to store the
-        ** result as a string or blob but if the string or blob is too large, it
-        ** then sets the error code to SQLITE_TOOBIG
-        */
-        static void setResultStrOrError(
-        sqlite3_context pCtx,   /* Function context */
-        string z,               /* String pointer */
-        int o,                  /* offset into string */
-        int n,                  /* Bytes in string, or negative */
-        u8 enc,                 /* Encoding of z.  0 for BLOBs */
-        dxDel xDel //void (*xDel)(void)     /* Destructor function */
-        )
-        {
-            if (sqlite3VdbeMemSetStr(pCtx.s, z, o, n, enc, xDel) == SQLITE_TOOBIG)
-            {
-                sqlite3_result_error_toobig(pCtx);
-            }
-        }
-        static void setResultStrOrError(
-        sqlite3_context pCtx,   /* Function context */
-        string z,               /* String pointer */
-        int n,                  /* Bytes in string, or negative */
-        u8 enc,                 /* Encoding of z.  0 for BLOBs */
-        dxDel xDel //void (*xDel)(void)     /* Destructor function */
-        )
-        {
-            if (sqlite3VdbeMemSetStr(pCtx.s, z, n, enc, xDel) == SQLITE_TOOBIG)
-            {
-                sqlite3_result_error_toobig(pCtx);
-            }
-        }
-
-        public static void sqlite3_result_blob(
-        sqlite3_context pCtx,
-        string z,
-        int n,
-        dxDel xDel
-        )
+        public static void Result_Blob(FuncContext fctx, string z, int n, Action del)
         {
             Debug.Assert(n >= 0);
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            setResultStrOrError(pCtx, z, n, 0, xDel);
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            SetResultStrOrError(fctx, z, 0, n, (TEXTENCODE)0, del);
         }
-
-        public static void sqlite3_result_double(sqlite3_context pCtx, double rVal)
+        public static void Result_Double(FuncContext fctx, double val)
         {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetDouble(pCtx.s, rVal);
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetDouble(fctx.S, val);
         }
-
-        public static void sqlite3_result_error(sqlite3_context pCtx, string z, int n)
+        public static void Result_Error(FuncContext fctx, string z, int n)
         {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            setResultStrOrError(pCtx, z, n, SQLITE_UTF8, SQLITE_TRANSIENT);
-            pCtx.isError = SQLITE_ERROR;
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            SetResultStrOrError(fctx, z, n, TEXTENCODE.UTF8, DESTRUCTOR_TRANSIENT);
+            fctx.IsError = RC.ERROR;
         }
-
-#if  !SQLITE_OMIT_UTF16
-        //void sqlite3_result_error16(sqlite3_context pCtx, string z, int n){
-        //  Debug.Assert( sqlite3_mutex_held(pCtx.s.db.mutex) );
-        //  pCtx.isError = SQLITE_ERROR;
-        //  sqlite3VdbeMemSetStr(pCtx.s, z, n, SQLITE_UTF16NATIVE, SQLITE_TRANSIENT);
-        //}
+#if  !OMIT_UTF16
+        void Result_Error16(FuncContext fctx, string z, int n)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            fctx.IsError = RC.ERROR;
+            MemSetStr(fctx.S, z, n, TEXTENCODE.UTF16NATIVE, DESTRUCTOR_TRANSIENT);
+        }
 #endif
-
-        public static void sqlite3_result_int(sqlite3_context pCtx, int iVal)
+        public static void Result_Int(FuncContext fctx, int val)
         {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetInt64(pCtx.s, (i64)iVal);
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetInt64(fctx.S, (long)val);
+        }
+        public static void sqlite3_result_int64(FuncContext ctx, long value)
+        {
+            Debug.Assert(MutexEx.Held(ctx.S.Ctx.Mutex));
+            MemSetInt64(ctx.S, value);
+        }
+        public static void sqlite3_result_null(FuncContext fctx)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetNull(fctx.S);
+        }
+        public static void Result_Text(FuncContext fctx, string z, int o, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            SetResultStrOrError(fctx, z, o, n, TEXTENCODE.UTF8, del);
+        }
+        public static void sqlite3_result_text(FuncContext fctx, StringBuilder z, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            SetResultStrOrError(fctx, z.ToString(), 0, n, TEXTENCODE.UTF8, del);
+        }
+        public static void Result_Text(FuncContext fctx, string z, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            SetResultStrOrError(fctx, z, 0, n, TEXTENCODE.UTF8, del);
+        }
+#if !OMIT_UTF16
+        void sqlite3_result_text16(FuncContext fctx, string z, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetStr(fctx.S, z, n, TEXTENCODE.UTF16NATIVE, del);
+        }
+        void Result_Text16be(FuncContext fctx, string z, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetStr(fctx.S, z, n, TEXTENCODE.UTF16BE, del);
+        }
+        void Result_Text16le(FuncContext fctx, string z, int n, Action del)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetStr(fctx.S, z, n, TEXTENCODE.UTF16LE, del);
+        }
+#endif
+        public static void Result_Value(FuncContext fctx, Mem value)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemCopy(fctx.S, value);
+        }
+        public static void sqlite3_result_zeroblob(FuncContext fctx, int n)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetZeroBlob(fctx.S, n);
+        }
+        public static void Result_ErrorCode(FuncContext fctx, RC errCode)
+        {
+            fctx.IsError = errCode;
+            if ((fctx.S.Flags & MEM.Null) != 0)
+                SetResultStrOrError(fctx, SysEx.ErrStr(errCode), -1, TEXTENCODE.UTF8, DESTRUCTOR_STATIC);
+        }
+        public static void Result_ErrorOverflow(FuncContext fctx)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            fctx.IsError = RC.ERROR;
+            SetResultStrOrError(fctx, "string or blob too big", -1, TEXTENCODE.UTF8, DESTRUCTOR_STATIC);
+        }
+        public static void Result_ErrorNoMem(FuncContext fctx)
+        {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            MemSetNull(fctx.S);
+            fctx.IsError = RC.NOMEM;
+            fctx.S.Ctx.MallocFailed = true;
         }
 
-        public static void sqlite3_result_int64(sqlite3_context pCtx, i64 iVal)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetInt64(pCtx.s, iVal);
-        }
+        #endregion
 
-        public static void sqlite3_result_null(sqlite3_context pCtx)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetNull(pCtx.s);
-        }
+        #region Step
 
-        public static void sqlite3_result_text(
-        sqlite3_context pCtx,
-        string z,
-        int o,    //Offset
-        int n,
-        dxDel xDel
-        )
+        static RC DoWalCallbacks(Context ctx)
         {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            setResultStrOrError(pCtx, z, o, n, SQLITE_UTF8, xDel);
-        }
-
-        public static void sqlite3_result_text(
-        sqlite3_context pCtx,
-        StringBuilder z,
-        int n,
-        dxDel xDel
-        )
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            setResultStrOrError(pCtx, z.ToString(), n, SQLITE_UTF8, xDel);
-        }
-
-
-        public static void sqlite3_result_text(
-        sqlite3_context pCtx,
-        string z,
-        int n,
-        dxDel xDel
-        )
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            setResultStrOrError(pCtx, z, n, SQLITE_UTF8, xDel);
-        }
-#if  !SQLITE_OMIT_UTF16
-        void sqlite3_result_text16(
-        sqlite3_context pCtx,
-        string z,
-        int n,
-        dxDel xDel
-        )
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetStr(pCtx.s, z, n, SQLITE_UTF16NATIVE, xDel);
-        }
-        void sqlite3_result_text16be(
-        sqlite3_context pCtx,
-        string z,
-        int n,
-        dxDel xDel
-        )
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetStr(pCtx.s, z, n, SQLITE_UTF16BE, xDel);
-        }
-        void sqlite3_result_text16le(
-        sqlite3_context pCtx,
-        string z,
-        int n,
-        dxDel xDel
-        )
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetStr(pCtx.s, z, n, SQLITE_UTF16LE, xDel);
-        }
-#endif // * SQLITE_OMIT_UTF16 */
-
-        public static void sqlite3_result_value(sqlite3_context pCtx, Mem pValue)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemCopy(pCtx.s, pValue);
-        }
-
-        public static void sqlite3_result_zeroblob(sqlite3_context pCtx, int n)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetZeroBlob(pCtx.s, n);
-        }
-
-        public static void sqlite3_result_error_code(sqlite3_context pCtx, int errCode)
-        {
-            pCtx.isError = errCode;
-            if ((pCtx.s.flags & MEM_Null) != 0)
+            RC rc = RC.OK;
+#if !OMIT_WAL
+            for (int i = 0; i < ctx.DBs.length; i++)
             {
-                setResultStrOrError(pCtx, sqlite3ErrStr(errCode), -1,
-                SQLITE_UTF8, SQLITE_STATIC);
-            }
-        }
-
-        /* Force an SQLITE_TOOBIG error. */
-
-        public static void sqlite3_result_error_toobig(sqlite3_context pCtx)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            pCtx.isError = SQLITE_ERROR;
-            setResultStrOrError(pCtx, "string or blob too big", -1,
-            SQLITE_UTF8, SQLITE_STATIC);
-        }
-
-        /* An SQLITE_NOMEM error. */
-        public static void sqlite3_result_error_nomem(sqlite3_context pCtx)
-        {
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            sqlite3VdbeMemSetNull(pCtx.s);
-            pCtx.isError = SQLITE_NOMEM;
-            //pCtx.s.db.mallocFailed = 1;
-        }
-
-        /*
-        ** This function is called after a transaction has been committed. It 
-        ** invokes callbacks registered with sqlite3_wal_hook() as required.
-        */
-        static int doWalCallbacks(sqlite3 db)
-        {
-            int rc = SQLITE_OK;
-#if !SQLITE_OMIT_WAL
-            int i;
-            for (i = 0; i < db->nDb; i++)
-            {
-                Btree* pBt = db->aDb[i].pBt;
-                if (pBt)
+                Btree bt = ctx.DBs[i].Bt;
+                if (bt != null)
                 {
-                    int nEntry = sqlite3PagerWalCallback(sqlite3BtreePager(pBt));
-                    if (db->xWalCallback && nEntry > 0 && rc == SQLITE_OK)
-                    {
-                        rc = db->xWalCallback(db->pWalArg, db, db->aDb[i].zName, nEntry);
-                    }
+                    int entrys = sqlite3PagerWalCallback(bt.get_Pager());
+                    if (ctx.WalCallback != null && entrys > 0 && rc == RC.OK)
+                        rc = ctx.WalCallback(ctx.WalArg, ctx, ctx.DBs[i].Name, entrys);
                 }
             }
 #endif
             return rc;
         }
-        /*
-        ** Execute the statement pStmt, either until a row of data is ready, the
-        ** statement is completely executed or an error occurs.
-        **
-        ** This routine implements the bulk of the logic behind the sqlite_step()
-        ** API.  The only thing omitted is the automatic recompile if a
-        ** schema change has occurred.  That detail is handled by the
-        ** outer sqlite3_step() wrapper procedure.
-        */
-        static int sqlite3Step(Vdbe p)
-        {
-            sqlite3 db;
-            int rc;
 
-            Debug.Assert(p != null);
-            if (p.magic != VDBE_MAGIC_RUN)
+        public RC Step2()
+        {
+            if (Magic != VDBE_MAGIC_RUN)
             {
-                /* We used to require that sqlite3_reset() be called before retrying
-                ** sqlite3_step() after any error or after SQLITE_DONE.  But beginning
-                ** with version 3.7.0, we changed this so that sqlite3_reset() would
-                ** be called automatically instead of throwing the SQLITE_MISUSE error.
-                ** This "automatic-reset" change is not technically an incompatibility, 
-                ** since any application that receives an SQLITE_MISUSE is broken by
-                ** definition.
-                **
-                ** Nevertheless, some published applications that were originally written
-                ** for version 3.6.23 or earlier do in fact depend on SQLITE_MISUSE 
-                ** returns, and the so were broken by the automatic-reset change.  As a
-                ** a work-around, the SQLITE_OMIT_AUTORESET compile-time restores the
-                ** legacy behavior of returning SQLITE_MISUSE for cases where the 
-                ** previous sqlite3_step() returned something other than a SQLITE_LOCKED
-                ** or SQLITE_BUSY error.
-                */
-#if SQLITE_OMIT_AUTORESET
-if( p.rc==SQLITE_BUSY || p.rc==SQLITE_LOCKED ){
-sqlite3_reset((Vdbe)p);
-}else{
-return SQLITE_MISUSE_BKPT();
-}
+                // We used to require that sqlite3_reset() be called before retrying sqlite3_step() after any error or after SQLITE_DONE.  But beginning
+                // with version 3.7.0, we changed this so that sqlite3_reset() would be called automatically instead of throwing the SQLITE_MISUSE error.
+                // This "automatic-reset" change is not technically an incompatibility, since any application that receives an SQLITE_MISUSE is broken by
+                // definition.
+                //
+                // Nevertheless, some published applications that were originally written for version 3.6.23 or earlier do in fact depend on SQLITE_MISUSE 
+                // returns, and those were broken by the automatic-reset change.  As a work-around, the SQLITE_OMIT_AUTORESET compile-time restores the
+                // legacy behavior of returning SQLITE_MISUSE for cases where the previous sqlite3_step() returned something other than a SQLITE_LOCKED
+                // or SQLITE_BUSY error.
+#if OMIT_AUTORESET
+                if (RC == RC.BUSY || RC == RC.LOCKED)
+                    Reset(this);
+                else
+                    return SysEx.MISUSE_BKPT();
 #else
-                sqlite3_reset((Vdbe)p);
+                Reset(this);
 #endif
             }
 
-            /* Check that malloc() has not failed. If it has, return early. */
-            db = p.db;
-            //if ( db.mallocFailed != 0 )
-            //{
-            //p->rc = SQLITE_NOMEM;
-            //  return SQLITE_NOMEM;
-            //}
-
-            if (p.pc <= 0 && p.expired)
+            // Check that malloc() has not failed. If it has, return early.
+            RC rc;
+            Context ctx = Ctx;
+            if (ctx.MallocFailed)
             {
-                p.rc = SQLITE_SCHEMA;
-                rc = SQLITE_ERROR;
+                RC = RC.NOMEM;
+                return RC.NOMEM;
+            }
+
+            if (PC <= 0 && Expired)
+            {
+                RC = RC.SCHEMA;
+                rc = RC.ERROR;
                 goto end_of_step;
             }
-            if (p.pc < 0)
+            if (PC < 0)
             {
-                /* If there are no other statements currently running, then
-                ** reset the interrupt flag.  This prevents a call to sqlite3_interrupt
-                ** from interrupting a statement that has not yet started.
-                */
-                if (db.activeVdbeCnt == 0)
-                {
-                    db.u1.isInterrupted = false;
-                }
-
-                Debug.Assert(db.writeVdbeCnt > 0 || db.autoCommit == 0 || db.nDeferredCons == 0);
-#if  !SQLITE_OMIT_TRACE
-                if (db.xProfile != null && 0 == db.init.busy)
-                {
-                    sqlite3OsCurrentTimeInt64(db.pVfs, ref p.startTime);
-                }
+                // If there are no other statements currently running, then reset the interrupt flag.  This prevents a call to sqlite3_interrupt
+                // from interrupting a statement that has not yet started.
+                if (ctx.ActiveVdbeCnt == 0)
+                    ctx.u1.IsInterrupted = false;
+                Debug.Assert(ctx.WriteVdbeCnt > 0 || ctx.AutoCommit == 0 || ctx.DeferredCons == 0);
+#if  !OMIT_TRACE
+                if (ctx.Profile != null && !ctx.Init.Busy)
+                    ctx.Vfs.CurrentTimeInt64(ref StartTime);
 #endif
+                ctx.ActiveVdbeCnt++;
+                if (!ReadOnly) ctx.WriteVdbeCnt++;
+                PC = 0;
+            }
 
-                db.activeVdbeCnt++;
-                if (p.readOnly == false)
-                    db.writeVdbeCnt++;
-                p.pc = 0;
-            }
-#if  !SQLITE_OMIT_EXPLAIN
-            if (p.explain != 0)
-            {
-                rc = sqlite3VdbeList(p);
-            }
+#if  !OMIT_EXPLAIN
+            if (Explain)
+                rc = List();
             else
-#endif // * SQLITE_OMIT_EXPLAIN */
+#endif
             {
-
-                db.vdbeExecCnt++;
-                rc = sqlite3VdbeExec(p);
-                db.vdbeExecCnt--;
+                ctx.VdbeExecCnt++;
+                rc = Exec();
+                ctx.VdbeExecCnt--;
             }
 
-#if  !SQLITE_OMIT_TRACE
-            /* Invoke the profile callback if there is one
-*/
-            if (rc != SQLITE_ROW && db.xProfile != null && 0 == db.init.busy && p.zSql != null)
+#if !OMIT_TRACE
+            // Invoke the profile callback if there is one
+            if (rc != RC.ROW && ctx.Profile != null && !ctx.Init.Busy && Sql != null)
             {
-                sqlite3_int64 iNow = 0;
-                sqlite3OsCurrentTimeInt64(db.pVfs, ref iNow);
-                db.xProfile(db.pProfileArg, p.zSql, (iNow - p.startTime) * 1000000);
+                long now = 0;
+                ctx.Vfs.CurrentTimeInt64(ref now);
+                ctx.Profile(ctx.ProfileArg, Sql, (now - StartTime) * 1000000);
             }
 #endif
 
-            if (rc == SQLITE_DONE)
+            if (rc == RC.DONE)
             {
-                Debug.Assert(p.rc == SQLITE_OK);
-                p.rc = doWalCallbacks(db);
-                if (p.rc != SQLITE_OK)
-                {
-                    rc = SQLITE_ERROR;
-                }
+                Debug.Assert(RC == RC.OK);
+                RC = DoWalCallbacks(ctx);
+                if (RC != RC.OK)
+                    rc = RC.ERROR;
             }
 
-            db.errCode = rc;
-            if (SQLITE_NOMEM == sqlite3ApiExit(p.db, p.rc))
-            {
-                p.rc = SQLITE_NOMEM;
-            }
+            ctx.ErrCode = rc;
+            if (SysEx.ApiExit(Ctx, RC) == RC.NOMEM)
+                RC = RC.NOMEM;
+
         end_of_step:
-            /* At this point local variable rc holds the value that should be
-            ** returned if this statement was compiled using the legacy
-            ** sqlite3_prepare() interface. According to the docs, this can only
-            ** be one of the values in the first Debug.Assert() below. Variable p.rc
-            ** contains the value that would be returned if sqlite3_finalize()
-            ** were called on statement p.
-            */
-            Debug.Assert(rc == SQLITE_ROW || rc == SQLITE_DONE || rc == SQLITE_ERROR
-            || rc == SQLITE_BUSY || rc == SQLITE_MISUSE
-            );
-            Debug.Assert(p.rc != SQLITE_ROW && p.rc != SQLITE_DONE);
-            if (p.isPrepareV2 && rc != SQLITE_ROW && rc != SQLITE_DONE)
-            {
-                /* If this statement was prepared using sqlite3_prepare_v2(), and an
-                ** error has occured, then return the error code in p.rc to the
-                ** caller. Set the error code in the database handle to the same value.
-                */
-                rc = db.errCode = p.rc;
-            }
-            return (rc & db.errMask);
+            // At this point local variable rc holds the value that should be returned if this statement was compiled using the legacy 
+            // sqlite3_prepare() interface. According to the docs, this can only be one of the values in the first assert() below. Variable p->rc 
+            // contains the value that would be returned if sqlite3_finalize() were called on statement p.
+            Debug.Assert(rc == RC.ROW || rc == RC.DONE || rc == RC.ERROR || rc == RC.BUSY || rc == RC.MISUSE);
+            Debug.Assert(RC != RC.ROW && RC != RC.DONE);
+            // If this statement was prepared using sqlite3_prepare_v2(), and an error has occurred, then return the error code in p->rc to the
+            // caller. Set the error code in the database handle to the same value.
+            if (IsPrepareV2 && rc != RC.ROW && rc != RC.DONE)
+                rc = TransferError();
+            return (rc & (RC)ctx.ErrMask);
         }
 
-        /*
-        ** The maximum number of times that a statement will try to reparse
-        ** itself before giving up and returning SQLITE_SCHEMA.
-        */
-#if !SQLITE_MAX_SCHEMA_RETRY
-        //# define SQLITE_MAX_SCHEMA_RETRY 5
-        public const int SQLITE_MAX_SCHEMA_RETRY = 5;
-#endif
+        public const int MAX_SCHEMA_RETRY = 5;
 
-        /*
-    ** This is the top-level implementation of sqlite3_step().  Call
-    ** sqlite3Step() to do most of the work.  If a schema error occurs,
-    ** call sqlite3Reprepare() and try again.
-    */
-        public static int sqlite3_step(Vdbe pStmt)
+        public RC Step()
         {
-            int rc = SQLITE_OK;      /* Result from sqlite3Step() */
-            int rc2 = SQLITE_OK;     /* Result from sqlite3Reprepare() */
-            Vdbe v = (Vdbe)pStmt;    /* the prepared statement */
-            int cnt = 0;             /* Counter to prevent infinite loop of reprepares */
-            sqlite3 db;              /* The database connection */
-
-            if (VdbeSafetyNotNull(v))
+            RC rc = RC.OK;      // Result from sqlite3Step()
+            RC rc2 = RC.OK;     // Result from sqlite3Reprepare()
+            int cnt = 0;             // Counter to prevent infinite loop of reprepares
+            Context ctx = Ctx; // The database connection
+            MutexEx.Enter(ctx.Mutex);
+            DoingRerun = false;
+            while ((rc = Step2()) == RC.SCHEMA && cnt++ < MAX_SCHEMA_RETRY && (rc2 = rc = Reprepare()) == RC.OK)
             {
-                return SQLITE_MISUSE_BKPT();
+                Reset(this);
+                DoingRerun = true;
+                Debug.Assert(!Expired);
             }
-            db = v.db;
-            sqlite3_mutex_enter(db.mutex);
-            while ((rc = sqlite3Step(v)) == SQLITE_SCHEMA
-            && cnt++ < SQLITE_MAX_SCHEMA_RETRY
-            && (rc2 = rc = sqlite3Reprepare(v)) == SQLITE_OK)
+            if (rc2 != RC.OK && C._ALWAYS(IsPrepareV2) && C._ALWAYS(ctx.Err != null))
             {
-                sqlite3_reset(pStmt);
-                v.expired = false;
+                // This case occurs after failing to recompile an sql statement. The error message from the SQL compiler has already been loaded 
+                // into the database handle. This block copies the error message from the database handle into the statement and sets the statement
+                // program counter to 0 to ensure that when the statement is finalized or reset the parser error message is available via
+                // sqlite3_errmsg() and sqlite3_errcode().
+                string err = Value_Text(ctx.Err);
+                C._tagfree(ctx, ref ErrMsg);
+                if (!ctx.MallocFailed) { ErrMsg = err; RC = rc2; }
+                else { ErrMsg = null; RC = rc = RC.NOMEM; }
             }
-            if (rc2 != SQLITE_OK && ALWAYS(v.isPrepareV2) && ALWAYS(db.pErr != null))
-            {
-                /* This case occurs after failing to recompile an sql statement.
-                ** The error message from the SQL compiler has already been loaded
-                ** into the database handle. This block copies the error message
-                ** from the database handle into the statement and sets the statement
-                ** program counter to 0 to ensure that when the statement is
-                ** finalized or reset the parser error message is available via
-                ** sqlite3_errmsg() and sqlite3_errcode().
-                */
-                string zErr = sqlite3_value_text(db.pErr);
-                sqlite3DbFree(db, ref v.zErrMsg);
-                //if ( 0 == db.mallocFailed )
-                {
-                    v.zErrMsg = zErr;// sqlite3DbStrDup(db, zErr);
-                    v.rc = rc2;
-                }
-                //else
-                //{
-                //  v.zErrMsg = "";
-                //  v->rc = rc = SQLITE_NOMEM;
-                //}
-            }
-            rc = sqlite3ApiExit(db, rc);
-            sqlite3_mutex_leave(db.mutex);
+            rc = SysEx.ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
             return rc;
         }
 
-        /*
-        ** Extract the user data from a sqlite3_context structure and return a
-        ** pointer to it.
-        **
-        ** IMPLEMENTATION-OF: R-46798-50301 The sqlite3_context_db_handle() interface
-        ** returns a copy of the pointer to the database connection (the 1st
-        ** parameter) of the sqlite3_create_function() and
-        ** sqlite3_create_function16() routines that originally registered the
-        ** application defined function.
-        */
-        public static object sqlite3_user_data(sqlite3_context p)
+        #endregion
+
+        #region Name3
+
+        public static object User_Data(FuncContext fctx)
         {
-            Debug.Assert(p != null && p.pFunc != null);
-            return p.pFunc.pUserData;
+            Debug.Assert(fctx != null && fctx.Func != null);
+            return fctx.Func.UserData;
         }
 
-        /*
-        ** Extract the user data from a sqlite3_context structure and return a
-        ** pointer to it.
-        */
-        public static sqlite3 sqlite3_context_db_handle(sqlite3_context p)
+        public static Context Context_Ctx(FuncContext fctx)
         {
-            Debug.Assert(p != null && p.pFunc != null);
-            return p.s.db;
+            Debug.Assert(fctx != null && fctx.Func != null);
+            return fctx.S.Ctx;
         }
 
-        /*
-        ** The following is the implementation of an SQL function that always
-        ** fails with an error message stating that the function is used in the
-        ** wrong context.  The sqlite3_overload_function() API might construct
-        ** SQL function that use this routine so that the functions will exist
-        ** for name resolution but are actually overloaded by the xFindFunction
-        ** method of virtual tables.
-        */
-        public static void sqlite3InvalidFunction(
-        sqlite3_context context, /* The function calling context */
-        int NotUsed,                /* Number of arguments to the function */
-        Mem[] NotUsed2       /* Value of each argument */
-        )
+        public static void InvalidFunction(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
-            string zName = context.pFunc.zName;
-            string zErr;
-            UNUSED_PARAMETER2(NotUsed, NotUsed2);
-            zErr = sqlite3_mprintf(
-            "unable to use function %s in the requested context", zName);
-            sqlite3_result_error(context, zErr, -1);
-            //sqlite3_free( ref zErr );
+            string name = fctx.Func.Name;
+            string err = C._mprintf("unable to use function %s in the requested context", name);
+            Result_Error(fctx, err, -1);
+            C._free(ref err);
         }
 
-        /*
-        ** Allocate or return the aggregate context for a user function.  A new
-        ** context is allocated on the first call.  Subsequent calls return the
-        ** same context that was returned on prior calls.
-        */
-        public static Mem sqlite3_aggregate_context(sqlite3_context p, int nByte)
+        public static Mem Aggregate_Context(FuncContext fctx, int bytes)
         {
-            Mem pMem;
-            Debug.Assert(p != null && p.pFunc != null && p.pFunc.xStep != null);
-            Debug.Assert(sqlite3_mutex_held(p.s.db.mutex));
-            pMem = p.pMem;
-            testcase(nByte < 0);
-            if ((pMem.flags & MEM_Agg) == 0)
+            Debug.Assert(fctx != null && fctx.Func != null && fctx.Func.Step != null);
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            Mem mem = fctx.Mem;
+            C.ASSERTCOVERAGE(bytes < 0);
+            if ((mem.Flags & MEM.Agg) == 0)
             {
-                if (nByte <= 0)
+                if (bytes <= 0)
                 {
-                    sqlite3VdbeMemReleaseExternal(pMem);
-                    pMem.flags = 0;
-                    pMem.z = null;
+                    MemReleaseExternal(mem);
+                    mem.Flags = 0;
+                    mem.Z = null;
                 }
                 else
                 {
-                    sqlite3VdbeMemGrow(pMem, nByte, 0);
-                    pMem.flags = MEM_Agg;
-                    pMem.u.pDef = p.pFunc;
-                    if (pMem.z != null)
-                    {
-                        pMem.z = null;
-                    }
-                    pMem._Mem = sqlite3Malloc(pMem._Mem);
-                    pMem._Mem.flags = 0;
-                    pMem._Mem.z = null;
+                    MemGrow(mem, bytes, 0);
+                    mem.Flags = MEM.Agg;
+                    mem.u.Def = fctx.Func;
                 }
             }
-            return pMem._Mem;
+            return Mem.ToMem_(mem);
         }
 
-        /*
-        ** Return the auxillary data pointer, if any, for the iArg'th argument to
-        ** the user-function defined by pCtx.
-        */
-        public static object sqlite3_get_auxdata(sqlite3_context pCtx, int iArg)
+        public static object get_Auxdata(FuncContext fctx, int arg)
         {
-            VdbeFunc pVdbeFunc;
-
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            pVdbeFunc = pCtx.pVdbeFunc;
-            if (null == pVdbeFunc || iArg >= pVdbeFunc.nAux || iArg < 0)
-            {
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            VdbeFunc vdbeFunc = fctx.VdbeFunc;
+            if (vdbeFunc == null || arg >= vdbeFunc.AuxsLength || arg < 0)
                 return null;
-            }
-            return pVdbeFunc.apAux[iArg].pAux;
+            return vdbeFunc.Auxs[arg].Aux;
         }
 
-        /*
-        ** Set the auxillary data pointer and delete function, for the iArg'th
-        ** argument to the user-function defined by pCtx. Any previous value is
-        ** deleted by calling the delete function specified when it was set.
-        */
-        public static void sqlite3_set_auxdata(
-        sqlite3_context pCtx,
-        int iArg,
-        object pAux
-            //void (*xDelete)(void)
-        )
+        public static void set_Auxdata(FuncContext fctx, int args, object aux, Action delete)
         {
-            AuxData pAuxData;
-            VdbeFunc pVdbeFunc;
-            if (iArg < 0)
-                goto failed;
-
-            Debug.Assert(sqlite3_mutex_held(pCtx.s.db.mutex));
-            pVdbeFunc = pCtx.pVdbeFunc;
-            if (null == pVdbeFunc || pVdbeFunc.nAux <= iArg)
+            if (args < 0) goto failed;
+            Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
+            VdbeFunc vdbeFunc = fctx.VdbeFunc;
+            if (vdbeFunc == null || vdbeFunc.AuxsLength <= args)
             {
-                int nAux = (pVdbeFunc != null ? pVdbeFunc.nAux : 0);
-                int nMalloc = iArg;
-                ;//VdbeFunc+ sizeof(struct AuxData)*iArg;
-                if (pVdbeFunc == null)
-                {
-                    //pVdbeFunc = (VdbeFunc)sqlite3DbRealloc( pCtx.s.db, pVdbeFunc, nMalloc );
-                    pVdbeFunc = new VdbeFunc();
-                    if (null == pVdbeFunc)
-                    {
-                        goto failed;
-                    }
-                    pCtx.pVdbeFunc = pVdbeFunc;
-                }
-                pVdbeFunc.apAux[nAux] = new AuxData();//memset(pVdbeFunc.apAux[nAux], 0, sizeof(struct AuxData)*(iArg+1-nAux));
-                pVdbeFunc.nAux = iArg + 1;
-                pVdbeFunc.pFunc = pCtx.pFunc;
+                int auxLength = (vdbeFunc != null ? vdbeFunc.AuxsLength : 0);
+                int newSize = args;
+                vdbeFunc = new VdbeFunc();
+                if (vdbeFunc == null)
+                    goto failed;
+                fctx.VdbeFunc = vdbeFunc;
+                vdbeFunc.Auxs[auxLength] = new VdbeFunc.AuxData();
+                vdbeFunc.AuxsLength = args + 1;
+                vdbeFunc.Func = fctx.Func;
             }
-
-            pAuxData = pVdbeFunc.apAux[iArg];
-            if (pAuxData.pAux != null && pAuxData.pAux is IDisposable)
-            {
-                (pAuxData.pAux as IDisposable).Dispose();
-            }
-            pAuxData.pAux = pAux;
+            VdbeFunc.AuxData auxData = vdbeFunc.Auxs[args];
+            if (auxData.Aux != null && auxData.Aux is IDisposable)
+                (auxData.Aux as IDisposable).Dispose();
+            auxData.Aux = aux;
             return;
 
         failed:
-            if (pAux != null && pAux is IDisposable)
-            {
-                (pAux as IDisposable).Dispose();
-            }
+            if (aux != null && aux is IDisposable)
+                (aux as IDisposable).Dispose();
         }
 
-#if !SQLITE_OMIT_DEPRECATED
-        /*
-** Return the number of times the Step function of a aggregate has been
-** called.
-**
-** This function is deprecated.  Do not use it for new code.  It is
-** provide only to avoid breaking legacy code.  New aggregate function
-** implementations should keep their own counts within their aggregate
-** context.
-*/
-        static int sqlite3_aggregate_count(sqlite3_context p)
+        public static int Column_Count(Vdbe p)
         {
-            Debug.Assert(p != null && p.pMem != null && p.pFunc != null && p.pFunc.xStep != null);
-            return p.pMem.n;
+            return (p != null ? p.ResColumns : 0);
         }
+
+        public static int Data_Count(Vdbe p)
+        {
+            return (p == null || p.ResultSet == null ? 0 : p.ResColumns);
+        }
+
+
+        #endregion
+
+        #region Column
+        // The following routines are used to access elements of the current row in the result set.
+
+        // If the value passed as the second argument is out of range, return a pointer to the following static Mem object which contains the
+        // value SQL NULL. Even though the Mem structure contains an element of type i64, on certain architectures (x86) with certain compiler
+        // switches (-Os), gcc may align this Mem object on a 4-byte boundary instead of an 8-byte one. This all works fine, except that when
+        // running with SQLITE_DEBUG defined the SQLite code sometimes assert()s that a Mem structure is located on an 8-byte boundary. To prevent
+        // these assert()s from failing, when building with SQLITE_DEBUG defined using gcc, we force nullMem to be 8-byte aligned using the magical
+        // __attribute__((aligned(8))) macro.
+        private static Mem _nullMem = new Mem(null, "", (double)0, 0, 0, MEM.Null, TYPE.NULL, 0
+#if DEBUG
+, null, null  // scopyFrom, filler
 #endif
-
-        /*
-** Return the number of columns in the result set for the statement pStmt.
-*/
-        public static int sqlite3_column_count(Vdbe pStmt)
+);
+        static Mem ColumnMem(Vdbe p, int i)
         {
-            Vdbe pVm = pStmt;
-            return pVm != null ? (int)pVm.nResColumn : 0;
-        }
-
-        /*
-        ** Return the number of values available from the current row of the
-        ** currently executing statement pStmt.
-        */
-        public static int sqlite3_data_count(Vdbe pStmt)
-        {
-            Vdbe pVm = pStmt;
-            if (pVm == null || pVm.pResultSet == null)
-                return 0;
-            return pVm.nResColumn;
-        }
-
-
-        /*
-        ** Check to see if column iCol of the given statement is valid.  If
-        ** it is, return a pointer to the Mem for the value of that column.
-        ** If iCol is not valid, return a pointer to a Mem which has a value
-        ** of NULL.
-        */
-        static Mem columnMem(Vdbe pStmt, int i)
-        {
-            Vdbe pVm;
-            Mem pOut;
-
-            pVm = (Vdbe)pStmt;
-            if (pVm != null && pVm.pResultSet != null && i < pVm.nResColumn && i >= 0)
+            Mem r;
+            if (p != null && p.ResultSet != null && i < p.ResColumns && i >= 0)
             {
-                sqlite3_mutex_enter(pVm.db.mutex);
-                pOut = pVm.pResultSet[i];
+                MutexEx.Enter(p.Ctx.Mutex);
+                r = p.ResultSet[i];
             }
             else
             {
-                /* If the value passed as the second argument is out of range, return
-                ** a pointer to the following public static Mem object which contains the
-                ** value SQL NULL. Even though the Mem structure contains an element
-                ** of type i64, on certain architecture (x86) with certain compiler
-                ** switches (-Os), gcc may align this Mem object on a 4-byte boundary
-                ** instead of an 8-byte one. This all works fine, except that when
-                ** running with SQLITE_DEBUG defined the SQLite code sometimes Debug.Assert()s
-                ** that a Mem structure is located on an 8-byte boundary. To prevent
-                ** this Debug.Assert() from failing, when building with SQLITE_DEBUG defined
-                ** using gcc, force nullMem to be 8-byte aligned using the magical
-                ** __attribute__((aligned(8))) macro.  */
-                //    static const Mem nullMem 
-                //#if defined(SQLITE_DEBUG) && defined(__GNUC__)
-                //      __attribute__((aligned(8))) 
-                //#endif
-                //      = {0, "", (double)0, {0}, 0, MEM_Null, SQLITE_NULL, 0,
-                //#if SQLITE_DEBUG
-                //         0, 0,  /* pScopyFrom, pFiller */
-                //#endif
-                //         0, 0 };
-                Mem nullMem = new Mem(null, "", (double)0, 0, 0, MEM_Null, SQLITE_NULL, 0
-#if SQLITE_DEBUG
-         , null, null  /* pScopyFrom, pFiller */
-#endif
-);
-
-                if (pVm != null && ALWAYS(pVm.db != null))
+                if (p != null && C._ALWAYS(p.Ctx != null))
                 {
-                    sqlite3_mutex_enter(pVm.db.mutex);
-                    sqlite3Error(pVm.db, SQLITE_RANGE, 0);
+                    MutexEx.Enter(p.Ctx.Mutex);
+                    SysEx.Error(p.Ctx, SQLITE_RANGE, 0);
                 }
-                pOut = nullMem;
+                r = _nullMem;
             }
-            return pOut;
+            return r;
         }
 
-        /*
-        ** This function is called after invoking an sqlite3_value_XXX function on a
-        ** column value (i.e. a value returned by evaluating an SQL expression in the
-        ** select list of a SELECT statement) that may cause a malloc() failure. If
-        ** malloc() has failed, the threads mallocFailed flag is cleared and the result
-        ** code of statement pStmt set to SQLITE_NOMEM.
-        **
-        ** Specifically, this is called from within:
-        **
-        **     sqlite3_column_int()
-        **     sqlite3_column_int64()
-        **     sqlite3_column_text()
-        **     sqlite3_column_text16()
-        **     sqlite3_column_real()
-        **     sqlite3_column_bytes()
-        **     sqlite3_column_bytes16()
-        **     sqlite3_column_blob()
-        */
-        static void columnMallocFailure(Vdbe pStmt)
+        static void ColumnMallocFailure(Vdbe p)
         {
-            /* If malloc() failed during an encoding conversion within an
-            ** sqlite3_column_XXX API, then set the return code of the statement to
-            ** SQLITE_NOMEM. The next call to _step() (if any) will return SQLITE_ERROR
-            ** and _finalize() will return NOMEM.
-            */
-            Vdbe p = pStmt;
+            // If malloc() failed during an encoding conversion within an sqlite3_column_XXX API, then set the return code of the statement to
+            // RC_NOMEM. The next call to _step() (if any) will return RC_ERROR and _finalize() will return NOMEM.
             if (p != null)
             {
-                p.rc = sqlite3ApiExit(p.db, p.rc);
-                sqlite3_mutex_leave(p.db.mutex);
+                p.RC = SysEx.ApiExit(p.Ctx, p.RC);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
         }
 
-        /**************************** sqlite3_column_  *******************************
-        ** The following routines are used to access elements of the current row
-        ** in the result set.
-        */
-        public static byte[] sqlite3_column_blob(Vdbe pStmt, int i)
+        public static byte[] Column_Blob(Vdbe p, int i) { byte[] val = Value_Blob(ColumnMem(p, i)); ColumnMallocFailure(p); return val; } // Even though there is no encoding conversion, value_blob() might need to call malloc() to expand the result of a zeroblob() expression.
+        public static int Column_Bytes(Vdbe p, int i) { int val = Value_Bytes(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static int Column_Bytes16(Vdbe p, int i) { int val = Balue_Bytes16(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static double Column_Double(Vdbe p, int i) { double val = Value_Double(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static int Column_Int(Vdbe p, int i) { int val = Value_Int(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static long Column_Int64(Vdbe p, int i) { long val = Value_Int64(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static string Column_Text(Vdbe p, int i) { string val = Value_Text(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+        public static Mem Column_Value(Vdbe p, int i)
         {
-            byte[] val;
-            val = sqlite3_value_blob(columnMem(pStmt, i));
-            /* Even though there is no encoding conversion, value_blob() might
-            ** need to call malloc() to expand the result of a zeroblob()
-            ** expression.
-            */
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static int sqlite3_column_bytes(Vdbe pStmt, int i)
-        {
-            int val = sqlite3_value_bytes(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static int sqlite3_column_bytes16(Vdbe pStmt, int i)
-        {
-            int val = sqlite3_value_bytes16(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static double sqlite3_column_double(Vdbe pStmt, int i)
-        {
-            double val = sqlite3_value_double(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static int sqlite3_column_int(Vdbe pStmt, int i)
-        {
-            int val = sqlite3_value_int(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-
-        public static sqlite_int64 sqlite3_column_int64(Vdbe pStmt, int i)
-        {
-            sqlite_int64 val = sqlite3_value_int64(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static string sqlite3_column_text(Vdbe pStmt, int i)
-        {
-            string val = sqlite3_value_text(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return val;
-        }
-
-        public static Mem sqlite3_column_value(Vdbe pStmt, int i)
-        {
-            Mem pOut = columnMem(pStmt, i);
-            if ((pOut.flags & MEM_Static) != 0)
+            Mem r = ColumnMem(p, i);
+            if ((r.Flags & MEM.Static) != 0)
             {
-                pOut.flags = (u16)(pOut.flags & ~MEM_Static);
-                pOut.flags |= MEM_Ephem;
+                r.Flags &= ~MEM.Static;
+                r.Flags |= MEM.Ephem;
             }
-            columnMallocFailure(pStmt);
-            return (Mem)pOut;
+            ColumnMallocFailure(p);
+            return r;
         }
-#if  !SQLITE_OMIT_UTF16
-        //const void *sqlite3_column_text16(Vdbe pStmt, int i){
-        //  const void *val = sqlite3_value_text16( columnMem(pStmt,i) );
-        //  columnMallocFailure(pStmt);
-        //  return val;
-        //}
-#endif // * SQLITE_OMIT_UTF16 */
+#if !OMIT_UTF16
+        public string Column_Text16(Vdbe p, int i) { string val = Value_Text16(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+#endif
+        public static TYPE Column_Type(Vdbe p, int i) { TYPE type = Value_Type(ColumnMem(p, i)); ColumnMallocFailure(p); return type; }
 
-        public static int sqlite3_column_type(Vdbe pStmt, int i)
+        public static string ColumnName(Vdbe p, int n, Func<Mem, string> func, bool useType)
         {
-            int iType = sqlite3_value_type(columnMem(pStmt, i));
-            columnMallocFailure(pStmt);
-            return iType;
-        }
-
-        /* The following function is experimental and subject to change or
-        ** removal */
-        /*int sqlite3_column_numeric_type(Vdbe pStmt, int i){
-        **  return sqlite3_value_numeric_type( columnMem(pStmt,i) );
-        **}
-        */
-
-        /*
-        ** Convert the N-th element of pStmt.pColName[] into a string using
-        ** xFunc() then return that string.  If N is out of range, return 0.
-        **
-        ** There are up to 5 names for each column.  useType determines which
-        ** name is returned.  Here are the names:
-        **
-        **    0      The column name as it should be displayed for output
-        **    1      The datatype name for the column
-        **    2      The name of the database that the column derives from
-        **    3      The name of the table that the column derives from
-        **    4      The name of the table column that the result column derives from
-        **
-        ** If the result is not a simple column reference (if it is an expression
-        ** or a constant) then useTypes 2, 3, and 4 return NULL.
-        */
-        public static string columnName(
-        Vdbe pStmt,
-        int N,
-        dxColname xFunc,
-        int useType
-        )
-        {
-            string ret = null;
-            Vdbe p = pStmt;
-            int n;
-            sqlite3 db = p.db;
-
-            Debug.Assert(db != null);
-
-            n = sqlite3_column_count(pStmt);
-            if (N < n && N >= 0)
+            Context ctx = p.Ctx;
+            Debug.Assert(ctx != null);
+            string r = null;
+            int n2 = Column_Count(p);
+            if (n < n2 && n >= 0)
             {
-                N += useType * n;
-                sqlite3_mutex_enter(db.mutex);
-                //Debug.Assert( db.mallocFailed == 0 );
-                ret = xFunc(p.aColName[N]);
-
-                /* A malloc may have failed inside of the xFunc() call. If this
-                ** is the case, clear the mallocFailed flag and return NULL.
-                */
-                //if ( db.mallocFailed != 0 )
-                //{
-                //  //db.mallocFailed = 0;
-                //  ret = null;
-                //}
-                sqlite3_mutex_leave(db.mutex);
+                n += (useType ? n2 : 0);
+                MutexEx.Enter(ctx.Mutex);
+                Debug.Assert(ctx.MallocFailed);
+                r = func(p.ColNames[n]);
+                // A malloc may have failed inside of the xFunc() call. If this is the case, clear the mallocFailed flag and return NULL.
+                if (ctx.MallocFailed)
+                {
+                    ctx.MallocFailed = false;
+                    r = null;
+                }
+                MutexEx.Leave(ctx.Mutex);
             }
-            return ret;
+            return r;
         }
 
-        /*
-        ** Return the name of the Nth column of the result set returned by SQL
-        ** statement pStmt.
-        */
-        public static string sqlite3_column_name(Vdbe pStmt, int N)
-        {
-            return columnName(
-            pStmt, N, sqlite3_value_text, COLNAME_NAME);
-        }
-#if  !SQLITE_OMIT_UTF16
-        public static string sqlite3_column_name16(Vdbe pStmt, int N)
-        {
-            return columnName(
-            pStmt, N, sqlite3_value_text16, COLNAME_NAME);
-        }
+        public static string Column_Name(Vdbe p, int n) { return ColumnName(p, n, Value_Text, COLNAME_NAME); }
+#if !OMIT_UTF16
+        public static string Column_Name16(Vdbe p, int n) { return ColumnName(p, n, Value_Text16, COLNAME_NAME); }
 #endif
 
-        /*
-** Constraint:  If you have ENABLE_COLUMN_METADATA then you must
-** not define OMIT_DECLTYPE.
-*/
-#if SQLITE_OMIT_DECLTYPE && SQLITE_ENABLE_COLUMN_METADATA
-# error "Must not define both SQLITE_OMIT_DECLTYPE and SQLITE_ENABLE_COLUMN_METADATA"
+#if OMIT_DECLTYPE && ENABLE_COLUMN_METADATA
+#error "Must not define both OMIT_DECLTYPE and ENABLE_COLUMN_METADATA"
+#endif
+#if !OMIT_DECLTYPE
+        public static string Column_Decltype(Vdbe p, int n) { return ColumnName(p, n, Value_Text, COLNAME_DECLTYPE); }
+#if !OMIT_UTF16
+        public static string Column_Decltype16(Vdbe p, int n) { return ColumnName(p, n, Value_Text16, COLNAME_DECLTYPE); }
+#endif
+#endif
+#if ENABLE_COLUMN_METADATA
+        public static string Column_DatabaseName(Vdbe p, int n) { return ColumnName(p, n, Value_Text, COLNAME_DATABASE); }
+#if !OMIT_UTF16
+        public static string Column_DatabaseName16(Vdbe p, int n) { return ColumnName(p, n, Value_Text16, COLNAME_DATABASE); }
+#endif
+        public static string Column_TableName(Vdbe p, int n) { return ColumnName(p, n, Value_Text, COLNAME_TABLE); }
+#if !OMIT_UTF16
+        public static string Column_TableName16(Vdbe p, int n) { return ColumnName(p, n, Value_Text16, COLNAME_TABLE); }
+#endif
+        public static string Column_OriginName(Vdbe p, int n) { return ColumnName(p, n, Value_Text, COLNAME_COLUMN); }
+#if !OMIT_UTF16
+        public static string Column_OriginName16(Vdbe p, int n) { return ColumnName(p, n, Value_Text16, COLNAME_COLUMN); }
+#endif
 #endif
 
-#if !SQLITE_OMIT_DECLTYPE
-        /*
-** Return the column declaration type (if applicable) of the 'i'th column
-** of the result set of SQL statement pStmt.
-*/
-        public static string sqlite3_column_decltype(Vdbe pStmt, int N)
+        #endregion
+
+        #region Bind
+        // Routines used to attach values to wildcards in a compiled SQL statement.
+
+        static RC VdbeUnbind(Vdbe p, int i)
         {
-            return columnName(
-            pStmt, N, sqlite3_value_text, COLNAME_DECLTYPE);
-        }
-#if  !SQLITE_OMIT_UTF16
-        //const void *sqlite3_column_decltype16(Vdbe pStmt, int N){
-        //  return columnName(
-        //      pStmt, N, (const void*()(Mem))sqlite3_value_text16, COLNAME_DECLTYPE);
-        //}
-#endif // * SQLITE_OMIT_UTF16 */
-#endif // * SQLITE_OMIT_DECLTYPE */
-
-#if  SQLITE_ENABLE_COLUMN_METADATA
-
-/*
-** Return the name of the database from which a result column derives.
-** NULL is returned if the result column is an expression or constant or
-** anything else which is not an unabiguous reference to a database column.
-*/
-    public static string sqlite3_column_database_name( Vdbe pStmt, int N )
-    {
-      return columnName(
-      pStmt, N, sqlite3_value_text, COLNAME_DATABASE );
-    }
-#if !SQLITE_OMIT_UTF16
-const void *sqlite3_column_database_name16(Vdbe pStmt, int N){
-return columnName(
-pStmt, N, (const void*()(Mem))sqlite3_value_text16, COLNAME_DATABASE);
-}
-#endif //* SQLITE_OMIT_UTF16 */
-
-/*
-** Return the name of the table from which a result column derives.
-** NULL is returned if the result column is an expression or constant or
-** anything else which is not an unabiguous reference to a database column.
-*/
-    public static string sqlite3_column_table_name( Vdbe pStmt, int N )
-    {
-      return columnName(
-      pStmt, N, sqlite3_value_text, COLNAME_TABLE );
-    }
-#if !SQLITE_OMIT_UTF16
-const void *sqlite3_column_table_name16(Vdbe pStmt, int N){
-return columnName(
-pStmt, N, (const void*()(Mem))sqlite3_value_text16, COLNAME_TABLE);
-}
-#endif //* SQLITE_OMIT_UTF16 */
-
-/*
-** Return the name of the table column from which a result column derives.
-** NULL is returned if the result column is an expression or constant or
-** anything else which is not an unabiguous reference to a database column.
-*/
-    public static string sqlite3_column_origin_name( Vdbe pStmt, int N )
-    {
-      return columnName(
-      pStmt, N, sqlite3_value_text, COLNAME_COLUMN );
-    }
-#if !SQLITE_OMIT_UTF16
-const void *sqlite3_column_origin_name16(Vdbe pStmt, int N){
-return columnName(
-pStmt, N, (const void*()(Mem))sqlite3_value_text16, COLNAME_COLUMN);
-}
-#endif ///* SQLITE_OMIT_UTF16 */
-#endif // * SQLITE_ENABLE_COLUMN_METADATA */
-
-
-        /******************************* sqlite3_bind_  ***************************
-**
-** Routines used to attach values to wildcards in a compiled SQL statement.
-*/
-        /*
-        ** Unbind the value bound to variable i in virtual machine p. This is the
-        ** the same as binding a NULL value to the column. If the "i" parameter is
-        ** out of range, then SQLITE_RANGE is returned. Othewise SQLITE_OK.
-        **
-        ** A successful evaluation of this routine acquires the mutex on p.
-        ** the mutex is released if any kind of error occurs.
-        **
-        ** The error code stored in database p.db is overwritten with the return
-        ** value in any case.
-        */
-        public static int vdbeUnbind(Vdbe p, int i)
-        {
-            Mem pVar;
             if (VdbeSafetyNotNull(p))
+                return SysEx.MISUSE_BKPT();
+            MutexEx.Enter(p.Ctx.Mutex);
+            if (p.Magic != VDBE_MAGIC_RUN || p.PC >= 0)
             {
-                return SQLITE_MISUSE_BKPT();
+                SysEx.Error(p.Ctx, RC.MISUSE, 0);
+                MutexEx.Leave(p.Ctx.Mutex);
+                SysEx.LOG(RC.MISUSE, "bind on a busy prepared statement: [%s]", p.Sql);
+                return SysEx.MISUSE_BKPT();
             }
-            sqlite3_mutex_enter(p.db.mutex);
-            if (p.magic != VDBE_MAGIC_RUN || p.pc >= 0)
+            if (i < 1 || i > p.Vars)
             {
-                sqlite3Error(p.db, SQLITE_MISUSE, 0);
-                sqlite3_mutex_leave(p.db.mutex);
-                sqlite3_log(SQLITE_MISUSE,
-                "bind on a busy prepared statement: [%s]", p.zSql);
-                return SQLITE_MISUSE_BKPT();
-            }
-            if (i < 1 || i > p.nVar)
-            {
-                sqlite3Error(p.db, SQLITE_RANGE, 0);
-                sqlite3_mutex_leave(p.db.mutex);
-                return SQLITE_RANGE;
+                SysEx.Error(p.Ctx, RC.RANGE, 0);
+                MutexEx.Leave(p.Ctx.Mutex);
+                return RC.RANGE;
             }
             i--;
-            pVar = p.aVar[i];
-            sqlite3VdbeMemRelease(pVar);
-            pVar.flags = MEM_Null;
-            sqlite3Error(p.db, SQLITE_OK, 0);
+            Mem var = p.Vars[i];
+            MemRelease(var);
+            var.Flags = MEM.Null;
+            SysEx.Error(p.Ctx, RC.OK, 0);
 
-            /* If the bit corresponding to this variable in Vdbe.expmask is set, then 
-            ** binding a new value to this variable invalidates the current query plan.
-            **
-            ** IMPLEMENTATION-OF: R-48440-37595 If the specific value bound to host
-            ** parameter in the WHERE clause might influence the choice of query plan
-            ** for a statement, then the statement will be automatically recompiled,
-            ** as if there had been a schema change, on the first sqlite3_step() call
-            ** following any change to the bindings of that parameter.
-            */
-            if (p.isPrepareV2 &&
-            ((i < 32 && p.expmask != 0 & ((u32)1 << i) != 0) || p.expmask == 0xffffffff)
-            )
-            {
-                p.expired = true;
-            }
-
-            return SQLITE_OK;
+            // If the bit corresponding to this variable in Vdbe.expmask is set, then binding a new value to this variable invalidates the current query plan.
+            //
+            // IMPLEMENTATION-OF: R-48440-37595 If the specific value bound to host parameter in the WHERE clause might influence the choice of query plan
+            // for a statement, then the statement will be automatically recompiled, as if there had been a schema change, on the first sqlite3_step() call
+            // following any change to the bindings of that parameter.
+            if (p.IsPrepareV2 && ((i < 32 && p.Expmask != 0 & ((uint)1 << i) != 0) || p.Expmask == 0xffffffff))
+                p.Expired = true;
+            return RC.OK;
         }
 
-        /*
-        ** Bind a text or BLOB value.
-        */
-        static int bindBlob(
-        Vdbe pStmt,   /* The statement to bind against */
-        int i,                /* Index of the parameter to bind */
-        byte[] zData,         /* Pointer to the data to be bound */
-        int nData,            /* Number of bytes of data to be bound */
-        dxDel xDel,           /* Destructor for the data */
-        u8 encoding          /* Encoding for the data */
-        )
+        static RC BindText(Vdbe p, int i, byte[] z, int n, Action<byte[]> del, TEXTENCODE encoding)
         {
-            Vdbe p = pStmt;
-            Mem pVar;
-            int rc;
-
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
             {
-                if (zData != null)
+                if (z != null)
                 {
-                    pVar = p.aVar[i - 1];
-                    rc = sqlite3VdbeMemSetBlob(pVar, zData, nData, encoding, xDel);
-                    if (rc == SQLITE_OK && encoding != 0)
-                    {
-                        rc = sqlite3VdbeChangeEncoding(pVar, ENC(p.db));
-                    }
-                    sqlite3Error(p.db, rc, 0);
-                    rc = sqlite3ApiExit(p.db, rc);
+                    Mem var = p.Vars[i - 1];
+                    rc = MemSetBlob(var, z, n, encoding, del);
+                    if (rc == RC.OK && encoding != 0)
+                        rc = ChangeEncoding(var, E.CTXENCODE(p.Ctx));
+                    SysEx.Error(p.Ctx, rc, 0);
+                    rc = SysEx.ApiExit(p.Ctx, rc);
                 }
-                sqlite3_mutex_leave(p.db.mutex);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
+            else if (del != null)
+                del(z);
             return rc;
         }
 
-        /*
-        ** Bind a text value.
-        */
-        public static int bindText(
-        Vdbe pStmt,   /* The statement to bind against */
-        int i,                /* Index of the parameter to bind */
-        string zData,         /* Pointer to the data to be bound */
-        int nData,            /* Number of bytes of data to be bound */
-        dxDel xDel,           /* Destructor for the data */
-        u8 encoding          /* Encoding for the data */
-        )
+        static RC BindText(Vdbe p, int i, string z, int n, Action<string> del, TEXTENCODE encoding)
         {
-            Vdbe p = pStmt;
-            Mem pVar;
-            int rc;
-
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
             {
-                if (zData != null)
+                if (z != null)
                 {
-                    pVar = p.aVar[i - 1];
-                    rc = sqlite3VdbeMemSetStr(pVar, zData, nData, encoding, xDel);
-                    if (rc == SQLITE_OK && encoding != 0)
-                    {
-                        rc = sqlite3VdbeChangeEncoding(pVar, ENC(p.db));
-                    }
-                    sqlite3Error(p.db, rc, 0);
-                    rc = sqlite3ApiExit(p.db, rc);
+                    Mem var = p.Vars[i - 1];
+                    rc = MemSetStr(var, z, n, encoding, del);
+                    if (rc == RC.OK && encoding != 0)
+                        rc = ChangeEncoding(var, E.CTXENCODE(p.Ctx));
+                    SysEx.Error(p.Ctx, rc, 0);
+                    rc = SysEx.ApiExit(p.Ctx, rc);
                 }
-                sqlite3_mutex_leave(p.db.mutex);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
-            else if (xDel != SQLITE_STATIC && xDel != SQLITE_TRANSIENT)
-            {
-                xDel(ref zData);
-            }
+            else if (del != null)
+                del(z);
             return rc;
         }
 
-        public static int sqlite3_bind_double(Vdbe pStmt, int i, double rValue)
+        public static RC Bind_Blob(Vdbe p, int i, string z, int n, Action<string> del) { return BindText(p, i, z, n, del, (TEXTENCODE)0); }
+        public static RC Bind_Double(Vdbe p, int i, double value)
         {
-            int rc;
-            Vdbe p = pStmt;
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
             {
-                sqlite3VdbeMemSetDouble(p.aVar[i - 1], rValue);
-                sqlite3_mutex_leave(p.db.mutex);
+                MemSetDouble(p.Vars[i - 1], value);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
             return rc;
         }
-
-        public static int sqlite3_bind_int(Vdbe p, int i, int iValue)
+        public static RC Bind_Int(Vdbe p, int i, int value) { return Bind_Int64(p, i, (long)value); }
+        public static RC Bind_Int64(Vdbe p, int i, long value)
         {
-            return sqlite3_bind_int64(p, i, (i64)iValue);
-        }
-
-        public static int sqlite3_bind_int64(Vdbe pStmt, int i, sqlite_int64 iValue)
-        {
-            int rc;
-            Vdbe p = pStmt;
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
             {
-                sqlite3VdbeMemSetInt64(p.aVar[i - 1], iValue);
-                sqlite3_mutex_leave(p.db.mutex);
+                MemSetInt64(p.Vars[i - 1], value);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
             return rc;
         }
-
-        public static int sqlite3_bind_null(Vdbe pStmt, int i)
+        public static RC Bind_Null(Vdbe p, int i)
         {
-            int rc;
-            Vdbe p = (Vdbe)pStmt;
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
-            {
-                sqlite3_mutex_leave(p.db.mutex);
-            }
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
+                MutexEx.Leave(p.Ctx.Mutex);
             return rc;
         }
 
-        public static int sqlite3_bind_text(
-        Vdbe pStmt,
-        int i,
-        string zData,
-        int nData,
-        dxDel xDel
-        )
-        {
-            return bindText(pStmt, i, zData, nData, xDel, SQLITE_UTF8);
-        }
+        public static RC Bind_Text(Vdbe p, int i, string z, int n, Action<string> del) { return BindText(p, i, z, n, del, TEXTENCODE.UTF8); }
+        public static RC Bind_Blob(Vdbe p, int i, byte[] z, int n, Action<string> del) { return BindText(p, i, z, n >= 0 ? n : z.Length, del, (TEXTENCODE)0); }
+#if !OMIT_UTF16
+        public static RC Bind_Text16(Vdbe p, int i, string z, int n, Action<string> del) { return BindText(p, i, z, n, del, TEXTENCODE.UTF16NATIVE); }
+#endif
 
-        public static int sqlite3_bind_blob(
-        Vdbe pStmt,
-        int i,
-        byte[] zData,
-        int nData,
-        dxDel xDel
-        )
+        public static RC Bind_Value(Vdbe p, int i, Mem value)
         {
-            return bindBlob(pStmt, i, zData, nData >= 0 ? nData : zData.Length, xDel, 0);
-        }
-
-#if  !SQLITE_OMIT_UTF16
-        static int sqlite3_bind_text16(
-        Vdbe pStmt,
-        int i,
-        string zData,
-        int nData,
-        dxDel xDel
-        )
-        {
-            return bindText(pStmt, i, zData, nData, xDel, SQLITE_UTF16NATIVE);
-        }
-#endif // * SQLITE_OMIT_UTF16 */
-
-        public static int sqlite3_bind_value(Vdbe pStmt, int i, Mem pValue)
-        {
-            int rc;
-            switch (pValue.type)
+            RC rc;
+            switch (value.Type)
             {
-                case SQLITE_INTEGER:
+                case TYPE.INTEGER:
                     {
-                        rc = sqlite3_bind_int64(pStmt, i, pValue.u.i);
+                        rc = Bind_Int64(p, i, value.u.I);
                         break;
                     }
-                case SQLITE_FLOAT:
+                case TYPE.FLOAT:
                     {
-                        rc = sqlite3_bind_double(pStmt, i, pValue.r);
+                        rc = Bind_Double(p, i, value.R);
                         break;
                     }
-                case SQLITE_BLOB:
+                case TYPE.BLOB:
                     {
-                        if ((pValue.flags & MEM_Zero) != 0)
-                        {
-                            rc = sqlite3_bind_zeroblob(pStmt, i, pValue.u.nZero);
-                        }
+                        if ((value.Flags & MEM.Zero) != 0)
+                            rc = Bind_Zeroblob(p, i, value.u.Zero);
                         else
-                        {
-                            rc = sqlite3_bind_blob(pStmt, i, pValue.zBLOB, pValue.n, SQLITE_TRANSIENT);
-                        }
+                            rc = Bind_Blob(p, i, value.ZBLOB, value.N, DESTRUCTOR_TRANSIENT);
                         break;
                     }
-                case SQLITE_TEXT:
+                case TYPE.TEXT:
                     {
-                        rc = bindText(pStmt, i, pValue.z, pValue.n, SQLITE_TRANSIENT,
-                        pValue.enc);
+                        rc = BindText(p, i, value.Z, value.N, DESTRUCTOR_TRANSIENT, value.Encode);
                         break;
                     }
                 default:
                     {
-                        rc = sqlite3_bind_null(pStmt, i);
+                        rc = Bind_Null(p, i);
                         break;
                     }
             }
             return rc;
         }
 
-        public static int sqlite3_bind_zeroblob(Vdbe pStmt, int i, int n)
+        public static RC Bind_Zeroblob(Vdbe p, int i, int n)
         {
-            int rc;
-            Vdbe p = pStmt;
-            rc = vdbeUnbind(p, i);
-            if (rc == SQLITE_OK)
+            RC rc = VdbeUnbind(p, i);
+            if (rc == RC.OK)
             {
-                sqlite3VdbeMemSetZeroBlob(p.aVar[i - 1], n);
-                sqlite3_mutex_leave(p.db.mutex);
+                MemSetZeroBlob(p.Vars[i - 1], n);
+                MutexEx.Leave(p.Ctx.Mutex);
             }
             return rc;
         }
 
-        /*
-        ** Return the number of wildcards that can be potentially bound to.
-        ** This routine is added to support DBD::SQLite.
-        */
-        public static int sqlite3_bind_parameter_count(Vdbe pStmt)
-        {
-            Vdbe p = (Vdbe)pStmt;
-            return (p != null) ? (int)p.nVar : 0;
-        }
+        public static int Bind_ParameterCount(Vdbe p) { return (p != null ? (int)p.Vars.length : 0); }
+        public static string Bind_ParameterName(Vdbe p, int i) { return (p == null || i < 1 || i > p.VarNames.length ? null : p.VarNames[i - 1]); }
 
-        /*
-        ** Return the name of a wildcard parameter.  Return NULL if the index
-        ** is out of range or if the wildcard is unnamed.
-        **
-        ** The result is always UTF-8.
-        */
-        public static string sqlite3_bind_parameter_name(Vdbe pStmt, int i)
+        public static int ParameterIndex(Vdbe p, string name, int nameLength)
         {
-            Vdbe p = (Vdbe)pStmt;
-            if (p == null || i < 1 || i > p.nzVar)
-            {
-                return "";
-            }
-            return p.azVar[i - 1];
-        }
-
-        /*
-        ** Given a wildcard parameter name, return the index of the variable
-        ** with that name.  If there is no variable with the given name,
-        ** return 0.
-        */
-        public static int sqlite3VdbeParameterIndex(Vdbe p, string zName, int nName)
-        {
-            int i;
             if (p == null)
-            {
                 return 0;
-            }
-            if (zName != null && zName != "")
+            if (name != null)
             {
-                for (i = 0; i < p.nzVar; i++)
+                for (int i = 0; i < p.VarNames.length; i++)
                 {
-                    string z = p.azVar[i];
-                    if (z != null && z == zName)//&& memcmp(z,zName,nName)==0 && z[nName]==0)
-                    {
+                    string z = p.VarNames[i];
+                    if (z != null && z == name)
                         return i + 1;
-                    }
                 }
             }
             return 0;
         }
-
-        public static int sqlite3_bind_parameter_index(Vdbe pStmt, string zName)
+        public static int Bind_ParameterIndex(Vdbe p, string name) { return ParameterIndex(p, name, name.Length); }
+        public static RC TransferBindings(Vdbe from, Vdbe to)
         {
-            return sqlite3VdbeParameterIndex((Vdbe)pStmt, zName, sqlite3Strlen30(zName));
+            Debug.Assert(to.Ctx == from.Ctx);
+            Debug.Assert(to.Vars.length == from.Vars.length);
+            MutexEx.Enter(to.Ctx.Mutex);
+            for (int i = 0; i < from.Vars.length; i++)
+                MemMove(to.Vars[i], from.Vars[i]);
+            MutexEx.Leave(to.Ctx.Mutex);
+            return RC.OK;
         }
 
-        /*
-        ** Transfer all bindings from the first statement over to the second.
-        */
-        public static int sqlite3TransferBindings(Vdbe pFromStmt, Vdbe pToStmt)
+        #endregion
+
+        #region Stmt
+
+        public static Context Stmt_Ctx(Vdbe p) { return (p != null ? p.Ctx : null); }
+        public static bool Stmt_Readonly(Vdbe p) { return (p != null ? p.ReadOnly : true); }
+        public static bool Stmt_Busy(Vdbe p) { return (p != null && p.PC > 0 && p.Magic == VDBE_MAGIC_RUN); }
+        public static Vdbe Stmt_Next(Context ctx, Vdbe p)
         {
-            Vdbe pFrom = (Vdbe)pFromStmt;
-            Vdbe pTo = (Vdbe)pToStmt;
-            int i;
-            Debug.Assert(pTo.db == pFrom.db);
-            Debug.Assert(pTo.nVar == pFrom.nVar);
-            sqlite3_mutex_enter(pTo.db.mutex);
-            for (i = 0; i < pFrom.nVar; i++)
-            {
-                sqlite3VdbeMemMove(pTo.aVar[i], pFrom.aVar[i]);
-            }
-            sqlite3_mutex_leave(pTo.db.mutex);
-            return SQLITE_OK;
+            MutexEx.Enter(ctx.Mutex);
+            Vdbe next = (p == null ? ctx.Vdbe[0] : p.Next);
+            MutexEx.Leave(ctx.Mutex);
+            return next;
         }
-
-#if !SQLITE_OMIT_DEPRECATED
-        /*
-** Deprecated external interface.  Internal/core SQLite code
-** should call sqlite3TransferBindings.
-**
-** Is is misuse to call this routine with statements from different
-** database connections.  But as this is a deprecated interface, we
-** will not bother to check for that condition.
-**
-** If the two statements contain a different number of bindings, then
-** an SQLITE_ERROR is returned.  Nothing else can go wrong, so otherwise
-** SQLITE_OK is returned.
-*/
-        static int sqlite3_transfer_bindings(Vdbe pFromStmt, Vdbe pToStmt)
+        public static int Stmt_Status(Vdbe p, OP op, bool resetFlag)
         {
-            Vdbe pFrom = (Vdbe)pFromStmt;
-            Vdbe pTo = (Vdbe)pToStmt;
-            if (pFrom.nVar != pTo.nVar)
-            {
-                return SQLITE_ERROR;
-            }
-            if (pTo.isPrepareV2 && pTo.expmask)
-            {
-                pTo.expired = 1;
-            }
-            if (pFrom.isPrepareV2 && pFrom.expmask)
-            {
-                pFrom.expired = 1;
-            }
-            return sqlite3TransferBindings(pFromStmt, pToStmt);
-        }
-#endif
-
-        /*
-** Return the sqlite3* database handle to which the prepared statement given
-** in the argument belongs.  This is the same database handle that was
-** the first argument to the sqlite3_prepare() that was used to create
-** the statement in the first place.
-*/
-        public static sqlite3 sqlite3_db_handle(Vdbe pStmt)
-        {
-            return pStmt != null ? ((Vdbe)pStmt).db : null;
-        }
-
-
-        /*
-        ** Return true if the prepared statement is guaranteed to not modify the
-        ** database.
-        */
-        static bool sqlite3_stmt_readonly(Vdbe pStmt)
-        {
-            return pStmt != null ? ((Vdbe)pStmt).readOnly : true;
-        }
-
-        /*
-        ** Return a pointer to the next prepared statement after pStmt associated
-        ** with database connection pDb.  If pStmt is NULL, return the first
-        ** prepared statement for the database connection.  Return NULL if there
-        ** are no more.
-        */
-
-        public static Vdbe sqlite3_next_stmt(sqlite3 pDb, Vdbe pStmt)
-        {
-            Vdbe pNext;
-            sqlite3_mutex_enter(pDb.mutex);
-            if (pStmt == null)
-            {
-                pNext = (Vdbe)pDb.pVdbe;
-            }
-            else
-            {
-                pNext = (Vdbe)((Vdbe)pStmt).pNext;
-            }
-            sqlite3_mutex_leave(pDb.mutex);
-            return pNext;
-        }
-        /*
-        ** Return the value of a status counter for a prepared statement
-        */
-        public static int sqlite3_stmt_status(Vdbe pStmt, int op, int resetFlag)
-        {
-            Vdbe pVdbe = (Vdbe)pStmt;
-            int v = pVdbe.aCounter[op - 1];
-            if (resetFlag != 0)
-                pVdbe.aCounter[op - 1] = 0;
+            int v = p.Counters[(int)op - 1];
+            if (resetFlag) p.Counters[(int)op - 1] = 0;
             return v;
         }
+
+        #endregion
     }
 }

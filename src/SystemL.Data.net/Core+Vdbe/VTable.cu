@@ -152,7 +152,7 @@ namespace Core
 	{
 		int i = table->ModuleArgs.length++;
 		int bytes = sizeof(char *) * (1 + table->ModuleArgs.length);
-		char **moduleArgs = (char **)SysEx::TagRealloc(ctx, table->ModuleArgs, bytes);
+		char **moduleArgs = (char **)_tagrealloc(ctx, table->ModuleArgs, bytes);
 		if (!moduleArgs)
 		{
 			for (int j = 0; j < i; j++)
@@ -184,7 +184,7 @@ namespace Core
 		table->ModuleArgs.length = 0;
 		AddModuleArgument(ctx, table, sqlite3NameFromToken(ctx, moduleName));
 		AddModuleArgument(ctx, table, 0);
-		AddModuleArgument(ctx, table, SysEx::TagStrDup(ctx, table->Name));
+		AddModuleArgument(ctx, table, _tagstrdup(ctx, table->Name));
 		parse->NameToken.length = (int)(&moduleName[moduleName->length] - name1);
 
 #ifndef OMIT_AUTHORIZATION
@@ -202,7 +202,7 @@ namespace Core
 			const char *z = (const char*)parse->Arg;
 			int length = parse->Arg.length;
 			Context *ctx = parse->Ctx;
-			AddModuleArgument(ctx, parse->NewTable, SysEx::TagStrNDup(ctx, z, length));
+			AddModuleArgument(ctx, parse->NewTable, _tagstrndup(ctx, z, length));
 		}
 	}
 
@@ -225,7 +225,7 @@ namespace Core
 			// Compute the complete text of the CREATE VIRTUAL TABLE statement
 			if (end)
 				parse->NameToken.length = (int)(end->data - parse->NameToken) + end->length;
-			char *stmt = SysEx::Mprintf(ctx, "CREATE VIRTUAL TABLE %T", &parse->NameToken);
+			char *stmt = _mprintf(ctx, "CREATE VIRTUAL TABLE %T", &parse->NameToken);
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
 			// the information we've collected.  
@@ -247,7 +247,7 @@ namespace Core
 			sqlite3ChangeCookie(parse, dbidx);
 
 			Vdbe::AddOp2(v, OP_Expire, 0, 0);
-			char *where = SysEx::Mprintf(ctx, "name='%q' AND type='table'", table->Name);
+			char *where = _mprintf(ctx, "name='%q' AND type='table'", table->Name);
 			Vdbe::AddParseSchemaOp(v, dbidx, where);
 			Vdbe::AddOp4(v, OP_VCreate, dbidx, 0, 0, table->Name, _strlen30(table->Name) + 1);
 		}
@@ -297,7 +297,7 @@ namespace Core
 
 	__device__ static RC VTableCallConstructor(Context *ctx,  Table *table, TableModule *module, RC (*construct)(Context *, void *, int, const char *const*, IVTable **, char**), char **perror)
 	{
-		char *moduleName = SysEx::Mprintf(ctx, "%s", table->Name);
+		char *moduleName = _mprintf(ctx, "%s", table->Name);
 		if (!moduleName)
 			return RC_NOMEM;
 
@@ -332,10 +332,10 @@ namespace Core
 		if (rc != RC_OK)
 		{
 			if (!error)
-				*perror = SysEx::Mprintf(ctx, "vtable constructor failed: %s", moduleName);
+				*perror = _mprintf(ctx, "vtable constructor failed: %s", moduleName);
 			else
 			{
-				*perror = SysEx::Mprintf(ctx, "%s", error);
+				*perror = _mprintf(ctx, "%s", error);
 				_free(error);
 			}
 			_tagfree(ctx, vtable);
@@ -347,7 +347,7 @@ namespace Core
 			vtable->Refs = 1;
 			if (vtableCtx.Table)
 			{
-				*perror = SysEx::Mprintf(ctx, "vtable constructor did not declare schema: %s", table->Name);
+				*perror = _mprintf(ctx, "vtable constructor did not declare schema: %s", table->Name);
 				vtable->Unlock();
 				rc = RC_ERROR;
 			}
@@ -424,7 +424,7 @@ namespace Core
 		if ((ctx->VTrans.length % ARRAY_INCR) == 0)
 		{
 			int bytes = sizeof(IVTable *) * (ctx->VTrans.length + ARRAY_INCR);
-			VTable **vtrans = (VTable **)SysEx::TagRealloc(ctx, (void *)ctx->VTrans, bytes);
+			VTable **vtrans = (VTable **)_tagrealloc(ctx, (void *)ctx->VTrans, bytes);
 			if (!vtrans)
 				return RC_NOMEM;
 			_memset(&vtrans[ctx->VTrans.length], 0, sizeof(IVTable *) * ARRAY_INCR);
@@ -455,7 +455,7 @@ namespace Core
 		RC rc = RC_OK;
 		if (!module)
 		{
-			*error = SysEx::Mprintf(ctx, "no such module: %s", moduleName);
+			*error = _mprintf(ctx, "no such module: %s", moduleName);
 			rc = RC_ERROR;
 		}
 		else
@@ -586,7 +586,7 @@ namespace Core
 			{
 				rc = x(ivtable);
 				_tagfree(ctx, *error);
-				*error = SysEx::TagStrDup(ctx, ivtable->ErrMsg);
+				*error = _tagstrdup(ctx, ivtable->ErrMsg);
 				_free(ivtable->ErrMsg);
 			}
 		}
@@ -682,7 +682,7 @@ namespace Core
 		if (imodule->FindFunction == nullptr) return def;
 
 		// Call the xFindFunction method on the virtual table implementation to see if the implementation wants to overload this function 
-		char *lowerName = SysEx::TagStrDup(ctx, def->Name);
+		char *lowerName = _tagstrdup(ctx, def->Name);
 		RC rc = RC_OK;
 		void (*func)(FuncContext *, int, Mem **) = nullptr;
 		void *args = nullptr;

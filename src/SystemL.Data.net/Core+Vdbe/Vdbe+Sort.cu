@@ -101,7 +101,7 @@ namespace Core
 			{
 				int newSize = p->Alloc.length * 2;
 				while (bytes > newSize) newSize = newSize * 2;
-				p->Alloc = (uint8 *)SysEx::TagRealloc(db, p->Alloc, newSize);
+				p->Alloc = (uint8 *)_tagrealloc(db, p->Alloc, newSize);
 				if (!p->Alloc) return RC_NOMEM;
 				p->Alloc.length = newSize;
 			}

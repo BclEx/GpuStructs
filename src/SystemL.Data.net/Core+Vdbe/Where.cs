@@ -2682,7 +2682,7 @@ namespace Core
                 if (level.u.in_.InLoops.length == 0)
                     level.AddrNxt = v.MakeLabel();
                 level.u.in_.InLoops.length++;
-                //: level->u.in.InLoops = SysEx::TagRellocOrFree(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
+                //: level->u.in.InLoops = _tagrelloc_or_free(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
                 if (level.u.in_.InLoops.data == null)
                     level.u.in_.InLoops.data = new WhereLevel.InLoop[level.u.in_.InLoops.length];
                 else

@@ -96,10 +96,10 @@ namespace Core.Command
         };
 
 #if ENABLE_STAT3
-        static void Stat3Init_(FuncContext funcCtx, int argc, Mem[][] argv)
+        static void Stat3Init_(FuncContext fctx, int argc, Mem[][] argv)
         {
-            tRowcnt rows = (tRowcnt)sqlite3_value_int64(argv[0]);
-            int maxSamples = sqlite3_value_int(argv[1]);
+            tRowcnt rows = (tRowcnt)Vdbe.Value_Int64(argv[0]);
+            int maxSamples = Vdbe.Value_Int(argv[1]);
             int n = maxSamples;
             Stat3Accum p = new Stat3Accum
             {
@@ -110,11 +110,11 @@ namespace Core.Command
             };
             if (p == null)
             {
-                sqlite3_result_error_nomem(funcCtx);
+                Vdbe.Result_ErrorNoMem(fctx);
                 return;
             }
-            sqlite3_randomness(-1, p.Prn);
-            sqlite3_result_blob(funcCtx, p, -1, C._free);
+            SysEx.Randomness(-1, p.Prn);
+            Vdbe.Result_Blob(fctx, p, -1, C._free);
         }
         static const FuncDef stat3InitFuncdef = new FuncDef
 	    {
@@ -131,14 +131,14 @@ namespace Core.Command
 		    null                // pDestructor
 	    };
 
-        static void Stat3Push_(FuncContext funcCtx, int argc, Mem[] argv)
+        static void Stat3Push_(FuncContext fctx, int argc, Mem[] argv)
 	    {
-		    tRowcnt eq = sqlite3_value_int64(argv[0]);
+		    tRowcnt eq = Vdbe.Value_Int64(argv[0]);
 		    if (eq == 0) return;
-		    tRowcnt lt = sqlite3_value_int64(argv[1]);
-		    tRowcnt dLt = sqlite3_value_int64(argv[2]);
-		    long rowid = sqlite3_value_int64(argv[3]);
-		    Stat3Accum p = (Stat3Accum)sqlite3_value_blob(argv[4]);
+		    tRowcnt lt = Vdbe.Value_Int64(argv[1]);
+		    tRowcnt dLt = Vdbe.Value_Int64(argv[2]);
+		    long rowid = Vdbe.Value_Int64(argv[3]);
+		    Stat3Accum p = (Stat3Accum)Vdbe.Value_Blob(argv[4]);
 		    bool isPSample = false;
 		    bool doInsert = false;
 		    int min = p.Min;
@@ -151,7 +151,7 @@ namespace Core.Command
 		    if (p.a.length == p.MaxSamples)
 		    {
 			    Debug.Assert(p.a.length - min - 1 >= 0);
-			    _memmove(p.a[min], p.a[min+1], sizeof(p.a[0])*(p.a.length-min-1));
+			    C._memmove(p.a[min], p.a[min+1], sizeof(p.a[0])*(p.a.length-min-1));
 			    sample = p.a[p.a.length-1];
 		    }
 		    else
@@ -206,21 +206,21 @@ namespace Core.Command
 		    null                // pDestructor
 	    };
 
-        static void Stat3Get_(FuncContext funcCtx, int argc, Mem[] argv)
+        static void Stat3Get_(FuncContext fctx, int argc, Mem[] argv)
         {
-            int n = sqlite3_value_int(argv[1]);
-            Stat3Accum p = (Stat3Accum)sqlite3_value_blob(argv[0]);
+            int n = Vdbe.Value_Int(argv[1]);
+            Stat3Accum p = (Stat3Accum)Vdbe.Value_Blob(argv[0]);
             Debug.Assert(p != null);
             if (p.a.length <= n) return;
             switch (argc)
             {
-                case 2: sqlite3_result_int64(funcCtx, p.a[n].Rowid); break;
-                case 3: sqlite3_result_int64(funcCtx, p.a[n].Eq); break;
-                case 4: sqlite3_result_int64(funcCtx, p.a[n].Lt); break;
-                default: sqlite3_result_int64(funcCtx, p.a[n].DLt); break;
+                case 2: Vdbe.Result_Int64(fctx, p.a[n].Rowid); break;
+                case 3: Vdbe.Result_Int64(fctx, p.a[n].Eq); break;
+                case 4: Vdbe.Result_Int64(fctx, p.a[n].Lt); break;
+                default: Vdbe.Result_Int64(fctx, p.a[n].DLt); break;
             }
         }
-        static const FuncDef stat3GetFuncdef = new FuncDef
+        static const FuncDef _stat3GetFuncdef = new FuncDef
 	    {
 		    -1,					// nArg
 		    TEXTENCODE.UTF8,	// iPrefEnc
@@ -297,12 +297,12 @@ namespace Core.Command
                     sqlite3OpenTable(parse, tabCurId, db, table, OP.OpenRead);
                 }
                 v.AddOp2(OP.Count, idxCurId, regCount);
-                v.AddOp2(OP.Integer, SQLITE_STAT3_SAMPLES, regTemp1);
+                v.AddOp2(OP.Integer, STAT3_SAMPLES, regTemp1);
                 v.AddOp2(OP.Integer, 0, regNumEq);
                 v.AddOp2(OP.Integer, 0, regNumLt);
                 v.AddOp2(OP.Integer, -1, regNumDLt);
                 v.AddOp3(OP.Null, 0, regSample, regAccum);
-                v.AddOp4(OP.Function, 1, regCount, regAccum, (object)Stat3InitFuncdef, Vdbe.P4T.FUNCDEF);
+                v.AddOp4(OP.Function, 1, regCount, regAccum, (object)_stat3InitFuncdef, Vdbe.P4T.FUNCDEF);
                 v.ChangeP5(2);
 #endif
 
@@ -628,16 +628,16 @@ namespace Core.Command
             string sql = SysEx.Mprintf(ctx, "SELECT idx,count(*) FROM %Q.sqlite_stat3 GROUP BY idx", dbName); // Text of the SQL statement
             if (!sql)
                 return RC_NOMEM;
-            sqlite3_stmt stmt = null; // An SQL statement being run
-            RC rc = sqlite3_prepare(ctx, sql, -1, stmt, 0); // Result codes from subroutines
+            Vdbe stmt = null; // An SQL statement being run
+            RC rc = Vdbe.Prepare(ctx, sql, -1, stmt, 0); // Result codes from subroutines
             C._tagfree(ctx, sql);
             if (rc) return rc;
 
-            while (sqlite3_step(stmt) == SQLITE_ROW)
+            while (stmt.Step() == RC.ROW)
             {
-                string indexName = (string)sqlite3_column_text(stmt, 0); // Index name
+                string indexName = (string)Vdbe.Column_Text(stmt, 0); // Index name
                 if (!indexName) continue;
-                int samplesLength = sqlite3_column_int(stmt, 1); // Number of samples
+                int samplesLength = Vdbe.Column_Int(stmt, 1); // Number of samples
                 Index idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
                 if (!idx) continue;
                 _assert(idx->Samples.length == 0);
@@ -647,26 +647,25 @@ namespace Core.Command
                 if (!idx->Samples.data)
                 {
                     ctx->MallocFailed = true;
-                    sqlite3_finalize(stmt);
-                    return RC_NOMEM;
+                    Vdbe.Finalize(stmt);
+                    return RC.NOMEM;
                 }
             }
-            rc = sqlite3_finalize(stmt);
+            rc = Vdbe.Finalize(stmt);
             if (rc) return rc;
 
-            sql = SysEx.Mprintf(ctx,
-                "SELECT idx,neq,nlt,ndlt,sample FROM %Q.sqlite_stat3", dbName);
+            sql = C._mtagprintf(ctx, "SELECT idx,neq,nlt,ndlt,sample FROM %Q.sqlite_stat3", dbName);
             if (!sql)
-                return RC_NOMEM;
-            rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0);
+                return RC.NOMEM;
+            rc = Vdbe.Prepare(ctx, sql, -1, &stmt, 0);
             C._tagfree(ctx, sql);
             if (rc) return rc;
 
             Index prevIdx = null; // Previous index in the loop
             int idxId = 0; // slot in pIdx->aSample[] for next sample
-            while (sqlite3_step(stmt) == SQLITE_ROW)
+            while (stmt.Step() == RC.ROW)
             {
-                string indexName = (string)sqlite3_column_text(stmt, 0); // Index name
+                string indexName = (string)Vdbe.Column_Text(stmt, 0); // Index name
                 if (indexName == null) continue;
                 Index idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
                 if (idx == null) continue;
@@ -679,9 +678,9 @@ namespace Core.Command
                 }
                 Debug.Assert(idxId < idx.Samples.length);
                 IndexSample sample = idx.Samples[idxId]; // A slot in pIdx->aSample[]
-                sample.Eq = (tRowcnt)sqlite3_column_int64(stmt, 1);
-                sample.Lt = (tRowcnt)sqlite3_column_int64(stmt, 2);
-                sample.DLt = (tRowcnt)sqlite3_column_int64(stmt, 3);
+                sample.Eq = (tRowcnt)Vdbe.Column_Int64(stmt, 1);
+                sample.Lt = (tRowcnt)Vdbe.Column_Int64(stmt, 2);
+                sample.DLt = (tRowcnt)Vdbe.Column_Int64(stmt, 3);
                 if (idxId == idx.Samples.length - 1)
                 {
                     tRowcnt sumEq;  // Sum of the nEq values
@@ -692,18 +691,18 @@ namespace Core.Command
                     }
                     if (idx.AvgEq <= 0) idx.AvgEq = 1;
                 }
-                TYPE type = sqlite3_column_type(stmt, 4); // Datatype of a sample
+                TYPE type = Vdbe.Column_Type(stmt, 4); // Datatype of a sample
                 sample.Type = type;
                 switch (type)
                 {
                     case TYPE.INTEGER:
                         {
-                            sample.u.I = sqlite3_column_int64(stmt, 4);
+                            sample.u.I = Vdbe.Column_Int64(stmt, 4);
                             break;
                         }
                     case TYPE.FLOAT:
                         {
-                            sample.u.R = sqlite3_column_double(stmt, 4);
+                            sample.u.R = Vdbe.Column_Double(stmt, 4);
                             break;
                         }
                     case TYPE.NULL:
@@ -712,8 +711,8 @@ namespace Core.Command
                         }
                     default: Debug.Assert(type == TYPE.TEXT || type == TYPE.BLOB);
                         {
-                            string z = (string)(type == TYPE_BLOB ? sqlite3_column_blob(stmt, 4) : sqlite3_column_text(stmt, 4));
-                            int n = (z ? sqlite3_column_bytes(stmt, 4) : 0);
+                            string z = (string)(type == TYPE_BLOB ? Vdbe.Column_Blob(stmt, 4) : Vdbe.Column_Text(stmt, 4));
+                            int n = (z ? Vdbe.Column_Bytes(stmt, 4) : 0);
                             sample.Bytes = n;
                             if (n < 1)
                                 sample.u.Z = null;
@@ -723,7 +722,7 @@ namespace Core.Command
                                 if (sample->u.Z == null)
                                 {
                                     ctx.MallocFailed = true;
-                                    sqlite3_finalize(stmt);
+                                    Vdbe.Finalize(stmt);
                                     return RC.NOMEM;
                                 }
                                 Buffer.BlockCopy(sample.u.Z, z, n);
@@ -731,7 +730,7 @@ namespace Core.Command
                         }
                 }
             }
-            return sqlite3_finalize(stmt);
+            return Vdbe.Finalize(stmt);
         }
 #endif
         public static RC AnalysisLoad(Context ctx, int db)
@@ -757,13 +756,12 @@ namespace Core.Command
                 return RC.ERROR;
 
             // Load new statistics out of the sqlite_stat1 table
-            string sql = SysEx.Mprintf(ctx,
-                "SELECT tbl, idx, stat FROM %Q.sqlite_stat1", sInfo.Database);
+            string sql = C._mtagprintf(ctx, "SELECT tbl, idx, stat FROM %Q.sqlite_stat1", sInfo.Database);
             if (sql == null)
                 rc = RC.NOMEM;
             else
             {
-                rc = sqlite3_exec(ctx, sql, AnalysisLoader, sInfo, 0);
+                rc = Vdbe.Exec(ctx, sql, AnalysisLoader, sInfo, 0);
                 C._tagfree(ctx, ref sql);
             }
 

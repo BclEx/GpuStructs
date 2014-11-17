@@ -146,12 +146,50 @@ namespace Core
         public object Filler;           // So that sizeof(Mem) is a multiple of 8
 #endif
         public Action<object> Del;      // If not null, call this function to delete Mem.z
+
         // Needed for C# Implementation
-        public Mem _Mem;                // Used when C# overload Z as MEM space
-        //public SumCtx _SumCtx;        // Used when C# overload Z as Sum context
-        public Vdbe.SubProgram[] _SubProgram;   // Used when C# overload Z as SubProgram
-        public Text.StringBuilder _StrAccum;    // Used when C# overload Z as STR context
-        public object _MD5Context;    // Used when C# overload Z as MD5 context
+        #region Needed for C# Implementation
+        Mem Mem_;                // Used when C# overload Z as MEM space
+        public static Mem ToMem_(Mem mem)
+        {
+            if (mem == null) return null;
+            if (mem.Mem_ == null)
+                mem.Mem_ = new Mem();
+            return mem.Mem_;
+        }
+        Command.Func.SumCtx SumCtx_; // Used when C# overload Z as Sum context
+        public static Command.Func.SumCtx ToSumCtx_(Mem mem)
+        {
+            if (mem == null) return null;
+            if (mem.SumCtx_ == null)
+                mem.SumCtx_ = new Command.Func.SumCtx();
+            return mem.SumCtx_;
+        }
+        Vdbe.SubProgram[] SubProgram_;   // Used when C# overload Z as SubProgram
+        public static Vdbe.SubProgram[] ToSubProgram_(Mem mem, int size)
+        {
+            if (mem == null) return null;
+            if (mem.SubProgram_ == null)
+                mem.SubProgram_ = new Vdbe.SubProgram[size];
+            return mem.SubProgram_;
+        }
+        TextBuilder TextBuilder_;    // Used when C# overload Z as STR context
+        public static TextBuilder ToTextBuilder_(Mem mem, int maxSize)
+        {
+            if (mem == null) return null;
+            if (mem.TextBuilder_ == null)
+                mem.TextBuilder_ = new TextBuilder(maxSize);
+            return mem.TextBuilder_;
+        }
+        object MD5Context_;    // Used when C# overload Z as MD5 context
+        public static object ToMD5Context_(Mem mem, Func<object> func)
+        {
+            if (mem == null) return null;
+            if (mem.MD5Context_ == null)
+                mem.MD5Context_ = func();
+            return mem.MD5Context_;
+        }
+        #endregion
 
         static void MemSetTypeFlag(Mem p, MEM f) { p.Flags = (p.Flags & ~(MEM.TypeMask | MEM.Zero) | f); }
 
@@ -163,7 +201,7 @@ namespace Core
 
         public string GetBlob()
         {
-            if (Flags & (MEM.Blob | MEM.Str))
+            if ((Flags & (MEM.Blob | MEM.Str)) != 0)
             {
                 sqlite3VdbeMemExpandBlob(p);
                 Flags &= ~MEM.Str;
@@ -177,7 +215,7 @@ namespace Core
         public double GetDouble() { return sqlite3VdbeRealValue(this); }
         public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
         public long GetInt64() { return sqlite3VdbeIntValue(this); }
-        public string GetText() { return (const unsigned char *)Mem_Text(this, TEXTENCODE.UTF8); }
+        public string GetText() { return (string)Mem_Text(this, TEXTENCODE.UTF8); }
 #if !OMIT_UTF16
         public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
         public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
@@ -235,7 +273,7 @@ namespace Core
     {
         public FuncDef Func;        // Pointer to function information.  MUST BE FIRST
         public VdbeFunc VdbeFunc;   // Auxilary data, if created.
-        public Mem s = new Mem();         // The return value is stored here
+        public Mem S = new Mem();         // The return value is stored here
         public Mem Mem;             // Memory cell used to store aggregate context
         public CollSeq Coll;        // Collating sequence
         public RC IsError;          // Error code returned by the function.
