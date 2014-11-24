@@ -20,29 +20,29 @@ namespace Core.Command
         static void MinMaxFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc > 1);
-            int mask = (sqlite3_user_data(fctx) == 0 ? 0 : -1); // 0 for min() or 0xffffffff for max()
+            int mask = (Vdbe.User_Data(fctx) == null ? 0 : -1); // 0 for min() or 0xffffffff for max()
             CollSeq coll = GetFuncCollSeq(fctx);
             Debug.Assert(coll != null);
             Debug.Assert(mask == -1 || mask == 0);
             C.ASSERTCOVERAGE(mask == 0);
             int best = 0;
-            if (sqlite3_value_type(argv[0]) == TYPE.NULL) return;
+            if (Vdbe.Value_Type(argv[0]) == TYPE.NULL) return;
             for (int i = 1; i < argc; i++)
             {
-                if (sqlite3_value_type(argv[i]) == TYPE.NULL) return;
+                if (Vdbe.Value_Type(argv[i]) == TYPE.NULL) return;
                 if ((sqlite3MemCompare(argv[best], argv[i], coll) ^ mask) >= 0)
                 {
                     C.ASSERTCOVERAGE(mask == 0);
                     best = i;
                 }
             }
-            sqlite3_result_value(fctx, argv[best]);
+            Vdbe.Result_Value(fctx, argv[best]);
         }
 
         static void TypeofFunc(FuncContext fctx, int notUsed1, Mem[] argv)
         {
             string z;
-            switch (sqlite3_value_type(argv[0]))
+            switch (Vdbe.Value_Type(argv[0]))
             {
                 case TYPE.INTEGER: z = "integer"; break;
                 case TYPE.TEXT: z = "text"; break;
@@ -50,7 +50,7 @@ namespace Core.Command
                 case TYPE.BLOB: z = "blob"; break;
                 default: z = "null"; break;
             }
-            sqlite3_result_text(fctx, z, -1, DESTRUCTOR_STATIC);
+            Vdbe.Result_Text(fctx, z, -1, C.DESTRUCTOR_STATIC);
         }
 
 
@@ -58,32 +58,32 @@ namespace Core.Command
         {
             int len;
             Debug.Assert(argc == 1);
-            switch (sqlite3_value_type(argv[0]))
+            switch (Vdbe.Value_Type(argv[0]))
             {
                 case TYPE.BLOB:
                 case TYPE.INTEGER:
                 case TYPE.FLOAT:
                     {
-                        sqlite3_result_int(fctx, sqlite3_value_bytes(argv[0]));
+                        Vdbe.Result_Int(fctx, Vdbe.Value_Bytes(argv[0]));
                         break;
                     }
                 case TYPE.TEXT:
                     {
-                        byte[] z = sqlite3_value_blob(argv[0]);
+                        byte[] z = Vdbe.Value_Blob(argv[0]);
                         if (z == null) return;
                         len = 0;
                         int zIdx = 0;
                         while (zIdx < z.Length && z[zIdx] != '\0')
                         {
                             len++;
-                            _strskiputf8(z, ref zIdx);
+                            C._strskiputf8(z, ref zIdx);
                         }
-                        sqlite3_result_int(fctx, len);
+                        Vdbe.Result_Int(fctx, len);
                         break;
                     }
                 default:
                     {
-                        sqlite3_result_null(fctx);
+                        Vdbe.Result_Null(fctx);
                         break;
                     }
             }
@@ -92,38 +92,38 @@ namespace Core.Command
         static void AbsFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            switch (sqlite3_value_type(argv[0]))
+            switch (Vdbe.Value_Type(argv[0]))
             {
                 case TYPE.INTEGER:
                     {
-                        long iVal = sqlite3_value_int64(argv[0]);
-                        if (iVal < 0)
+                        long ival = Vdbe.Value_Int64(argv[0]);
+                        if (ival < 0)
                         {
-                            if ((iVal << 1) == 0)
+                            if ((ival << 1) == 0)
                             {
                                 // IMP: R-35460-15084 If X is the integer -9223372036854775807 then abs(X) throws an integer overflow error since there is no
                                 // equivalent positive 64-bit two complement value.
-                                sqlite3_result_error(fctx, "integer overflow", -1);
+                                Vdbe.Result_Error(fctx, "integer overflow", -1);
                                 return;
                             }
-                            iVal = -iVal;
+                            ival = -ival;
                         }
-                        sqlite3_result_int64(fctx, iVal);
+                        Vdbe.Result_Int64(fctx, ival);
                         break;
                     }
                 case TYPE.NULL:
                     {
                         // IMP: R-37434-19929 Abs(X) returns NULL if X is NULL.
-                        sqlite3_result_null(fctx);
+                        Vdbe.Result_Null(fctx);
                         break;
                     }
                 default:
                     {
                         // Because sqlite3_value_double() returns 0.0 if the argument is not something that can be converted into a number, we have:
                         // IMP: R-57326-31541 Abs(X) return 0.0 if X is a string or blob that cannot be converted to a numeric value. 
-                        double rVal = sqlite3_value_double(argv[0]);
-                        if (rVal < 0) rVal = -rVal;
-                        sqlite3_result_double(fctx, rVal);
+                        double rval = Vdbe.Value_Double(argv[0]);
+                        if (rval < 0) rval = -rval;
+                        Vdbe.Result_Double(fctx, rval);
                         break;
                     }
             }
@@ -131,28 +131,28 @@ namespace Core.Command
 
         static void InstrFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            TYPE typeHaystack = sqlite3_value_type(argv[0]);
-            TYPE typeNeedle = sqlite3_value_type(argv[1]);
+            TYPE typeHaystack = Vdbe.Value_Type(argv[0]);
+            TYPE typeNeedle = Vdbe.Value_Type(argv[1]);
             if (typeHaystack == TYPE.NULL || typeNeedle == TYPE.NULL) return;
-            int haystackLength = sqlite3_value_bytes(argv[0]);
-            int needleLength = sqlite3_value_bytes(argv[1]);
+            int haystackLength = Vdbe.Value_Bytes(argv[0]);
+            int needleLength = Vdbe.Value_Bytes(argv[1]);
             byte[] haystack;
             byte[] needle;
             bool isText;
             if (typeHaystack == TYPE.BLOB && typeNeedle == TYPE.BLOB)
             {
-                haystack = sqlite3_value_blob(argv[0]);
-                needle = sqlite3_value_blob(argv[1]);
+                haystack = Vdbe.Value_Blob(argv[0]);
+                needle = Vdbe.Value_Blob(argv[1]);
                 isText = false;
             }
             else
             {
-                haystack = sqlite3_value_text(argv[0]);
-                needle = sqlite3_value_text(argv[1]);
+                haystack = Vdbe.Value_Text(argv[0]);
+                needle = Vdbe.Value_Text(argv[1]);
                 isText = true;
             }
             int n = 1;
-            while (needleLength <= haystackLength && _memcmp(haystack, needle, needleLength) != 0)
+            while (needleLength <= haystackLength && C._memcmp(haystack, needle, needleLength) != 0)
             {
                 n++;
                 do
@@ -162,41 +162,41 @@ namespace Core.Command
                 } while (isText && (haystack[0] & 0xc0) == 0x80);
             }
             if (needleLength > haystackLength) n = 0;
-            sqlite3_result_int(fctx, n);
+            Vdbe.Result_Int(fctx, n);
         }
 
         static void SubstrFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 3 || argc == 2);
-            if (sqlite3_value_type(argv[1]) == TYPE.NULL || (argc == 3 && sqlite3_value_type(argv[2]) == TYPE.NULL))
+            if (Vdbe.Value_Type(argv[1]) == TYPE.NULL || (argc == 3 && Vdbe.Value_Type(argv[2]) == TYPE.NULL))
                 return;
-            TYPE p0type = sqlite3_value_type(argv[0]);
-            int p1 = sqlite3_value_int(argv[1]);
+            TYPE p0type = Vdbe.Value_Type(argv[0]);
+            int p1 = Vdbe.Value_Int(argv[1]);
             int len;
             string z = string.Empty;
             string z2;
             byte[] zAsBlob_ = null;
             if (p0type == TYPE.BLOB)
             {
-                len = sqlite3_value_bytes(argv[0]);
-                zAsBlob_ = argv[0].zBLOB;
+                len = Vdbe.Value_Bytes(argv[0]);
+                zAsBlob_ = argv[0].ZBLOB;
                 if (zAsBlob_ == null) return;
                 //Debug.Assert(len == zAsBlob_.Length);
             }
             else
             {
-                z = sqlite3_value_text(argv[0]);
+                z = Vdbe.Value_Text(argv[0]);
                 if (z == null) return;
                 len = 0;
                 if (p1 < 0)
                     for (z2 = z; z2 != string.Empty; len++)
-                        _strskiputf8(ref z2);
+                        C._strskiputf8(ref z2);
             }
             long p2;
             bool negP2 = false;
             if (argc == 3)
             {
-                p2 = sqlite3_value_int(argv[2]);
+                p2 = Vdbe.Value_Int(argv[2]);
                 if (p2 < 0)
                 {
                     p2 = -p2;
@@ -204,7 +204,7 @@ namespace Core.Command
                 }
             }
             else
-                p2 = (sqlite3_context_db_handle(fctx)).Limits[(int)LIMIT.LENGTH];
+                p2 = (Vdbe.Context_Ctx(fctx)).Limits[(int)LIMIT.LENGTH];
             if (p1 < 0)
             {
                 p1 += len;
@@ -233,12 +233,12 @@ namespace Core.Command
             {
                 while (z != null && p1 != 0)
                 {
-                    _strskiputf8(ref z);
+                    C._strskiputf8(ref z);
                     p1--;
                 }
                 for (z2 = z; z2 != null && p2 != 0; p2--)
-                    _strskiputf8(ref z2);
-                sqlite3_result_text(fctx, z, p1, p2 <= z.Length - p1 ? p2 : z.Length - p1, SQLITE_TRANSIENT);
+                    C._strskiputf8(ref z2);
+                Vdbe.Result_Text(fctx, z, p1, p2 <= z.Length - p1 ? p2 : z.Length - p1, C.DESTRUCTOR_TRANSIENT);
             }
             else
             {
@@ -253,7 +253,7 @@ namespace Core.Command
                 else
                     for (int i = p1; i < p1 + p2; i++)
                         sb.Append((char)zAsBlob_[i]);
-                sqlite3_result_blob(fctx, sb.ToString(), (int)p2, SQLITE_TRANSIENT);
+                Vdbe.Result_Blob(fctx, sb.ToString(), (int)p2, C.DESTRUCTOR_TRANSIENT);
             }
         }
 
@@ -264,79 +264,79 @@ namespace Core.Command
             int n = 0;
             if (argc == 2)
             {
-                if (sqlite3_value_type(argv[1]) == TYPE.NULL) return;
-                n = sqlite3_value_int(argv[1]);
+                if (Vdbe.Value_Type(argv[1]) == TYPE.NULL) return;
+                n = Vdbe.Value_Int(argv[1]);
                 if (n > 30) n = 30;
                 if (n < 0) n = 0;
             }
-            if (sqlite3_value_type(argv[0]) == TYPE.NULL)
+            if (Vdbe.Value_Type(argv[0]) == TYPE.NULL)
                 return;
-            double r = sqlite3_value_double(argv[0]);
+            double r = Vdbe.Value_Double(argv[0]);
             // If Y==0 and X will fit in a 64-bit int, handle the rounding directly, otherwise use printf.
-            if (n == 0 && r >= 0 && r < LARGEST_INT64 - 1)
+            if (n == 0 && r >= 0 && r < long.MaxValue - 1)
                 r = (double)((long)(r + 0.5));
-            else if (n == 0 && r < 0 && (-r) < LARGEST_INT64 - 1)
+            else if (n == 0 && r < 0 && (-r) < long.MaxValue - 1)
                 r = -(double)((long)((-r) + 0.5));
             else
             {
-                string buf = _mprintf("%.*f", n, r);
+                string buf = C._mprintf("%.*f", n, r);
                 if (buf == null)
                 {
-                    sqlite3_result_error_nomem(fctx);
+                    Vdbe.Result_ErrorNoMem(fctx);
                     return;
                 }
                 ConvertEx.Atof(buf, ref r, buf.Length, TEXTENCODE.UTF8);
                 C._free(ref buf);
             }
-            sqlite3_result_double(fctx, r);
+            Vdbe.Result_Double(fctx, r);
         }
 #endif
 
         static T[] ContextMalloc<T>(FuncContext fctx, long bytes)
             where T : struct
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             Debug.Assert(bytes > 0);
             C.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH]);
             C.ASSERTCOVERAGE(bytes == ctx.Limits[(int)LIMIT.LENGTH] + 1);
             T[] z;
             if (bytes > ctx.Limits[(int)LIMIT.LENGTH])
             {
-                sqlite3_result_error_toobig(fctx);
+                Vdbe.Result_ErrorOverflow(fctx);
                 z = null;
             }
             else
             {
                 z = new T[(int)bytes];
                 if (z == null)
-                    sqlite3_result_error_nomem(fctx);
+                    Vdbe.Result_ErrorNoMem(fctx);
             }
             return z;
         }
 
         static void UpperFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string z2 = sqlite3_value_text(argv[0]);
-            int n = sqlite3_value_bytes(argv[0]);
+            string z2 = Vdbe.Value_Text(argv[0]);
+            int n = Vdbe.Value_Bytes(argv[0]);
             // Verify that the call to _bytes() does not invalidate the _text() pointer
-            Debug.Assert(z2 == sqlite3_value_text(argv[0]));
+            Debug.Assert(z2 == Vdbe.Value_Text(argv[0]));
             if (z2 != null)
             {
                 string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToUpperInvariant()); //: Many
-                sqlite3_result_text(fctx, z1, -1, null); //: _free
+                Vdbe.Result_Text(fctx, z1, -1, null); //: _free
             }
         }
 
         static void LowerFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string z2 = sqlite3_value_text(argv[0]);
-            int n = sqlite3_value_bytes(argv[0]);
+            string z2 = Vdbe.Value_Text(argv[0]);
+            int n = Vdbe.Value_Bytes(argv[0]);
             // Verify that the call to _bytes() does not invalidate the _text() pointer
-            Debug.Assert(z2 == sqlite3_value_text(argv[0]));
+            Debug.Assert(z2 == Vdbe.Value_Text(argv[0]));
             if (z2 != null)
             {
                 string z1 = (z2.Length == 0 ? string.Empty : z2.Substring(0, n).ToLowerInvariant());
-                sqlite3_result_text(fctx, z1, -1, null); //: _free
+                Vdbe.Result_Text(fctx, z1, -1, null); //: _free
             }
         }
 
@@ -345,7 +345,7 @@ namespace Core.Command
         static void RandomFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
             long r = 0;
-            sqlite3_randomness(sizeof(long), ref r);
+            SysEx.PutRandom(sizeof(long), ref r);
             if (r < 0)
             {
                 // We need to prevent a random number of 0x8000000000000000 (or -9223372036854775808) since when you do abs() of that
@@ -354,13 +354,13 @@ namespace Core.Command
                 // therefore be no less than -9223372036854775807.
                 r = -(r ^ (((long)1) << 63));
             }
-            sqlite3_result_int64(fctx, r);
+            Vdbe.Result_Int64(fctx, r);
         }
 
         static void RandomBlob(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            int n = sqlite3_value_int(argv[0]);
+            int n = Vdbe.Value_Int(argv[0]);
             if (n < 1)
                 n = 1;
             char[] p = ContextMalloc<char>(fctx, n);
@@ -369,32 +369,32 @@ namespace Core.Command
                 long p_ = 0;
                 for (int i = 0; i < n; i++)
                 {
-                    sqlite3_randomness(sizeof(char), ref p_);
+                    SysEx.PutRandom(sizeof(char), ref p_);
                     p[i] = (char)(p_ & 0x7F);
                 }
-                sqlite3_result_blob(fctx, new string(p), n, null); //: _free
+                Vdbe.Result_Blob(fctx, new string(p), n, null); //: _free
             }
         }
 
         static void LastInsertRowid(FuncContext fctx, int notUsed1, Mem[] notUsed2
         )
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             // IMP: R-51513-12026 The last_insert_rowid() SQL function is a wrapper around the sqlite3_last_insert_rowid() C/C++ interface function.
-            sqlite3_result_int64(fctx, sqlite3_last_insert_rowid(ctx));
+            Vdbe.Result_Int64(fctx, Vdbe.Last_InsertRowid(ctx));
         }
 
         static void Changes(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
-            sqlite3_result_int(fctx, sqlite3_changes(ctx));
+            Context ctx = Vdbe.Context_Ctx(fctx);
+            Vdbe.Result_Int(fctx, sqlite3_changes(ctx));
         }
 
         static void TotalChanges(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             // IMP: R-52756-41993 This function is a wrapper around the sqlite3_total_changes() C/C++ interface.
-            sqlite3_result_int(fctx, sqlite3_total_changes(ctx));
+            Vdbe.Result_Int(fctx, sqlite3_total_changes(ctx));
         }
 
         struct CompareInfo
@@ -443,7 +443,7 @@ namespace Core.Command
                         Debug.Assert(matchSet < 0x80); // '[' is a single-byte character
                         int stringIdx = 0;
                         while (stringIdx < string_.Length && !PatternCompare(inPattern.Substring(inPattern.Length - pattern.Length - 1), string_.Substring(stringIdx), info, escape))
-                            SysEx._strskiputf8(string_, ref stringIdx);
+                            C._strskiputf8(string_, ref stringIdx);
                         return (stringIdx < string_.Length);
                     }
                     while ((c2 = SysEx.Utf8Read(string_, ref string_)) != 0)
@@ -537,41 +537,41 @@ namespace Core.Command
         static void LikeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             uint escape = 0;
-            Context ctx = sqlite3_context_db_handle(fctx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
 
-            string zB = sqlite3_value_text(argv[0]);
-            string zA = sqlite3_value_text(argv[1]);
+            string zB = Vdbe.Value_Text(argv[0]);
+            string zA = Vdbe.Value_Text(argv[1]);
 
             // Limit the length of the LIKE or GLOB pattern to avoid problems of deep recursion and N*N behavior in patternCompare().
-            int pats = sqlite3_value_bytes(argv[0]);
+            int pats = Vdbe.Value_Bytes(argv[0]);
             C.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH]);
             C.ASSERTCOVERAGE(pats == ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH] + 1);
             if (pats > ctx.Limits[(int)LIMIT.LIKE_PATTERN_LENGTH])
             {
-                sqlite3_result_error(fctx, "LIKE or GLOB pattern too complex", -1);
+                Vdbe.Rsult_Error(fctx, "LIKE or GLOB pattern too complex", -1);
                 return;
             }
-            Debug.Assert(zB == sqlite3_value_text(argv[0])); // Encoding did not change
+            Debug.Assert(zB == Vdbe.Value_Text(argv[0])); // Encoding did not change
 
             if (argc == 3)
             {
                 // The escape character string must consist of a single UTF-8 character. Otherwise, return an error.
-                string zEscape = sqlite3_value_text(argv[2]);
+                string zEscape = Vdbe.Value_Text(argv[2]);
                 if (zEscape == null) return;
                 if (SysEx.Utf8CharLen(zEscape, -1) != 1)
                 {
-                    sqlite3_result_error(fctx, "ESCAPE expression must be a single character", -1);
+                    Vdbe.Result_Error(fctx, "ESCAPE expression must be a single character", -1);
                     return;
                 }
                 escape = SysEx.Utf8Read(zEscape, ref zEscape);
             }
             if (zA != null && zB != null)
             {
-                CompareInfo info = (CompareInfo)sqlite3_user_data(fctx);
+                CompareInfo info = (CompareInfo)Vdbe.User_Data(fctx);
 #if TEST
                 _likeCount++;
 #endif
-                sqlite3_result_int(fctx, PatternCompare(zB, zA, info, escape) ? 1 : 0);
+                Vdbe.Result_Int(fctx, PatternCompare(zB, zA, info, escape) ? 1 : 0);
             }
         }
 
@@ -579,24 +579,24 @@ namespace Core.Command
         {
             CollSeq coll = GetFuncCollSeq(fctx);
             if (sqlite3MemCompare(argv[0], argv[1], coll) != 0)
-                sqlite3_result_value(fctx, argv[0]);
+                Vdbe.Result_Value(fctx, argv[0]);
         }
 
-        static void versionFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
+        static void VersionFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
             // IMP: R-48699-48617 This function is an SQL wrapper around the sqlite3_libversion() C-interface.
-            sqlite3_result_text(fctx, sqlite3_libversion(), -1, SysEx.DESTRUCTOR_STATIC);
+            Vdbe.Result_Text(fctx, sqlite3_libversion(), -1, C.DESTRUCTOR_STATIC);
         }
 
         static void SourceidFunc(FuncContext fctx, int notUsed1, Mem[] notUsed2)
         {
             // IMP: R-24470-31136 This function is an SQL wrapper around the sqlite3_sourceid() C interface.
-            sqlite3_result_text(fctx, sqlite3_sourceid(), -1, SysEx.DESTRUCTOR_STATIC);
+            Vdbe.Result_Text(fctx, sqlite3_sourceid(), -1, C.DESTRUCTOR_STATIC);
         }
 
         static void ErrlogFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            SysEx.LOG(sqlite3_value_int(argv[0]), "%s", sqlite3_value_text(argv[1]));
+            SysEx.LOG(Vdbe.Value_Int(argv[0]), "%s", Vdbe.Value_Text(argv[1]));
         }
 
 #if !OMIT_COMPILEOPTION_DIAGS
@@ -605,15 +605,15 @@ namespace Core.Command
             Debug.Assert(argc == 1);
             // IMP: R-39564-36305 The sqlite_compileoption_used() SQL function is a wrapper around the sqlite3_compileoption_used() C/C++ function.
             string optName;
-            if ((optName = sqlite3_value_text(argv[0])) != null)
-                sqlite3_result_int(fctx, CompileTimeOptionUsed(optName));
+            if ((optName = Vdbe.Value_Text(argv[0])) != null)
+                Vdbe.Rsult_Int(fctx, CompileTimeOptionUsed(optName));
         }
         static void CompileoptiongetFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
             // IMP: R-04922-24076 The sqlite_compileoption_get() SQL function is a wrapper around the sqlite3_compileoption_get() C/C++ function.
-            int n = sqlite3_value_int(argv[0]);
-            sqlite3_result_text(fctx, CompileTimeGet(n), -1, SysEx.DESTRUCTOR_STATIC);
+            int n = Vdbe.Value_Int(argv[0]);
+            Vdbe.Result_Text(fctx, CompileTimeGet(n), -1, C.DESTRUCTOR_STATIC);
         }
 #endif
 
@@ -623,32 +623,32 @@ namespace Core.Command
         static void QuoteFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            switch (sqlite3_value_type(argv[0]))
+            switch (Vdbe.Value_Type(argv[0]))
             {
                 case TYPE.FLOAT:
                     {
-                        SystemStringBuilder b = new SystemStringBuilder(50);
+                        StringBuilder b = new StringBuilder(50);
                         b.AppendFormat("%!.15g", r1);
-                        double r1 = sqlite3_value_double(argv[0]);
+                        double r1 = Vdbe.Value_Double(argv[0]);
                         double r2;
                         ConvertEx.Atof(b.ToString(), ref r2, 20, TEXTENCODE.UTF8);
                         b.Length = 0;
                         if (r1 != r2)
                             b.AppendFormat("%!.20e", r1);
-                        sqlite3_result_text(fctx, b.ToString(), -1, DESTRUCTOR_TRANSIENT);
+                        Vdbe.Result_Text(fctx, b.ToString(), -1, C.DESTRUCTOR_TRANSIENT);
                         break;
                     }
                 case TYPE.INTEGER:
                     {
-                        sqlite3_result_value(fctx, argv[0]);
+                        Vdbe.Result_Value(fctx, argv[0]);
                         break;
                     }
                 case TYPE.BLOB:
                     {
-                        byte[] blob = sqlite3_value_blob(argv[0]);
-                        int blobLength = sqlite3_value_bytes(argv[0]);
-                        Debug.Assert(blob.Length == sqlite3_value_blob(argv[0]).Length); // No encoding change
-                        SystemStringBuilder z = new StringBuilder(2 * blobLength + 4); //: ContextMalloc(fctx, (2*(int64)blobLength)+4);
+                        byte[] blob = Vdbe.Value_Blob(argv[0]);
+                        int blobLength = Vdbe.Value_Bytes(argv[0]);
+                        Debug.Assert(blob.Length == Vdbe.Value_Blob(argv[0]).Length); // No encoding change
+                        StringBuilder z = new StringBuilder(2 * blobLength + 4); //: ContextMalloc(fctx, (2*(int64)blobLength)+4);
                         if (z != null)
                         {
                             for (int i = 0; i < blobLength; i++)
@@ -660,7 +660,7 @@ namespace Core.Command
                             z.Append[(blobLength * 2) + 3] = '\0';
                             z.Append[0] = 'X';
                             z.Append[1] = '\'';
-                            sqlite3_result_text(fctx, z, -1, SysEx.DESTRUCTOR_TRANSIENT);
+                            Vdbe.Result_Text(fctx, z, -1, C.DESTRUCTOR_TRANSIENT);
                             C._free(ref z);
                         }
                         break;
@@ -668,20 +668,20 @@ namespace Core.Command
                 case TYPE.TEXT:
                     {
 
-                        string zArg = sqlite3_value_text(argv[0]);
-                        if (zArg == null || zArg.Length == 0) return;
+                        string zarg = Vdbe.Value_Text(argv[0]);
+                        if (zarg == null || zarg.Length == 0) return;
                         int i, j;
                         ulong n;
-                        for (i = 0, n = 0; i < zArg.Length; i++) { if (zArg[i] == '\'') n++; }
-                        StringBuilder z = new StringBuilder(i + n + 3); //: ContextMalloc(fctx, ((int64)i)+((int64)n)+3);
+                        for (i = 0, n = 0; i < zarg.Length; i++) { if (zarg[i] == '\'') n++; }
+                        StringBuilder z = new StringBuilder(i + (int)n + 3);
                         if (z != null)
                         {
                             z.Append('\'');
-                            for (i = 0, j = 1; i < zArg.Length && zArg[i] != 0; i++)
+                            for (i = 0, j = 1; i < zarg.Length && zarg[i] != 0; i++)
                             {
-                                z.Append((char)zArg[i]);
+                                z.Append((char)zarg[i]);
                                 j++;
-                                if (zArg[i] == '\'')
+                                if (zarg[i] == '\'')
                                 {
                                     z.Append('\'');
                                     j++;
@@ -690,24 +690,23 @@ namespace Core.Command
                             z.Append('\'');
                             j++;
                             //: z[j] = 0;
-                            sqlite3_result_text(fctx, z, j, null); //: C._free
+                            Vdbe.Result_Text(fctx, z, j, null); //: C._free
                         }
                         break;
                     }
                 default:
                     {
-                        Debug.Assert(sqlite3_value_type(argv[0]) == SQLITE_NULL);
-                        sqlite3_result_text(fctx, "NULL", 4, SQLITE_STATIC);
+                        Debug.Assert(Vdbe.Value_Type(argv[0]) == TYPE.NULL);
+                        Vdbe.Result_Text(fctx, "NULL", 4, C.DESTRUCTOR_STATIC);
                         break;
                     }
             }
         }
 
-
         static void UnicodeFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string z = sqlite3_value_text(argv[0]);
-            if (z != null && z[0] != 0) sqlite3_result_int(fctx, SysEx.Utf8Read(z, ref z));
+            string z = Vdbe.Value_Text(argv[0]);
+            if (z != null && z[0] != 0) Vdbe.Result_Int(fctx, SysEx.Utf8Read(z, ref z));
         }
 
         //static void CharFunc(FuncContext fctx, int argc, Mem[] argv)
@@ -751,8 +750,8 @@ namespace Core.Command
         static void HexFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            byte[] blob = sqlite3_value_blob(argv[0]);
-            int n = sqlite3_value_bytes(argv[0]);
+            byte[] blob = Vdbe.Value_Blob(argv[0]);
+            int n = Vdbe.Value_Bytes(argv[0]);
             Debug.Assert(n == (blob == null ? 0 : blob.Length)); // No encoding change
             StringBuilder zHex = new StringBuilder(n * 2 + 1); //: ContextMalloc(fctx, ((int64)n)*2 + 1);
             if (zHex != null)
@@ -760,148 +759,137 @@ namespace Core.Command
                 for (int i = 0; i < n; i++)
                 {
                     byte c = blob[i];
-                    zHex.Append(hexdigits[(c >> 4) & 0xf]);
-                    zHex.Append(hexdigits[c & 0xf]);
+                    zHex.Append(_hexdigits[(c >> 4) & 0xf]);
+                    zHex.Append(_hexdigits[c & 0xf]);
                 }
                 //: *z = 0;
-                sqlite3_result_text(fctx, zHex, n * 2, null); //: C._free
+                Vdbe.Result_Text(fctx, zHex, n * 2, null); //: C._free
             }
         }
 
         static void ZeroblobFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            Context ctx = sqlite3_context_db_handle(fctx);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             Debug.Assert(argc == 1);
-            long n = sqlite3_value_int64(argv[0]);
+            long n = Vdbe.Value_Int64(argv[0]);
             C.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH]);
             C.ASSERTCOVERAGE(n == ctx.Limits[(int)LIMIT.LENGTH] + 1);
             if (n > ctx.Limits[(int)LIMIT.LENGTH])
-                sqlite3_result_error_toobig(fctx);
+                Vdbe.Result_ErrorOverflow(fctx);
             else
-                sqlite3_result_zeroblob(fctx, (int)n); // IMP: R-00293-64994
+                Vdbe.Result_ZeroBlob(fctx, (int)n); // IMP: R-00293-64994
         }
 
         static void ReplaceFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             //int loopLimit;    // Last zStr[] that might match zPattern[]
             Debug.Assert(argc == 3);
-            string string_ = sqlite3_value_text(argv[0]); // The input string A
+            string string_ = Vdbe.Value_Text(argv[0]); // The input string A
             if (string_ == null) return;
-            int stringLength = sqlite3_value_bytes(argv[0]); // Size of zStr
-            Debug.Assert(string_ == sqlite3_value_text(argv[0]));  /* No encoding change */
-            string pattern = sqlite3_value_text(argv[1]); // The pattern string B
+            int stringLength = Vdbe.Value_Bytes(argv[0]); // Size of zStr
+            Debug.Assert(string_ == Vdbe.Value_Text(argv[0]));  /* No encoding change */
+            string pattern = Vdbe.Value_Text(argv[1]); // The pattern string B
             if (pattern == null)
             {
-                Debug.Assert(sqlite3_value_type(argv[1]) == TYPE.NULL || sqlite3_context_db_handle(fctx).MallocFailed);
+                Debug.Assert(Vdbe.Value_Type(argv[1]) == TYPE.NULL || Vdbe.Context_Ctx(fctx).MallocFailed);
                 return;
             }
             if (pattern == string.Empty)
             {
-                Debug.Assert(sqlite3_value_type(argv[1]) != TYPE.NULL);
-                sqlite3_result_value(fctx, argv[0]);
+                Debug.Assert(Vdbe.Value_Type(argv[1]) != TYPE.NULL);
+                Vdbe.Result_Value(fctx, argv[0]);
                 return;
             }
-            int patternLength = sqlite3_value_bytes(argv[1]); // Size of zPattern
-            Debug.Assert(pattern == sqlite3_value_text(argv[1]));  /* No encoding change */
-            string replacement = sqlite3_value_text(argv[2]); // The replacement string C
+            int patternLength = Vdbe.Value_Bytes(argv[1]); // Size of zPattern
+            Debug.Assert(pattern == Vdbe.Value_Text(argv[1]));  /* No encoding change */
+            string replacement = Vdbe.Value_Text(argv[2]); // The replacement string C
             if (replacement == null) return;
-            int replacementLength = sqlite3_value_bytes(argv[2]); // Size of zRep
-            Debug.Assert(replacement == sqlite3_value_text(argv[2]));
+            int replacementLength = Vdbe.Value_Bytes(argv[2]); // Size of zRep
+            Debug.Assert(replacement == Vdbe.Value_Text(argv[2]));
             long outLength = stringLength + 1; // Maximum size of zOut
-            Debug.Assert(outLength < SQLITE_MAX_LENGTH);
+            Debug.Assert(outLength < MAX_LENGTH);
             string out_ = null; // The output
-            if (outLength <= sqlite3_context_db_handle(fctx).LimitS[(int)LIMIT.LENGTH])
+            if (outLength <= Vdbe.Context_Ctx(fctx).Limits[(int)LIMIT.LENGTH])
                 try { out_ = string_.Replace(pattern, replacement); j = out_.Length; }
                 catch { j = 0; }
-            if (j == 0 || j > sqlite3_context_db_handle(fctx).Limits[(int)LIMIT.LENGTH])
-                sqlite3_result_error_toobig(fctx);
+            if (j == 0 || j > Vdbe.Context_Ctx(fctx).Limits[(int)LIMIT.LENGTH])
+                Vdbe.Result_ErrorOverflow(fctx);
             else
-                sqlite3_result_text(fctx, out_, j, null); //: _free
+                Vdbe.Result_Text(fctx, out_, j, null); //: _free
         }
 
+        static int[] _trimOneLength = new int[] { 1 };
+        static byte[] _trimOne = new byte[] { (byte)' ' };
         static void TrimFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            in_;
             string charSet; // Set of characters to trim
-            int inLength;
-            int izIn = 0;         // C# string pointer
-            int flags;            // 1: trimleft  2: trimright  3: trim
-            int i;                // Loop counter
-            int[] aLen = null;    // Length of each character in zCharSet
-            byte[][] azChar = null; // Individual characters in zCharSet
-            int nChar = 0;          // Number of characters in zCharSet
-            byte[] zBytes = null;
+            int[] charsLength = null; // Length of each character in zCharSet
+            byte[][] chars = null; // Individual characters in zCharSet
+            int charSetLength = 0; // Number of characters in zCharSet
+            int flags; // 1: trimleft  2: trimright  3: trim
 
-            if (sqlite3_value_type(argv[0]) == TYPE.NULL)
+            if (Vdbe.Value_Type(argv[0]) == TYPE.NULL)
                 return;
-            string in_ = sqlite3_value_text(argv[0]); // Input string
+            string in_ = Vdbe.Value_Text(argv[0]); // Input string
             if (in_ == null) return;
-            int inLength = sqlite3_value_bytes(argv[0]); // Number of bytes in input
-            //? Debug.Assert(in_ == sqlite3_value_text(argv[0]));
-            byte[] zBlob = sqlite3_value_blob(argv[0]);
-
+            int inLength = Vdbe.Value_Bytes(argv[0]); // Number of bytes in input
+            //? Debug.Assert(in_ == Vdbe.Value_Text(argv[0]));
             if (argc == 1)
             {
-                int[] lenOne = new int[] { 1 };
-                byte[] azOne = new byte[] { (u8)' ' };//static unsigned char * const azOne[] = { (u8*)" " };
-                nChar = 1;
-                aLen = lenOne;
-                azChar = new byte[1][];
-                azChar[0] = azOne;
+                charSetLength = 1;
+                charsLength = _trimOneLength;
+                chars = new byte[1][];
+                chars[0] = _trimOne;
                 charSet = null;
             }
-            else if ((charSet = sqlite3_value_text(argv[1])) == null)
-            {
+            else if ((charSet = Vdbe.Value_Text(argv[1])) == null)
                 return;
-            }
             else
             {
-                if ((zBytes = sqlite3_value_blob(argv[1])) != null)
+                byte[] zbytes = null;
+                if ((zbytes = Vdbe.Value_Blob(argv[1])) != null)
                 {
                     int iz = 0;
-                    for (nChar = 0; iz < zBytes.Length; nChar++)
+                    for (charSetLength = 0; iz < zbytes.Length; charSetLength++)
+                        C._strskiputf8(zbytes, ref iz);
+                    if (charSetLength > 0)
                     {
-                        _strskiputf8(zBytes, ref iz);
-                    }
-                    if (nChar > 0)
-                    {
-                        azChar = new byte[nChar][];//contextMalloc(context, ((i64)nChar)*(sizeof(char*)+1));
-                        if (azChar == null)
-                        {
+                        chars = new byte[charSetLength][];
+                        if (chars == null)
                             return;
-                        }
-                        aLen = new int[nChar];
+                        charsLength = new int[charSetLength];
 
                         int iz0 = 0;
                         int iz1 = 0;
-                        for (int ii = 0; ii < nChar; ii++)
+                        for (int ii = 0; ii < charSetLength; ii++)
                         {
-                            _strskiputf8(zBytes, ref iz1);
-                            aLen[ii] = iz1 - iz0;
-                            azChar[ii] = new byte[aLen[ii]];
-                            Buffer.BlockCopy(zBytes, iz0, azChar[ii], 0, azChar[ii].Length);
+                            C._strskiputf8(zbytes, ref iz1);
+                            charsLength[ii] = iz1 - iz0;
+                            chars[ii] = new byte[charsLength[ii]];
+                            Buffer.BlockCopy(zbytes, iz0, chars[ii], 0, chars[ii].Length);
                             iz0 = iz1;
                         }
                     }
                 }
             }
-            if (nChar > 0)
+            int i;
+            int inIdx_ = 0; // C# string pointer
+            byte[] zblob = Vdbe.Value_Blob(argv[0]);
+            if (charSetLength > 0)
             {
-                flags = (int)sqlite3_user_data(fctx); // flags = SQLITE_PTR_TO_INT(sqlite3_user_data(context));
+                flags = (int)Vdbe.User_Data(fctx);
                 if ((flags & 1) != 0)
                 {
                     while (inLength > 0)
                     {
                         int len = 0;
-                        for (i = 0; i < nChar; i++)
+                        for (i = 0; i < charSetLength; i++)
                         {
-                            len = aLen[i];
-                            if (len <= inLength && memcmp(zBlob, izIn, azChar[i], len) == 0)
-                                break;
+                            len = charsLength[i];
+                            if (len <= inLength && C._memcmp(zblob, inIdx_, chars[i], len) == 0) break;
                         }
-                        if (i >= nChar)
-                            break;
-                        izIn += len;
+                        if (i >= charSetLength) break;
+                        inIdx_ += len;
                         inLength -= len;
                     }
                 }
@@ -910,26 +898,22 @@ namespace Core.Command
                     while (inLength > 0)
                     {
                         int len = 0;
-                        for (i = 0; i < nChar; i++)
+                        for (i = 0; i < charSetLength; i++)
                         {
-                            len = aLen[i];
-                            if (len <= inLength && memcmp(zBlob, izIn + inLength - len, azChar[i], len) == 0)
-                                break;
+                            len = charsLength[i];
+                            if (len <= inLength && C._memcmp(zblob, inIdx_ + inLength - len, chars[i], len) == 0) break;
                         }
-                        if (i >= nChar)
-                            break;
+                        if (i >= charSetLength) break;
                         inLength -= len;
                     }
                 }
                 if (charSet != null)
-                {
-                    //sqlite3_free( ref azChar );
-                }
+                    C._free(ref chars);
             }
             StringBuilder sb = new StringBuilder(inLength);
             for (i = 0; i < inLength; i++)
-                sb.Append((char)zBlob[izIn + i]);
-            sqlite3_result_text(fctx, sb, inLength, SQLITE_TRANSIENT);
+                sb.Append((char)zblob[inIdx_ + i]);
+            Vdbe.Result_Text(fctx, sb, inLength, C.DESTRUCTOR_TRANSIENT);
         }
 
 #if SOUNDEX
@@ -947,7 +931,7 @@ namespace Core.Command
         static void SoundexFunc(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            string z = sqlite3_value_text(argv[0]);
+            string z = Vdbe.Value_Text(argv[0]);
             if (z == null) z = string.Empty;
             int i;
             for (i = 0; z[i] && !char.IsLetter(z[i]); i++) { }
@@ -974,23 +958,23 @@ namespace Core.Command
                 while (j < 4)
                     r[j++] = '0';
                 r[j] = 0;
-                sqlite3_result_text(fctx, r, 4, DESTRUCTOR_TRANSIENT);
+                Vdbe.Result_Text(fctx, r, 4, C.DESTRUCTOR_TRANSIENT);
             }
             else
-                sqlite3_result_text(fctx, "?000", 4, DESTRUCTOR_STATIC); // IMP: R-64894-50321 The string "?000" is returned if the argument is NULL or contains no ASCII alphabetic characters.
+                Vdbe.Result_Text(fctx, "?000", 4, C.DESTRUCTOR_STATIC); // IMP: R-64894-50321 The string "?000" is returned if the argument is NULL or contains no ASCII alphabetic characters.
         }
 #endif
 
 #if !OMIT_LOAD_EXTENSION
         static void LoadExtFunc(FuncContext fctx, int argc, Mem[] argv)
         {
-            string file = sqlite3_value_text(argv[0]);
-            Context ctx = sqlite3_context_db_handle(fctx);
+            string file = Vdbe.Value_Text(argv[0]);
+            Context ctx = Vdbe.Context_Ctx(fctx);
             string errMsg = string.Empty;
-            string proc = (argc == 2 ? sqlite3_value_text(argv[1]) : string.Empty);
-            if (file != null && sqlite3_load_extension(ctx, file, proc, ref errMsg) != 0)
+            string proc = (argc == 2 ? Vdbe.Value_Text(argv[1]) : string.Empty);
+            if (file != null && Vdbe.LoadExtension(ctx, file, proc, ref errMsg) != 0)
             {
-                sqlite3_result_error(fctx, errMsg, -1);
+                Vdbe.Result_Error(fctx, errMsg, -1);
                 C._tagfree(ctx, ref errMsg);
             }
         }
@@ -1017,21 +1001,21 @@ namespace Core.Command
         static void SumStep(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1);
-            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 1));
-            TYPE type = sqlite3_value_numeric_type(argv[0]);
+            SumCtx p = SumCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 1));
+            TYPE type = Vdbe.Value_NumericType(argv[0]);
             if (p != null && type != TYPE.NULL)
             {
                 p.Count++;
                 if (type == TYPE.INTEGER)
                 {
-                    long v = sqlite3_value_int64(argv[0]);
+                    long v = Vdbe.Value_Int64(argv[0]);
                     p.RSum += v;
                     if (!(p.Approx | p.Overflow) && sqlite3AddInt64(ref p.ISum, v) != 0)
                         p.Overflow = true;
                 }
                 else
                 {
-                    p.RSum += sqlite3_value_double(argv[0]);
+                    p.RSum += Vdbe.Value_Double(argv[0]);
                     p.Approx = true;
                 }
             }
@@ -1039,36 +1023,36 @@ namespace Core.Command
 
         static void SumFinalize(FuncContext fctx)
         {
-            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            SumCtx p = SumCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 0));
             if (p != null && p.Count > 0)
             {
                 if (p.Overflow)
-                    sqlite3_result_error(fctx, "integer overflow", -1);
+                    Vdbe.Result_Error(fctx, "integer overflow", -1);
                 else if (p.Approx)
-                    sqlite3_result_double(fctx, p.RSum);
+                    Vdbe.Result_Double(fctx, p.RSum);
                 else
-                    sqlite3_result_int64(fctx, p.ISum);
+                    Vdbe.Result_Int64(fctx, p.ISum);
                 p.Count = 0; // Reset for C#
             }
         }
 
         static void AvgFinalize(FuncContext fctx)
         {
-            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
+            SumCtx p = SumCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 0));
             if (p != null && p.Count > 0)
-                sqlite3_result_double(fctx, p.RSum / (double)p.Count);
+                Vdbe.Result_Double(fctx, p.RSum / (double)p.Count);
         }
 
         static void TotalFinalize(FuncContext fctx)
         {
-            SumCtx p = SumCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
-            sqlite3_result_double(fctx, p != null ? p.RSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
+            SumCtx p = SumCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 0));
+            Vdbe.Result_Double(fctx, p != null ? p.RSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
         }
 
         public class CountCtx
         {
             long _n;
-            Mem _M;
+            internal Mem _M;
 
             public long N
             {
@@ -1093,25 +1077,25 @@ namespace Core.Command
 
         static void CountStep(FuncContext fctx, int argc, Mem[] argv)
         {
-            CountCtx p = CountCtx.ToCtx(sqlite3_aggregate_context(fctx, 1));
-            if ((argc == 0 || SQLITE_NULL != sqlite3_value_type(argv[0])) && p.Context != null)
+            CountCtx p = CountCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 1));
+            if ((argc == 0 || Vdbe.Value_Type(argv[0]) != TYPE.NULL) && p._M != null)
                 p.N++;
         }
 
         static void CountFinalize(FuncContext fctx)
         {
-            CountCtx p = CountCtx.ToCtx(sqlite3_aggregate_context(fctx, 0));
-            sqlite3_result_int64(fctx, p != null ? p.N : 0);
+            CountCtx p = CountCtx.ToCtx(Vdbe.Aggregate_Context(fctx, 0));
+            Vdbe.Result_Int64(fctx, p != null ? p.N : 0);
         }
 
         static void MinMaxStep(FuncContext fctx, int notUsed1, Mem[] argv)
         {
             Mem arg = (Mem)argv[0];
-            Mem best = (Mem)sqlite3_aggregate_context(fctx, 1);
+            Mem best = (Mem)Vdbe.Aggregate_Context(fctx, 1);
             if (best == null) return;
-            if (sqlite3_value_type(argv[0]) == TYPE.NULL)
+            if (Vdbe.Value_Type(argv[0]) == TYPE.NULL)
             {
-                if (best->Flags != 0) sqlite3SkipAccumulatorLoad(fctx);
+                if (best.Flags != 0) sqlite3SkipAccumulatorLoad(fctx);
             }
             else if (best.Flags != 0)
             {
@@ -1120,38 +1104,38 @@ namespace Core.Command
                 // comparison is inverted. For the max() aggregate, the sqlite3_user_data() function returns (void *)-1. For min() it
                 // returns (void *)db, where db is the sqlite3* database pointer. Therefore the next statement sets variable 'max' to 1 for the max()
                 // aggregate, or 0 for min().
-                bool max = ((int)sqlite3_user_data(fctx) != 0);
+                bool max = ((int)Vdbe.User_Data(fctx) != 0);
                 int cmp = sqlite3MemCompare(best, arg, coll);
                 if ((max && cmp < 0) || (!max && cmp > 0))
                     sqlite3VdbeMemCopy(best, arg);
+                else
+                    sqlite3SkipAccumulatorLoad(fctx);
             }
             else
-            {
                 sqlite3VdbeMemCopy(best, arg);
-            }
         }
 
         static void MinMaxFinalize(FuncContext fctx)
         {
-            Mem r = (Mem)sqlite3_aggregate_context(fctx, 0);
+            Mem r = (Mem)Vdbe.Aggregate_Context(fctx, 0);
             if (r != null)
             {
-                if (r->Flags != 0)
-                    sqlite3_result_value(fctx, r);
-                sqlite3VdbeMemRelease(r);
+                if (r.Flags != 0)
+                    Vdbe.Result_Value(fctx, r);
+                Vdbe.MemRelease(r);
             }
         }
 
         static void GroupConcatStep(FuncContext fctx, int argc, Mem[] argv)
         {
             Debug.Assert(argc == 1 || argc == 2);
-            if (sqlite3_value_type(argv[0]) == TYPE.NULL) return;
-            TextBuilder b = Mem.ToTextBuilder_(sqlite3_aggregate_context(fctx, 1), 100);
+            if (Vdbe.Value_Type(argv[0]) == TYPE.NULL) return;
+            TextBuilder b = Mem.ToTextBuilder_(Vdbe.Aggregate_Context(fctx, 1), 100);
             if (b != null)
             {
-                Context ctx = sqlite3_context_db_handle(fctx);
+                Context ctx = Vdbe.Context_Ctx(fctx);
                 bool firstTerm = (b.Tag == null);
-                b.Tag = mem;
+                b.Tag = ctx;
                 b.MaxSize = ctx.Limits[(int)LIMIT.LENGTH];
                 if (!firstTerm)
                 {
@@ -1159,8 +1143,8 @@ namespace Core.Command
                     int nSep;
                     if (argc == 2)
                     {
-                        zSep = sqlite3_value_text(argv[1]);
-                        nSep = sqlite3_value_bytes(argv[1]);
+                        zSep = Vdbe.Value_Text(argv[1]);
+                        nSep = Vdbe.Value_Bytes(argv[1]);
                     }
                     else
                     {
@@ -1169,66 +1153,25 @@ namespace Core.Command
                     }
                     b.Append(zSep, nSep);
                 }
-                string zVal = sqlite3_value_text(argv[0]);
-                int nVal = sqlite3_value_bytes(argv[0]);
+                string zVal = Vdbe.Value_Text(argv[0]);
+                int nVal = Vdbe.Value_Bytes(argv[0]);
                 b.Append(zVal, nVal);
             }
         }
 
         static void GroupConcatFinalize(FuncContext fctx)
         {
-            TextBuilder b = Mem.ToTextBuilder_(sqlite3_aggregate_context(fctx, 0), 100);
+            TextBuilder b = Mem.ToTextBuilder_(Vdbe.Aggregate_Context(fctx, 0), 100);
             if (b != null)
             {
                 if (b.Overflowed)
-                    sqlite3_result_error_toobig(fctx);
+                    Vdbe.Result_ErrorOverflow(fctx);
                 else if (b.AllocFailed)
-                    sqlite3_result_error_nomem(context);
+                    Vdbe.Result_ErrorNoMem(fctx);
                 else
-                    sqlite3_result_text(fctx, b.ToString(), -1, null);
+                    Vdbe.Result_Text(fctx, b.ToString(), -1, null);
             }
         }
-
-        //public struct sFuncs
-        //{
-        //    public string zName;
-        //    public sbyte nArg;
-        //    public u8 argType;           /* 1: 0, 2: 1, 3: 2,...  N:  N-1. */
-        //    public u8 eTextRep;          /* 1: UTF-16.  0: UTF-8 */
-        //    public u8 needCollSeq;
-        //    public dxFunc xFunc; //(FuncContext*,int,sqlite3_value **);
-
-        //    // Constructor
-        //    public sFuncs(string zName, sbyte nArg, u8 argType, u8 eTextRep, u8 needCollSeq, dxFunc xFunc)
-        //    {
-        //        this.zName = zName;
-        //        this.nArg = nArg;
-        //        this.argType = argType;
-        //        this.eTextRep = eTextRep;
-        //        this.needCollSeq = needCollSeq;
-        //        this.xFunc = xFunc;
-        //    }
-        //};
-
-        //public struct sAggs
-        //{
-        //    public string zName;
-        //    public sbyte nArg;
-        //    public u8 argType;
-        //    public u8 needCollSeq;
-        //    public dxStep xStep; //(FuncContext*,int,sqlite3_value**);
-        //    public dxFinal xFinalize; //(FuncContext*);
-        //    // Constructor
-        //    public sAggs(string zName, sbyte nArg, u8 argType, u8 needCollSeq, dxStep xStep, dxFinal xFinalize)
-        //    {
-        //        this.zName = zName;
-        //        this.nArg = nArg;
-        //        this.argType = argType;
-        //        this.needCollSeq = needCollSeq;
-        //        this.xStep = xStep;
-        //        this.xFinalize = xFinalize;
-        //    }
-        //}
 
         public static void RegisterBuiltinFunctions(Context ctx)
         {
@@ -1238,7 +1181,7 @@ namespace Core.Command
                 ctx.MallocFailed = true;
         }
 
-        static void SetLikeOptFlag(Context ctx, string name, byte flagVal)
+        static void SetLikeOptFlag(Context ctx, string name, FUNC flagVal)
         {
             FuncDef def = sqlite3FindFunction(ctx, name, name.Length, 2, TEXTENCODE.UTF8, 0);
             if (C._ALWAYS(def != null))
@@ -1248,9 +1191,9 @@ namespace Core.Command
         public static void RegisterLikeFunctions(Context ctx, bool caseSensitive)
         {
             CompareInfo info = (caseSensitive ? _likeInfoAlt : _likeInfoNorm);
-            sqlite3CreateFunc(ctx, "like", 2, TEXTENCODE.UTF8, info, (dxFunc)LikeFunc, null, null, null);
-            sqlite3CreateFunc(ctx, "like", 3, TEXTENCODE.UTF8, info, (dxFunc)LikeFunc, null, null, null);
-            sqlite3CreateFunc(ctx, "glob", 2, TEXTENCODE.UTF8, _globInfo, (dxFunc)LikeFunc, null, null, null);
+            sqlite3CreateFunc(ctx, "like", 2, TEXTENCODE.UTF8, info, LikeFunc, null, null, null);
+            sqlite3CreateFunc(ctx, "like", 3, TEXTENCODE.UTF8, info, LikeFunc, null, null, null);
+            sqlite3CreateFunc(ctx, "glob", 2, TEXTENCODE.UTF8, _globInfo, LikeFunc, null, null, null);
             SetLikeOptFlag(ctx, "glob", FUNC.LIKE | FUNC.CASE);
             SetLikeOptFlag(ctx, "like", caseSensitive ? (FUNC.LIKE | FUNC.CASE) : FUNC.LIKE);
         }
@@ -1271,7 +1214,7 @@ namespace Core.Command
             //: Debug.Assert((char *)&_likeInfoAlt == (char *)&_likeInfoAlt.MatchAll);
             //: Debug.Assert(&((char *)&_likeInfoAlt)[1] == (char *)&_likeInfoAlt.MatchOne);
             //: Debug.Assert(&((char *)&_likeInfoAlt)[2] == (char *)&_likeInfoAlt.MatchSet);
-            isNoCase = ((def.flags & FUNC.CASE) == 0);
+            isNoCase = ((def.Flags & FUNC.CASE) == 0);
             return true;
         }
 
@@ -1291,7 +1234,7 @@ AGGREGATE("min",               1, 0, 1, MinMaxStep,      MinMaxFinalize),
 FUNCTION("max",               -1, 1, 1, MinMaxFunc       ),
 FUNCTION("max",                0, 1, 1, null                ),
 AGGREGATE("max",               1, 1, 1, MinMaxStep,      MinMaxFinalize),
-FUNCTION2("typeof",            1, 0, 0, TypeOfFunc       ),
+FUNCTION2("typeof",            1, 0, 0, TypeofFunc       ),
 FUNCTION2("length",            1, 0, 0, LengthFunc       ),
 FUNCTION("substr",             2, 0, 0, SubstrFunc       ),
 FUNCTION("substr",             3, 0, 0, SubstrFunc       ),
@@ -1356,14 +1299,55 @@ LIKEFUNC("like", 3, _likeInfoNorm, FUNC.LIKE),
 
         public static void RegisterGlobalFunctions()
         {
-            FuncDefHash pHash = sqlite3GlobalFunctions;
-            FuncDef[] aFunc = _builtinFunc;
+            FuncDefHash hash = sqlite3GlobalFunctions;
+            FuncDef func = _builtinFunc;
             for (int i = 0; i < _lengthof(_builtinFunc); i++)
-                sqlite3FuncDefInsert(pHash, aFunc[i]);
-            sqlite3RegisterDateTimeFunctions();
+                hash.Insert(func[i]);
+            Date.RegisterDateTimeFunctions();
 #if !OMIT_ALTERTABLE
-            sqlite3AlterFunctions();
+            Alter.Functions();
 #endif
         }
     }
 }
+
+//public struct sFuncs
+//{
+//    public string zName;
+//    public sbyte nArg;
+//    public u8 argType;           /* 1: 0, 2: 1, 3: 2,...  N:  N-1. */
+//    public u8 eTextRep;          /* 1: UTF-16.  0: UTF-8 */
+//    public u8 needCollSeq;
+//    public dxFunc xFunc; //(FuncContext*,int,sqlite3_value **);
+
+//    // Constructor
+//    public sFuncs(string zName, sbyte nArg, u8 argType, u8 eTextRep, u8 needCollSeq, dxFunc xFunc)
+//    {
+//        this.zName = zName;
+//        this.nArg = nArg;
+//        this.argType = argType;
+//        this.eTextRep = eTextRep;
+//        this.needCollSeq = needCollSeq;
+//        this.xFunc = xFunc;
+//    }
+//};
+
+//public struct sAggs
+//{
+//    public string zName;
+//    public sbyte nArg;
+//    public u8 argType;
+//    public u8 needCollSeq;
+//    public dxStep xStep; //(FuncContext*,int,sqlite3_value**);
+//    public dxFinal xFinalize; //(FuncContext*);
+//    // Constructor
+//    public sAggs(string zName, sbyte nArg, u8 argType, u8 needCollSeq, dxStep xStep, dxFinal xFinalize)
+//    {
+//        this.zName = zName;
+//        this.nArg = nArg;
+//        this.argType = argType;
+//        this.needCollSeq = needCollSeq;
+//        this.xStep = xStep;
+//        this.xFinalize = xFinalize;
+//    }
+//}

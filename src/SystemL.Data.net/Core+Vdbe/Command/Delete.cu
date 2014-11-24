@@ -380,17 +380,17 @@ delete_from_cleanup:
 		}
 	}
 
-	__device__ int Delete::GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec)
+	__device__ int Delete::GenerateIndexKey(Parse *parse, Index *index, int curId, int regOut, bool doMakeRec)
 	{
 		Vdbe *v = parse->V;
-		Table *table = idx->Table;
+		Table *table = index->Table;
 
-		int cols = idx->Columns.length;
+		int cols = index->Columns.length;
 		int regBase = Expr::GetTempRange(parse, cols+1);
 		v->AddOp2(OP_Rowid, curId, regBase+cols);
 		for (int j = 0; j < cols; j++)
 		{
-			int idx = idx->Columns[j];
+			int idx = index->Columns[j];
 			if (idx == table->PKey)
 				v->AddOp2(OP_SCopy, regBase+cols, regBase+j);
 			else
@@ -401,7 +401,7 @@ delete_from_cleanup:
 		}
 		if (doMakeRec)
 		{
-			const char *affName = (table->Select || CtxOptimizationDisabled(parse->Ctx, SQLITE_IdxRealAsInt) ? nullptr : sqlite3IndexAffinityStr(v, idx));
+			const char *affName = (table->Select || CtxOptimizationDisabled(parse->Ctx, SQLITE_IdxRealAsInt) ? nullptr : sqlite3IndexAffinityStr(v, index));
 			v->AddOp3(OP_MakeRecord, regBase, cols+1, regOut);
 			v->ChangeP4(-1, affName, Vdbe::P4T_TRANSIENT);
 		}

@@ -323,171 +323,87 @@ namespace Core.Command
             if (FKey.FkRequired(parse, table, null, 0) != 0 || trigger != null)
             {
                 // TODO: Could use temporary registers here. Also could attempt to avoid copying the contents of the rowid register.
-                uint mask = sqlite3TriggerColmask(parse, trigger, null, 0, TRIGGER_BEFORE | TRIGGER_AFTER, table, onconf); // Mask of OLD.* columns in use
+                uint mask = sqlite3TriggerColmask(parse, trigger, null, 0, TRIGGER.BEFORE | TRIGGER.AFTER, table, onconf); // Mask of OLD.* columns in use
                 mask |= sqlite3FkOldmask(parse, table);
                 int oldId = parse.Mems + 1; // First register in OLD.* array
                 parse.Mems += (1 + table.Cols.length);
 
-                /* Populate the OLD.* pseudo-table register array. These values will be 
-                ** used by any BEFORE and AFTER triggers that exist.  */
-                sqlite3VdbeAddOp2(v, OP_Copy, rowid, oldId);
-                for (int col = 0; col < table.nCol; col++) // Iterator used while populating OLD.*
-                {
+                // Populate the OLD.* pseudo-table register array. These values will be used by any BEFORE and AFTER triggers that exist.
+                v.AddOp2(OP.Copy, rowid, oldId);
+                for (int col = 0; col < table.Cols.length; col++) // Iterator used while populating OLD.*
                     if (mask == 0xffffffff || (mask & (1 << col)) != 0)
-                    {
-                        sqlite3ExprCodeGetColumnOfTable(v, table, curId, col, oldId + col + 1);
-                    }
-                }
+                        Expr.CodeGetColumnOfTable(v, table, curId, col, oldId + col + 1);
 
-                /* Invoke BEFORE DELETE trigger programs. */
-                sqlite3CodeRowTrigger(parse, trigger,
-                    TK_DELETE, null, TRIGGER_BEFORE, table, oldId, onconf, label
-                );
+                // Invoke BEFORE DELETE trigger programs.
+                sqlite3CodeRowTrigger(parse, trigger, TK.DELETE, null, TRIGGER.BEFORE, table, oldId, onconf, label);
 
-                /* Seek the cursor to the row to be deleted again. It may be that
-                ** the BEFORE triggers coded above have already removed the row
-                ** being deleted. Do not attempt to delete the row a second time, and 
-                ** do not fire AFTER triggers.  */
-                sqlite3VdbeAddOp3(v, OP_NotExists, curId, label, rowid);
+                // Seek the cursor to the row to be deleted again. It may be that the BEFORE triggers coded above have already removed the row
+                // being deleted. Do not attempt to delete the row a second time, and do not fire AFTER triggers.
+                v.AddOp3(OP.NotExists, curId, label, rowid);
 
-                /* Do FK processing. This call checks that any FK constraints that
-                ** refer to this table (i.e. constraints attached to other tables) 
-                ** are not violated by deleting this row.  */
-                sqlite3FkCheck(parse, table, oldId, 0);
+                // Do FK processing. This call checks that any FK constraints that refer to this table (i.e. constraints attached to other tables) are not violated by deleting this row.
+                FKey.FkCheck(parse, table, oldId, 0);
             }
 
-            /* Delete the index and table entries. Skip this step if pTab is really
-            ** a view (in which case the only effect of the DELETE statement is to
-            ** fire the INSTEAD OF triggers).  */
-            if (table.pSelect == null)
+            // Delete the index and table entries. Skip this step if table is really a view (in which case the only effect of the DELETE statement is to fire the INSTEAD OF triggers).
+            if (table.Select == null)
             {
-                sqlite3GenerateRowIndexDelete(parse, table, curId, 0);
-                sqlite3VdbeAddOp2(v, OP_Delete, curId, (count != 0 ? (int)OPFLAG_NCHANGE : 0));
+                GenerateRowIndexDelete(parse, table, curId, null);
+                v.AddOp2(OP.Delete, curId, (count != 0 ? (int)OPFLAG.NCHANGE : 0));
                 if (count != 0)
-                {
-                    sqlite3VdbeChangeP4(v, -1, table.zName, P4_TRANSIENT);
-                }
+                    v.ChangeP4(-1, table.Name, Vdbe.P4T.TRANSIENT);
             }
 
-            /* Do any ON CASCADE, SET NULL or SET DEFAULT operations required to
-            ** handle rows (possibly in other tables) that refer via a foreign key
-            ** to the row just deleted. */
-            sqlite3FkActions(parse, table, null, oldId);
+            // Do any ON CASCADE, SET NULL or SET DEFAULT operations required to handle rows (possibly in other tables) that refer via a foreign key to the row just deleted.
+            FKey.FkActions(parse, table, null, oldId);
 
-            /* Invoke AFTER DELETE trigger programs. */
-            sqlite3CodeRowTrigger(parse, trigger,
-                TK_DELETE, null, TRIGGER_AFTER, table, oldId, onconf, label
-            );
+            // Invoke AFTER DELETE trigger programs.
+            sqlite3CodeRowTrigger(parse, trigger, TK.DELETE, null, TRIGGER.AFTER, table, oldId, onconf, label);
 
-            /* Jump here if the row had already been deleted before any BEFORE
-            ** trigger programs were invoked. Or if a trigger program throws a 
-            ** RAISE(IGNORE) exception.  */
-            sqlite3VdbeResolveLabel(v, label);
+            // Jump here if the row had already been deleted before any BEFORE trigger programs were invoked. Or if a trigger program throws a RAISE(IGNORE) exception.
+            v.ResolveLabel(label);
         }
 
-
-        /*
-        ** This routine generates VDBE code that causes the deletion of all
-        ** index entries associated with a single row of a single table.
-        **
-        ** The VDBE must be in a particular state when this routine is called.
-        ** These are the requirements:
-        **
-        **   1.  A read/write cursor pointing to pTab, the table containing the row
-        **       to be deleted, must be opened as cursor number "iCur".
-        **
-        **   2.  Read/write cursors for all indices of pTab must be open as
-        **       cursor number iCur+i for the i-th index.
-        **
-        **   3.  The "iCur" cursor must be pointing to the row that is to be
-        **       deleted.
-        */
-        static void sqlite3GenerateRowIndexDelete(
-        Parse pParse,     /* Parsing and code generating context */
-        Table pTab,       /* Table containing the row to be deleted */
-        int iCur,         /* VdbeCursor number for the table */
-        int nothing       /* Only delete if aRegIdx!=0 && aRegIdx[i]>0 */
-        )
-        {
-            int[] aRegIdx = null;
-            sqlite3GenerateRowIndexDelete(pParse, pTab, iCur, aRegIdx);
-        }
-        static void sqlite3GenerateRowIndexDelete(
-        Parse pParse,     /* Parsing and code generating context */
-        Table pTab,       /* Table containing the row to be deleted */
-        int iCur,          /* VdbeCursor number for the table */
-        int[] aRegIdx       /* Only delete if aRegIdx!=0 && aRegIdx[i]>0 */
-        )
+        //public static void GenerateRowIndexDelete(Parse parse, Table table, int curId, int nothing) { int[] regIdxs = null; GenerateRowIndexDelete(parse, table, curId, regIdxs); }
+        public static void GenerateRowIndexDelete(Parse parse, Table table, int curId, int[] regIdxs)
         {
             int i;
-            Index pIdx;
-            int r1;
-
-            for (i = 1, pIdx = pTab.pIndex; pIdx != null; i++, pIdx = pIdx.pNext)
+            Index idx;
+            for (i = 1, idx = table.Index; idx != null; i++, idx = idx.Next)
             {
-                if (aRegIdx != null && aRegIdx[i - 1] == 0)
+                if (regIdxs != null && regIdxs[i - 1] == 0)
                     continue;
-                r1 = sqlite3GenerateIndexKey(pParse, pIdx, iCur, 0, false);
-                sqlite3VdbeAddOp3(pParse.pVdbe, OP_IdxDelete, iCur + i, r1, pIdx.nColumn + 1);
+                int r1 = GenerateIndexKey(parse, idx, curId, 0, false);
+                parse.V.AddOp3(OP.IdxDelete, curId + i, r1, idx.Columns.length + 1);
             }
         }
 
-        /*
-        ** Generate code that will assemble an index key and put it in register
-        ** regOut.  The key with be for index pIdx which is an index on pTab.
-        ** iCur is the index of a cursor open on the pTab table and pointing to
-        ** the entry that needs indexing.
-        **
-        ** Return a register number which is the first in a block of
-        ** registers that holds the elements of the index key.  The
-        ** block of registers has already been deallocated by the time
-        ** this routine returns.
-        */
-        static int sqlite3GenerateIndexKey(
-        Parse pParse,     /* Parsing context */
-        Index pIdx,       /* The index for which to generate a key */
-        int iCur,         /* VdbeCursor number for the pIdx.pTable table */
-        int regOut,       /* Write the new index key to this register */
-        bool doMakeRec    /* Run the OP_MakeRecord instruction if true */
-        )
+        public static int GenerateIndexKey(Parse parse, Index index, int curId, int regOut, bool doMakeRec)
         {
-            Vdbe v = pParse.pVdbe;
-            int j;
-            Table pTab = pIdx.pTable;
-            int regBase;
-            int nCol;
+            Vdbe v = parse.V;
+            Table table = index.Table;
 
-            nCol = pIdx.nColumn;
-            regBase = sqlite3GetTempRange(pParse, nCol + 1);
-            sqlite3VdbeAddOp2(v, OP_Rowid, iCur, regBase + nCol);
-            for (j = 0; j < nCol; j++)
+            int cols = index.Columns.length;
+            int regBase = Expr.GetTempRange(parse, cols + 1);
+            v.AddOp2(OP.Rowid, curId, regBase + cols);
+            for (int j = 0; j < cols; j++)
             {
-                int idx = pIdx.aiColumn[j];
-                if (idx == pTab.iPKey)
-                {
-                    sqlite3VdbeAddOp2(v, OP_SCopy, regBase + nCol, regBase + j);
-                }
+                int idx = index.Columns[j];
+                if (idx == table.PKey)
+                    v.AddOp2(OP.SCopy, regBase + cols, regBase + j);
                 else
                 {
-                    sqlite3VdbeAddOp3(v, OP_Column, iCur, idx, regBase + j);
-                    sqlite3ColumnDefault(v, pTab, idx, -1);
+                    v.AddOp3(OP.Column, curId, idx, regBase + j);
+                    v.ColumnDefault(table, idx, -1);
                 }
             }
             if (doMakeRec)
             {
-                string zAff;
-                if (pTab.pSelect != null || (pParse.db.flags & SQLITE_IdxRealAsInt) != 0)
-                {
-                    zAff = "";
-                }
-                else
-                {
-                    zAff = sqlite3IndexAffinityStr(v, pIdx);
-                }
-                sqlite3VdbeAddOp3(v, OP_MakeRecord, regBase, nCol + 1, regOut);
-                sqlite3VdbeChangeP4(v, -1, zAff, P4_TRANSIENT);
+                string affName = (table.Select != null || E.CtxOptimizationDisabled(parse.Ctx, SQLITE.IdxRealAsInt) ? null : sqlite3IndexAffinityStr(v, index));
+                v.AddOp3(OP.MakeRecord, regBase, cols + 1, regOut);
+                v.ChangeP4(-1, affName, Vdbe.P4T.TRANSIENT);
             }
-            sqlite3ReleaseTempRange(pParse, regBase, nCol + 1);
+            Expr.ReleaseTempRange(parse, regBase, cols + 1);
             return regBase;
         }
     }

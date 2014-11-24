@@ -2,7 +2,6 @@
 #include "..\Core+Vdbe.cu.h"
 #include "..\VdbeInt.h"
 #include <stdlib.h>
-#include <assert.h>
 
 namespace Core { namespace Command
 {
@@ -19,28 +18,28 @@ namespace Core { namespace Command
 	__device__ static void MinMaxFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc > 1);
-		int mask = (sqlite3_user_data(fctx) == 0 ? 0 : -1); // 0 for min() or 0xffffffff for max()
+		int mask = (Vdbe::User_Data(fctx) == nullptr ? 0 : -1); // 0 for min() or 0xffffffff for max()
 		CollSeq *coll = sqlite3GetFuncCollSeq(fctx);
 		_assert(coll);
 		_assert(mask == -1 || mask == 0);
 		int best = 0;
-		if (sqlite3_value_type(argv[0]) == TYPE_NULL) return;
+		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL) return;
 		for (int i = 1; i < argc; i++)
 		{
-			if (sqlite3_value_type(argv[i]) == TYPE_NULL) return;
+			if (Vdbe::Value_Type(argv[i]) == TYPE_NULL) return;
 			if ((sqlite3MemCompare(argv[best], argv[i], coll)^mask) >= 0)
 			{
 				ASSERTCOVERAGE(mask == 0);
 				best = i;
 			}
 		}
-		sqlite3_result_value(fctx, argv[best]);
+		Vdbe::Result_Value(fctx, argv[best]);
 	}
 
 	__device__ static void TypeofFunc(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
 		const char *z;
-		switch (sqlite3_value_type(argv[0]))
+		switch (Vdbe::Value_Type(argv[0]))
 		{
 		case TYPE_INTEGER: z = "integer"; break;
 		case TYPE_TEXT: z = "text"; break;
@@ -48,22 +47,22 @@ namespace Core { namespace Command
 		case TYPE_BLOB: z = "blob"; break;
 		default: z = "null"; break;
 		}
-		sqlite3_result_text(fctx, z, -1, DESTRUCTOR_STATIC);
+		Vdbe::Result_Text(fctx, z, -1, DESTRUCTOR_STATIC);
 	}
 
 	__device__ static void LengthFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		int len;
 		_assert(argc == 1);
-		switch (sqlite3_value_type(argv[0]))
+		switch (Vdbe::Value_Type(argv[0]))
 		{
 		case TYPE_BLOB:
 		case TYPE_INTEGER:
 		case TYPE_FLOAT: {
-			sqlite3_result_int(fctx, sqlite3_value_bytes(argv[0]));
+			Vdbe::Result_Int(fctx, Vdbe::Value_Bytes(argv[0]));
 			break; }
 		case TYPE_TEXT: {
-			const unsigned char *z = sqlite3_value_text(argv[0]);
+			const unsigned char *z = Vdbe::Value_Text(argv[0]);
 			if (!z) return;
 			len = 0;
 			while (*z)
@@ -71,10 +70,10 @@ namespace Core { namespace Command
 				len++;
 				_strskiputf8(z);
 			}
-			sqlite3_result_int(fctx, len);
+			Vdbe::Result_Int(fctx, len);
 			break; }
 		default: {
-			sqlite3_result_null(fctx);
+			Vdbe::Result_Null(fctx);
 			break; }
 		}
 	}
@@ -82,56 +81,57 @@ namespace Core { namespace Command
 	__device__ static void AbsFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		switch (sqlite3_value_type(argv[0]) ){
+		switch (Vdbe::Value_Type(argv[0]))
+		{
 		case TYPE_INTEGER: {
-			int64 iVal = sqlite3_value_int64(argv[0]);
-			if (iVal < 0)
+			int64 ival = Vdbe::Value_Int64(argv[0]);
+			if (ival < 0)
 			{
-				if ((iVal<<1) == 0)
+				if ((ival<<1) == 0)
 				{
 					// IMP: R-35460-15084 If X is the integer -9223372036854775807 then abs(X) throws an integer overflow error since there is no
 					// equivalent positive 64-bit two complement value.
-					sqlite3_result_error(fctx, "integer overflow", -1);
+					Vdbe::Result_Error(fctx, "integer overflow", -1);
 					return;
 				}
-				iVal = -iVal;
+				ival = -ival;
 			} 
-			sqlite3_result_int64(fctx, iVal);
+			Vdbe::Result_Int64(fctx, ival);
 			break; }
 		case TYPE_NULL: {
 			// IMP: R-37434-19929 Abs(X) returns NULL if X is NULL.
-			sqlite3_result_null(fctx);
+			Vdbe::Result_Null(fctx);
 			break; }
 		default: {
 			// Because sqlite3_value_double() returns 0.0 if the argument is not something that can be converted into a number, we have:
 			// IMP: R-57326-31541 Abs(X) return 0.0 if X is a string or blob that cannot be converted to a numeric value. 
-			double rVal = sqlite3_value_double(argv[0]);
-			if (rVal < 0) rVal = -rVal;
-			sqlite3_result_double(fctx, rVal);
+			double rval = Vdbe::Value_Double(argv[0]);
+			if (rval < 0) rval = -rval;
+			Vdbe::Result_Double(fctx, rval);
 			break; }
 		}
 	}
 
 	__device__ static void InstrFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		TYPE typeHaystack = sqlite3_value_type(argv[0]);
-		TYPE typeNeedle = sqlite3_value_type(argv[1]);
+		TYPE typeHaystack = Vdbe::Value_Type(argv[0]);
+		TYPE typeNeedle = Vdbe::Value_Type(argv[1]);
 		if (typeHaystack == TYPE_NULL || typeNeedle == TYPE_NULL) return;
-		int haystackLength = sqlite3_value_bytes(argv[0]);
-		int needleLength = sqlite3_value_bytes(argv[1]);
+		int haystackLength = Vdbe::Value_Bytes(argv[0]);
+		int needleLength = Vdbe::Value_Bytes(argv[1]);
 		const unsigned char *haystack;
 		const unsigned char *needle;
 		bool isText;
 		if (typeHaystack == TYPE_BLOB && typeNeedle == TYPE_BLOB)
 		{
-			haystack = sqlite3_value_blob(argv[0]);
-			needle = sqlite3_value_blob(argv[1]);
+			haystack = Vdbe::Value_Blob(argv[0]);
+			needle = Vdbe::Value_Blob(argv[1]);
 			isText = false;
 		}
 		else
 		{
-			haystack = sqlite3_value_text(argv[0]);
-			needle = sqlite3_value_text(argv[1]);
+			haystack = Vdbe::Value_Text(argv[0]);
+			needle = Vdbe::Value_Text(argv[1]);
 			isText = true;
 		}
 		int n = 1;
@@ -145,29 +145,29 @@ namespace Core { namespace Command
 			} while (isText && (haystack[0] & 0xc0) == 0x80);
 		}
 		if (needleLength > haystackLength) n = 0;
-		sqlite3_result_int(fctx, n);
+		Vdbe::Result_Int(fctx, n);
 	}
 
 	__device__ static void SubstrFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 3 || argc == 2);
-		if (sqlite3_value_type(argv[1]) == TYPE_NULL || (argc == 3 && sqlite3_value_type(argv[2]) == TYPE_NULL))
+		if (Vdbe::Value_Type(argv[1]) == TYPE_NULL || (argc == 3 && Vdbe::Value_Type(argv[2]) == TYPE_NULL))
 			return;
-		TYPE p0type = sqlite3_value_type(argv[0]);
-		int64 p1 = sqlite3_value_int(argv[1]);
+		TYPE p0type = Vdbe::Value_Type(argv[0]);
+		int64 p1 = Vdbe::Value_Int(argv[1]);
 		int len;
 		const unsigned char *z;
 		const unsigned char *z2;
 		if (p0type == TYPE_BLOB)
 		{
-			len = sqlite3_value_bytes(argv[0]);
-			z = sqlite3_value_blob(argv[0]);
+			len = Vdbe::Value_Bytes(argv[0]);
+			z = Vdbe::Value_Blob(argv[0]);
 			if (!z) return;
-			//_assert(len == sqlite3_value_bytes(argv[0]));
+			//_assert(len == Vdbe::Value_Bytes(argv[0]));
 		}
 		else
 		{
-			z = sqlite3_value_text(argv[0]);
+			z = Vdbe::Value_Text(argv[0]);
 			if (!z) return;
 			len = 0;
 			if (p1 < 0)
@@ -178,7 +178,7 @@ namespace Core { namespace Command
 		bool negP2 = false;
 		if (argc == 3)
 		{
-			p2 = sqlite3_value_int(argv[2]);
+			p2 = Vdbe::Value_Int(argv[2]);
 			if (p2 < 0)
 			{
 				p2 = -p2;
@@ -186,7 +186,7 @@ namespace Core { namespace Command
 			}
 		}
 		else
-			p2 = sqlite3_context_db_handle(fctx)->Limits[LIMIT_LENGTH];
+			p2 = Vdbe::Context_Ctx(fctx)->Limits[LIMIT_LENGTH];
 		if (p1 < 0)
 		{
 			p1 += len;
@@ -220,7 +220,7 @@ namespace Core { namespace Command
 			}
 			for (z2 = z; *z2 && p2; p2--)
 				_strskiputf8(z2);
-			sqlite3_result_text(fctx, (char*)z, (int)(z2-z), SQLITE_TRANSIENT);
+			Vdbe::Result_Text(fctx, (char*)z, (int)(z2-z), DESTRUCTOR_TRANSIENT);
 		}
 		else
 		{
@@ -229,7 +229,7 @@ namespace Core { namespace Command
 				p2 = len-p1;
 				if (p2 < 0) p2 = 0;
 			}
-			sqlite3_result_blob(fctx, (char*)&z[p1], (int)p2, SQLITE_TRANSIENT);
+			Vdbe::Result_Blob(fctx, (char*)&z[p1], (int)p2, DESTRUCTOR_TRANSIENT);
 		}
 	}
 
@@ -240,13 +240,13 @@ namespace Core { namespace Command
 		int n = 0;
 		if (argc == 2)
 		{
-			if (sqlite3_value_type(argv[1]) == TYPE_NULL) return;
-			n = sqlite3_value_int(argv[1]);
+			if (Vdbe::Value_Type(argv[1]) == TYPE_NULL) return;
+			n = Vdbe::Value_Int(argv[1]);
 			if (n > 30) n = 30;
 			if (n < 0) n = 0;
 		}
-		if (sqlite3_value_type(argv[0]) == TYPE_NULL) return;
-		double r = sqlite3_value_double(argv[0]);
+		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL) return;
+		double r = Vdbe::Value_Double(argv[0]);
 		// If Y==0 and X will fit in a 64-bit int, handle the rounding directly, otherwise use printf.
 		if (n == 0 && r >= 0 && r < LARGEST_INT64-1)
 			r = (double)((int64)(r+0.5));
@@ -257,61 +257,61 @@ namespace Core { namespace Command
 			char *buf = _mprintf("%.*f",n,r);
 			if (!buf)
 			{
-				sqlite3_result_error_nomem(fctx);
+				Vdbe::Result_ErrorNoMem(fctx);
 				return;
 			}
 			ConvertEx::Atof(buf, &r, _strlen30(buf), TEXTENCODE_UTF8);
 			_free(buf);
 		}
-		sqlite3_result_double(fctx, r);
+		Vdbe::Result_Double(fctx, r);
 	}
 #endif
 
 	__device__ static void *ContextMalloc(FuncContext *fctx, int64 bytes)
 	{
 
-		Context *ctx = sqlite3_context_db_handle(fctx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		_assert(bytes > 0);
 		ASSERTCOVERAGE(bytes == ctx->Limits[LIMIT_LENGTH]);
 		ASSERTCOVERAGE(bytes == ctx->Limits[LIMIT_LENGTH]+1);
 		char *z;
 		if (bytes > ctx->Limits[LIMIT_LENGTH])
 		{
-			sqlite3_result_error_toobig(fctx);
+			Vdbe::Result_ErrorOverflow(fctx);
 			z = nullptr;
 		}
 		else
 		{
-			z = sqlite3Malloc((int)bytes);
+			z = _alloc((int)bytes);
 			if (!z)
-				sqlite3_result_error_nomem(fctx);
+				Vdbe::Result_ErrorNoMem(fctx);
 		}
 		return z;
 	}
 
 	__device__ static void UpperFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		const char *z2 = (char*)sqlite3_value_text(argv[0]);
-		int n = sqlite3_value_bytes(argv[0]);
+		const char *z2 = (char *)Vdbe::Value_Text(argv[0]);
+		int n = Vdbe::Value_Bytes(argv[0]);
 		// Verify that the call to _bytes() does not invalidate the _text() pointer
-		_assert(z2 == (char *)sqlite3_value_text(argv[0]));
+		_assert(z2 == (char *)Vdbe::Value_Text(argv[0]));
 		if (z2)
 		{
 			char *z1 = ContextMalloc(fctx, ((int64)n)+1);
 			if (z1)
 			{
-				for(int i = 0; i < n; i++)
+				for (int i = 0; i < n; i++)
 					z1[i] = _toupper(z2[i]);
-				sqlite3_result_text(fctx, z1, n, _free);
+				Vdbe::Result_Text(fctx, z1, n, _free);
 			}
 		}
 	}
 
 	__device__ static void LowerFunc(FuncContext *fctx, int argc, Mem **argv){
-		const char *z2 = (char*)sqlite3_value_text(argv[0]);
-		int n = sqlite3_value_bytes(argv[0]);
+		const char *z2 = (char *)Vdbe::Value_Text(argv[0]);
+		int n = Vdbe::Value_Bytes(argv[0]);
 		// Verify that the call to _bytes() does not invalidate the _text() pointer
-		_assert(z2 == (char *)sqlite3_value_text(argv[0]));
+		_assert(z2 == (char *)Vdbe::Value_text(argv[0]));
 		if (z2)
 		{
 			char *z1 = ContextMalloc(fctx, ((int64)n)+1);
@@ -319,7 +319,7 @@ namespace Core { namespace Command
 			{
 				for (int i = 0; i < n; i++)
 					z1[i] = _tolower(z2[i]);
-				sqlite3_result_text(fctx, z1, n, _free);
+				Vdbe::Result_Text(fctx, z1, n, _free);
 			}
 		}
 	}
@@ -329,7 +329,7 @@ namespace Core { namespace Command
 	__device__ static void RandomFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		int64 r;
-		sqlite3_randomness(sizeof(r), &r);
+		SysEx::PutRandom(sizeof(r), &r);
 		if (r < 0)
 		{
 			// We need to prevent a random number of 0x8000000000000000 (or -9223372036854775808) since when you do abs() of that
@@ -338,41 +338,41 @@ namespace Core { namespace Command
 			// therefore be no less than -9223372036854775807.
 			r = -(r & LARGEST_INT64);
 		}
-		sqlite3_result_int64(fctx, r);
+		Vdbe::Result_Int64(fctx, r);
 	}
 
 	__device__ static void RandomBlob(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		int n = sqlite3_value_int(argv[0]);
+		int n = Vdbe::Value_Int(argv[0]);
 		if (n < 1)
 			n = 1;
 		unsigned char *p = ContextMalloc(fctx, n);
 		if (p)
 		{
-			sqlite3_randomness(n, p);
-			sqlite3_result_blob(fctx, (char *)p, n, _free);
+			SysEx::PutRandom(n, p);
+			Vdbe::Result_Blob(fctx, (char *)p, n, _free);
 		}
 	}
 
 	__device__ static void LastInsertRowid(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		// IMP: R-51513-12026 The last_insert_rowid() SQL function is a wrapper around the sqlite3_last_insert_rowid() C/C++ interface function.
-		sqlite3_result_int64(fctx, sqlite3_last_insert_rowid(ctx));
+		Vdbe::Result_Int64(fctx, Vdbe::Last_InsertRowid(ctx));
 	}
 
 	__device__ static void Changes(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		sqlite3_result_int(fctx, sqlite3_changes(ctx));
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		Vdbe::Result_Int(fctx, sqlite3_changes(ctx));
 	}
 
 	__device__ static void TotalChanges(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		// IMP: R-52756-41993 This function is a wrapper around the sqlite3_total_changes() C/C++ interface.
-		sqlite3_result_int(fctx, sqlite3_total_changes(db));
+		Vdbe::Result_Int(fctx, sqlite3_total_changes(db));
 	}
 
 	struct CompareInfo
@@ -510,41 +510,41 @@ namespace Core { namespace Command
 	__device__ static void LikeFunc(FuncContext *fctx,  int argc,  Mem **argv)
 	{
 		uint32 escape = 0;
-		Context *ctx = sqlite3_context_db_handle(fctx);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 
-		const unsigned char *zB = sqlite3_value_text(argv[0]);
-		const unsigned char *zA = sqlite3_value_text(argv[1]);
+		const unsigned char *zB = Vdbe::Value_Text(argv[0]);
+		const unsigned char *zA = Vdbe::Value_Text(argv[1]);
 
 		// Limit the length of the LIKE or GLOB pattern to avoid problems of deep recursion and N*N behavior in patternCompare().
-		int pats = sqlite3_value_bytes(argv[0]);
+		int pats = Vdbe::Value_Bytes(argv[0]);
 		ASSERTCOVERAGE(pats == ctx->Limits[LIMIT_LIKE_PATTERN_LENGTH]);
 		ASSERTCOVERAGE(pats == ctx->Limits[LIMIT_LIKE_PATTERN_LENGTH]+1);
 		if (pats > ctx->Limits[LIMIT_LIKE_PATTERN_LENGTH])
 		{
-			sqlite3_result_error(fctx, "LIKE or GLOB pattern too complex", -1);
+			Vdbe::Result_Error(fctx, "LIKE or GLOB pattern too complex", -1);
 			return;
 		}
-		_assert(zB == sqlite3_value_text(argv[0])); // Encoding did not change
+		_assert(zB == Vdbe::Value_Text(argv[0])); // Encoding did not change
 
 		if (argc == 3)
 		{
 			// The escape character string must consist of a single UTF-8 character. Otherwise, return an error.
-			const unsigned char *zEscape = sqlite3_value_text(argv[2]);
+			const unsigned char *zEscape = Vdbe::Value_Text(argv[2]);
 			if (!zEscape) return;
 			if (SysEx::Utf8CharLen((char *)zEscape, -1) != 1)
 			{
-				sqlite3_result_error(fctx, "ESCAPE expression must be a single character", -1);
+				Vdbe::Result_Error(fctx, "ESCAPE expression must be a single character", -1);
 				return;
 			}
 			escape = SysEx::Utf8Read(&zEscape);
 		}
 		if (zA && zB)
 		{
-			CompareInfo *info = sqlite3_user_data(fctx);
+			CompareInfo *info = Vdbe::User_Data(fctx);
 #ifdef TEST
 			_likeCount++;
 #endif
-			sqlite3_result_int(fctx, PatternCompare(zB, zA, info, escape));
+			Vdbe::Result_Int(fctx, PatternCompare(zB, zA, info, escape));
 		}
 	}
 
@@ -552,24 +552,24 @@ namespace Core { namespace Command
 	{
 		CollSeq *coll = Func::GetFuncCollSeq(fctx);
 		if (sqlite3MemCompare(argv[0], argv[1], coll) != 0)
-			sqlite3_result_value(fctx, argv[0]);
+			Vdbe::Result_Value(fctx, argv[0]);
 	}
 
 	__device__ static void VersionFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		// IMP: R-48699-48617 This function is an SQL wrapper around the sqlite3_libversion() C-interface.
-		sqlite3_result_text(fctx, sqlite3_libversion(), -1, DESTRUCTOR_STATIC);
+		Vdbe::Result_Text(fctx, sqlite3_libversion(), -1, DESTRUCTOR_STATIC);
 	}
 
 	__device__ static void SourceidFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		// IMP: R-24470-31136 This function is an SQL wrapper around the sqlite3_sourceid() C interface.
-		sqlite3_result_text(fctx, sqlite3_sourceid(), -1, DESTRUCTOR_STATIC);
+		Vdbe::Result_Text(fctx, sqlite3_sourceid(), -1, DESTRUCTOR_STATIC);
 	}
 
 	__device__ static void ErrlogFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		SysEx_LOG(sqlite3_value_int(argv[0]), "%s", sqlite3_value_text(argv[1]));
+		SysEx_LOG(Vdbe::Value_Int(argv[0]), "%s", Vdbe::Value_Text(argv[1]));
 	}
 
 
@@ -580,16 +580,16 @@ namespace Core { namespace Command
 		_assert(argc == 1);
 		// IMP: R-39564-36305 The sqlite_compileoption_used() SQL function is a wrapper around the sqlite3_compileoption_used() C/C++ function.
 		const char *optName;
-		if ((optName = (const char*)sqlite3_value_text(argv[0])) != nullptr)
-			sqlite3_result_int(fctx, CompileTimeOptionUsed(optName));
+		if ((optName = (const char *)Vdbe::Value_Text(argv[0])) != nullptr)
+			Vdbe::Result_Int(fctx, CompileTimeOptionUsed(optName));
 	}
 
 	__device__ static void CompileoptiongetFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		assert(argc == 1);
 		// IMP: R-04922-24076 The sqlite_compileoption_get() SQL function is a wrapper around the sqlite3_compileoption_get() C/C++ function.
-		int n = sqlite3_value_int(argv[0]);
-		sqlite3_result_text(fctx, CompileTimeGet(n), -1, DESTRUCTOR_STATIC);
+		int n = Vdbe::Value_Int(argv[0]);
+		Vdbe::Result_Text(fctx, CompileTimeGet(n), -1, DESTRUCTOR_STATIC);
 	}
 #endif
 
@@ -598,28 +598,28 @@ namespace Core { namespace Command
 	__device__ static void QuoteFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		switch (sqlite3_value_type(argv[0]))
+		switch (Vdbe::Value_Type(argv[0]))
 		{
 		case TYPE_FLOAT: {
-			double r1 = sqlite3_value_double(argv[0]);
+			double r1 = Vdbe::Value_Double(argv[0]);
 			char b[50];
 			__snprintf(sizeof(b), b, "%!.15g", r1);
 			double r2;
 			ConvertEx::Atof(b, &r2, 20, TEXTENCODE_UTF8);
 			if (r1 != r2)
 				__snprintf(sizeof(b), b, "%!.20e", r1);
-			sqlite3_result_text(fctx, b, -1, DESTRUCTOR_TRANSIENT);
+			Vdbe::Result_Text(fctx, b, -1, DESTRUCTOR_TRANSIENT);
 			break; }
 
 		case TYPE_INTEGER: {
-			sqlite3_result_value(fctx, argv[0]);
+			Vdbe::Result_Value(fctx, argv[0]);
 			break; }
 
 		case TYPE_BLOB: {
 			char *z = 0;
-			char const *blob = sqlite3_value_blob(argv[0]);
-			int blobLength = sqlite3_value_bytes(argv[0]);
-			_assert(blob == sqlite3_value_blob(argv[0])); // No encoding change
+			char const *blob = Vdbe::Value_Blob(argv[0]);
+			int blobLength = Vdbe::Value_Bytes(argv[0]);
+			_assert(blob == Vdbe::Value_Blob(argv[0])); // No encoding change
 			z = (char *)ContextMalloc(fctx, (2*(int64)blobLength)+4); 
 			if (z)
 			{
@@ -632,58 +632,58 @@ namespace Core { namespace Command
 				z[(blobLength*2)+3] = '\0';
 				z[0] = 'X';
 				z[1] = '\'';
-				sqlite3_result_text(fctx, z, -1, DESTRUCTOR_TRANSIENT);
+				Vdbe::Result_Text(fctx, z, -1, DESTRUCTOR_TRANSIENT);
 				_free(z);
 			}
 			break; }
 
 		case TYPE_TEXT: {
-			const unsigned char *zArg = sqlite3_value_text(argv[0]);
-			if (zArg == nullptr) return;
+			const unsigned char *zarg = Vdbe::Value_Text(argv[0]);
+			if (zarg == nullptr) return;
 			int i, j;
 			uint64 n;
-			for (i = 0, n = 0; zArg[i]; i++) { if (zArg[i] == '\'') n++; }
+			for (i = 0, n = 0; zarg[i]; i++) { if (zarg[i] == '\'') n++; }
 			char *z = (char *)ContextMalloc(fctx, ((int64)i)+((int64)n)+3);
 			if (z)
 			{
 				z[0] = '\'';
-				for (i = 0, j = 1; zArg[i]; i++)
+				for (i = 0, j = 1; zarg[i]; i++)
 				{
-					z[j++] = zArg[i];
-					if (zArg[i] == '\'')
+					z[j++] = zarg[i];
+					if (zarg[i] == '\'')
 						z[j++] = '\'';
 				}
 				z[j++] = '\'';
 				z[j] = 0;
-				sqlite3_result_text(fctx, z, j, _free);
+				Vdbe::Result_Text(fctx, z, j, _free);
 			}
 			break; }
 
 		default: {
-			assert( sqlite3_value_type(argv[0]) == TYPE_NULL);
-			sqlite3_result_text(fctx, "NULL", 4, DESTRUCTOR_STATIC);
+			_assert(Vdbe::Value_Type(argv[0]) == TYPE_NULL);
+			Vdbe::Result_Text(fctx, "NULL", 4, DESTRUCTOR_STATIC);
 			break; }
 		}
 	}
 
 	__device__ static void UnicodeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		const unsigned char *z = sqlite3_value_text(argv[0]);
-		if (z && z[0]) sqlite3_result_int(fctx, SysEx::Utf8Read(&z));
+		const unsigned char *z = Vdbe::Value_Text(argv[0]);
+		if (z && z[0]) Vdbe::Result_Int(fctx, SysEx::Utf8Read(&z));
 	}
 
 	__device__ static void CharFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		unsigned char *z, *z2;
-		z = z2 = sqlite3_malloc(argc*4);
+		z = z2 = _alloc(argc*4);
 		if (!z)
 		{
-			sqlite3_result_error_nomem(fctx);
+			Vdbe::Result_ErrorNoMem(fctx);
 			return;
 		}
 		for (int i = 0; i < argc; i++)
 		{
-			int64 x = sqlite3_value_int64(argv[i]);
+			int64 x = Vdbe::Value_Int64(argv[i]);
 			if (x < 0 || x > 0x10ffff) x = 0xfffd;
 			unsigned c = (unsigned)(x & 0x1fffff);
 			if (c < 0x00080)
@@ -707,15 +707,15 @@ namespace Core { namespace Command
 				*z2++ = 0x80 + (uint8)(c & 0x3F);
 			}
 		}
-		sqlite3_result_text(fctx, (char *)z, (int)(z2 - z), _free);
+		Vdbe::Result_Text(fctx, (char *)z, (int)(z2 - z), _free);
 	}
 
 	__device__ static void HexFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		const unsigned char *blob = sqlite3_value_blob(argv[0]);
-		int n = sqlite3_value_bytes(argv[0]);
-		_assert(blob == sqlite3_value_blob(argv[0])); // No encoding change
+		const unsigned char *blob = Vdbe::Value_Blob(argv[0]);
+		int n = Vdbe::Value_Bytes(argv[0]);
+		_assert(blob == Vdbe::Value_Blob(argv[0])); // No encoding change
 		char *zHex, *z;
 		zHex = z = (char *)ContextMalloc(fctx, ((int64)n)*2 + 1);
 		if (zHex)
@@ -734,41 +734,41 @@ namespace Core { namespace Command
 	__device__ static void ZeroblobFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		int64 n = sqlite3_value_int64(argv[0]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		int64 n = Vdbe::Value_Int64(argv[0]);
 		ASSERTCOVERAGE(n == ctx->Limits[LIMIT_LENGTH]);
 		ASSERTCOVERAGE(n == ctx->Limits[LIMIT_LENGTH]+1);
 		if (n > ctx->Limits[LIMIT_LENGTH])
-			sqlite3_result_error_toobig(fctx);
+			Vdbe::Result_ErrorOverflow(fctx);
 		else
-			sqlite3_result_zeroblob(fctx, (int)n); // IMP: R-00293-64994
+			Vdbe::Result_Zeroblob(fctx, (int)n); // IMP: R-00293-64994
 	}
 
 	__device__ static void ReplaceFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 3);
-		const unsigned char *string = sqlite3_value_text(argv[0]); // The input string A
+		const unsigned char *string = Vdbe::Value_Text(argv[0]); // The input string A
 		if (!string) return;
-		int stringLength = sqlite3_value_bytes(argv[0]); // Size of string
-		_assert(string == sqlite3_value_text(argv[0])); // No encoding change
-		const unsigned char *pattern = sqlite3_value_text(argv[1]);
+		int stringLength = Vdbe::Value_Bytes(argv[0]); // Size of string
+		_assert(string == Vdbe::Value_Text(argv[0])); // No encoding change
+		const unsigned char *pattern = Vdbe::Value_Text(argv[1]);
 		if (!pattern)
 		{
-			_assert(sqlite3_value_type(argv[1]) == TYPE_NULL || sqlite3_context_db_handle(fctx)->MallocFailed);
+			_assert(Vdbe::Value_Type(argv[1]) == TYPE_NULL || Vdbe::Context_Ctx(fctx)->MallocFailed);
 			return;
 		}
 		if (pattern[0] == 0)
 		{
-			_assert(sqlite3_value_type(argv[1]) != TYPE_NULL);
-			sqlite3_result_value(fctx, argv[0]);
+			_assert(Vdbe::Value_Type(argv[1]) != TYPE_NULL);
+			Vdbe::Result_Value(fctx, argv[0]);
 			return;
 		}
-		int patternLength = sqlite3_value_bytes(argv[1]); // Size of pattern
-		_assert(pattern == sqlite3_value_text(argv[1])); // No encoding change
-		const unsigned char *replacement = sqlite3_value_text(argv[2]); // The replacement string C
+		int patternLength = Vdbe::Value_Bytes(argv[1]); // Size of pattern
+		_assert(pattern == Vdbe::Value_Text(argv[1])); // No encoding change
+		const unsigned char *replacement = Vdbe::Value_Text(argv[2]); // The replacement string C
 		if (!replacement) return;
-		int replacementLength = sqlite3_value_bytes(argv[2]); // Size of replacement
-		_assert(replacement == sqlite3_value_text(argv[2]));
+		int replacementLength = Vdbe::Value_Bytes(argv[2]); // Size of replacement
+		_assert(replacement == Vdbe::Value_Text(argv[2]));
 		int64 outLength = stringLength + 1; // Maximum size of out
 		_assert(outLength < CORE_MAX_LENGTH);
 		unsigned char *out = (unsigned char *)ContextMalloc(fctx, (int64)outLength); // The output
@@ -782,21 +782,21 @@ namespace Core { namespace Command
 				out[j++] = string[i];
 			else
 			{
-				Context *ctx = sqlite3_context_db_handle(fctx);
+				Context *ctx = Vdbe::Context_Ctx(fctx);
 				outLength += replacementLength - patternLength;
 				ASSERTCOVERAGE(outLength-1 == ctx->Limits[LIMIT_LENGTH]);
 				ASSERTCOVERAGE(outLength-2 == ctx->Limits[LIMIT_LENGTH]);
 				if (outLength-1 > ctx->Limits[LIMIT_LENGTH])
 				{
-					sqlite3_result_error_toobig(fctx);
+					Vdbe::Result_ErrorOverflow(fctx);
 					_free(out);
 					return;
 				}
 				uint8 *oldOut = out;
-				out = (unsigned char *)SysEx::Realloc(out, (int)outLength);
+				out = (unsigned char *)_realloc(out, (int)outLength);
 				if (!out)
 				{
-					sqlite3_result_error_nomem(fctx);
+					Vdbe::Result_ErrorNoMem(fctx);
 					_free(oldOut);
 					return;
 				}
@@ -810,7 +810,7 @@ namespace Core { namespace Command
 		j += stringLength - i;
 		_assert(j <= outLength);
 		out[j] = 0;
-		sqlite3_result_text(fctx, (char*)out, j, _free);
+		Vdbe::Result_Text(fctx, (char *)out, j, _free);
 	}
 
 	__device__ static const unsigned char _trimOneLength[] = { 1 };
@@ -819,24 +819,24 @@ namespace Core { namespace Command
 	{
 		const unsigned char *charSet; // Set of characters to trim
 		int charSetLength; // Number of characters in charSet
-		unsigned char *charsLength = 0; // Length of each character in charSet
-		unsigned char **chars = 0; // Individual characters in charSet
+		unsigned char *charsLength = nullptr; // Length of each character in charSet
+		unsigned char **chars = nullptr; // Individual characters in charSet
 		int flags; // 1: trimleft  2: trimright  3: trim
 
-		if (sqlite3_value_type(argv[0]) == TYPE_NULL)
+		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL)
 			return;
-		const unsigned char *in = sqlite3_value_text(argv[0]); // Input string
+		const unsigned char *in = Vdbe::Value_Text(argv[0]); // Input string
 		if (!in) return;
-		int inLength = sqlite3_value_bytes(argv[0]); // Number of bytes in input
-		//? _assert(in == sqlite3_value_text(argv[0]));
+		int inLength = Vdbe::Value_Bytes(argv[0]); // Number of bytes in input
+		//? _assert(in == Vdbe::Value_Text(argv[0]));
 		if (argc == 1)
 		{
 			charSetLength = 1;
 			charsLength = (uint8 *)_trimOneLength;
 			chars = (unsigned char **)_trimOne;
-			charSet = 0;
+			charSet = nullptr;
 		}
-		else if ((charSet = sqlite3_value_text(argv[1])) == nullptr)
+		else if ((charSet = Vdbe::Value_Text(argv[1])) == nullptr)
 			return;
 		else
 		{
@@ -845,7 +845,7 @@ namespace Core { namespace Command
 				_strskiputf8(z);
 			if (charSetLength > 0)
 			{
-				chars = (unsigned char **)ContextMalloc(fctx, ((int64)charSetLength)*(sizeof(char*)+1));
+				chars = (unsigned char **)ContextMalloc(fctx, ((int64)charSetLength)*(sizeof(char *)+1));
 				if (!chars)
 					return;
 				charsLength = (unsigned char *)&chars[charSetLength];
@@ -860,7 +860,7 @@ namespace Core { namespace Command
 		int i;
 		if (charSetLength > 0)
 		{
-			flags = PTR_TO_INT(sqlite3_user_data(fctx));
+			flags = PTR_TO_INT(Vdbe::User_Data(fctx));
 			if (flags & 1)
 			{
 				while (inLength > 0)
@@ -893,7 +893,7 @@ namespace Core { namespace Command
 			if (charSet)
 				_free(chars);
 		}
-		sqlite3_result_text(fctx, (char *)in, inLength, DESTRUCTOR_TRANSIENT);
+		Vdbe::Result_Text(fctx, (char *)in, inLength, DESTRUCTOR_TRANSIENT);
 	}
 
 #ifdef SOUNDEX
@@ -938,23 +938,23 @@ namespace Core { namespace Command
 			while (j < 4)
 				r[j++] = '0';
 			r[j] = 0;
-			sqlite3_result_text(fctx, r, 4, DESTRUCTOR_TRANSIENT);
+			Vdbe::Result_Text(fctx, r, 4, DESTRUCTOR_TRANSIENT);
 		}
 		else
-			sqlite3_result_text(fctx, "?000", 4, DESTRUCTOR_STATIC); // IMP: R-64894-50321 The string "?000" is returned if the argument is NULL or contains no ASCII alphabetic characters. */
+			Vdbe::Result_Text(fctx, "?000", 4, DESTRUCTOR_STATIC); // IMP: R-64894-50321 The string "?000" is returned if the argument is NULL or contains no ASCII alphabetic characters. */
 	}
 #endif
 
 #ifndef OMIT_LOAD_EXTENSION
 	__device__ static void LoadExtFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		const char *file = (const char *)sqlite3_value_text(argv[0]);
-		Context *ctx = sqlite3_context_db_handle(fctx);
+		const char *file = (const char *)Vdbe::Value_Text(argv[0]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
 		char *errMsg = nullptr;
-		const char *proc = (argc == 2 ? (const char *)sqlite3_value_text(argv[1]) : nullptr);
+		const char *proc = (argc == 2 ? (const char *)Vdbe::Value_Text(argv[1]) : nullptr);
 		if (file && sqlite3_load_extension(ctx, file, proc, &errMsg))
 		{
-			sqlite3_result_error(fctx, errMsg, -1);
+			Vdeb::Result_Error(fctx, errMsg, -1);
 			_free(errMsg);
 		}
 	}
@@ -972,21 +972,21 @@ namespace Core { namespace Command
 	__device__ static void SumStep(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		SumCtx *p = sqlite3_aggregate_context(fctx, sizeof(*p));
-		TYPE type = sqlite3_value_numeric_type(argv[0]);
+		SumCtx *p = Vdbe::Aggregate_Context(fctx, sizeof(*p));
+		TYPE type = Vdbe::Value_NumericType(argv[0]);
 		if (p && type != TYPE_NULL)
 		{
 			p->cnt++;
 			if (type == TYPE_INTEGER)
 			{
-				int64 v = sqlite3_value_int64(argv[0]);
+				int64 v = Vdbe::Value_Int64(argv[0]);
 				p->RSum += v;
 				if (!(p->Approx | p->Overflow) && sqlite3AddInt64(&p->iSum, v))
 					p->Overflow = true;
 			}
 			else
 			{
-				p->RSum += sqlite3_value_double(argv[0]);
+				p->RSum += Vdbe::Value_Double(argv[0]);
 				p->Approx = true;
 			}
 		}
@@ -994,29 +994,29 @@ namespace Core { namespace Command
 
 	__device__ static void SumFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
+		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
 		if (p && p->Count > 0)
 		{
 			if (p->Overflow)
-				sqlite3_result_error(fctx, "integer overflow", -1);
+				Vdbe::Result_Error(fctx, "integer overflow", -1);
 			else if (p->Approx)
-				sqlite3_result_double(fctx, p->rSum);
+				Vdbe::Result_Double(fctx, p->RSum);
 			else
-				sqlite3_result_int64(fctx, p->iSum);
+				Vdbe::Result_Unt64(fctx, p->ISum);
 		}
 	}
 
 	__device__ static void AvgFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
-		if (p && p->Cnt > 0)
-			sqlite3_result_double(fctx, p->rSum/(double)p->cnt);
+		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		if (p && p->Count > 0)
+			Vdbe::Result_Double(fctx, p->RSum/(double)p->Count);
 	}
 
 	__device__ static void TotalFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = sqlite3_aggregate_context(fctx, 0);
-		sqlite3_result_double(fctx, p ? p->rSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
+		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		Vdbe::Result_Double(fctx, p ? p->RSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
 	}
 
 	struct CountCtx
@@ -1026,34 +1026,34 @@ namespace Core { namespace Command
 
 	__device__ static void CountStep(FuncContext *fctx, int argc, Mem **argv)
 	{
-		CountCtx *p = sqlite3_aggregate_context(fctx, sizeof(*p));
-		if ((argc == 0 || TYPE_NULL != sqlite3_value_type(argv[0])) && p)
+		CountCtx *p = Vdbe::Aggregate_Context(fctx, sizeof(*p));
+		if ((argc == 0 || Vdbe::Value_Type(argv[0]) != TYPE_NULL) && p)
 			p->N++;
 	}
 
 	__device__ static void CountFinalize(FuncContext *fctx)
 	{
-		CountCtx *p = sqlite3_aggregate_context(fctx, 0);
-		sqlite3_result_int64(fctx, p ? p->N : 0);
+		CountCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		Vdbe::Result_Int64(fctx, p ? p->N : 0);
 	}
 
 	__device__ static void MinMaxStep(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
 		Mem *arg = (Mem *)argv[0];
-		Mem *best = (Mem *)sqlite3_aggregate_context(fctx, sizeof(*best));
+		Mem *best = (Mem *)Vdbe::Aggregate_Context(fctx, sizeof(*best));
 		if (!best) return;
-		if (sqlite3_value_type(argv[0]) == TYPE_NULL)
+		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL)
 		{
 			if (best->Flags) sqlite3SkipAccumulatorLoad(fctx);
 		}
 		else if (best->Flags)
 		{
-			CollSeq *coll = sqlite3GetFuncCollSeq(fctx);
+			CollSeq *coll = GetFuncCollSeq(fctx);
 			// This step function is used for both the min() and max() aggregates, the only difference between the two being that the sense of the
 			// comparison is inverted. For the max() aggregate, the sqlite3_user_data() function returns (void *)-1. For min() it
 			// returns (void *)db, where db is the sqlite3* database pointer. Therefore the next statement sets variable 'max' to 1 for the max()
 			// aggregate, or 0 for min().
-			bool max = (sqlite3_user_data(fctx) != 0);
+			bool max = (Vdbe::User_Data(fctx) != 0);
 			int cmp = sqlite3MemCompare(best, arg, coll);
 			if ((max && cmp < 0) || (!max && cmp > 0))
 				sqlite3VdbeMemCopy(best, arg);
@@ -1068,11 +1068,11 @@ namespace Core { namespace Command
 
 	__device__ static void MinMaxFinalize(FuncContext *fctx)
 	{
-		Mem *r = (Mem *)sqlite3_aggregate_context(fctx, 0);
+		Mem *r = (Mem *)Vdbe::Aggregate_Context(fctx, 0);
 		if (r)
 		{
 			if (r->Flags)
-				sqlite3_result_value(fctx, r);
+				Vdbe::Result_Value(fctx, r);
 			sqlite3VdbeMemRelease(r);
 		}
 	}
@@ -1080,11 +1080,11 @@ namespace Core { namespace Command
 	__device__ static void GroupConcatStep(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1 || argc == 2);
-		if (sqlite3_value_type(argv[0]) == TYPE_NULL) return;
-		TextBuilder *b = (TextBuilder *)sqlite3_aggregate_context(fctx, sizeof(*b));
+		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL) return;
+		TextBuilder *b = (TextBuilder *)Vdbe::Aggregate_Context(fctx, sizeof(*b));
 		if (b)
 		{
-			Context *ctx = sqlite3_context_db_handle(fctx);
+			Context *ctx = Vdbe::Context_Ctx(fctx);
 			bool firstTerm = (b->AllocType == 0);
 			b->AllocType = 2;
 			b->MaxSize = ctx->Limits[LIMIT_LENGTH];
@@ -1094,8 +1094,8 @@ namespace Core { namespace Command
 				int nSep;
 				if (argc == 2)
 				{
-					zSep = (char *)sqlite3_value_text(argv[1]);
-					nSep = sqlite3_value_bytes(argv[1]);
+					zSep = (char *)Vdbe::Value_Text(argv[1]);
+					nSep = Vdbe::Value_Bytes(argv[1]);
 				}
 				else
 				{
@@ -1104,23 +1104,23 @@ namespace Core { namespace Command
 				}
 				b->Append(zSep, nSep);
 			}
-			const char *zVal = (char *)sqlite3_value_text(argv[0]);
-			int nVal = sqlite3_value_bytes(argv[0]);
+			const char *zVal = (char *)Vdbe::Value_Text(argv[0]);
+			int nVal = Vdbe::Value_Bytes(argv[0]);
 			b->Append(zVal, nVal);
 		}
 	}
 
 	__device__ static void GroupConcatFinalize(FuncContext *fctx)
 	{
-		TextBuilder *b = sqlite3_aggregate_context(fctx, 0);
+		TextBuilder *b = Vdbe::Aggregate_Context(fctx, 0);
 		if (b)
 		{
 			if (b->Overflowed)
-				sqlite3_result_error_toobig(fctx);
+				Vdbe::Result_ErrorOverflow(fctx);
 			else if (b->AllocFailed)
-				sqlite3_result_error_nomem(fctx);
+				Vdbe::Result_ErrorNoMem(fctx);
 			else   
-				sqlite3_result_text(fctx, b->ToString(), -1,  _free);
+				Vdbe::Result_Text(fctx, b->ToString(), -1,  _free);
 		}
 	}
 
@@ -1132,7 +1132,7 @@ namespace Core { namespace Command
 			ctx->MallocFailed = true;
 	}
 
-	static void SetLikeOptFlag(Context *ctx, const char *name, uint8 flagVal)
+	static void SetLikeOptFlag(Context *ctx, const char *name, FUNC flagVal)
 	{
 		FuncDef *def = sqlite3FindFunction(ctx, name, _strlen30(name), 2, TEXTENCODE_UTF8, 0);
 		if (_ALWAYS(def))

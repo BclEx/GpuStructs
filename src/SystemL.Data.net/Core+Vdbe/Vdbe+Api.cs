@@ -160,12 +160,12 @@ namespace Core
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             MemSetInt64(fctx.S, (long)val);
         }
-        public static void sqlite3_result_int64(FuncContext ctx, long value)
+        public static void Result_Int64(FuncContext ctx, long value)
         {
             Debug.Assert(MutexEx.Held(ctx.S.Ctx.Mutex));
             MemSetInt64(ctx.S, value);
         }
-        public static void sqlite3_result_null(FuncContext fctx)
+        public static void Result_Null(FuncContext fctx)
         {
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             MemSetNull(fctx.S);
@@ -175,7 +175,7 @@ namespace Core
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             SetResultStrOrError(fctx, z, o, n, TEXTENCODE.UTF8, del);
         }
-        public static void sqlite3_result_text(FuncContext fctx, StringBuilder z, int n, Action del)
+        public static void Result_Text(FuncContext fctx, StringBuilder z, int n, Action del)
         {
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             SetResultStrOrError(fctx, z.ToString(), 0, n, TEXTENCODE.UTF8, del);
@@ -186,7 +186,7 @@ namespace Core
             SetResultStrOrError(fctx, z, 0, n, TEXTENCODE.UTF8, del);
         }
 #if !OMIT_UTF16
-        void sqlite3_result_text16(FuncContext fctx, string z, int n, Action del)
+        void Result_Text16(FuncContext fctx, string z, int n, Action del)
         {
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             MemSetStr(fctx.S, z, n, TEXTENCODE.UTF16NATIVE, del);
@@ -207,7 +207,7 @@ namespace Core
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             MemCopy(fctx.S, value);
         }
-        public static void sqlite3_result_zeroblob(FuncContext fctx, int n)
+        public static void Result_ZeroBlob(FuncContext fctx, int n)
         {
             Debug.Assert(MutexEx.Held(fctx.S.Ctx.Mutex));
             MemSetZeroBlob(fctx.S, n);
@@ -481,7 +481,6 @@ namespace Core
             return (p == null || p.ResultSet == null ? 0 : p.ResColumns);
         }
 
-
         #endregion
 
         #region Column
@@ -511,7 +510,7 @@ namespace Core
                 if (p != null && C._ALWAYS(p.Ctx != null))
                 {
                     MutexEx.Enter(p.Ctx.Mutex);
-                    SysEx.Error(p.Ctx, SQLITE_RANGE, 0);
+                    SysEx.Error(p.Ctx, RC.RANGE, 0);
                 }
                 r = _nullMem;
             }

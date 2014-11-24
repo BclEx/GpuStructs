@@ -1058,5 +1058,9 @@ namespace Core
         //        }
         //#endif
         #endregion
+
+        public const object DESTRUCTOR_TRANSIENT = -1;
+        public const object DESTRUCTOR_STATIC = -1;
+        public const object DESTRUCTOR_DYNAMIC = -1;
     }
 }

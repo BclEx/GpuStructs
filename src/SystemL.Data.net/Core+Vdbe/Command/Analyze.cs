@@ -133,10 +133,10 @@ namespace Core.Command
 
         static void Stat3Push_(FuncContext fctx, int argc, Mem[] argv)
 	    {
-		    tRowcnt eq = Vdbe.Value_Int64(argv[0]);
+		    tRowcnt eq = (tRowcnt)Vdbe.Value_Int64(argv[0]);
 		    if (eq == 0) return;
-		    tRowcnt lt = Vdbe.Value_Int64(argv[1]);
-		    tRowcnt dLt = Vdbe.Value_Int64(argv[2]);
+		    tRowcnt lt = (tRowcnt)Vdbe.Value_Int64(argv[1]);
+		    tRowcnt dLt = (tRowcnt)Vdbe.Value_Int64(argv[2]);
 		    long rowid = Vdbe.Value_Int64(argv[3]);
 		    Stat3Accum p = (Stat3Accum)Vdbe.Value_Blob(argv[4]);
 		    bool isPSample = false;
