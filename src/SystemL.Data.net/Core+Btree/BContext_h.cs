@@ -6,7 +6,7 @@ namespace Core
         public static TEXTENCODE CTXENCODE(BContext ctx) { return ctx.DBs[0].Schema.Encode; }
     }
 
-    public class BContext
+    public class BContext : TagBase
     {
         const int MAX_ATTACHED = 10;
 
@@ -54,15 +54,14 @@ namespace Core
             EnableTrigger = 0x40000000,
         }
 
-        public MutexEx Mutex;
         public array_t<DB> DBs = new array_t<DB>(new DB[MAX_ATTACHED]); // All backends / Number of backends currently in use
-        public FLAG Flags;
-        public int ActiveVdbeCnt;
-        public BusyHandlerType BusyHandler;
+        public FLAG Flags;                      // Miscellaneous flags. See below
+        public int ActiveVdbeCnt;               // Number of VDBEs currently executing
+        public BusyHandlerType BusyHandler; // Busy callback
+        public DB[] DBStatics = new[] { new DB(), new DB() }; // Static space for the 2 default backends
         public Savepoint Savepoints;            // List of active savepoints
         public int BusyTimeout;				    // Busy handler timeout, in msec
         public int SavepointsLength;            // Number of non-transaction savepoints
-        //public bool IsTransactionSavepoint;     // True if the outermost savepoint is a TS
 
         public int InvokeBusyHandler()
         {

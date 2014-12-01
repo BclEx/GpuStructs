@@ -52,7 +52,7 @@ namespace Core { namespace Command
 #else
 		bool isView = (table->Select != nullptr); // True when updating a view (INSTEAD OF trigger)
 #endif		
-		assert(trigger || tmask == 0);
+		_assert(trigger || tmask == 0);
 #else
 #define tmask 0
 #define trigger nullptr

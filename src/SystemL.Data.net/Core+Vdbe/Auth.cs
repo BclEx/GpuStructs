@@ -59,7 +59,7 @@ namespace Core
                 for (int src = 0; C._ALWAYS(src < tableList.Srcs); src++)
                     if (expr.TableIdx == tableList.Ids[src].Cursor)
                     {
-                        table = tableList.Ids[src].pTab;
+                        table = tableList.Ids[src].Table;
                         break;
                     }
             }

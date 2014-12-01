@@ -54,13 +54,13 @@ namespace Core
 		};
 
 		array_t<DB> DBs;				// All backends / Number of backends currently in use
-		FLAG Flags;
-		int ActiveVdbeCnt;
-		BusyHandlerType *BusyHandler;
+		FLAG Flags;						// Miscellaneous flags. See below
+		int ActiveVdbeCnt;				// Number of VDBEs currently executing
+		BusyHandlerType *BusyHandler;	// Busy callback
+		DB DBStatics[2];				// Static space for the 2 default backends
 		Savepoint *Savepoints;			// List of active savepoints
 		int BusyTimeout;				// Busy handler timeout, in msec
 		int SavepointsLength;			// Number of non-transaction savepoints
-		//bool IsTransactionSavepoint;    // True if the outermost savepoint is a TS
 
 		__device__ inline int InvokeBusyHandler()
 		{

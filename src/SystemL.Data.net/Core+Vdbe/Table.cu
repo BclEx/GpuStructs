@@ -25,7 +25,7 @@ namespace Core
 		if (p->Results.length + need > p->ResultsAlloc)
 		{
 			p->ResultsAlloc = p->ResultsAlloc*2 + need;
-			char **newResults = (char **)SysEx::Realloc(p->Results, sizeof(char *)*p->ResultsAlloc);
+			char **newResults = (char **)_realloc(p->Results, sizeof(char *)*p->ResultsAlloc);
 			if (!newResults) goto malloc_failed;
 			p->Results = newResults;
 		}
@@ -37,7 +37,7 @@ namespace Core
 			p->Columns = columns;
 			for (int i = 0; i < columns; i++)
 			{
-				z = __mprintf("%s", colv[i]);
+				z = _mprintf("%s", colv[i]);
 				if (!z) goto malloc_failed;
 				p->Results[p->Results.length++] = z;
 			}
@@ -45,7 +45,7 @@ namespace Core
 		else if (p->Columns != columns)
 		{
 			_free(p->ErrMsg);
-			p->ErrMsg = __mprintf("sqlite3_get_table() called with two or more incompatible queries");
+			p->ErrMsg = _mprintf("sqlite3_get_table() called with two or more incompatible queries");
 			p->RC = RC_ERROR;
 			return true;
 		}
@@ -104,7 +104,7 @@ malloc_failed:
 				if (errMsg)
 				{
 					_free(*errMsg);
-					*errMsg = __mprintf("%s", r.ErrMsg);
+					*errMsg = _mprintf("%s", r.ErrMsg);
 				}
 				_free(r.ErrMsg);
 			}
@@ -118,7 +118,7 @@ malloc_failed:
 		}
 		if (r.ResultsAlloc > r.Results.length)
 		{
-			char **newResults = (char **)SysEx::Realloc(r.Results, sizeof(char*) * r.Results.length);
+			char **newResults = (char **)_realloc(r.Results, sizeof(char*) * r.Results.length);
 			if (!newResults)
 			{
 				sqlite3_free_table(&r.Results[1]);

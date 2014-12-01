@@ -30,9 +30,9 @@ namespace Core {
 	{
 		Context *ctx = Ctx; // The database connection
 		char bBase[100]; // Initial working space
-		Text::StringBuilder b; // Accumulate the output here
-		Text::StringBuilder::Init(&b, bBase, sizeof(bBase), ctx->Limits[LIMIT_LENGTH]);
-		b.Ctx = ctx;
+		TextBuilder b; // Accumulate the output here
+		TextBuilder::Init(&b, bBase, sizeof(bBase), ctx->Limits[LIMIT_LENGTH]);
+		b.Tag = ctx;
 		int nextIndex = 1; // Index of next ? host parameter
 		int idx = 0; // Index of a host parameter
 		if (ctx->VdbeExecCnt > 1)
@@ -47,7 +47,7 @@ namespace Core {
 			while (rawSql[0])
 			{
 				int tokenLength; // Length of the parameter token
-				int n = findNextHostParameter(rawSql, &tokenLength); // Length of a token prefix
+				int n = FindNextHostParameter(rawSql, &tokenLength); // Length of a token prefix
 				_assert(n > 0);
 				b.Append(rawSql, n);
 				rawSql += n;
@@ -69,16 +69,16 @@ namespace Core {
 					ASSERTCOVERAGE(rawSql[0] == ':');
 					ASSERTCOVERAGE(rawSql[0] == '$');
 					ASSERTCOVERAGE(rawSql[0] == '@');
-					idx = ParameterIndex(rawSql, tokenLength);
+					idx = ParameterIndex(this, rawSql, tokenLength);
 					_assert(idx > 0);
 				}
 				rawSql += tokenLength;
 				nextIndex = idx + 1;
 				_assert(idx > 0 && idx <= Vars.length);
-				Mem *var = &Vars.data[idx - 1]; // Value of a host parameter
+				Mem *var = &Vars[idx - 1]; // Value of a host parameter
 				if (var->Flags & MEM_Null) b.Append("NULL", 4);
-				else if (var->Flags & MEM_Int) sqlite3XPrintf(&b, "%lld", var->u.I);
-				else if (var->Flags & MEM_Real) sqlite3XPrintf(&b, "%!.15g", var->R);
+				else if (var->Flags & MEM_Int) b.AppendFormat("%lld", var->u.I);
+				else if (var->Flags & MEM_Real) b.AppendFormat("%!.15g", var->R);
 				else if (var->Flags & MEM_Str)
 				{
 #ifndef OMIT_UTF16
@@ -88,22 +88,22 @@ namespace Core {
 						Mem utf8;
 						_memset(&utf8, 0, sizeof(utf8));
 						utf8.Ctx = ctx;
-						Vdbe::MemSetStr(&utf8, var->Z, var->N, encode, DESTRUCTOR_STATIC);
-						Vdbe::ChangeEncoding(&utf8, TEXTENCODE_UTF8);
-						sqlite3XPrintf(&b, "'%.*q'", utf8.N, utf8.Z);
-						Vdbe::MemRelease(&utf8);
+						MemSetStr(&utf8, var->Z, var->N, encode, DESTRUCTOR_STATIC);
+						ChangeEncoding(&utf8, TEXTENCODE_UTF8);
+						b.AppendFormat("'%.*q'", utf8.N, utf8.Z);
+						MemRelease(&utf8);
 					}
 					else
 #endif
-						sqlite3XPrintf(&b, "'%.*q'", var->N, var->Z);
+						b.AppendFormat("'%.*q'", var->N, var->Z);
 				}
-				else if (var->Flags & MEM_Zero) sqlite3XPrintf(&b, "zeroblob(%d)", var->u.Zero);
+				else if (var->Flags & MEM_Zero) b.AppendFormat("zeroblob(%d)", var->u.Zero);
 				else
 				{
 					_assert(var->Flags & MEM_Blob);
 					b.Append("x'", 2);
 					for (int i = 0; i < var->N; i++)
-						sqlite3XPrintf(&b, "%02x", var->Z[i] & 0xff);
+						b.AppendFormat("%02x", var->Z[i] & 0xff);
 					b.Append("'", 1);
 				}
 			}
@@ -116,95 +116,92 @@ namespace Core {
 #pragma region Explain
 #if defined(ENABLE_TREE_EXPLAIN)
 
-	__device__ void sqlite3ExplainBegin(Vdbe *vdbe)
+	__device__ void Vdbe::ExplainBegin(Vdbe *vdbe)
 	{
 		if (vdbe)
 		{
 			_benignalloc_begin();
-			Explain *p = (Explain *)_alloc(sizeof(Explain), true);
+			Explain *p = (Explain *)_alloc2(sizeof(Explain), true);
 			if (p)
 			{
 				p->Vdbe = vdbe;
-				_free(vdbe->Explain);
-				vdbe->Explain = p;
-				Text::StringBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), CORE_MAX_LENGTH);
-				p->Str.UseMalloc = 2;
+				_free(vdbe->_explain);
+				vdbe->_explain = p;
+				TextBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), CORE_MAX_LENGTH);
+				p->Str.AllocType = 2;
 			}
 			else
 				_benignalloc_end();
 		}
 	}
 
-	__device__ inline static int endsWithNL(Explain *p)
+	__device__ inline static int EndsWithNL(Explain *p)
 	{
-		return (p && p->Str.zText && p->Str.nChar && p->Str.zText[p->Str.nChar-1]=='\n');
+		return (p && p->Str.Text && p->Str.Size && p->Str.Text[p->Str.Size-1]=='\n');
 	}
 
-	__device__ void sqlite3ExplainPrintf(Vdbe *pVdbe, const char *zFormat, ...)
+	__device__ void Vdbe::ExplainPrintf(Vdbe *vdbe, const char *format, va_list args)
 	{
 		Explain *p;
-		if (vdbe && (p = vdbe->Explain) != nullptr)
+		if (vdbe && (p = vdbe->_explain) != nullptr)
 		{
-			va_list ap;
-			if (p->Indents && endsWithNL(p))
+			if (p->Indents && EndsWithNL(p))
 			{
-				int n = p->Indents;
+				int n = p->IndentLength;
 				if (n > _lengthof(p->Indents)) n = _lengthof(p->Indents);
-				sqlite3AppendSpace(&p->Str, p->Indents[n-1]);
+				p->Str.AppendSpace(p->Indents[n-1]);
 			}   
-			va_start(ap, format);
-			sqlite3VXPrintf(&p->Str, 1, zFormat, ap);
-			va_end(ap);
+			p->Str.AppendFormat(true, format, args);
 		}
 	}
 
-	__device__ void sqlite3ExplainNL(Vdbe *vdbe)
+	__device__ void Vdbe::ExplainNL(Vdbe *vdbe)
 	{
 		Explain *p;
-		if (vdbe && (p = vdbe->Explain) != nullptr && !endsWithNL(p))
+		if (vdbe && (p = vdbe->_explain) != nullptr && !EndsWithNL(p))
 			p->Str.Append("\n", 1);
 	}
 
-	__device__ void sqlite3ExplainPush(Vdbe *vdbe)
+	__device__ void Vdbe::ExplainPush(Vdbe *vdbe)
 	{
 		Explain *p;
-		if (vdbe && (p = vdbe->Explain)!=0 ){
-			if (p->Str.zText && p->Indents.Length < _lengthof(p->Indents))
+		if (vdbe && (p = vdbe->_explain) != nullptr)
+		{
+			if (p->Str.Text && p->IndentLength < _lengthof(p->Indents))
 			{
-				const char *z = p->str.zText;
-				int i = p->str.nChar-1;
+				const char *z = p->Str.Text;
+				int i = p->Str.Size-1;
 				int x;
-				while( i>=0 && z[i]!='\n' ){ i--; }
-				x = (p->str.nChar - 1) - i;
-				if( p->nIndent && x<p->aIndent[p->nIndent-1] ){
-					x = p->aIndent[p->nIndent-1];
-				}
-				p->aIndent[p->nIndent] = x;
+				while (i >= 0 && z[i] != '\n' ) { i--; }
+				x = (p->Str.Size - 1) - i;
+				if( p->IndentLength && x < p->Indents[p->IndentLength-1])
+					x = p->Indents[p->IndentLength-1];
+				p->Indents[p->IndentLength] = x;
 			}
-			p->nIndent++;
+			p->IndentLength++;
 		}
 	}
 
-	__device__ void sqlite3ExplainPop(Vdbe *p)
+	__device__ void Vdbe::ExplainPop(Vdbe *p)
 	{
-		if (p && p->Explain) p->Explain->Indents.Length--;
+		if (p && p->_explain) p->_explain->IndentLength--;
 	}
 
-	__device__ void sqlite3ExplainFinish(Vdbe *vdbe)
+	__device__ void Vdbe::ExplainFinish(Vdbe *p)
 	{
-		if (vdbe && vdbe->Explain)
+		if (p && p->_explain)
 		{
-			_free(vdbe->ExplainString);
-			sqlite3ExplainNL(vdbe);
-			vdbe->ExplainString = vdbe->Explain->Str.ToString();
-			_free(vdbe->Explain); vdbe->Explain = nullptr;
+			_free(p->_explainString);
+			ExplainNL(p);
+			p->_explainString = p->_explain->Str.ToString();
+			_free(p->_explain); p->_explain = nullptr;
 			_benignalloc_end();
 		}
 	}
 
-	__device__ const char *sqlite3VdbeExplanation(Vdbe *vdbe)
+	__device__ const char *Vdbe::Explanation(Vdbe *p)
 	{
-		return (vdbe && vdbe->ExplainString ? vdbe->ExplainString : nullptr);
+		return (p && p->_explainString ? p->_explainString : nullptr);
 	}
 
 #endif

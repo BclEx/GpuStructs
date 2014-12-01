@@ -3,6 +3,14 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 namespace Core
 {
+    public class TagBase
+    {
+        public MutexEx Mutex;       // Connection mutex
+        public bool MallocFailed;   // True if we have seen a malloc failure
+        public RC ErrCode;          // Most recent error code (RC_*)
+        public int ErrMask;         // & result codes with this before returning
+    }
+
     public partial class SysEx
     {
         #region Log & Trace

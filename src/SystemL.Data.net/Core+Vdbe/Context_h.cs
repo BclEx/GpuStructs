@@ -87,14 +87,50 @@ namespace Core
             public bool OrphanTrigger;      // Last statement is orphaned TEMP trigger
         }
 
-        public OPTFLAG OptFlags;
         public VSystem Vfs;					// OS Interface
         public array_t<Vdbe> Vdbe;			// List of active virtual machines
         public CollSeq DefaultColl;		    // The default collating sequence (BINARY)
+        //TAGBASE::Mutex
+        //BCONTEXT::DBs
+        //BCONTEXT::Flags
         public long LastRowID;				// ROWID of most recent insert (see above)
         public VSystem.OPEN OpenFlags;		// Flags passed to sqlite3_vfs.xOpen()
-        public RC ErrCode;					// Most recent error code (RC_*)
-        public int ErrMask;					// & result codes with this before returning
+        //TAGBASE::ErrCode
+        //TAGBASE::ErrMask
+        public OPTFLAG OptFlags;            // Flags to enable/disable optimizations
+        public byte AutoCommit;                // The auto-commit flag.
+        public byte TempStore;                // 1: file 2: memory 0: default
+        //TAGBASE::MallocFailed
+        public byte DefaultLockMode;              // Default locking-mode for attached dbs
+        public sbyte NextAutovac;      // Autovac setting after VACUUM if >=0
+        public byte SuppressErr;               // Do not issue error messages if true
+        public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
+        public byte IsTransactionSavepoint;		    // True if the outermost savepoint is a TS
+        public int NextPagesize;					// Pagesize after VACUUM if >0
+        public MAGIC Magic;						    // Magic number for detect library misuse
+        public int Changes;                  // Value returned by sqlite3_changes()
+        public int TotalChanges;             // Value returned by sqlite3_total_changes()
+        public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
+        public InitInfo Init;						// Information used during initialization
+        //BCONTEXT::ActiveVdbeCnt
+        public int WriteVdbeCnt;             // Number of active VDBEs that are writing
+        public int VdbeExecCnt;              // Number of nested calls to VdbeExec()
+        public array_t<object> Extensions;            // Array of shared library handles
+
+        public Action<object, string> Trace;        // Trace function
+        public object TraceArg;                          // Argument to the trace function
+        public Action<object, string, ulong> Profile;  // Profiling function
+        public object ProfileArg;                        // Argument to profile function
+        public object CommitArg;                 // Argument to xCommitCallback()
+        public Func<object, int> CommitCallback;    // Invoked at every commit.
+        public object RollbackArg;               // Argument to xRollbackCallback()
+        public Action<object> RollbackCallback; // Invoked at every commit.
+        public object UpdateArg;
+        public Action<object, int, string, string, long> UpdateCallback;
+#if !OMIT_WAL
+        public Func<object, Context, string, int> WalCallback;
+  public object WalArg;
+#endif
         public Action<object, Context, TEXTENCODE, string> CollNeeded;
         public Action<object, Context, TEXTENCODE, string> CollNeeded16;
         public object CollNeededArg;
@@ -108,17 +144,14 @@ namespace Core
         }
         public _u1 u1;
         public Lookaside Lookaside;			// Lookaside malloc configuration
-
-        public bool MallocFailed;					// True if we have seen a malloc failure
-        public byte VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
-        public byte IsTransactionSavepoint;		    // True if the outermost savepoint is a TS
-        public int NextPagesize;					// Pagesize after VACUUM if >0
-        public MAGIC Magic;						    // Magic number for detect library misuse
-        public int[] Limits = new int[(int)LIMIT.MAX_];				// Limits
-        public InitInfo Init;						// Information used during initialization
 #if !OMIT_AUTHORIZATION
         public Func<object, int, string, string, string, string, ARC> Auth; // Access authorization function
         public object AuthArg;						// 1st argument to the access auth function
+#endif
+#if !OMIT_PROGRESS_CALLBACK
+        public Func<object, int> Progress;     // The progress callback
+        public object ProgressArg;           // Argument to the progress callback
+        public int ProgressOps;             // Number of opcodes for progress callback
 #endif
 #if !OMIT_VIRTUALTABLE
         public Hash Modules;						// populated by sqlite3_create_module()
@@ -128,7 +161,11 @@ namespace Core
 #endif
         public FuncDefHash Funcs;					// Hash table of connection functions
         public Hash CollSeqs;						// All collating sequences
-        public DB[] DBStatics = new[] { new DB(), new DB() }; // Static space for the 2 default backends
+        //BCONTEXT::BusyHandler
+        //BCONTEXT::DbStatics
+        //BCONTEXT::Savepoints
+        //BCONTEXT::BusyTimeout
+        //BCONTEXT::SavepointsLength
         public int Statements;                      // Number of nested statement-transactions
         public long DeferredCons;                   // Net deferred constraints this transaction.
         public int BytesFreed;					    // If not NULL, increment this in DbFree()

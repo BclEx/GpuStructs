@@ -136,19 +136,19 @@ __device__ static char GetDigit(double64 *val, int *cnt)
 #endif
 
 __constant__ static const char _spaces[] = "                             ";
-__device__ static void AppendSpace(TextBuilder *b, int length)
+__device__ void TextBuilder::AppendSpace(int length)
 {
 	while (length >= (int)sizeof(_spaces)-1)
 	{
-		b->Append(_spaces, sizeof(_spaces)-1);
+		Append(_spaces, sizeof(_spaces)-1);
 		length -= sizeof(_spaces)-1;
 	}
 	if (length > 0)
-		b->Append(_spaces, length);
+		Append(_spaces, length);
 }
 
 __constant__ static const char _ord[] = "thstndrd";
-__device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_list args)
+__device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_list args) //: was: vxprintf
 {
 	char buf[BUFSIZE]; // Conversion buffer
 	char *bufpt = nullptr; // Pointer to the conversion buffer
@@ -163,12 +163,12 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 			bufpt = (char *)fmt;
 			int amt = 1;
 			while ((c = (*++fmt)) != '%' && c != 0) amt++;
-			b->Append(bufpt, amt);
+			Append(bufpt, amt);
 			if (c == 0) break;
 		}
 		if ((c = (*++fmt)) == 0)
 		{
-			b->Append("%", 1);
+			Append("%", 1);
 			break;
 		}
 		// Find out what flags are present
@@ -342,7 +342,7 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 				out_ = extra = (char *)_alloc(outLength);
 				if (!out_)
 				{
-					b->MallocFailed = true;
+					MallocFailed = true;
 					return;
 				}
 			}
@@ -450,7 +450,7 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 				bufpt = extra = (char *)_alloc(e2+precision+width+15);
 				if (!bufpt)
 				{
-					b->MallocFailed = true;
+					MallocFailed = true;
 					return;
 				}
 			}
@@ -507,7 +507,7 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 #endif
 			break;
 		case TYPE_SIZE:
-			*(va_arg(args, int*)) = b->Size;
+			*(va_arg(args, int*)) = Size;
 			length = width = 0;
 			break;
 		case TYPE_PERCENT:
@@ -553,7 +553,7 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 				bufpt = extra = (char *)_alloc(n);
 				if (!bufpt)
 				{
-					b->MallocFailed = true;
+					MallocFailed = true;
 					return;
 				}
 			}
@@ -576,7 +576,7 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 
 							  //case TYPE_TOKEN: {
 							  //	Token *token = va_arg(args, Token *);
-							  //	if (token) b->Append((const char *)token->z, token->n);
+							  //	if (token) Append((const char *)token->z, token->n);
 							  //	length = width = 0;
 							  //	break; }
 							  //case TYPE_SRCLIST: {
@@ -586,10 +586,10 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 							  //	_assert(k >= 0 && k < src->Srcs);
 							  //	if (item->DatabaseName)
 							  //	{
-							  //		b->Append(item->DatabaseName, -1);
-							  //		b->Append(".", 1);
+							  //		Append(item->DatabaseName, -1);
+							  //		Append(".", 1);
 							  //	}
-							  //	b->Append(item->Name, -1);
+							  //	Append(item->Name, -1);
 							  //	length = width = 0;
 							  //	break; }
 		default: {
@@ -600,13 +600,13 @@ __device__ void vxprintf(TextBuilder *b, bool useExtended, const char *fmt, va_l
 		if (!flag_leftjustify)
 		{
 			register int nspace = width-length;
-			if (nspace > 0) AppendSpace(b, nspace);
+			if (nspace > 0) AppendSpace(nspace);
 		}
-		if (length > 0) b->Append(bufpt, length);
+		if (length > 0) Append(bufpt, length);
 		if (flag_leftjustify)
 		{
 			register int nspace = width-length;
-			if (nspace > 0) AppendSpace(b, nspace);
+			if (nspace > 0) AppendSpace(nspace);
 		}
 		if (extra != nullptr)
 			_free(extra);
@@ -724,7 +724,7 @@ __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args)
 	TextBuilder b;
 	TextBuilder::Init(&b, base, sizeof(base), 0); //? tag->Limit[LIMIT_LENGTH]);
 	b.Tag = tag;
-	vxprintf(&b, true, fmt, args);
+	b.AppendFormat(true, fmt, args);
 	char *z = b.ToString();
 	//? if (b.MallocFailed) _tagallocfailed(tag);
 	return z;
@@ -737,7 +737,7 @@ __device__ char *_vmprintf(const char *fmt, va_list args)
 	TextBuilder b;
 	TextBuilder::Init(&b, base, sizeof(base), CORE_MAX_LENGTH);
 	b.AllocType = 2;
-	vxprintf(&b, false, fmt, args);
+	b.AppendFormat(false, fmt, args);
 	return b.ToString();
 }
 
@@ -747,7 +747,7 @@ __device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va
 	TextBuilder b;
 	TextBuilder::Init(&b, (char *)buf, (int)bufLen, 0);
 	b.AllocType = 0;
-	vxprintf(&b, false, fmt, args);
+	b.AppendFormat(false, fmt, args);
 	return b.ToString();
 }
 

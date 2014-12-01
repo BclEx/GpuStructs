@@ -78,6 +78,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Mem.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Sort.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Trace.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Utf.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\VTable.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker+Resolve.cu" />
@@ -121,6 +122,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Mem.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Sort.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Trace.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Utf.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\VTable.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker+Resolve.cu" />

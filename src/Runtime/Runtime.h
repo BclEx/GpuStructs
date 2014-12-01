@@ -116,6 +116,22 @@ template <typename T, typename Y> __device__ inline int _memcmp(T *left, Y *righ
 	return *a - *b;
 }
 
+// memmove
+template <typename T, typename Y> __device__ inline void _memmove(T *left, Y *right, size_t length)
+{
+	register unsigned char *a, *b;
+	a = (unsigned char *)left;
+	b = (unsigned char *)right;
+	if (a == b) return; // No need to do that thing.
+	if (a < b && b < a + length) // Check for destructive overlap.
+	{
+		a += length; b += length; // Destructive overlap ...
+		while (length-- > 0) { *--a= *--b; } // have to copy backwards.
+		return;
+	}
+	while (length-- > 0) { *a++ = *b++; } // Do an ascending copy.
+}
+
 // strlen30
 __device__ inline int _strlen30(const char *z)
 {
@@ -246,6 +262,11 @@ __device__ inline static char *_tagstrndup(void *tag, const char *z, int n)
 	return newZ;
 }
 
+typedef void (*Destructor_t)(void *);
+#define DESTRUCTOR_STATIC ((Destructor_t)0)
+#define DESTRUCTOR_TRANSIENT ((Destructor_t)-1)
+#define DESTRUCTOR_DYNAMIC ((Destructor_t)_allocsize)
+
 #pragma endregion
 
 //////////////////////
@@ -264,11 +285,34 @@ public:
 	unsigned char AllocType; // 0: none,  1: sqlite3DbMalloc,  2: sqlite3_malloc
 	bool Overflowed;    // Becomes true if string size exceeds limits
 
-	__device__ void Printf(bool useExtended, const char *fmt, void *args);
+	__device__ void AppendSpace(int length);
+	__device__ void AppendFormat(bool useExtended, const char *fmt, va_list args);
 	__device__ void Append(const char *z, int length);
 	__device__ char *ToString();
 	__device__ void Reset();
 	__device__ static void Init(TextBuilder *b, char *text, int capacity, int maxAlloc);
+	//
+#if __CUDACC__
+	__device__ inline void AppendFormat(const char *fmt) { va_list args; va_start(args, nullptr); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1> __device__ inline void AppendFormat(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); AppendFormat(true, fmt, args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void AppendFormat(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); AppendFormat(true, fmt, args); va_end(args); }
+#else
+	__device__ inline void AppendFormat(const char *fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+		AppendFormat(true, fmt, args);
+		va_end(args);
+	}
+#endif
 };
 #pragma endregion
 

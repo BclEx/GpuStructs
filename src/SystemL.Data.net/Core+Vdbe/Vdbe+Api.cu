@@ -31,7 +31,7 @@ __device__ RC Vdbe::Finalize(Vdbe *p)
 	if (VdbeSafety(p)) return SysEx_MISUSE_BKPT;
 	MutexEx::Enter(ctx->Mutex);
 	RC rc = p->Finalize();
-	rc = SysEx::ApiExit(ctx, rc);z
+	rc = SysEx::ApiExit(ctx, rc);
 	Main::LeaveMutexAndCloseZombie(ctx);
 	return rc;
 }
@@ -83,18 +83,18 @@ __device__ const void *Vdbe::Value_Blob(Mem *p)
 		p->Flags |= MEM_Blob;
 		return (p->N ? p->Z : nullptr);
 	}
-	return Value_Text(val);
+	return Value_Text(p);
 }
-__device__ int Vdbe::Value_Bytes(Mem *p) { return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
-__device__ int Vdbe::Value_Bytes16(Mem *p) { return sqlite3ValueBytes(p, TEXTENCODE_UTF16NATIVE); }
-__device__ double Vdbe::Value_Double(Mem *p) { return RealValue(P); }
+__device__ int Vdbe::Value_Bytes(Mem *p) { return ValueBytes(p, TEXTENCODE_UTF8); }
+__device__ int Vdbe::Value_Bytes16(Mem *p) { return ValueBytes(p, TEXTENCODE_UTF16NATIVE); }
+__device__ double Vdbe::Value_Double(Mem *p) { return RealValue(p); }
 __device__ int Vdbe::Value_Int(Mem *p) { return (int)IntValue(p); }
 __device__ int64 Vdbe::Value_Int64(Mem *p) { return IntValue(p); }
-__device__ const unsigned char *Vdbe::Value_Text(Mem *p) { return (const unsigned char *)sqlite3ValueText(p, TEXTENCODE_UTF8); }
+__device__ const unsigned char *Vdbe::Value_Text(Mem *p) { return (const unsigned char *)ValueText(p, TEXTENCODE_UTF8); }
 #ifndef OMIT_UTF16
-__device__ const void *Vdbe::Value_Text16(Mem *p) { return sqlite3ValueText(p, TEXTENCODE_UTF16NATIVE); }
-__device__ const void *Vdbe::Value_Text16be(Mem *P) { return sqlite3ValueText(p, TEXTENCODE_UTF16BE); }
-__device__ const void *Vdbe::Value_Text16le(Mem *p) { return sqlite3ValueText(p, TEXTENCODE_UTF16LE); }
+__device__ const void *Vdbe::Value_Text16(Mem *p) { return ValueText(p, TEXTENCODE_UTF16NATIVE); }
+__device__ const void *Vdbe::Value_Text16be(Mem *p) { return ValueText(p, TEXTENCODE_UTF16BE); }
+__device__ const void *Vdbe::Value_Text16le(Mem *p) { return ValueText(p, TEXTENCODE_UTF16LE); }
 #endif
 __device__ TYPE Vdbe::Value_Type(Mem *p) { return p->Type; }
 
@@ -133,18 +133,18 @@ __device__ void Vdbe::Result_Error16(FuncContext *fctx, const void *z, int n)
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
 	fctx->IsError = RC_ERROR;
-	MemSetStr(&fctx->S, z, n, TEXTENCODE_UTF16NATIVE, DESTRUCTOR_TRANSIENT);
+	MemSetStr(&fctx->S, (const char *)z, n, TEXTENCODE_UTF16NATIVE, DESTRUCTOR_TRANSIENT);
 }
 #endif
 __device__ void Vdbe::Result_Int(FuncContext *fctx, int value)
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	MemSetInt64(&fctx->s, (int64)value);
+	MemSetInt64(&fctx->S, (int64)value);
 }
 __device__ void Vdbe::Result_Int64(FuncContext *fctx, int64 value)
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	MemSetInt64(&fctx->s, value);
+	MemSetInt64(&fctx->S, value);
 }
 __device__ void Vdbe::Result_Null(FuncContext *fctx)
 {
@@ -183,7 +183,7 @@ __device__ void Vdbe::Result_ZeroBlob(FuncContext *fctx, int n)
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
 	MemSetZeroBlob(&fctx->S, n);
 }
-__device__ void Vdbe::Result_ErrorCode(FuncContext *fctx, int errCode)
+__device__ void Vdbe::Result_ErrorCode(FuncContext *fctx, RC errCode)
 {
 	fctx->IsError = errCode;
 	if (fctx->S.Flags & MEM_Null)
@@ -253,7 +253,7 @@ __device__ RC Vdbe::Step2()
 	Context *ctx = Ctx;
 	if (ctx->MallocFailed)
 	{
-		RC = RC_NOMEM;
+		this.RC = RC_NOMEM;
 		return RC_NOMEM;
 	}
 	if (PC <= 0 && Expired)
@@ -267,7 +267,7 @@ __device__ RC Vdbe::Step2()
 		// If there are no other statements currently running, then reset the interrupt flag.  This prevents a call to sqlite3_interrupt
 		// from interrupting a statement that has not yet started.
 		if (ctx->ActiveVdbeCnt == 0)
-			ctx->U1.IsInterrupted = false;
+			ctx->u1.IsInterrupted = false;
 		_assert(ctx->WriteVdbeCnt > 0 || !ctx->AutoCommit || !ctx->DeferredCons);
 #ifndef OMIT_TRACE
 		if (ctx->Profile && !ctx->Init.Busy)
@@ -279,7 +279,7 @@ __device__ RC Vdbe::Step2()
 	}
 
 #ifndef OMIT_EXPLAIN
-	if (Explain)
+	if (_explain)
 		rc = List();
 	else
 #endif
@@ -470,7 +470,7 @@ __device__ static const Mem _nullMem
 #if defined(_DEBUG) && defined(__GNUC__)
 	__attribute__((aligned(8))) 
 #endif
-	= {0, "", (double)0, {0}, 0, MEM_Null, SQLITE_NULL, 0,
+	= {0, "", (double)0, {0}, 0, MEM_Null, TYPE_NULL, 0,
 #ifdef _DEBUG
 	0, 0,  // scopyFrom, filler
 #endif
@@ -489,7 +489,7 @@ __device__ static Mem *ColumnMem(Vdbe *p, int i)
 		if (p && _ALWAYS(p->Ctx))
 		{
 			MutexEx::Enter(p->Ctx->Mutex);
-			Sysex::Error(p->Ctx, RC_RANGE, 0);
+			SysEx::Error(p->Ctx, RC_RANGE, 0);
 		}
 		r = (Mem *)&_nullMem;
 	}
@@ -507,11 +507,11 @@ __device__ static void ColumnMallocFailure(Vdbe *p)
 	}
 }
 
-__device__ const void *Vdbe::Column_Blob(Vdbe *p, int i) { const void *val = Value_blob(ColumnMem(p, i)); ColumnMallocFailure(p); return val; } // Even though there is no encoding conversion, value_blob() might need to call malloc() to expand the result of a zeroblob() expression. 
+__device__ const void *Vdbe::Column_Blob(Vdbe *p, int i) { const void *val = Value_Blob(ColumnMem(p, i)); ColumnMallocFailure(p); return val; } // Even though there is no encoding conversion, value_blob() might need to call malloc() to expand the result of a zeroblob() expression. 
 __device__ int Vdbe::Column_Bytes(Vdbe *p, int i) { int val = Value_Bytes(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ int Vdbe::Column_Bytes16(Vdbe *p, int i) { int val = Value_Bytes16(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ double Vdbe::Column_Double(Vdbe *p, int i) { double val = Value_Double(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
-__device__ int Vdbe::Column_Int(Vdbe *p, int i) { int val = Value_int(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
+__device__ int Vdbe::Column_Int(Vdbe *p, int i) { int val = Value_Int(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ int64 Vdbe::Column_Int64(Vdbe *p, int i) { int64 val = Value_Int64(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ const unsigned char *Vdbe::Column_Text(Vdbe *p, int i) { const unsigned char *val = Value_Text(ColumnMem(p, i ); ColumnMallocFailure(p); return val; }
 __device__ Mem *Vdbe::Column_Value(Vdbe *p, int i)
@@ -536,9 +536,9 @@ __device__ static const void *ColumnName(Vdbe *p, int n, const void *(*func)(Mem
 	_assert(ctx != nullptr);
 	const void *r = nullptr;
 	int n2 = Column_Count(p);
-	if (N < n2 && N >= 0)
+	if (n < n2 && n >= 0)
 	{
-		N += useType*n2;
+		n += useType*n2;
 		MutexEx::Enter(ctx->Mutex);
 		_assert(!ctx->MallocFailed);
 		r = func(&p->ColNames[n]);
@@ -553,7 +553,7 @@ __device__ static const void *ColumnName(Vdbe *p, int n, const void *(*func)(Mem
 	return r;
 }
 
-__device__ const char *Vdbe::Column_Name(Vdbe *p, int n) { return columnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_NAME); }
+__device__ const char *Vdbe::Column_Name(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_NAME); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_Name16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text16, COLNAME_NAME); }
 #endif

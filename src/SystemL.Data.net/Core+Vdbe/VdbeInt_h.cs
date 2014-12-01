@@ -3,7 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-using VdbeSorter = System.Object;
+using VdbeSorter = Core.Vdbe.VdbeSorter;
 
 #region Limits
 #if !MAX_VARIABLE_NUMBER

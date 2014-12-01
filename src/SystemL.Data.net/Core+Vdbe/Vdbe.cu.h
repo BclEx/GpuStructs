@@ -130,7 +130,6 @@ namespace Core
 		__device__ void Delete();
 		__device__ static void ClearObject(Context *, Vdbe *);
 		__device__ void MakeReady(Parse *);
-		__device__ int Finalize();
 		__device__ void ResolveLabel(int);
 		__device__ int CurrentAddr();
 #ifdef _DEBUG
@@ -139,7 +138,6 @@ namespace Core
 #endif
 		__device__ void ResetStepResult();
 		__device__ void Rewind();
-		__device__ int Reset();
 		__device__ void SetNumCols(int);
 		__device__ int SetColName(int, int, const char *, void(*)(void *));
 		__device__ void CountChanges();
@@ -149,9 +147,7 @@ namespace Core
 		__device__ VdbeOp *TakeOpArray(int *, int *);
 		__device__ Mem *GetValue(int, AFF);
 		__device__ void SetVarmask(int);
-#ifndef OMIT_TRACE
-		__device__ char *ExpandSql(const char *);
-#endif
+
 		__device__ static void RecordUnpack(KeyInfo *, int, const void *, UnpackedRecord *);
 		__device__ static int RecordCompare(int, const void *, UnpackedRecord *);
 		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *, char *, int, char **);
@@ -184,7 +180,7 @@ namespace Core
 		char *ErrMsg;			// Error message written here
 		Vdbe *Prev, *Next;		// Linked list of VDBEs with the same Vdbe.db
 		array_t<VdbeCursor *> Cursors;   // One element of this array for each open cursor
-		array_t2<yVars, Mem> * Vars;   // Values for the OP_Variable opcode.
+		array_t2<yVars, Mem> Vars;   // Values for the OP_Variable opcode.
 		array_t2<yVars, char *> VarNames; // Name of variables
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
@@ -216,8 +212,8 @@ namespace Core
 		FILE *Trace;            // Write an execution trace here, if not NULL
 #endif
 #ifdef ENABLE_TREE_EXPLAIN
-		Explain *Explain;		// The explainer
-		char *ExplainString;    // Explanation of data structures
+		Explain *_explain;		// The explainer
+		char *_explainString;    // Explanation of data structures
 #endif
 		array_t<VdbeFrame> Frames; // Parent frame
 		VdbeFrame *DelFrames;   // List of frame objects to free on VM reset
@@ -244,6 +240,15 @@ namespace Core
 		__device__ int Exec();
 		__device__ int List();
 		__device__ int Halt();
+
+
+
+		__device__ static const char *sqlite3OpcodeName(int);
+		__device__ int CloseStatement(Vdbe *, int);
+		__device__ static void FrameDelete(VdbeFrame *);
+		__device__ static int FrameRestore(VdbeFrame *);
+		__device__ static void MemStoreType(Mem *mem);
+		__device__ int TransferError();
 
 #pragma region Vdbe+Api
 
@@ -284,7 +289,7 @@ namespace Core
 #endif
 		__device__ static void Result_Value(FuncContext *fctx, Mem *value);
 		__device__ static void Result_ZeroBlob(FuncContext *fctx, int n);
-		__device__ static void Result_ErrorCode(FuncContext *fctx, int errCode);
+		__device__ static void Result_ErrorCode(FuncContext *fctx, RC errCode);
 		__device__ static void Result_ErrorOverflow(FuncContext *fctx);
 		__device__ static void Result_ErrorNoMem(FuncContext *fctx);
 
@@ -318,12 +323,6 @@ namespace Core
 		__device__ static const char *Column_Name(Vdbe *p, int n);
 #ifndef OMIT_UTF16
 		__device__ static const void *Column_Name16(Vdbe *p, int n);
-#endif
-#ifndef OMIT_DECLTYPE
-		__device__ static const char *Column_Decltype(Vdbe *p, int n);
-#ifndef OMIT_UTF16
-		__device__ static const void *Column_Decltype16(Vdbe *p, int n);
-#endif
 #endif
 
 #if defined(OMIT_DECLTYPE) && defined(ENABLE_COLUMN_METADATA)
@@ -378,30 +377,30 @@ namespace Core
 
 #pragma region Vdbe+Mem
 
-		__device__ static RC ChangeEncoding(Mem *mem, TEXTENCODE newEncode); //@
-		__device__ static RC MemGrow(Mem *mem, size_t newSize, bool preserve); //@
-		__device__ static RC MemMakeWriteable(Mem *mem); //@
+		__device__ static RC ChangeEncoding(Mem *mem, TEXTENCODE newEncode);
+		__device__ static RC MemGrow(Mem *mem, size_t newSize, bool preserve);
+		__device__ static RC MemMakeWriteable(Mem *mem);
 #ifndef OMIT_INCRBLOB
-		__device__ static RC MemExpandBlob(Mem *mem); //@
+		__device__ static RC MemExpandBlob(Mem *mem);
 #define ExpandBlob(P) (((P)->Flags & MEM_Zero)?MemExpandBlob(P):0)
 #else
 #define MemExpandBlob(x) RC_OK
 #define ExpandBlob(P) RC_OK
 #endif
-		__device__ static RC MemNulTerminate(Mem *mem); //@
-		__device__ static RC MemStringify(Mem *mem, TEXTENCODE encode); //@
-		__device__ static RC MemFinalize(Mem *mem, FuncDef *func); //@
-		__device__ static void MemReleaseExternal(Mem *mem); //@
-		__device__ static void MemRelease(Mem *mem); //@
-		__device__ static int64 IntValue(Mem *mem); //@
-		__device__ static double RealValue(Mem *mem); //@
-		__device__ static void IntegerAffinity(Mem *mem); //@
-		__device__ static RC MemIntegerify(Mem *mem); //@
-		__device__ static RC MemRealify(Mem *mem); //@
-		__device__ static RC MemNumerify(Mem *mem); //@
-		__device__ static void MemSetNull(Mem *mem); //@
-		__device__ static void MemSetZeroBlob(Mem *mem, int n); //@
-		__device__ static void MemSetInt64(Mem *mem, int64 value); //@
+		__device__ static RC MemNulTerminate(Mem *mem);
+		__device__ static RC MemStringify(Mem *mem, TEXTENCODE encode);
+		__device__ static RC MemFinalize(Mem *mem, FuncDef *func);
+		__device__ static void MemReleaseExternal(Mem *mem);
+		__device__ static void MemRelease(Mem *mem);
+		__device__ static int64 IntValue(Mem *mem);
+		__device__ static double RealValue(Mem *mem);
+		__device__ static void IntegerAffinity(Mem *mem);
+		__device__ static RC MemIntegerify(Mem *mem);
+		__device__ static RC MemRealify(Mem *mem);
+		__device__ static RC MemNumerify(Mem *mem);
+		__device__ static void MemSetNull(Mem *mem);
+		__device__ static void MemSetZeroBlob(Mem *mem, int n);
+		__device__ static void MemSetInt64(Mem *mem, int64 value);
 #ifdef OMIT_FLOATING_POINT
 #define MemSetDouble MemSetInt64
 #else
@@ -417,19 +416,34 @@ namespace Core
 		__device__ static void MemMove(Mem *to, Mem *from); //@
 		__device__ static RC MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *)); //@
 		__device__ static RC MemFromBtree(BtCursor *cursor, int offset, int amount, bool key, Mem *mem); //@
-
 #define VdbeMemRelease(X) if((X)->Flags&(MEM_Agg|MEM_Dyn|MEM_RowSet|MEM_Frame)) Vdbe::MemReleaseExternal(X);
+
+		// value
+		__device__ static const void *ValueText(Mem *mem, TEXTENCODE encode);
+		__device__ static Mem *ValueNew(Context *ctx);
+		__device__ static RC ValueFromExpr(Context *ctx, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
+		__device__ static void ValueSetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
+		__device__ static void ValueFree(Mem *mem);
+		__device__ static int ValueBytes(Mem *mem, TEXTENCODE encode);
 
 #pragma endregion
 
-		__device__ static const char *sqlite3OpcodeName(int);
-		__device__ int CloseStatement(Vdbe *, int);
-		__device__ static void FrameDelete(VdbeFrame *);
-		__device__ static int FrameRestore(VdbeFrame *);
-		__device__ static void MemStoreType(Mem *mem);
-		__device__ int TransferError();
+#pragma region Vdbe+Trace
+#ifndef OMIT_TRACE
+		__device__ char *ExpandSql(const char *rawSql);
+#endif
+#if defined(ENABLE_TREE_EXPLAIN)
+		__device__ static void ExplainBegin(Vdbe *p);
+		__device__ static void ExplainPrintf(Vdbe *p, const char *format, va_list args);
+		__device__ static void ExplainNL(Vdbe *p);
+		__device__ static void ExplainPush(Vdbe *p);
+		__device__ static void ExplainPop(Vdbe *p);
+		__device__ static void ExplainFinish(Vdbe *p);
+		__device__ static const char *Explanation(Vdbe *p);
+#endif
+#pragma endregion
 
-		// vbdesort
+#pragma region Vdbe+Sort
 		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor); //@
 		__device__ static void SorterClose(Context *db, VdbeCursor *cursor); //@
 		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem); //@
@@ -437,6 +451,18 @@ namespace Core
 		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof); //@
 		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem); //@
 		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r); //@
+#pragma endregion
+
+#pragma region Vdbe+Utf
+#ifndef OMIT_UTF16
+		__device__ static RC MemTranslate(Mem *mem, TEXTENCODE desiredEncode);
+		__device__ static int MemHandleBom(Mem *mem);
+		__device__ static char *Utf16to8(Context *ctx, const void *z, int bytes, TEXTENCODE encode);
+#ifdef ENABLE_STAT3
+		__device__ static char *Utf8to16(Context *ctx, TEXTENCODE encode, char *z, int n, int *out_);
+#endif
+#endif
+#pragma endregion
 
 #if !defined(OMIT_SHARED_CACHE) && THREADSAFE>0
 		__device__ void Enter();
@@ -451,11 +477,9 @@ namespace Core
 #else
 #define CheckFk(i) 0
 #endif
-		__device__ static RC MemTranslate(Mem *mem, TEXTENCODE encode);
 #ifdef _DEBUG
 		__device__ void PrintSql();
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif
-		__device__ static RC MemHandleBom(Mem *mem);
 	};
 }

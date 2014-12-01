@@ -102,9 +102,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Expr.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
-      <Filter>Core+Vdbe</Filter>
-    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Build.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
@@ -173,6 +170,12 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu">
       <Filter>Core+Btree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
+      <Filter>Core+Pager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Utf.cu">
+      <Filter>Core+Vdbe</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

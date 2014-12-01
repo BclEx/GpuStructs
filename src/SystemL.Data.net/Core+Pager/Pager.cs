@@ -3716,7 +3716,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             return (C._NEVER(JournalFile.Opened && JournalOffset > 0) ? false : true);
         }
 
-        private long SetJournalSizeLimit(long limit)
+        public long SetJournalSizeLimit(long limit)
         {
             if (limit >= -1)
             {

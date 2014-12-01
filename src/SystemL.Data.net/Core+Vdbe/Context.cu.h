@@ -84,12 +84,49 @@ namespace Core
 			bool OrphanTrigger;				// Last statement is orphaned TEMP trigger
 		};
 
-		OPTFLAG OptFlags;
 		VSystem *Vfs;						// OS Interface
 		array_t<Vdbe> Vdbe;					// List of active virtual machines
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
+		//TAGBASE::Mutex
+		//BCONTEXT::DBs
+		//BCONTEXT::Flags
 		int64 LastRowID;					// ROWID of most recent insert (see above)
 		VSystem::OPEN OpenFlags;			// Flags passed to sqlite3_vfs.xOpen()
+		//TAGBASE::ErrCode
+		//TAGBASE::ErrMask
+		OPTFLAG OptFlags;					// Flags to enable/disable optimizations
+		uint8 AutoCommit;                // The auto-commit flag.
+		uint8 TempStore;                // 1: file 2: memory 0: default
+		//TAGBASE::MallocFailed
+		uint8 DefaultLockMode;              // Default locking-mode for attached dbs
+		signed char NextAutovac;      // Autovac setting after VACUUM if >=0
+		uint8 SuppressErr;               // Do not issue error messages if true
+		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
+		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
+		int NextPagesize;					// Pagesize after VACUUM if >0
+		MAGIC Magic;						// Magic number for detect library misuse
+		int Changes;                  // Value returned by sqlite3_changes()
+		int TotalChanges;             // Value returned by sqlite3_total_changes()
+		int Limits[LIMIT_MAX_];				// Limits
+		InitInfo Init;						// Information used during initialization
+		//BCONTEXT::ActiveVdbeCnt
+		int WriteVdbeCnt;             // Number of active VDBEs that are writing
+		int VdbeExecCnt;              // Number of nested calls to VdbeExec()
+		array_t<void *>Extensions;            // Array of shared library handles
+		void (*Trace)(void*,const char*);        // Trace function
+		void *TraceArg;                          // Argument to the trace function
+		void (*Profile)(void*,const char*,uint64);  // Profiling function
+		void *ProfileArg;                        // Argument to profile function
+		void *CommitArg;                 // Argument to xCommitCallback()
+		int (*CommitCallback)(void*);    // Invoked at every commit.
+		void *RollbackArg;               // Argument to xRollbackCallback()
+		void (*RollbackCallback)(void*); // Invoked at every commit.
+		void *UpdateArg;
+		void (*UpdateCallback)(void*,int, const char*,const char*,int64);
+#ifndef OMIT_WAL
+		int (*WalCallback)(void *, Context *, const char *, int);
+		void *WalArg;
+#endif
 		void(*CollNeeded)(void *, Context *, int textRep, const char *);
 		void(*CollNeeded16)(void *, Context *, int textRep, const void *);
 		void *CollNeededArg;
@@ -102,16 +139,14 @@ namespace Core
 			double NotUsed1;				// Spacer
 		} u1;
 		Lookaside Lookaside;				// Lookaside malloc configuration
-
-		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
-		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
-		int NextPagesize;					// Pagesize after VACUUM if >0
-		MAGIC Magic;						// Magic number for detect library misuse
-		int Limits[LIMIT_MAX_];				// Limits
-		InitInfo Init;						// Information used during initialization
 #ifndef OMIT_AUTHORIZATION
 		ARC (*Auth)(void*,int,const char*,const char*,const char*,const char*); // Access authorization function
 		void *AuthArg;						// 1st argument to the access auth function
+#endif
+#ifndef OMIT_PROGRESS_CALLBACK
+		int (*Progress)(void *);     // The progress callback
+		void *ProgressArg;           // Argument to the progress callback
+		int ProgressOps;             // Number of opcodes for progress callback
 #endif
 #ifndef OMIT_VIRTUALTABLE
 		Hash Modules;						// populated by sqlite3_create_module()
@@ -121,8 +156,11 @@ namespace Core
 #endif
 		FuncDefHash Funcs;					// Hash table of connection functions
 		Hash CollSeqs;						// All collating sequences
-
-		DB DbStatics[2];					// Static space for the 2 default backends
+		//BCONTEXT::BusyHandler
+		//BCONTEXT::DbStatics
+		//BCONTEXT::Savepoints
+		//BCONTEXT::BusyTimeout
+		//BCONTEXT::SavepointsLength
 		int Statements;						// Number of nested statement-transactions
 		int64 DeferredCons;					// Net deferred constraints this transaction.
 		int *BytesFreed;					// If not NULL, increment this in DbFree()
@@ -133,8 +171,6 @@ namespace Core
 		void (*UnlockNotify)(void **, int);		// Unlock notify callback
 		Context *NextBlocked;					// Next in list of all blocked connections
 #endif
-
-
 	};
 
 }

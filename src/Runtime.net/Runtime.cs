@@ -42,7 +42,10 @@ namespace Core
         DB = 0x10,           // Uses sqlite3DbMalloc, not sqlite_malloc
     }
 
-    public class TextBuilder
+    //////////////////////
+    // PRINT
+    #region PRINT
+    public partial class TextBuilder
     {
         public object Tag;			// Optional database for lookaside.  Can be NULL
         public string Base;		// A base allocation.  Not from malloc.
@@ -51,6 +54,16 @@ namespace Core
         public int MaxSize;		// Maximum allowed string length
         public bool AllocFailed;  // Becomes true if any memory allocation fails
         public bool Overflowed { get { return MaxSize > 0 && Text.Length > MaxSize; } } // Becomes true if string size exceeds limits
+
+        public void AppendSpace(int length)
+        {
+            Text.AppendFormat("{0," + length + "}", "");
+        }
+
+        public void AppendFormat(string fmt, params object[] args)
+        {
+            C.vxprintf(this, false, fmt, args);
+        }
 
         public void Append(string z, int length)
         {
@@ -86,13 +99,10 @@ namespace Core
             b.MaxSize = maxSize;
         }
 
-        public TextBuilder(int n)
-        {
-            Tag = null;
-            Text = new StringBuilder(n);
-            MaxSize = 0;
-        }
+        public TextBuilder() { Text = new StringBuilder(); }
+        public TextBuilder(int n) { Text = new StringBuilder(n); }
     }
+    #endregion
 
     public static class C
     {
@@ -295,6 +305,10 @@ namespace Core
         }
         public static bool _heapnearlyfull() { return false; }
 
+        public const Action<object> DESTRUCTOR_TRANSIENT = null;
+        public const Action<object> DESTRUCTOR_STATIC = null;
+        public const Action<object> DESTRUCTOR_DYNAMIC = null;
+
         #endregion
 
         //////////////////////
@@ -397,13 +411,8 @@ namespace Core
         }
 #endif
 
-        static void AppendSpace(TextBuilder b, int length)
-        {
-            b.Text.AppendFormat("{0," + length + "}", "");
-        }
-
         static readonly char[] _ord = "thstndrd".ToCharArray();
-        static void vxprintf(TextBuilder b, bool useExtended, string fmt, object[] args)
+        internal static void vxprintf(TextBuilder b, bool useExtended, string fmt, object[] args)
         {
             int argsIdx = 0;
             char[] buf = new char[BUFSIZE]; // Conversion buffer
@@ -893,13 +902,13 @@ namespace Core
                 if (!flag_leftjustify)
                 {
                     int nspace = width - length;
-                    if (nspace > 0) AppendSpace(b, nspace);
+                    if (nspace > 0) b.AppendSpace(nspace);
                 }
                 if (length > 0) b.Append(new string(buf, bufpt, length), length);
                 if (flag_leftjustify)
                 {
                     int nspace = width - length;
-                    if (nspace > 0) AppendSpace(b, nspace);
+                    if (nspace > 0) b.AppendSpace(nspace);
                 }
                 extra = null;
             }
@@ -1045,22 +1054,6 @@ namespace Core
         //            //fflush(stdout);
         //        }
         //#endif
-        //#if !OMIT_TRACE
-        //        static void sqlite3XPrintf(StrAccum p, string zFormat, params object[] ap)
-        //        {
-        //            //va_list ap;
-        //            lock (lock_va_list)
-        //            {
-        //                va_start(ap, zFormat);
-        //                sqlite3VXPrintf(p, 1, zFormat, ap);
-        //                va_end(ref ap);
-        //            }
-        //        }
-        //#endif
         #endregion
-
-        public const object DESTRUCTOR_TRANSIENT = -1;
-        public const object DESTRUCTOR_STATIC = -1;
-        public const object DESTRUCTOR_DYNAMIC = -1;
     }
 }

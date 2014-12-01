@@ -217,7 +217,7 @@ namespace Core {
 		_assert(SysEx_HASALIGNMENT8(mem));
 		MEM flags = mem->Flags;
 		if (flags & MEM_Int) return mem->u.I;
-		else if (flags & MEM_Real) return doubleToInt64(mem->R);
+		else if (flags & MEM_Real) return DoubleToInt64(mem->R);
 		else if (flags & (MEM_Str | MEM_Blob))
 		{
 			int64 value = 0;
@@ -346,7 +346,7 @@ namespace Core {
 #ifndef OMIT_FLOATING_POINT
 	__device__ void Vdbe::MemSetDouble(Mem *mem, double value)
 	{
-		if (_isNaN(value))
+		if (_isnan(value))
 			MemSetNull(mem);
 		else
 		{
@@ -560,9 +560,9 @@ namespace Core {
 				Mem c2; _memset(&c2, 0, sizeof(c2));
 				Vdbe::MemShallowCopy(&c1, mem1, MEM_Ephem);
 				Vdbe::MemShallowCopy(&c2, mem2, MEM_Ephem);
-				const void *v1 = Mem_Text(&c1, coll->Encode);
+				const void *v1 = Vdbe::ValueText(&c1, coll->Encode);
 				int n1 = (!v1 ? 0 : c1.N);
-				const void *v2 = Mem_Text(&c2, coll->Encode);
+				const void *v2 = Vdbe::ValueText(&c2, coll->Encode);
 				int n2 = (!v2 ? 0 : c2.N);
 				r = coll->Cmp(coll->User, n1, v1, n2, v2);
 				Vdbe::MemRelease(&c1);
@@ -610,7 +610,8 @@ namespace Core {
 		return rc;
 	}
 
-	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode)
+#pragma region Value
+	__device__ const void *Vdbe::ValueText(Mem *mem, TEXTENCODE encode)
 	{
 		if (!mem) return nullptr;
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
@@ -622,18 +623,18 @@ namespace Core {
 		ExpandBlob(mem);
 		if (mem->Flags & MEM_Str)
 		{
-			Vdbe::ChangeEncoding(mem, (TEXTENCODE)(encode & ~TEXTENCODE_UTF16_ALIGNED));
+			ChangeEncoding(mem, (TEXTENCODE)(encode & ~TEXTENCODE_UTF16_ALIGNED));
 			if ((encode & TEXTENCODE_UTF16_ALIGNED) != 0 && (1 & PTR_TO_INT(mem->Z)) == 1)
 			{
 				_assert((mem->Flags & (MEM_Ephem | MEM_Static)) != 0);
-				if (Vdbe::MemMakeWriteable(mem) != RC_OK) return nullptr;
+				if (MemMakeWriteable(mem) != RC_OK) return nullptr;
 			}
-			Vdbe::MemNulTerminate(mem); // IMP: R-31275-44060
+			MemNulTerminate(mem); // IMP: R-31275-44060
 		}
 		else
 		{
 			_assert((mem->Flags & MEM_Blob) == 0);
-			Vdbe::MemStringify(mem, encode);
+			MemStringify(mem, encode);
 			_assert((1 & PTR_TO_INT(mem->Z)) == 0);
 		}
 		_assert(mem->Encode == (encode & ~TEXTENCODE_UTF16_ALIGNED) || !mem->Ctx || mem->Ctx->MallocFailed);
@@ -641,7 +642,7 @@ namespace Core {
 	}
 
 
-	__device__ Mem *Mem_New(Context *ctx)
+	__device__ Mem *Vdbe::ValueNew(Context *ctx)
 	{
 		Mem *p = (Mem *)_tagalloc(ctx, sizeof(*p));
 		if (p)
@@ -653,7 +654,7 @@ namespace Core {
 		return p;
 	}
 
-	__device__ RC Mem_FromExpr(Context *ctx, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
+	__device__ RC Vdbe::ValueFromExpr(Context *ctx, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value)
 	{
 		if (!expr)
 		{
@@ -663,7 +664,7 @@ namespace Core {
 		OP op = expr->OP;
 		// op can only be TK_REGISTER if we have compiled with SQLITE_ENABLE_STAT3. The ifdef here is to enable us to achieve 100% branch test coverage even when SQLITE_ENABLE_STAT3 is omitted.
 #ifdef ENABLE_STAT3
-		if (op == TK_REGISTER) op = expr->Op2;
+		if (op == TK_REGISTER) op = expr->OP2;
 #else
 		if (_NEVER(op == TK_REGISTER)) op = expr->OP2;
 #endif
@@ -683,21 +684,21 @@ namespace Core {
 		char *memAsString = nullptr;
 		if (op == TK_STRING || op == TK_FLOAT || op == TK_INTEGER)
 		{
-			mem = Mem_New(ctx);
+			mem = ValueNew(ctx);
 			if (!mem) goto no_mem;
 			if (ExprHasProperty(expr, EP_IntValue))
-				Vdbe::MemSetInt64(mem, (int64)expr->u.I * negInt);
+				MemSetInt64(mem, (int64)expr->u.I * negInt);
 			else
 			{
-				memAsString = _mprintf(ctx, "%s%s", neg, expr->u.Token);
+				memAsString = _mtagprintf(ctx, "%s%s", neg, expr->u.Token);
 				if (!memAsString) goto no_mem;
-				Mem_SetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
+				ValueSetStr(mem, -1, memAsString, TEXTENCODE_UTF8, DESTRUCTOR_DYNAMIC);
 				if (op == TK_FLOAT) mem->Type = TYPE_FLOAT;
 			}
 			if ((op == TK_INTEGER || op == TK_FLOAT) && affinity == AFF_NONE)
-				Mem_ApplyAffinity(mem, AFF_NUMERIC, TEXTENCODE_UTF8);
+				ValueApplyAffinity(mem, AFF_NUMERIC, TEXTENCODE_UTF8);
 			else
-				Mem_ApplyAffinity(mem, affinity, TEXTENCODE_UTF8);
+				ValueApplyAffinity(mem, affinity, TEXTENCODE_UTF8);
 			if (mem->Flags & (MEM_Int | MEM_Real)) mem->Flags &= ~MEM_Str;
 			if (encode != TEXTENCODE_UTF8)
 				Vdbe::ChangeEncoding(mem, encode);
@@ -705,7 +706,7 @@ namespace Core {
 		else if (op == TK_UMINUS)
 		{
 			// This branch happens for multiple negative signs.  Ex: -(-5)
-			if (Mem_FromExpr(ctx, expr->Left, encode, affinity, &mem) == RC_OK)
+			if (ValueFromExpr(ctx, expr->Left, encode, affinity, &mem) == RC_OK)
 			{
 				Vdbe::MemNumerify(mem);
 				if (mem->u.I == SMALLEST_INT64)
@@ -717,12 +718,12 @@ namespace Core {
 				else
 					mem->u.I = -mem->u.I;
 				mem->R = -mem->R;
-				Mem_ApplyAffinity(mem, affinity, encode);
+				ValueApplyAffinity(mem, affinity, encode);
 			}
 		}
 		else if (op == TK_NULL)
 		{
-			mem = Mem_New(ctx);
+			mem = ValueNew(ctx);
 			if (!mem) goto no_mem;
 		}
 #ifndef OMIT_BLOB_LITERAL
@@ -730,12 +731,12 @@ namespace Core {
 		{
 			_assert(expr->u.Token[0] == 'x' || expr->u.Token[0] == 'X');
 			_assert(expr->u.Token[1] == '\'');
-			mem = Mem_New(ctx);
+			mem = ValueNew(ctx);
 			if (!mem) goto no_mem;
 			memAsString = &expr->u.Token[2];
 			int memAsStringLength = _strlen30(memAsString) - 1;
 			_assert(memAsString[memAsStringLength] == '\'');
-			Vdbe::MemSetStr(mem, (const char *)_hextoblob(ctx, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
+			Vdbe::MemSetStr(mem, (const char *)_taghextoblob(ctx, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
 		}
 #endif
 		if (mem)
@@ -746,29 +747,30 @@ namespace Core {
 no_mem:
 		ctx->MallocFailed = true;
 		_tagfree(ctx, memAsString);
-		Mem_Free(mem);
+		ValueFree(mem);
 		*value = nullptr;
 		return RC_NOMEM;
 	}
 
-	__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *))
+	__device__ void Vdbe::ValueSetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *))
 	{
-		if (mem) Vdbe::MemSetStr(mem, (const char *)z, n, encode, del);
+		if (mem) MemSetStr(mem, (const char *)z, n, encode, del);
 	}
 
-	__device__ void Mem_Free(Mem *mem)
+	__device__ void Vdbe::ValueFree(Mem *mem)
 	{
 		if (!mem) return;
-		Vdbe::MemRelease(mem);
+		MemRelease(mem);
 		_tagfree(mem->Ctx, mem);
 	}
 
-	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode)
+	__device__ int Vdbe::ValueBytes(Mem *mem, TEXTENCODE encode)
 	{
-		if ((mem->Flags & MEM_Blob) != 0 || Mem_Text(mem, encode))
+		if ((mem->Flags & MEM_Blob) != 0 || ValueText(mem, encode))
 			return (mem->Flags & MEM_Zero ? mem->N + mem->u.Zero : mem->N);
 		return 0;
 	}
+#pragma endregion
 
 #pragma endregion
 }

@@ -107,11 +107,11 @@ const int COLNAME_N = 1;     // Number of COLNAME_xxx symbols
 
         public struct VdbeOpList
         {
-            public byte Opcode;  // What operation to perform
+            public OP Opcode;  // What operation to perform
             public int P1;     // First operand
             public int P2;     // Second parameter (often the jump destination)
             public int P3;     // Third parameter
-            public VdbeOpList(byte opcode, int p1, int p2, int p3)
+            public VdbeOpList(OP opcode, int p1, int p2, int p3)
             {
                 Opcode = opcode;
                 P1 = p1;

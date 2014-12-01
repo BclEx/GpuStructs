@@ -1301,14 +1301,13 @@ namespace Core
 	//	const void *sqlite3_value_text16be(Mem*);
 	//	int sqlite3_value_type(Mem*);
 	//	int sqlite3_value_numeric_type(Mem*);
-
-	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
-	__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
-	__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);
-	__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
-	__device__ void Mem_Free(Mem *mem);
-	__device__ Mem *Mem_New(Context *db);
-	__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
+	//__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
+	//__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
+	//__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);
+	//__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
+	//__device__ void Mem_Free(Mem *mem);
+	//__device__ Mem *Mem_New(Context *db);
+	//__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
 
 #pragma endregion
 

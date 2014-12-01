@@ -28,12 +28,12 @@ namespace Core
             return total;
         }
 
-        static string sqlite3VdbeExpandSql(Vdbe p, string rawSql)
+        public string ExpandSql(string rawSql)
         {
-            Context ctx = p.Ctx; // The database connection
-            Text.StringBuilder b = new Text.StringBuilder(); // Accumulate the _output here
-            Text.StringBuilder.Init(b, 100, ctx.Limits[(int)LIMIT.LENGTH]);
-            b.Ctx = ctx;
+            Context ctx = Ctx; // The database connection
+            TextBuilder b = new TextBuilder(); // Accumulate the _output here
+            TextBuilder.Init(b, 100, ctx.Limits[(int)LIMIT.LENGTH]);
+            b.Tag = ctx;
             int rawSqlIdx = 0;
             int nextIndex = 1; // Index of next ? host parameter
             int idx = 0; // Index of a host parameter
@@ -70,40 +70,40 @@ namespace Core
                         C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == ':');
                         C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '$');
                         C.ASSERTCOVERAGE(rawSql[rawSqlIdx] == '@');
-                        idx = p.ParameterIndex(rawSql.Substring(rawSqlIdx, tokenLength), tokenLength);
+                        idx = ParameterIndex(this, rawSql.Substring(rawSqlIdx, tokenLength), tokenLength);
                         Debug.Assert(idx > 0);
                     }
                     rawSqlIdx += tokenLength;
                     nextIndex = idx + 1;
-                    Debug.Assert(idx > 0 && idx <= p.Vars.length);
-                    Mem var = p.Vars[idx - 1]; // Value of a host parameter
+                    Debug.Assert(idx > 0 && idx <= Vars.length);
+                    Mem var = Vars[idx - 1]; // Value of a host parameter
                     if ((var.Flags & MEM.Null) != 0) b.Append("NULL", 4);
-                    else if ((var.Flags & MEM.Int) != 0) sqlite3XPrintf(b, "%lld", var.u.I);
-                    else if ((var.Flags & MEM.Real) != 0) sqlite3XPrintf(b, "%!.15g", var.R);
+                    else if ((var.Flags & MEM.Int) != 0) b.AppendFormat("%lld", var.u.I);
+                    else if ((var.Flags & MEM.Real) != 0) b.AppendFormat("%!.15g", var.R);
                     else if ((var.Flags & MEM.Str) != 0)
                     {
 #if !OMIT_UTF16
-                        TEXTENCODE encode = Context.CTXENCODE(ctx);
+                        TEXTENCODE encode = E.CTXENCODE(ctx);
                         if (encode != TEXTENCODE.UTF8)
                         {
                             Mem utf8;
-                            memset(&utf8, 0, sizeof(utf8));
+                            //C._memset(&utf8, 0, sizeof(utf8));
                             utf8.Ctx = ctx;
-                            Vdbe.MemSetStr(&utf8, var.Z, var.N, encode, SysEx.DESTRUCTOR_STATIC);
-                            Vdbe.ChangeEncoding(&utf8, TEXTENCODE.UTF8);
-                            sqlite3XPrintf(b, "'%.*q'", utf8.N, utf8.Z);
-                            Vdbe.MemRelease(&utf8);
+                            MemSetStr(utf8, var.Z, var.N, encode, C.DESTRUCTOR_STATIC);
+                            ChangeEncoding(utf8, TEXTENCODE.UTF8);
+                            b.AppendFormat("'%.*q'", utf8.N, utf8.Z);
+                            MemRelease(utf8);
                         }
                         else
 #endif
-                            sqlite3XPrintf(b, "'%.*q'", var.N, var.Z);
+                            b.AppendFormat("'%.*q'", var.N, var.Z);
                     }
-                    else if ((var.Flags & MEM.Zero) != 0) sqlite3XPrintf(b, "zeroblob(%d)", var.u.Zero);
+                    else if ((var.Flags & MEM.Zero) != 0) b.AppendFormat("zeroblob(%d)", var.u.Zero);
                     else
                     {
                         Debug.Assert((var.Flags & MEM.Blob) != 0);
                         b.Append("x'", 2);
-                        for (int i = 0; i < var.N; i++) sqlite3XPrintf(b, "%02x", var.u.Zero[i] & 0xff);
+                        for (int i = 0; i < var.N; i++) b.AppendFormat("%02x", var.u.Zero[i] & 0xff);
                         b.Append("'", 1);
                     }
                 }

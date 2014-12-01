@@ -40,21 +40,15 @@ namespace Core
 	class TagBase
 	{
 	public:
-		MutexEx Mutex;
-		bool MallocFailed; // True if we have seen a malloc failure
-		RC ErrCode; // Most recent error code (RC_*)
-		int ErrMask; // & result codes with this before returning
+		MutexEx Mutex;		// Connection mutex 
+		bool MallocFailed;	// True if we have seen a malloc failure
+		RC ErrCode;			// Most recent error code (RC_*)
+		int ErrMask;		// & result codes with this before returning
 	};
 
 	class SysEx
 	{
 	public:
-
-		typedef void (*Destructor_t)(void *);
-#define DESTRUCTOR_STATIC ((Destructor_t)0)
-#define DESTRUCTOR_TRANSIENT ((Destructor_t)-1)
-#define DESTRUCTOR_DYNAMIC ((Destructor_t)_allocsize)
-
 		__device__ static RC Initialize();
 		__device__ static void Shutdown();
 		__device__ static void PutRandom(int length, void *buffer);
