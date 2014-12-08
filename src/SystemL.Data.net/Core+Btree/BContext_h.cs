@@ -29,29 +29,29 @@ namespace Core
         [Flags]
         public enum FLAG : uint
         {
-            VdbeTrace = 0x00000100,
-            InternChanges = 0x00000200,
-            FullColNames = 0x00000400,
-            ShortColNames = 0x00000800,
-            CountRows = 0x00001000,
-            NullCallback = 0x00002000,
-            SqlTrace = 0x00004000,
-            VdbeListing = 0x00008000,
-            WriteSchema = 0x00010000,
-            NoReadlock = 0x00020000,
-            IgnoreChecks = 0x00040000,
-            ReadUncommitted = 0x0080000,
-            LegacyFileFmt = 0x00100000,
-            FullFSync = 0x00200000,
-            CkptFullFSync = 0x00400000,
-            RecoveryMode = 0x00800000,
-            ReverseOrder = 0x01000000,
-            RecTriggers = 0x02000000,
-            ForeignKeys = 0x04000000,
-            AutoIndex = 0x08000000,
-            PreferBuiltin = 0x10000000,
-            LoadExtension = 0x20000000,
-            EnableTrigger = 0x40000000,
+            VdbeTrace = 0x00000001,	// True to trace VDBE execution
+            InternChanges = 0x00000002,	// Uncommitted Hash table changes
+            FullColNames = 0x00000004,	// Show full column names on SELECT
+            ShortColNames = 0x00000008,	// Show short columns names
+            CountRows = 0x00000010,	// Count rows changed by INSERT, DELETE, or UPDATE and return the count using a callback.
+            NullCallback = 0x00000020,	// Invoke the callback once if the result set is empty
+            SqlTrace = 0x00000040,	// Debug print SQL as it executes
+            VdbeListing = 0x00000080,	// Debug listings of VDBE programs
+            WriteSchema = 0x00000100,	// OK to update SQLITE_MASTER
+            VdbeAddopTrace = 0x00000200,	// Trace sqlite3VdbeAddOp() calls
+            IgnoreChecks = 0x00000400,	// Do not enforce check constraints
+            ReadUncommitted = 0x0000800,	// For shared-cache mode
+            LegacyFileFmt = 0x00001000,	// Create new databases in format 1
+            FullFSync = 0x00002000,	// Use full fsync on the backend
+            CkptFullFSync = 0x00004000,	// Use full fsync for checkpoint
+            RecoveryMode = 0x00008000,	// Ignore schema errors
+            ReverseOrder = 0x00010000,	// Reverse unordered SELECTs
+            RecTriggers = 0x00020000,	// Enable recursive triggers
+            ForeignKeys = 0x00040000,	// Enforce foreign key constraints
+            AutoIndex = 0x00080000,	// Enable automatic indexes
+            PreferBuiltin = 0x00100000,	// Preference to built-in funcs
+            LoadExtension = 0x00200000,	// Enable load_extension
+            EnableTrigger = 0x00400000,	// True to enable triggers
         }
 
         public array_t<DB> DBs = new array_t<DB>(new DB[MAX_ATTACHED]); // All backends / Number of backends currently in use

@@ -1,1030 +1,669 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-
 using FILE = System.IO.TextWriter;
-using i16 = System.Int16;
-using i32 = System.Int32;
-using i64 = System.Int64;
-using u8 = System.Byte;
-using u16 = System.UInt16;
-using u32 = System.UInt32;
-using u64 = System.UInt64;
-
-using Pgno = System.UInt32;
-
-#if !SQLITE_MAX_VARIABLE_NUMBER
-using ynVar = System.Int16;
+using Pid = System.UInt32;
+#region Limits
+#if !MAX_VARIABLE_NUMBER
+using yVar = System.Int16;
 #else
-using ynVar = System.Int32; 
+    using yVar = System.Int32; 
 #endif
-
-/*
-** The yDbMask datatype for the bitmask of all attached databases.
-*/
-#if SQLITE_MAX_ATTACHED//>30
-//  typedef sqlite3_uint64 yDbMask;
-using yDbMask = System.Int64; 
+#if MAX_ATTACHED
+    using yDbMask = System.Int64;
 #else
-//  typedef unsigned int yDbMask;
 using yDbMask = System.Int32;
 #endif
+#endregion
+using P4_t = Core.Vdbe.VdbeOp.P4_t;
 
 namespace Core
 {
-    using Op = Sqlite3.VdbeOp;
-    using sqlite3_stmt = Sqlite3.Vdbe;
-    using sqlite3_value = Sqlite3.Mem;
-    using System;
-
-    public partial class Sqlite3
+    public partial class Vdbe
     {
-#if SQLITE_DEBUG
-    static bool sqlite3VdbeAddopTrace = false;
-#endif
-
-
-        static Vdbe sqlite3VdbeCreate(sqlite3 db)
+        public static Vdbe Create(Context ctx)
         {
-            Vdbe p;
-            p = new Vdbe();// sqlite3DbMallocZero(db, Vdbe).Length;
-            if (p == null)
-                return null;
-            p.db = db;
-            if (db.pVdbe != null)
-            {
-                db.pVdbe.pPrev = p;
-            }
-            p.pNext = db.pVdbe;
-            p.pPrev = null;
-            db.pVdbe = p;
-            p.magic = VDBE_MAGIC_INIT;
+            Vdbe p = new Vdbe();
+            if (p == null) return null;
+            p.Ctx = ctx;
+            if (ctx.Vdbes != null)
+                ctx.Vdbes.Prev = p;
+            p.Next = ctx.Vdbes;
+            p.Prev = null;
+            ctx.Vdbes = p;
+            p.Magic = VDBE_MAGIC_INIT;
             return p;
         }
 
-        static void sqlite3VdbeSetSql(Vdbe p, string z, int n, int isPrepareV2)
+        public static void SetSql(Vdbe p, string z, int n, bool isPrepareV2)
         {
-            Debug.Assert(isPrepareV2 == 1 || isPrepareV2 == 0);
-            if (p == null)
-                return;
-#if SQLITE_OMIT_TRACE
-if( 0==isPrepareV2 ) return;
+            if (p == null) return;
+#if OMIT_TRACE && !ENABLE_SQLLOG
+            if (isPrepareV2 == 0) return;
 #endif
-            Debug.Assert(p.zSql == "");
-            p.zSql = z.Substring(0, n);// sqlite3DbStrNDup(p.db, z, n);
-            p.isPrepareV2 = isPrepareV2 != 0;
+            Debug.Assert(p.Sql_ == null);
+            p.Sql_ = z.Substring(0, n); //: _tagstrndup(p->Ctx, z, n);
+            p.IsPrepareV2 = isPrepareV2;
         }
 
-        static public string sqlite3_sql(sqlite3_stmt pStmt)
+        public static string Sql(Vdbe stmt)
         {
-            Vdbe p = (Vdbe)pStmt;
-            return (p != null && p.isPrepareV2 ? p.zSql : "");
+            Vdbe p = (Vdbe)stmt;
+            return (p != null && p.IsPrepareV2 ? p.Sql_ : null);
         }
 
-        static void sqlite3VdbeSwap(Vdbe pA, Vdbe pB)
+        public static void Swap(Vdbe a, Vdbe b)
         {
-            Vdbe tmp = new Vdbe();
-            Vdbe pTmp = new Vdbe();
-            string zTmp;
-            pA.CopyTo(tmp);
-            pB.CopyTo(pA);
-            tmp.CopyTo(pB);
-            pTmp = pA.pNext;
-            pA.pNext = pB.pNext;
-            pB.pNext = pTmp;
-            pTmp = pA.pPrev;
-            pA.pPrev = pB.pPrev;
-            pB.pPrev = pTmp;
-            zTmp = pA.zSql;
-            pA.zSql = pB.zSql;
-            pB.zSql = zTmp;
-            pB.isPrepareV2 = pA.isPrepareV2;
+            Vdbe tmp_ = new Vdbe();
+            a._memcpy(tmp_);
+            b._memcpy(a);
+            tmp_._memcpy(b);
+            Vdbe tmp = tmp = a.Next;
+            a.Next = b.Next;
+            b.Next = tmp;
+            tmp = a.Prev;
+            a.Prev = b.Prev;
+            b.Prev = tmp;
+            string tmpSql = a.Sql_;
+            a.Sql_ = b.Sql_;
+            b.Sql_ = tmpSql;
+            b.IsPrepareV2 = a.IsPrepareV2;
         }
 
-#if  SQLITE_DEBUG
-    /*
-** Turn tracing on or off
-*/
-    static void sqlite3VdbeTrace( Vdbe p, FILE trace )
-    {
-      p.trace = trace;
-    }
+#if DEBUG
+        public void set_Trace(FILE trace)
+        {
+            Trace = trace;
+        }
 #endif
 
-        static int growOpArray(Vdbe p)
+        static RC GrowOps(Vdbe p)
         {
-            //VdbeOp pNew;
-            int nNew = (p.nOpAlloc != 0 ? p.nOpAlloc * 2 : 1024 / 4);//(int)(1024/sizeof(Op)));
-            // pNew = sqlite3DbRealloc( p.db, p.aOp, nNew * sizeof( Op ) );
-            //if (pNew != null)
-            //{
-            //      p.nOpAlloc = sqlite3DbMallocSize(p.db, pNew)/sizeof(Op);
-            //  p.aOp = pNew;
-            //}
-            p.nOpAlloc = nNew;
-            if (p.aOp == null)
-                p.aOp = new VdbeOp[nNew];
-            else
-                Array.Resize(ref p.aOp, nNew);
-            return (p.aOp != null ? SQLITE_OK : SQLITE_NOMEM); //  return (pNew ? SQLITE_OK : SQLITE_NOMEM);
+            int newLength = (p.OpsAlloc != 0 ? p.OpsAlloc * 2 : 1024 / 1);
+            p.OpsAlloc = newLength;
+            C._tagrealloc_or_create(p.Ctx, ref p.Ops.data, newLength);
+            return (p.Ops.data != null ? RC.OK : RC.NOMEM);
         }
 
-        static int sqlite3VdbeAddOp3(Vdbe p, int op, int p1, int p2, int p3)
+        public int AddOp3(OP op, int p1, int p2, int p3)
         {
-            int i;
-            VdbeOp pOp;
-
-            i = p.nOp;
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            Debug.Assert(op > 0 && op < 0xff);
-            if (p.nOpAlloc <= i)
-            {
-                if (growOpArray(p) != 0)
-                {
+            int i = Ops.length;
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            Debug.Assert((int)op > 0 && (int)op < 0xff);
+            if (OpsAlloc <= i)
+                if (GrowOps(this) != RC.OK)
                     return 1;
-                }
-            }
-            p.nOp++;
-            if (p.aOp[i] == null)
-                p.aOp[i] = new VdbeOp();
-            pOp = p.aOp[i];
-            pOp.opcode = (u8)op;
-            pOp.p5 = 0;
-            pOp.p1 = p1;
-            pOp.p2 = p2;
-            pOp.p3 = p3;
-            pOp.p4.p = null;
-            pOp.p4type = P4_NOTUSED;
-#if SQLITE_DEBUG
-      pOp.zComment = null;
-      if ( sqlite3VdbeAddopTrace )
-        sqlite3VdbePrintOp( null, i, p.aOp[i] );
+            Ops.length++;
+            if (Ops[i] == null) Ops[i] = new VdbeOp();
+            VdbeOp opAsObj = Ops[i];
+            opAsObj.Opcode = op;
+            opAsObj.P5 = 0;
+            opAsObj.P1 = p1;
+            opAsObj.P2 = p2;
+            opAsObj.P3 = p3;
+            opAsObj.P4.P = null;
+            opAsObj.P4Type = Vdbe.P4T.NOTUSED;
+#if DEBUG
+            opAsObj.Comment = null;
+            if ((Ctx.Flags & BContext.FLAG.VdbeAddopTrace) != 0)
+                PrintOp(null, i, Ops[i]);
 #endif
 #if VDBE_PROFILE
-pOp.cycles = 0;
-pOp.cnt = 0;
+            opAsObj.Cycles = 0;
+            opAsObj.Cnt = 0;
 #endif
             return i;
         }
-        static int sqlite3VdbeAddOp0(Vdbe p, int op) { return sqlite3VdbeAddOp3(p, op, 0, 0, 0); }
-        static int sqlite3VdbeAddOp1(Vdbe p, int op, int p1) { return sqlite3VdbeAddOp3(p, op, p1, 0, 0); }
-        static int sqlite3VdbeAddOp2(Vdbe p, int op, int p1, bool b2) { return sqlite3VdbeAddOp2(p, op, p1, (int)(b2 ? 1 : 0)); }
-        static int sqlite3VdbeAddOp2(Vdbe p, int op, int p1, int p2) { return sqlite3VdbeAddOp3(p, op, p1, p2, 0); }
-
-
-        //P4_INT32
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, i32 pP4, int p4type)
+        public int AddOp0(OP op) { return AddOp3(op, 0, 0, 0); }
+        public int AddOp1(OP op, int p1) { return AddOp3(op, p1, 0, 0); }
+        public int AddOp2(OP op, int p1, bool b2) { return AddOp3(op, p1, (int)(b2 ? 1 : 0), 0); }
+        public int AddOp2(OP op, int p1, int p2) { return AddOp3(op, p1, p2, 0); }
+        public int AddOp4(OP op, int p1, int p2, int p3, int p4, Vdbe.P4T p4t) // int
         {
-            union_p4 _p4 = new union_p4();
-            _p4.i = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { I = p4 }, p4t);
             return addr;
         }
-
-        //char
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, char pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, char p4, Vdbe.P4T p4t) // char
         {
-            union_p4 _p4 = new union_p4();
-            _p4.z = pP4.ToString();
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Z = p4.ToString() }, p4t);
             return addr;
         }
-
-        //StringBuilder
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, StringBuilder pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, StringBuilder p4, Vdbe.P4T p4t) // StringBuilder
         {
-            //      Debug.Assert( pP4 != null );
-            union_p4 _p4 = new union_p4();
-            _p4.z = pP4.ToString();
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Z = p4.ToString() }, p4t);
             return addr;
         }
-
-        //String
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, string pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, string p4, Vdbe.P4T p4t) // string
         {
-            //      Debug.Assert( pP4 != null );
-            union_p4 _p4 = new union_p4();
-            _p4.z = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Z = p4 }, p4t);
             return addr;
         }
-
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, byte[] pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, byte[] p4, Vdbe.P4T p4t) // byte[]
         {
-            Debug.Assert(op == OP_Null || pP4 != null);
-            union_p4 _p4 = new union_p4();
-            _p4.z = Encoding.UTF8.GetString(pP4, 0, pP4.Length);
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            Debug.Assert(op == OP.Null || p4 != null);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(p, addr, new P4_t { Z = Encoding.UTF8.GetString(p4, 0, p4.Length) }, p4t);
             return addr;
         }
-
-        //P4_INTARRAY
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, int[] pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, int[] p4, Vdbe.P4T p4t) // P4T_INTARRAY
         {
-            Debug.Assert(pP4 != null);
-            union_p4 _p4 = new union_p4();
-            _p4.ai = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            Debug.Assert(p4 != null);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Is = p4 }, p4t);
             return addr;
         }
-        //P4_INT64
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, i64 pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, long p4, Vdbe.P4T p4t) // P4T_INT64
         {
-            union_p4 _p4 = new union_p4();
-            _p4.pI64 = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { I64 = p4 }, p4t);
             return addr;
         }
-
-        //DOUBLE (REAL)
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, double pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, double p4, Vdbe.P4T p4t) // DOUBLE (REAL)
         {
-            union_p4 _p4 = new union_p4();
-            _p4.pReal = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Real = p4 }, p4t);
             return addr;
         }
-
-        //FUNCDEF
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, FuncDef pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, FuncDef p4, Vdbe.P4T p4t) // FUNCDEF
         {
-            union_p4 _p4 = new union_p4();
-            _p4.pFunc = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Func = p4 }, p4t);
             return addr;
         }
-
-        //CollSeq
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, CollSeq pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, CollSeq p4, Vdbe.P4T p4t) // CollSeq
         {
-            union_p4 _p4 = new union_p4();
-            _p4.pColl = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { Coll = p4 }, p4t);
             return addr;
         }
-
-        //KeyInfo
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, KeyInfo pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, KeyInfo p4, Vdbe.P4T p4t) // KeyInfo
         {
-            union_p4 _p4 = new union_p4();
-            _p4.pKeyInfo = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { KeyInfo = p4 }, p4t);
             return addr;
         }
 
 #if !OMIT_VIRTUALTABLE
-        //VTable
-        static int sqlite3VdbeAddOp4(Vdbe p, int op, int p1, int p2, int p3, VTable pP4, int p4type)
+        public int AddOp4(OP op, int p1, int p2, int p3, VTable p4, Vdbe.P4T p4t) // VTable
         {
-            Debug.Assert(pP4 != null);
-            union_p4 _p4 = new union_p4();
-            _p4.pVtab = pP4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, p4type);
+            Debug.Assert(p4 != null);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(p, addr, new P4_t { Vtab = p4 }, p4t);
             return addr;
         }
 #endif
 
-        //  static int sqlite3VdbeAddOp4(
-        //  Vdbe p,               /* Add the opcode to this VM */
-        //  int op,               /* The new opcode */
-        //  int p1,               /* The P1 operand */
-        //  int p2,               /* The P2 operand */
-        //  int p3,               /* The P3 operand */
-        //  union_p4 _p4,         /* The P4 operand */
-        //  int p4type            /* P4 operand type */
-        //)
-        //  {
-        //    int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-        //    sqlite3VdbeChangeP4(p, addr, _p4, p4type);
-        //    return addr;
-        //  }
-
-        static void sqlite3VdbeAddParseSchemaOp(Vdbe p, int iDb, string zWhere)
+        public void AddParseSchemaOp(int db, string where_)
         {
-            int j;
-            int addr = sqlite3VdbeAddOp3(p, OP_ParseSchema, iDb, 0, 0);
-            sqlite3VdbeChangeP4(p, addr, zWhere, P4_DYNAMIC);
-            for (j = 0; j < p.db.nDb; j++)
-                sqlite3VdbeUsesBtree(p, j);
+            int addr = AddOp3(OP.ParseSchema, db, 0, 0);
+            ChangeP4(addr, where_, Vdbe.P4T.DYNAMIC);
+            for (int j = 0; j < Ctx.DBs.length; j++) UsesBtree(j);
         }
 
-        static int sqlite3VdbeAddOp4Int(Vdbe p, int op, int p1, int p2, int p3, int p4)
+        public int AddOp4Int(OP op, int p1, int p2, int p3, int p4)
         {
-            union_p4 _p4 = new union_p4();
-            _p4.i = p4;
-            int addr = sqlite3VdbeAddOp3(p, op, p1, p2, p3);
-            sqlite3VdbeChangeP4(p, addr, _p4, P4_INT32);
+            int addr = AddOp3(op, p1, p2, p3);
+            ChangeP4(addr, new P4_t { I = p4 }, Vdbe.P4T.INT32);
             return addr;
         }
 
-        static int sqlite3VdbeMakeLabel(Vdbe p)
+        public int MakeLabel()
         {
-            int i;
-            i = p.nLabel++;
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            if (i >= p.nLabelAlloc)
-            {
-                int n = p.nLabelAlloc == 0 ? 15 : p.nLabelAlloc * 2 + 5;
-                if (p.aLabel == null)
-                    p.aLabel = sqlite3Malloc(p.aLabel, n);
-                else
-                    Array.Resize(ref p.aLabel, n);
-                //p.aLabel = sqlite3DbReallocOrFree(p.db, p.aLabel,
-                //                                       n*sizeof(p.aLabel[0]));
-                p.nLabelAlloc = p.aLabel.Length;//sqlite3DbMallocSize(p.db, p.aLabel)/sizeof(p.aLabel[0]);
-            }
-            if (p.aLabel != null)
-            {
-                p.aLabel[i] = -1;
-            }
+            int i = Labels.length++;
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            C._tagrealloc_or_create(Ctx, ref Labels.data, (i * 2 + 1));
+            if (Labels.data != null)
+                Labels[i] = -1;
             return -1 - i;
         }
 
-        static void sqlite3VdbeResolveLabel(Vdbe p, int x)
+        public void ResolveLabel(int x)
         {
             int j = -1 - x;
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            Debug.Assert(j >= 0 && j < p.nLabel);
-            if (p.aLabel != null)
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            Debug.Assert(j >= 0 && j < Labels.length);
+            if (Labels.data != null)
+                Labels[j] = Ops.length;
+        }
+
+        public void set_RunOnlyOnce()
+        {
+            RunOnlyOnce = true;
+        }
+
+#if DEBUG
+
+        public class VdbeOpIter
+        {
+            public Vdbe V;                    // Vdbe to iterate through the opcodes of
+            public array_t<SubProgram> Subs;     // Array of subprograms
+            public int Addr;                  // Address of next instruction to return
+            public int SubId;                 // 0 = main program, 1 = first sub-program etc.
+        }
+
+        static VdbeOp OpIterNext(VdbeOpIter p)
+        {
+            VdbeOp r = null;
+            if (p.SubId <= p.Subs.length)
             {
-                p.aLabel[j] = p.nOp;
+                Vdbe v = p.V;
+                array_t<VdbeOp> ops = (p.SubId == 0 ? v.Ops : p.Subs[p.SubId - 1].Ops);
+                Debug.Assert(p.Addr < ops.length);
+
+                r = ops[p.Addr];
+                p.Addr++;
+                if (p.Addr == ops.length)
+                {
+                    p.SubId++;
+                    p.Addr = 0;
+                }
+                if (r.P4Type == Vdbe.P4T.SUBPROGRAM)
+                {
+                    int bytes = p.Subs.length + 1;
+                    int j;
+                    for (j = 0; j < p.Subs.length; j++)
+                        if (p.Subs[j] == r.P4.Program) break;
+                    if (j == p.Subs.length)
+                    {
+                        C._tagrealloc_or_free2(v.Ctx, ref p.Subs.data, bytes);
+                        p.Subs[p.Subs.length++] = r.P4.Program;
+                    }
+                }
             }
+            return r;
         }
 
-        static void sqlite3VdbeRunOnlyOnce(Vdbe p)
+        public bool AssertMayAbort(bool mayAbort)
         {
-            p.runOnlyOnce = 1;
-        }
+            VdbeOpIter sIter;
+            sIter = new VdbeOpIter();
+            sIter.V = this;
 
-#if SQLITE_DEBUG //* sqlite3AssertMayAbort() logic */
-
-    /*
-** The following type and function are used to iterate through all opcodes
-** in a Vdbe main program and each of the sub-programs (triggers) it may 
-** invoke directly or indirectly. It should be used as follows:
-**
-**   Op *pOp;
-**   VdbeOpIter sIter;
-**
-**   memset(&sIter, 0, sizeof(sIter));
-**   sIter.v = v;                            // v is of type Vdbe* 
-**   while( (pOp = opIterNext(&sIter)) ){
-**     // Do something with pOp
-**   }
-**   sqlite3DbFree(v->db, sIter.apSub);
-** 
-*/
-    //typedef struct VdbeOpIter VdbeOpIter;
-    public class VdbeOpIter
-    {
-      public Vdbe v;                    /* Vdbe to iterate through the opcodes of */
-      public SubProgram[] apSub;        /* Array of subprograms */
-      public int nSub;                  /* Number of entries in apSub */
-      public int iAddr;                 /* Address of next instruction to return */
-      public int iSub;                  /* 0 = main program, 1 = first sub-program etc. */
-    };
-
-    static Op opIterNext( VdbeOpIter p )
-    {
-      Vdbe v = p.v;
-      Op pRet = null;
-      Op[] aOp;
-      int nOp;
-
-      if ( p.iSub <= p.nSub )
-      {
-
-        if ( p.iSub == 0 )
-        {
-          aOp = v.aOp;
-          nOp = v.nOp;
-        }
-        else
-        {
-          aOp = p.apSub[p.iSub - 1].aOp;
-          nOp = p.apSub[p.iSub - 1].nOp;
-        }
-        Debug.Assert( p.iAddr < nOp );
-
-        pRet = aOp[p.iAddr];
-        p.iAddr++;
-        if ( p.iAddr == nOp )
-        {
-          p.iSub++;
-          p.iAddr = 0;
-        }
-
-        if ( pRet.p4type == P4_SUBPROGRAM )
-        {
-          //int nByte =  p.nSub + 1 ) * sizeof( SubProgram* );
-          int j;
-          for ( j = 0; j < p.nSub; j++ )
-          {
-            if ( p.apSub[j] == pRet.p4.pProgram )
-              break;
-          }
-          if ( j == p.nSub )
-          {
-            Array.Resize( ref p.apSub, p.nSub + 1 );/// sqlite3DbReallocOrFree( v.db, p.apSub, nByte );
-            //if( null==p.apSub ){
-            //  pRet = null;
-            //}else{
-            p.apSub[p.nSub++] = pRet.p4.pProgram;
-            //}
-          }
-        }
-      }
-
-      return pRet;
-    }
-
-    /*
-    ** Check if the program stored in the VM associated with pParse may
-    ** throw an ABORT exception (causing the statement, but not entire transaction
-    ** to be rolled back). This condition is true if the main program or any
-    ** sub-programs contains any of the following:
-    **
-    **   *  OP_Halt with P1=SQLITE_CONSTRAINT and P2=OE_Abort.
-    **   *  OP_HaltIfNull with P1=SQLITE_CONSTRAINT and P2=OE_Abort.
-    **   *  OP_Destroy
-    **   *  OP_VUpdate
-    **   *  OP_VRename
-    **   *  OP_FkCounter with P2==0 (immediate foreign key constraint)
-    **
-    ** Then check that the value of Parse.mayAbort is true if an
-    ** ABORT may be thrown, or false otherwise. Return true if it does
-    ** match, or false otherwise. This function is intended to be used as
-    ** part of an assert statement in the compiler. Similar to:
-    **
-    **   Debug.Assert( sqlite3VdbeAssertMayAbort(pParse->pVdbe, pParse->mayAbort) );
-    */
-    static int sqlite3VdbeAssertMayAbort( Vdbe v, int mayAbort )
-    {
-      int hasAbort = 0;
-      Op pOp;
-      VdbeOpIter sIter;
-      sIter = new VdbeOpIter();// memset( &sIter, 0, sizeof( sIter ) );
-      sIter.v = v;
-
-      while ( ( pOp = opIterNext( sIter ) ) != null )
-      {
-        int opcode = pOp.opcode;
-        if ( opcode == OP_Destroy || opcode == OP_VUpdate || opcode == OP_VRename
-#if !SQLITE_OMIT_FOREIGN_KEY
- || ( opcode == OP_FkCounter && pOp.p1 == 0 && pOp.p2 == 1 )
+            bool hasAbort = false;
+            VdbeOp op;
+            while ((op = OpIterNext(sIter)) != null)
+            {
+                OP opcode = (OP)op.Opcode;
+                if (opcode == OP.Destroy || opcode == OP.VUpdate || opcode == OP.VRename
+#if !OMIT_FOREIGN_KEY
+ || (opcode == OP.FkCounter && op.P1 == 0 && op.P2 == 1)
 #endif
- || ( ( opcode == OP_Halt || opcode == OP_HaltIfNull )
-        && ( pOp.p1 == SQLITE_CONSTRAINT && pOp.p2 == OE_Abort ) )
-        )
-        {
-          hasAbort = 1;
-          break;
+ || ((opcode == OP.Halt || opcode == OP.HaltIfNull)
+ && (op.P1 == (int)RC.CONSTRAINT && op.P2 == (int)OE.Abort)))
+                {
+                    hasAbort = true;
+                    break;
+                }
+            }
+            C._tagfree(Ctx, ref sIter.Subs.data);
+
+            // Return true if hasAbort==mayAbort. Or if a malloc failure occurred. If malloc failed, then the while() loop above may not have iterated
+            // through all opcodes and hasAbort may be set incorrectly. Return true for this case to prevent the assert() in the callers frame from failing.            return (hasAbort == mayAbort) ? 1 : 0;//v.db.mallocFailed !=0|| hasAbort==mayAbort );
+            return (Ctx.MallocFailed || hasAbort == mayAbort);
         }
-      }
-      sIter.apSub = null;// sqlite3DbFree( v.db, sIter.apSub );
+#endif
 
-      /* Return true if hasAbort==mayAbort. Or if a malloc failure occured.
-      ** If malloc failed, then the while() loop above may not have iterated
-      ** through all opcodes and hasAbort may be set incorrectly. Return
-      ** true for this case to prevent the Debug.Assert() in the callers frame
-      ** from failing.  */
-      return ( hasAbort == mayAbort ) ? 1 : 0;//v.db.mallocFailed !=0|| hasAbort==mayAbort );
-    }
-#endif //* SQLITE_DEBUG - the sqlite3AssertMayAbort() function */
-
-        static void resolveP2Values(Vdbe p, ref int pMaxFuncArgs)
+        static void ResolveP2Values(Vdbe p, ref int maxFuncArgs)
         {
+            int maxArgs = maxFuncArgs;
+            int[] labels = p.Labels.data;
+            p.ReadOnly = true;
+
+            Vdbe.VdbeOp op;
             int i;
-            int nMaxArgs = pMaxFuncArgs;
-            Op pOp;
-            int[] aLabel = p.aLabel;
-            p.readOnly = true;
-            for (i = 0; i < p.nOp; i++)//  for(pOp=p->aOp, i=p->nOp-1; i>=0; i--, pOp++)
+            for (i = 0; i < p.Ops.length; i++)
             {
-                pOp = p.aOp[i];
-                u8 opcode = pOp.opcode;
-
-                pOp.opflags = (u8)sqlite3OpcodeProperty[opcode];
-                if (opcode == OP_Function || opcode == OP_AggStep)
+                op = p.Ops[i];
+                OP opcode = op.Opcode;
+                op.Opflags = E._opcodeProperty[(int)opcode];
+                if (opcode == OP.Function || opcode == OP.AggStep)
                 {
-                    if (pOp.p5 > nMaxArgs)
-                        nMaxArgs = pOp.p5;
+                    if (op.P5 > maxArgs) maxArgs = op.P5;
                 }
-                else if ((opcode == OP_Transaction && pOp.p2 != 0) || opcode == OP_Vacuum)
+                else if ((opcode == OP.Transaction && op.P2 != 0) || opcode == OP.Vacuum)
                 {
-                    p.readOnly = false;
+                    p.ReadOnly = false;
+
+                }
 #if !OMIT_VIRTUALTABLE
-                }
-                else if (opcode == OP_VUpdate)
+                else if (opcode == OP.VUpdate)
                 {
-                    if (pOp.p2 > nMaxArgs)
-                        nMaxArgs = pOp.p2;
+                    if (op.P2 > maxArgs) maxArgs = op.P2;
                 }
-                else if (opcode == OP_VFilter)
+                else if (opcode == OP.VFilter)
                 {
-                    int n;
-                    Debug.Assert(p.nOp - i >= 3);
-                    Debug.Assert(p.aOp[i - 1].opcode == OP_Integer);//pOp[-1].opcode==OP_Integer );
-                    n = p.aOp[i - 1].p1;//pOp[-1].p1;
-                    if (n > nMaxArgs)
-                        nMaxArgs = n;
+                    Debug.Assert(p.Ops.length - i >= 3);
+                    Debug.Assert(p.Ops[i - 1].Opcode == OP.Integer);
+                    int n = p.Ops[i - 1].P1;
+                    if (n > maxArgs) maxArgs = n;
+                }
 #endif
-                }
-
-                if ((pOp.opflags & OPFLG_JUMP) != 0 && pOp.p2 < 0)
+                else if (opcode == OP.Next || opcode == OP.SorterNext)
                 {
-                    Debug.Assert(-1 - pOp.p2 < p.nLabel);
-                    pOp.p2 = aLabel[-1 - pOp.p2];
+                    op.P4.Advance = Btree.Next_;
+                    op.P4Type = Vdbe.P4T.ADVANCE;
+                }
+                else if (opcode == OP.Prev)
+                {
+                    op.P4.Advance = Btree.Previous;
+                    op.P4Type = Vdbe.P4T.ADVANCE;
+                }
+                if ((op.Opflags & OPFLG.JUMP) != 0 && op.P2 < 0)
+                {
+                    Debug.Assert(-1 - op.P2 < p.Labels.length);
+                    op.P2 = labels[-1 - op.P2];
                 }
             }
-            sqlite3DbFree(p.db, ref p.aLabel);
-
-            pMaxFuncArgs = nMaxArgs;
+            C._tagfree(p.Ctx, ref p.Labels.data);
+            p.Labels.data = null;
+            maxFuncArgs = maxArgs;
         }
 
-        static int sqlite3VdbeCurrentAddr(Vdbe p)
+        public int CurrentAddr()
         {
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            return p.nOp;
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            return Ops.length;
         }
 
-        static VdbeOp[] sqlite3VdbeTakeOpArray(Vdbe p, ref int pnOp, ref int pnMaxArg)
+        public VdbeOp[] TakeOpArray(ref int opsLength, ref int maxArgs)
         {
-            VdbeOp[] aOp = p.aOp;
-            Debug.Assert(aOp != null);// && 0==p.db.mallocFailed );
-
-            /* Check that sqlite3VdbeUsesBtree() was not called on this VM */
-            Debug.Assert(p.btreeMask == 0);
-
-            resolveP2Values(p, ref pnMaxArg);
-            pnOp = p.nOp;
-            p.aOp = null;
-            return aOp;
+            VdbeOp[] ops = Ops.data;
+            Debug.Assert(ops != null && !Ctx.MallocFailed);
+            Debug.Assert(BtreeMask == 0); // Check that sqlite3VdbeUsesBtree() was not called on this VM
+            ResolveP2Values(this, ref maxArgs);
+            opsLength = Ops.length;
+            Ops.data = null;
+            return ops;
         }
 
-        static int sqlite3VdbeAddOpList(Vdbe p, int nOp, VdbeOpList[] aOp)
+        public int AddOpList(int opsLength, VdbeOpList[] ops)
         {
-            int addr;
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            if (p.nOp + nOp > p.nOpAlloc && growOpArray(p) != 0)
-            {
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            if (Ops.length + opsLength > OpsAlloc && GrowOps(this) != 0)
                 return 0;
-            }
-            addr = p.nOp;
-            if (ALWAYS(nOp > 0))
+            int addr = Ops.length;
+            if (C._ALWAYS(opsLength > 0))
             {
-                int i;
-                VdbeOpList pIn;
-                for (i = 0; i < nOp; i++)
+                VdbeOpList in_;
+                for (int i = 0; i < opsLength; i++)
                 {
-                    pIn = aOp[i];
-                    int p2 = pIn.p2;
-                    if (p.aOp[i + addr] == null)
-                        p.aOp[i + addr] = new VdbeOp();
-                    VdbeOp pOut = p.aOp[i + addr];
-                    pOut.opcode = pIn.opcode;
-                    pOut.p1 = pIn.p1;
-                    if (p2 < 0 && (sqlite3OpcodeProperty[pOut.opcode] & OPFLG_JUMP) != 0)
-                    {
-                        pOut.p2 = addr + (-1 - p2);// ADDR(p2);
-                    }
-                    else
-                    {
-                        pOut.p2 = p2;
-                    }
-                    pOut.p3 = pIn.p3;
-                    pOut.p4type = P4_NOTUSED;
-                    pOut.p4.p = null;
-                    pOut.p5 = 0;
-#if  SQLITE_DEBUG
-          pOut.zComment = null;
-          if ( sqlite3VdbeAddopTrace )
-          {
-            sqlite3VdbePrintOp( null, i + addr, p.aOp[i + addr] );
-          }
+                    in_ = ops[i];
+                    int p2 = in_.P2;
+                    if (Ops[i + addr] == null)
+                        Ops[i + addr] = new VdbeOp();
+                    VdbeOp out_ = Ops[i + addr];
+                    out_.Opcode = in_.Opcode;
+                    out_.P1 = in_.P1;
+                    out_.P2 = (p2 < 0 && ((OPFLG)E._opcodeProperty[(int)out_.Opcode] & OPFLG.JUMP) != 0 ? addr + (-1 - p2) : p2);
+                    out_.P3 = in_.P3;
+                    out_.P4Type = Vdbe.P4T.NOTUSED;
+                    out_.P4.P = null;
+                    out_.P5 = 0;
+#if DEBUG
+                    out_.Comment = null;
+                    if ((Ctx.Flags & BContext.FLAG.VdbeAddopTrace) != 0)
+                        PrintOp(null, i + addr, Ops[i + addr]);
 #endif
                 }
-                p.nOp += nOp;
+                Ops.length += opsLength;
             }
             return addr;
         }
 
-        static void sqlite3VdbeChangeP1(Vdbe p, int addr, int val)
-        {
-            Debug.Assert(p != null);
-            Debug.Assert(addr >= 0);
-            if (p.nOp > addr)
-            {
-                p.aOp[addr].p1 = val;
-            }
-        }
+        public void ChangeP1(int addr, int val) { if (Ops.length > addr) Ops[addr].P1 = val; }
+        public void ChangeP2(int addr, int val) { if (Ops.length > addr) Ops[addr].P2 = val; }
+        public void ChangeP3(int addr, int val) { if (Ops.length > addr) Ops[addr].P3 = val; }
+        public void ChangeP5(byte val) { if (Ops.data != null) { Debug.Assert(Ops.length > 0); Ops[Ops.length - 1].P5 = val; } }
 
-        static void sqlite3VdbeChangeP2(Vdbe p, int addr, int val)
-        {
-            Debug.Assert(p != null);
-            Debug.Assert(addr >= 0);
-            if (p.nOp > addr)
-            {
-                p.aOp[addr].p2 = val;
-            }
-        }
-
-        static void sqlite3VdbeChangeP3(Vdbe p, int addr, int val)
-        {
-            Debug.Assert(p != null);
-            Debug.Assert(addr >= 0);
-            if (p.nOp > addr)
-            {
-                p.aOp[addr].p3 = val;
-            }
-        }
-
-        static void sqlite3VdbeChangeP5(Vdbe p, u8 val)
-        {
-            Debug.Assert(p != null);
-            if (p.aOp != null)
-            {
-                Debug.Assert(p.nOp > 0);
-                p.aOp[p.nOp - 1].p5 = val;
-            }
-        }
-
-        static void sqlite3VdbeJumpHere(Vdbe p, int addr)
+        public void JumpHere(int addr)
         {
             Debug.Assert(addr >= 0);
-            sqlite3VdbeChangeP2(p, addr, p.nOp);
+            ChangeP2(addr, Ops.length);
         }
 
-        static void freeEphemeralFunction(sqlite3 db, FuncDef pDef)
+        static void FreeEphemeralFunction(Context ctx, FuncDef def)
         {
-            if (ALWAYS(pDef) && (pDef.flags & SQLITE_FUNC_EPHEM) != 0)
-            {
-                pDef = null;
-                sqlite3DbFree(db, ref pDef);
-            }
+            if (C._ALWAYS(def != null) && (def.Flags & FUNC.EPHEM) != 0)
+                C._tagfree(ctx, ref def);
         }
-
-        //static void vdbeFreeOpArray(sqlite3 *, Op *, int);
-
-        static void freeP4(sqlite3 db, int p4type, object p4)
+        static void FreeP4(Context ctx, P4T p4t, object p4)
         {
+            Debug.Assert(ctx != null);
             if (p4 != null)
             {
-                switch (p4type)
+                switch (p4t)
                 {
-                    case P4_REAL:
-                    case P4_INT64:
-                    case P4_DYNAMIC:
-                    case P4_KEYINFO:
-                    case P4_INTARRAY:
-                    case P4_KEYINFO_HANDOFF:
+                    case P4T.REAL:
+                    case P4T.INT64:
+                    case P4T.DYNAMIC:
+                    case P4T.KEYINFO:
+                    case P4T.INTARRAY:
+                    case P4T.KEYINFO_HANDOFF:
                         {
-                            sqlite3DbFree(db, ref p4);
+                            C._tagfree(ctx, ref p4);
                             break;
                         }
-                    case P4_MPRINTF:
+                    case P4T.MPRINTF:
                         {
-                            if (db.pnBytesFreed == 0)
-                                p4 = null;// sqlite3_free( ref p4 );
+                            if (ctx.BytesFreed == 0) C._free(ref p4);
                             break;
                         }
-                    case P4_VDBEFUNC:
+                    case P4T.VDBEFUNC:
                         {
-                            VdbeFunc pVdbeFunc = (VdbeFunc)p4;
-                            freeEphemeralFunction(db, pVdbeFunc.pFunc);
-                            if (db.pnBytesFreed == 0)
-                                sqlite3VdbeDeleteAuxData(pVdbeFunc, 0);
-                            sqlite3DbFree(db, ref pVdbeFunc);
+                            VdbeFunc vdbeFunc = (VdbeFunc)p4;
+                            FreeEphemeralFunction(ctx, vdbeFunc);
+                            if (ctx.BytesFreed == 0) Vdbe.DeleteAuxData(vdbeFunc, 0);
+                            C._tagfree(ctx, ref vdbeFunc);
                             break;
                         }
-                    case P4_FUNCDEF:
+                    case P4T.FUNCDEF:
                         {
-                            freeEphemeralFunction(db, (FuncDef)p4);
+                            FreeEphemeralFunction(ctx, (FuncDef)p4);
                             break;
                         }
-                    case P4_MEM:
+                    case P4T.MEM:
                         {
-                            if (db.pnBytesFreed == 0)
-                            {
-                                p4 = null;// sqlite3ValueFree(ref (sqlite3_value)p4);
-                            }
+                            if (ctx.BytesFreed == 0)
+                                Vdbe.ValueFree(ref (Mem)p4);
                             else
                             {
                                 Mem p = (Mem)p4;
-                                //sqlite3DbFree( db, ref p.zMalloc );
-                                sqlite3DbFree(db, ref p);
+                                //C._tagfree(ctx, ref p.Malloc);
+                                C._tagfree(ctx, ref p);
                             }
                             break;
                         }
-                    case P4_VTAB:
+                    case P4T.VTAB:
                         {
-                            if (db.pnBytesFreed == 0)
-                                sqlite3VtabUnlock((VTable)p4);
+                            if (ctx.BytesFreed == 0) ((VTable)p4).Unlock();
                             break;
                         }
                 }
             }
         }
 
-        static void vdbeFreeOpArray(sqlite3 db, ref Op[] aOp, int nOp)
+        static void VdbeFreeOpArray(Context ctx, ref VdbeOp[] ops, int opsLength)
         {
-            if (aOp != null)
+            if (ops != null)
             {
-                //Op pOp;
-                //    for(pOp=aOp; pOp<&aOp[nOp]; pOp++){
-                //      freeP4(db, pOp.p4type, pOp.p4.p);
-                //#if SQLITE_DEBUG
-                //      sqlite3DbFree(db, ref pOp.zComment);
-                //#endif     
-                //    }
-                //  }
-                //  sqlite3DbFree(db, aOp);
-                aOp = null;
+                for (int opIdx = ops.Length; opIdx < opsLength; opIdx++)
+                {
+                    VdbeOp op = ops[opIdx];
+                    FreeP4(ctx, op.P4Type, op.P4.P);
+#if DEBUG
+                    C._tagfree(ctx, ref op.Comment);
+#endif
+                }
+            }
+            C._tagfree(ctx, ref ops);
+        }
+
+        public void LinkSubProgram(SubProgram p)
+        {
+            p.Next = Programs;
+            Programs = p;
+        }
+
+        public void ChangeToNoop(int addr)
+        {
+            if (Ops.data != null)
+            {
+                VdbeOp op = Ops[addr];
+                FreeP4(Ctx, op.P4Type, op.P4.P);
+                op._memset();
+                op.Opcode = OP.Noop;
             }
         }
 
-        static void sqlite3VdbeLinkSubProgram(Vdbe pVdbe, SubProgram p)
+        public void ChangeP4(int addr, CollSeq coll, int n) { ChangeP4(addr, new P4_t { Coll = coll }, n); } // P4_COLLSEQ 
+        public void ChangeP4(int addr, FuncDef func, int n) { ChangeP4(addr, new P4_t { Func = func }, n); } // P4_FUNCDEF
+        public void ChangeP4(int addr, int i, int n) { ChangeP4(addr, new P4_t { I = i }, n); } // P4_INT32
+        public void ChangeP4(int addr, KeyInfo keyInfo, int n) { ChangeP4(addr, new P4_t { KeyInfo = keyInfo }, n); } // P4T_KEYINFO
+        public void ChangeP4(int addr, char c, int n) { ChangeP4(addr, new P4_t { Z = c.ToString() }, n); } // CHAR
+        public void ChangeP4(int addr, Mem m, int n) { ChangeP4(addr, new P4_t { Mem = m }, n); } // MEM
+        public void ChangeP4(int addr, string z, Action<object> notUsed1) { ChangeP4(addr, new P4_t { Z = z }, (int)P4T.DYNAMIC); } // STRING + Type
+        public void ChangeP4(int addr, SubProgram program, int n) { ChangeP4(addr, new P4_t { Program = program }, n); } // SUBPROGRAM
+        public void ChangeP4(int addr, string z, int n) { ChangeP4(addr, new P4_t { Z = (n > 0 && n <= z.Length ? z.Substring(0, n) : z) }, n); }
+        public void ChangeP4(int addr, P4_t p4, int n)
         {
-            p.pNext = pVdbe.pProgram;
-            pVdbe.pProgram = p;
-        }
-
-        static void sqlite3VdbeChangeToNoop(Vdbe p, int addr, int N)
-        {
-            if (p.aOp != null)
+            Debug.Assert(Magic == VDBE_MAGIC_INIT);
+            Context ctx = Ctx;
+            if (Ops.data == null || ctx.MallocFailed)
             {
-                sqlite3 db = p.db;
-                while (N-- > 0)
-                {
-                    VdbeOp pOp = p.aOp[addr + N];
-                    freeP4(db, pOp.p4type, pOp.p4.p);
-                    pOp = p.aOp[addr + N] = new VdbeOp();//memset(pOp, 0, sizeof(pOp[0]));
-                    pOp.opcode = OP_Noop;
-                    //pOp++;
-                }
-            }
-        }
-
-        //P4_COLLSEQ
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, CollSeq pColl, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.pColl = pColl;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-        //P4_FUNCDEF
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, FuncDef pFunc, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.pFunc = pFunc;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-        //P4_INT32
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, int i32n, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.i = i32n;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-
-        //P4_KEYINFO
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, KeyInfo pKeyInfo, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.pKeyInfo = pKeyInfo;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-        //CHAR
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, char c, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.z = c.ToString();
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-
-        //MEM
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, Mem m, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.pMem = m;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-
-        //STRING
-
-        //STRING + Type
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, string z, dxDel P4_Type)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.z = z;
-            sqlite3VdbeChangeP4(p, addr, _p4, P4_DYNAMIC);
-        }
-
-        //SUBPROGRAM
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, SubProgram pProgram, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            _p4.pProgram = pProgram;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, string z, int n)
-        {
-            union_p4 _p4 = new union_p4();
-            if (n > 0 && n <= z.Length)
-                _p4.z = z.Substring(0, n);
-            else
-                _p4.z = z;
-            sqlite3VdbeChangeP4(p, addr, _p4, n);
-        }
-
-        static void sqlite3VdbeChangeP4(Vdbe p, int addr, union_p4 _p4, int n)
-        {
-            Op pOp;
-            sqlite3 db;
-            Debug.Assert(p != null);
-            db = p.db;
-            Debug.Assert(p.magic == VDBE_MAGIC_INIT);
-            if (p.aOp == null /*|| db.mallocFailed != 0 */)
-            {
-                if (n != P4_KEYINFO && n != P4_VTAB)
-                {
-                    freeP4(db, n, _p4);
-                }
+                if (n != (int)P4T.KEYINFO && n != (int)P4T.VTAB)
+                    FreeP4(ctx, (P4T)n, p4);
                 return;
             }
-            Debug.Assert(p.nOp > 0);
-            Debug.Assert(addr < p.nOp);
+            Debug.Assert(Ops.length > 0);
+            Debug.Assert(addr < Ops.length);
             if (addr < 0)
+                addr = Ops.length - 1;
+            VdbeOp op = Ops[addr];
+            FreeP4(ctx, op.P4Type, op.P4.P);
+            op.P4.P = null;
+            if (n == (int)P4T.INT32)
             {
-                addr = p.nOp - 1;
+                // Note: this cast is safe, because the origin data point was an int that was cast to a (string ).
+                op.P4.I = p4.I; //: PTR_TO_INT(p4);
+                op.P4Type = P4T.INT32;
             }
-            pOp = p.aOp[addr];
-            freeP4(db, pOp.p4type, pOp.p4.p);
-            pOp.p4.p = null;
-            if (n == P4_INT32)
+            else if (n == (int)P4T.INT64)
             {
-                /* Note: this cast is safe, because the origin data point was an int
-                ** that was cast to a (string ). */
-                pOp.p4.i = _p4.i; // SQLITE_PTR_TO_INT(zP4);
-                pOp.p4type = P4_INT32;
+                op.P4.I64 = p4.I64;
+                op.P4Type = (P4T)n;
             }
-            else if (n == P4_INT64)
+            else if (n == (int)P4T.REAL)
             {
-                pOp.p4.pI64 = _p4.pI64;
-                pOp.p4type = n;
+                op.P4.Real = p4.Real;
+                op.P4Type = (P4T)n;
             }
-            else if (n == P4_REAL)
+            else if (p4 == null)
             {
-                pOp.p4.pReal = _p4.pReal;
-                pOp.p4type = n;
+                op.P4.P = null;
+                op.P4Type = P4T.NOTUSED;
             }
-            else if (_p4 == null)
+            else if (n == (int)P4T.KEYINFO)
             {
-                pOp.p4.p = null;
-                pOp.p4type = P4_NOTUSED;
-            }
-            else if (n == P4_KEYINFO)
-            {
-                KeyInfo pKeyInfo;
-                int nField, nByte;
-
-                nField = _p4.pKeyInfo.nField;
-                //nByte = sizeof(*pKeyInfo) + (nField-1)*sizeof(pKeyInfo.aColl[0]) + nField;
-                pKeyInfo = new KeyInfo();//sqlite3DbMallocRaw(0, nByte);
-                pOp.p4.pKeyInfo = pKeyInfo;
-                if (pKeyInfo != null)
+                int fields = p4.KeyInfo.Fields;
+                KeyInfo keyInfo = new KeyInfo();
+                op.P4.KeyInfo = keyInfo;
+                if (keyInfo != null)
                 {
-                    //u8 *aSortOrder;
-                    // memcpy((char)pKeyInfo, zP4, nByte - nField);
-                    //aSortOrder = pKeyInfo.aSortOrder;
-                    //if( aSortOrder ){
-                    //  pKeyInfo.aSortOrder = (unsigned char)&pKeyInfo.aColl[nField];
-                    //  memcpy(pKeyInfo.aSortOrder, aSortOrder, nField);
-                    //}
-                    pKeyInfo = _p4.pKeyInfo.Copy();
-                    pOp.p4type = P4_KEYINFO;
+                    keyInfo = p4.KeyInfo._memcpy();
+                    op.P4Type = P4T.KEYINFO;
                 }
                 else
                 {
-                    //p.db.mallocFailed = 1;
-                    pOp.p4type = P4_NOTUSED;
+                    ctx.MallocFailed = true;
+                    op.P4Type = P4T.NOTUSED;
                 }
-                pOp.p4.pKeyInfo = _p4.pKeyInfo;
-                pOp.p4type = P4_KEYINFO;
             }
-            else if (n == P4_KEYINFO_HANDOFF || n == P4_KEYINFO_STATIC)
+            else if (n == (int)P4T.KEYINFO_HANDOFF)
             {
-                pOp.p4.pKeyInfo = _p4.pKeyInfo;
-                pOp.p4type = P4_KEYINFO;
+                op.P4.KeyInfo = p4.KeyInfo;
+                op.P4Type = P4T.KEYINFO;
             }
-            else if (n == P4_FUNCDEF)
+            else if (n == (int)P4T.FUNCDEF)
             {
-                pOp.p4.pFunc = _p4.pFunc;
-                pOp.p4type = P4_FUNCDEF;
+                op.P4.Func = p4.Func;
+                op.P4Type = P4T.FUNCDEF;
             }
-            else if (n == P4_COLLSEQ)
+            else if (n == (int)P4T.COLLSEQ)
             {
-                pOp.p4.pColl = _p4.pColl;
-                pOp.p4type = P4_COLLSEQ;
+                op.P4.Coll = p4.Coll;
+                op.P4Type = P4T.COLLSEQ;
             }
-            else if (n == P4_DYNAMIC || n == P4_STATIC || n == P4_MPRINTF)
+            else if (n == (int)P4T.DYNAMIC || n == (int)P4T.STATIC || n == (int)P4T.MPRINTF)
             {
-                pOp.p4.z = _p4.z;
-                pOp.p4type = P4_DYNAMIC;
+                op.P4.Z = p4.Z;
+                op.P4Type = P4T.DYNAMIC;
             }
-            else if (n == P4_MEM)
+            else if (n == (int)P4T.MEM)
             {
-                pOp.p4.pMem = _p4.pMem;
-                pOp.p4type = P4_MEM;
+                op.P4.Mem = p4.Mem;
+                op.P4Type = P4T.MEM;
             }
-            else if (n == P4_INTARRAY)
+            else if (n == (int)P4T.INTARRAY)
             {
-                pOp.p4.ai = _p4.ai;
-                pOp.p4type = P4_INTARRAY;
+                op.P4.Is = p4.Is;
+                op.P4Type = P4T.INTARRAY;
             }
-            else if (n == P4_SUBPROGRAM)
+            else if (n == (int)P4T.SUBPROGRAM)
             {
-                pOp.p4.pProgram = _p4.pProgram;
-                pOp.p4type = P4_SUBPROGRAM;
+                op.P4.Program = p4.Program;
+                op.P4Type = P4T.SUBPROGRAM;
             }
-            else if (n == P4_VTAB)
+            else if (n == (int)P4T.VTAB)
             {
-                pOp.p4.pVtab = _p4.pVtab;
-                pOp.p4type = P4_VTAB;
-                sqlite3VtabLock(_p4.pVtab);
-                Debug.Assert((_p4.pVtab).db == p.db);
+                op.P4.Vtab = p4.Vtab;
+                op.P4Type = P4T.VTAB;
+                p4.Vtab.Lock();
+                Debug.Assert(p4.Vtab.Ctx == ctx);
             }
             else if (n < 0)
             {
-                pOp.p4.p = _p4.p;
-                pOp.p4type = n;
+                op.P4.P = p4.P;
+                op.P4Type = (P4T)n;
             }
             else
             {
-                //if (n == 0) n =  n = sqlite3Strlen30(zP4);
-                pOp.p4.z = _p4.z;// sqlite3DbStrNDup(p.db, zP4, n);
-                pOp.p4type = P4_DYNAMIC;
+                //: if (n == 0) n = _strlen30(p4);
+                op.P4.Z = p4.Z;
+                op.P4Type = P4T.DYNAMIC;
             }
         }
 
 #if !NDEBUG
-        static void sqlite3VdbeComment(Vdbe p, string zFormat, params object[] ap)
+        public static void VdbeComment(Vdbe p, string fmt, params object[] args)
         {
-            if (null == p)
-                return;
-            //      va_list ap;
-            lock (lock_va_list)
+            if (p == null) return;
+            Debug.Assert(p.Ops.length > 0 || p.Ops.data == null);
+            Debug.Assert(p.Ops.data == null || p.Ops[p.Ops.length - 1].Comment == null || p.Ctx.MallocFailed);
+            if (p.Ops.length != 0)
             {
-                Debug.Assert(p.nOp > 0 || p.aOp == null);
-                Debug.Assert(p.aOp == null || p.aOp[p.nOp - 1].zComment == null /* || p.db.mallocFailed != 0 */);
-                if (p.nOp != 0)
-                {
-                    string pz;// = p.aOp[p.nOp-1].zComment;
-                    va_start(ap, zFormat);
-                    //sqlite3DbFree(db, ref pz);
-                    pz = sqlite3VMPrintf(p.db, zFormat, ap);
-                    p.aOp[p.nOp - 1].zComment = pz;
-                    va_end(ref ap);
-                }
+                string z = C._vmtagprintf(p.Ctx, fmt, args);
+                p.Ops[p.Ops.length - 1].Comment = z;
             }
         }
-        static void sqlite3VdbeNoopComment(Vdbe p, string zFormat, params object[] ap)
+        public static void VdbeNoopComment(Vdbe p, string fmt, params object[] args)
         {
-            if (null == p)
-                return;
-            //va_list ap;
-            lock (lock_va_list)
+            if (p == null) return;
+            AddOp0(OP.Noop);
+            Debug.Assert(p.Ops.length > 0 || p.Ops.data == null);
+            Debug.Assert(p.Ops.data == null || p.Ops[p.Ops.length - 1].Comment == null || p.Ctx.MallocFailed);
+            if (p.Ops.length != 0)
             {
-                sqlite3VdbeAddOp0(p, OP_Noop);
-                Debug.Assert(p.nOp > 0 || p.aOp == null);
-                Debug.Assert(p.aOp == null || p.aOp[p.nOp - 1].zComment == null /* || p.db.mallocFailed != 0 */);
-                if (p.nOp != 0)
-                {
-                    string pz; // = p.aOp[p.nOp - 1].zComment;
-                    va_start(ap, zFormat);
-                    //sqlite3DbFree(db,ref pz);
-                    pz = sqlite3VMPrintf(p.db, zFormat, ap);
-                    p.aOp[p.nOp - 1].zComment = pz;
-                    va_end(ref ap);
-                }
+                string z = C._vmtagprintf(p.Ctx, fmt, args);
+                p.Ops[p.Ops.length - 1].Comment = z;
             }
         }
 #else
-#endif  //* NDEBUG */
+#endif
 
 
         const VdbeOp dummy = null;  /* Ignore the MSVC warning about no initializer */
@@ -1749,7 +1388,7 @@ sqlite3IoTrace( "SQL %s\n", z.Trim() );
             */
             //zCsr = (u8)&p->aOp[p->nOp];       /* Memory avaliable for allocation */
             //zEnd = (u8)&p->aOp[p->nOpAlloc];  /* First byte past end of zCsr[] */
-            resolveP2Values(p, ref nArg);
+            ResolveP2Values(p, ref nArg);
             p.usesStmtJournal = (pParse.isMultiWrite != 0 && pParse.mayAbort != 0);
             if (pParse.explain != 0 && nMem < 10)
             {
@@ -2804,12 +2443,12 @@ fclose(out);
             for (pSub = p.pProgram; pSub != null; pSub = pNext)
             {
                 pNext = pSub.pNext;
-                vdbeFreeOpArray(db, ref pSub.aOp, pSub.nOp);
+                VdbeFreeOpArray(db, ref pSub.aOp, pSub.nOp);
                 sqlite3DbFree(db, ref pSub);
             }
             //for ( i = p->nzVar - 1; i >= 0; i-- )
             //  sqlite3DbFree( db, p.azVar[i] );
-            vdbeFreeOpArray(db, ref p.aOp, p.nOp);
+            VdbeFreeOpArray(db, ref p.aOp, p.nOp);
             sqlite3DbFree(db, ref p.aLabel);
             sqlite3DbFree(db, ref p.aColName);
             sqlite3DbFree(db, ref p.zSql);

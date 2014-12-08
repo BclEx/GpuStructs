@@ -16,6 +16,7 @@ namespace Core
 {
     public partial class Vdbe
     {
+
         #region Preamble
 
 #if DEBUG

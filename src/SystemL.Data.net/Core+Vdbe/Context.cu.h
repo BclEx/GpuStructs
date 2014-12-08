@@ -85,7 +85,7 @@ namespace Core
 		};
 
 		VSystem *Vfs;						// OS Interface
-		array_t<Vdbe> Vdbe;					// List of active virtual machines
+		Vdbe *Vdbes;						// List of active virtual machines
 		CollSeq *DefaultColl;				// The default collating sequence (BINARY)
 		//TAGBASE::Mutex
 		//BCONTEXT::DBs
@@ -95,32 +95,32 @@ namespace Core
 		//TAGBASE::ErrCode
 		//TAGBASE::ErrMask
 		OPTFLAG OptFlags;					// Flags to enable/disable optimizations
-		uint8 AutoCommit;                // The auto-commit flag.
-		uint8 TempStore;                // 1: file 2: memory 0: default
+		uint8 AutoCommit;					// The auto-commit flag.
+		uint8 TempStore;					// 1: file 2: memory 0: default
 		//TAGBASE::MallocFailed
 		uint8 DefaultLockMode;              // Default locking-mode for attached dbs
-		signed char NextAutovac;      // Autovac setting after VACUUM if >=0
-		uint8 SuppressErr;               // Do not issue error messages if true
+		signed char NextAutovac;			// Autovac setting after VACUUM if >=0
+		uint8 SuppressErr;					// Do not issue error messages if true
 		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
 		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS
 		int NextPagesize;					// Pagesize after VACUUM if >0
 		MAGIC Magic;						// Magic number for detect library misuse
-		int Changes;                  // Value returned by sqlite3_changes()
-		int TotalChanges;             // Value returned by sqlite3_total_changes()
+		int Changes;						// Value returned by sqlite3_changes()
+		int TotalChanges;					// Value returned by sqlite3_total_changes()
 		int Limits[LIMIT_MAX_];				// Limits
 		InitInfo Init;						// Information used during initialization
 		//BCONTEXT::ActiveVdbeCnt
-		int WriteVdbeCnt;             // Number of active VDBEs that are writing
-		int VdbeExecCnt;              // Number of nested calls to VdbeExec()
-		array_t<void *>Extensions;            // Array of shared library handles
-		void (*Trace)(void*,const char*);        // Trace function
-		void *TraceArg;                          // Argument to the trace function
+		int WriteVdbeCnt;					// Number of active VDBEs that are writing
+		int VdbeExecCnt;					// Number of nested calls to VdbeExec()
+		array_t<void *>Extensions;          // Array of shared library handles
+		void (*Trace)(void*,const char*);   // Trace function
+		void *TraceArg;                     // Argument to the trace function
 		void (*Profile)(void*,const char*,uint64);  // Profiling function
-		void *ProfileArg;                        // Argument to profile function
-		void *CommitArg;                 // Argument to xCommitCallback()
-		int (*CommitCallback)(void*);    // Invoked at every commit.
-		void *RollbackArg;               // Argument to xRollbackCallback()
-		void (*RollbackCallback)(void*); // Invoked at every commit.
+		void *ProfileArg;                   // Argument to profile function
+		void *CommitArg;					// Argument to xCommitCallback()
+		int (*CommitCallback)(void*);		// Invoked at every commit.
+		void *RollbackArg;					// Argument to xRollbackCallback()
+		void (*RollbackCallback)(void*);	// Invoked at every commit.
 		void *UpdateArg;
 		void (*UpdateCallback)(void*,int, const char*,const char*,int64);
 #ifndef OMIT_WAL
@@ -144,9 +144,9 @@ namespace Core
 		void *AuthArg;						// 1st argument to the access auth function
 #endif
 #ifndef OMIT_PROGRESS_CALLBACK
-		int (*Progress)(void *);     // The progress callback
-		void *ProgressArg;           // Argument to the progress callback
-		int ProgressOps;             // Number of opcodes for progress callback
+		int (*Progress)(void *);			// The progress callback
+		void *ProgressArg;					// Argument to the progress callback
+		int ProgressOps;					// Number of opcodes for progress callback
 #endif
 #ifndef OMIT_VIRTUALTABLE
 		Hash Modules;						// populated by sqlite3_create_module()
@@ -165,11 +165,11 @@ namespace Core
 		int64 DeferredCons;					// Net deferred constraints this transaction.
 		int *BytesFreed;					// If not NULL, increment this in DbFree()
 #ifdef ENABLE_UNLOCK_NOTIFY
-		Context *BlockingConnection;			// Connection that caused SQLITE_LOCKED
-		Context *UnlockConnection;				// Connection to watch for unlock
-		void *UnlockArg;						// Argument to xUnlockNotify
-		void (*UnlockNotify)(void **, int);		// Unlock notify callback
-		Context *NextBlocked;					// Next in list of all blocked connections
+		Context *BlockingConnection;		// Connection that caused SQLITE_LOCKED
+		Context *UnlockConnection;			// Connection to watch for unlock
+		void *UnlockArg;					// Argument to xUnlockNotify
+		void (*UnlockNotify)(void **, int);	// Unlock notify callback
+		Context *NextBlocked;				// Next in list of all blocked connections
 #endif
 	};
 

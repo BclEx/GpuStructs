@@ -38,6 +38,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Opcodes.cs" />
     <Compile Include="Core+Btree\Btree.cs" />
     <Compile Include="Core+Btree\BtreeInt_h.cs" />
     <Compile Include="Core+Btree\Btree_h.cs" />
@@ -71,6 +72,7 @@
     <Compile Include="Core+Vdbe\Backup.cs" />
     <Compile Include="CompileTime.cs" />
     <Compile Include="KeywordHash_h.cs" />
+    <Compile Include="Main.cs" />
     <Compile Include="Opcodes_h.cs" />
     <None Include="Core+Vdbe\Command\Date.cu" />
     <Content Include="Core+Vdbe\Context.cu.h" />
@@ -137,6 +139,7 @@
     <None Include="Core+Vdbe\Parse+Complete.cu" />
     <None Include="Core+Vdbe\Auth.cu" />
     <Compile Include="Shell.cs" />
+    <None Include="Main.cu" />
     <None Include="Shell.cu" />
     <Compile Include="Program.cs" />
     <Compile Include="Parse_h.cs" />

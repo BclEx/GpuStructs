@@ -20,7 +20,9 @@ namespace Core
 #define COLNAME_N 2	// Store the name and decltype
 #endif
 #endif
-#define ADDR(X)  (-1-(X))
+#define ADDR(X) (-1-(X))
+
+	typedef struct Blob Blob;
 
 	typedef unsigned bft;
 	class Vdbe
@@ -56,9 +58,9 @@ namespace Core
 		struct SubProgram;
 		struct VdbeOp
 		{
-			uint8 Opcode;   // What operation to perform
+			OP Opcode;		// What operation to perform
 			P4T P4Type;		// One of the P4_xxx constants for p4
-			uint8 Opflags;  // Mask of the OPFLG_* flags in opcodes.h
+			OPFLG Opflags;  // Mask of the OPFLG_* flags in opcodes.h
 			uint8 P5;       // Fifth parameter is an unsigned character
 			int P1;         // First operand
 			int P2;         // Second parameter (often the jump destination)
@@ -68,17 +70,17 @@ namespace Core
 				int I;					// Integer value if p4type==P4_INT32
 				void *P;				// Generic pointer
 				char *Z;				// Pointer to data for string (char array) types
-				int64 *I64;				// Used when p4type is P4_INT64
-				double *Real;			// Used when p4type is P4_REAL
-				FuncDef *Func;			// Used when p4type is P4_FUNCDEF
-				VdbeFunc *VdbeFunc;		// Used when p4type is P4_VDBEFUNC
-				CollSeq *Coll;			// Used when p4type is P4_COLLSEQ
-				Mem *Mem;				// Used when p4type is P4_MEM
-				VTable *VTable;			// Used when p4type is P4_VTAB
-				KeyInfo *KeyInfo;		// Used when p4type is P4_KEYINFO
-				int *Is;				// Used when p4type is P4_INTARRAY
-				SubProgram *Program;	// Used when p4type is P4_SUBPROGRAM
-				int (*Advance)(BtCursor *, int *);
+				int64 *I64;				// Used when p4type is P4T_INT64
+				double *Real;			// Used when p4type is P4T_REAL
+				FuncDef *Func;			// Used when p4type is P4T_FUNCDEF
+				VdbeFunc *VdbeFunc;		// Used when p4type is P4T_VDBEFUNC
+				CollSeq *Coll;			// Used when p4type is P4T_COLLSEQ
+				Mem *Mem;				// Used when p4type is P4T_MEM
+				VTable *VTable;			// Used when p4type is P4T_VTAB
+				KeyInfo *KeyInfo;		// Used when p4type is P4T_KEYINFO
+				int *Is;				// Used when p4type is P4T_INTARRAY
+				SubProgram *Program;	// Used when p4type is P4T_SUBPROGRAM
+				RC (*Advance)(BtCursor *, int *); // Used when p4type is P4T_ADVANCE
 			} P4;			// fourth parameter
 #ifdef _DEBUG
 			char *Comment;  // Comment to improve readability
@@ -107,54 +109,7 @@ namespace Core
 			int8 P3;		// Third parameter
 		};
 
-		__device__ static Vdbe *Create(Context *);
-		__device__ int AddOp0(int);
-		__device__ int AddOp1(int, int);
-		__device__ int AddOp2(int, int, int);
-		__device__ int AddOp3(int, int, int, int);
-		__device__ int AddOp4(int, int, int, int, const char *, int);
-		__device__ int AddOp4Int(int, int, int, int, int);
-		__device__ int AddOpList(int nOp, VdbeOpList const *aOp);
-		__device__ void AddParseSchemaOp(int, char *);
-		__device__ void ChangeP1(uint32 addr, int P1);
-		__device__ void ChangeP2(uint32 addr, int P2);
-		__device__ void ChangeP3(uint32 addr, int P3);
-		__device__ void ChangeP5(uint8 P5);
-		__device__ void JumpHere(int addr);
-		__device__ void ChangeToNoop(int addr);
-		__device__ void ChangeP4(int addr, const char *zP4, P4T N);
-		__device__ void UsesBtree(int);
-		__device__ VdbeOp *GetOp(int);
-		__device__ int MakeLabel();
-		__device__ void set_RunOnlyOnce();
-		__device__ void Delete();
-		__device__ static void ClearObject(Context *, Vdbe *);
-		__device__ void MakeReady(Parse *);
-		__device__ void ResolveLabel(int);
-		__device__ int CurrentAddr();
-#ifdef _DEBUG
-		__device__ int AssertMayAbort(int);
-		__device__ void set_Trace(FILE *);
-#endif
-		__device__ void ResetStepResult();
-		__device__ void Rewind();
-		__device__ void SetNumCols(int);
-		__device__ int SetColName(int, int, const char *, void(*)(void *));
-		__device__ void CountChanges();
-		__device__ Context *get_Db();
-		__device__ void SetSql(const char *z, int n, int);
-		__device__ static void Swap(Vdbe *, Vdbe *);
-		__device__ VdbeOp *TakeOpArray(int *, int *);
-		__device__ Mem *GetValue(int, AFF);
-		__device__ void SetVarmask(int);
 
-		__device__ static void RecordUnpack(KeyInfo *, int, const void *, UnpackedRecord *);
-		__device__ static int RecordCompare(int, const void *, UnpackedRecord *);
-		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *, char *, int, char **);
-
-#ifndef OMIT_TRIGGER
-		__device__ void LinkSubProgram(SubProgram *);
-#endif
 
 #ifndef NDEBUG
 		//__device__ void Comment(const char*, ...);
@@ -167,14 +122,14 @@ namespace Core
 #endif
 
 	public: //was:private
-		Context *Ctx;            // The database connection that owns this statement
-		array_t<VdbeOp> Ops;        // Space to hold the virtual machine's program
+		Context *Ctx;           // The database connection that owns this statement
+		array_t<VdbeOp> Ops;    // Space to hold the virtual machine's program
 		array_t<Mem> Mems;      // The memory locations
 		Mem **Args;				// Arguments to currently executing user function
 		Mem *ColNames;          // Column names to return
 		Mem *ResultSet;			// Pointer to an array of results
 		int OpsAlloc;           // Number of slots allocated for Ops[]
-		array_t<int> *Labels;   // Space to hold the labels
+		array_t<int> Labels;   // Space to hold the labels
 		uint16 ResColumns;		// Number of columns in one row of the result set
 		uint32 Magic;			// Magic number for sanity checking
 		char *ErrMsg;			// Error message written here
@@ -206,7 +161,7 @@ namespace Core
 #endif
 		int64 FkConstraints;    // Number of imm. FK constraints this VM
 		int64 StmtDefCons;		// Number of def. constraints when stmt started
-		char *Sql;				// Text of the SQL statement that generated this
+		char *Sql_;				// Text of the SQL statement that generated this
 		void *FreeThis;         // Free this when deleting the vdbe
 #ifdef _DEBUG
 		FILE *Trace;            // Write an execution trace here, if not NULL
@@ -241,8 +196,6 @@ namespace Core
 		__device__ int List();
 		__device__ int Halt();
 
-
-
 		__device__ static const char *sqlite3OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);
 		__device__ static void FrameDelete(VdbeFrame *);
@@ -251,7 +204,6 @@ namespace Core
 		__device__ int TransferError();
 
 #pragma region Vdbe+Api
-
 		// name1
 		__device__ static RC Finalize(Vdbe *p);
 		__device__ static RC Reset(Vdbe *p);
@@ -372,11 +324,86 @@ namespace Core
 		__device__ static bool Stmt_Busy(Vdbe *p);
 		__device__ static Vdbe *Stmt_Next(Context *ctx, Vdbe *p);
 		__device__ static int Stmt_Status(Vdbe *p, OP op, bool resetFlag);
+#pragma endregion
+
+#pragma region Vdbe+Aux
+		__device__ static Vdbe *Create(Context *ctx);
+		__device__ static void SetSql(Vdbe *p, const char *z, int n, bool isPrepareV2);
+		__device__ static const char *Sql(Vdbe *stmt);
+		__device__ static void Swap(Vdbe *a, Vdbe *b);
+#ifdef _DEBUG
+		__device__ void set_Trace(FILE *trace);
+#endif
+		__device__ int AddOp3(OP op, int p1, int p2, int p3);
+		__device__ int AddOp0(OP op);
+		__device__ int AddOp1(OP op, int p1);
+		__device__ int AddOp2(OP op, int p1, int p2);
+		__device__ int AddOp4(OP op, int p1, int p2, int p3, const char *p4, Vdbe::P4T p4t);
+		__device__ void AddParseSchemaOp(int db, char *where_);
+		__device__ int AddOp4Int(OP op, int p1, int p2, int p3, int p4);
+		__device__ int MakeLabel();
+		__device__ void ResolveLabel(int x);
+		__device__ void set_RunOnlyOnce();
+#ifdef _DEBUG
+		__device__ bool AssertMayAbort(bool mayAbort);
+#endif
+		__device__ Vdbe::VdbeOp *TakeOpArray(int *opsLength, int *maxArgs);
+		__device__ int AddOpList(int opsLength, VdbeOpList const *ops);
+		__device__ void ChangeP1(uint32 addr, int val);
+		__device__ void ChangeP2(uint32 addr, int val);
+		__device__ void ChangeP3(uint32 addr, int val);
+		__device__ void ChangeP5(uint8 val);
+		__device__ void JumpHere(int addr);
+#ifndef OMIT_TRIGGER //sky? not #ifndef in implementation
+		__device__ void LinkSubProgram(SubProgram *p);
+#endif
+		__device__ void ChangeToNoop(int addr);
+		__device__ void ChangeP4(int addr, const char *p4, int n);
+
+
+
+		__device__ void UsesBtree(int);
+		__device__ VdbeOp *GetOp(int);
+		__device__ void Delete();
+		__device__ static void ClearObject(Context *, Vdbe *);
+		__device__ void MakeReady(Parse *);
+
+		__device__ int CurrentAddr();
+		__device__ void ResetStepResult();
+		__device__ void Rewind();
+		__device__ void SetNumCols(int);
+		__device__ int SetColName(int, int, const char *, void(*)(void *));
+		__device__ void CountChanges();
+		__device__ Context *get_Db();
+
+
+		__device__ Mem *GetValue(int, AFF);
+		__device__ void SetVarmask(int);
+
+		__device__ static void RecordUnpack(KeyInfo *, int, const void *, UnpackedRecord *);
+		__device__ static int RecordCompare(int, const void *, UnpackedRecord *);
+		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *, char *, int, char **);
+
+
+
+
+
+
+
+
 
 #pragma endregion
 
-#pragma region Vdbe+Mem
+#pragma region Vdbe+Blob
+		__device__ static RC Blob_Open(Context *ctx, const char *dbName, const char *tableName, const char *columnName, int64 row, int flags, Blob **blobOut);
+		__device__ static RC Blob_Close(Blob *blob);
+		__device__ static RC Blob_Read(Blob *blob, void *z, int n, int offset);
+		__device__ static RC Blob_Write(Blob *blob, const void *z, int n, int offset);
+		__device__ static int Blob_Bytes(Blob *blob);
+		__device__ static RC Blob_Reopen(Blob *blob, int64 row);
+#pragma endregion
 
+#pragma region Vdbe+Mem
 		__device__ static RC ChangeEncoding(Mem *mem, TEXTENCODE newEncode);
 		__device__ static RC MemGrow(Mem *mem, size_t newSize, bool preserve);
 		__device__ static RC MemMakeWriteable(Mem *mem);
@@ -425,7 +452,16 @@ namespace Core
 		__device__ static void ValueSetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
 		__device__ static void ValueFree(Mem *mem);
 		__device__ static int ValueBytes(Mem *mem, TEXTENCODE encode);
+#pragma endregion
 
+#pragma region Vdbe+Sort
+		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor); //@
+		__device__ static void SorterClose(Context *db, VdbeCursor *cursor); //@
+		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem); //@
+		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof); //@
+		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof); //@
+		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem); //@
+		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r); //@
 #pragma endregion
 
 #pragma region Vdbe+Trace
@@ -441,16 +477,6 @@ namespace Core
 		__device__ static void ExplainFinish(Vdbe *p);
 		__device__ static const char *Explanation(Vdbe *p);
 #endif
-#pragma endregion
-
-#pragma region Vdbe+Sort
-		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor); //@
-		__device__ static void SorterClose(Context *db, VdbeCursor *cursor); //@
-		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem); //@
-		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof); //@
-		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof); //@
-		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem); //@
-		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r); //@
 #pragma endregion
 
 #pragma region Vdbe+Utf

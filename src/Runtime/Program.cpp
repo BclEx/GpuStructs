@@ -6,7 +6,7 @@
 
 void main(int argc, char **argv)
 {
-	cudaDeviceHeap runtimeHost = cudaDeviceHeapCreate(256, 4096);
+	cudaDeviceHeap runtimeHost = cudaDeviceHeapCreate(); //256, 4096);
 	cudaDeviceFalloc fallocHost = cudaDeviceFallocCreate(100, 1024);
 
 #if VISUAL

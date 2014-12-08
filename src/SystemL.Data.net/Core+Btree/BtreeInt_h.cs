@@ -219,6 +219,11 @@ namespace Core
                 var cp = (BtCursor)MemberwiseClone();
                 return cp;
             }
+
+#if !OMIT_INCRBLOB
+            public void EnterCursor() { Btree.Enter(); }
+            public void LeaveCursor() { Btree.Leave(); }
+#endif
         }
 
         public static Pid PENDING_BYTE_PAGE(BtShared bt) { return Pager.MJ_PID(bt.Pager); }

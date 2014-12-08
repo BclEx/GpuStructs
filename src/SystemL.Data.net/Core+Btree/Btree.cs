@@ -2,9 +2,8 @@ using Pid = System.UInt32;
 using IPage = Core.PgHdr;
 using System;
 using System.Diagnostics;
+using System.Text;
 using Core.IO;
-using Core.Text;
-using SystemStringBuilder = System.Text.StringBuilder;
 
 namespace Core
 {
@@ -5728,7 +5727,7 @@ namespace Core
                 //va_end(ref args);
             }
         }
-        static void checkAppendMsg(IntegrityCk check, SystemStringBuilder msg1, string format, params object[] args)
+        static void checkAppendMsg(IntegrityCk check, StringBuilder msg1, string format, params object[] args)
         {
             if (check.MaxErrors == 0) return;
             //va_list ap;
@@ -5858,7 +5857,7 @@ namespace Core
         static long _nullRef_;
         static int checkTreePage(IntegrityCk check, Pid pageID, string parentContext, ref long parentMinKey, bool hasParentMinKey, ref long parentMaxKey, bool hasParentMaxKey)
         {
-            var msg = new SystemStringBuilder(100);
+            var msg = new StringBuilder(100);
             msg.AppendFormat("Page {0}: ", pageID);
 
             // Check that the page exists
@@ -6066,7 +6065,7 @@ namespace Core
             }
             Pid i = PENDING_BYTE_PAGE(bt);
             if (i <= check.Pages) setPageReferenced(check, i);
-            StringBuilder.Init(check.ErrMsg, 1000, 20000);
+            TextBuilder.Init(check.ErrMsg, 1000, 20000);
 
             // Check the integrity of the freelist
             checkList(check, true, (Pid)ConvertEx.Get4(bt.Page1.Data, 32), (int)ConvertEx.Get4(bt.Page1.Data, 36), "Main freelist: ");

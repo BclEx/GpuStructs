@@ -2,8 +2,10 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using Pgno = System.UInt32;
-#if MAX_ATTACHED//>30
+
+using Pid = System.UInt32;
+#region Limits
+#if MAX_ATTACHED
 using yDbMask = System.Int64; 
 #else
 using yDbMask = System.Int32;
@@ -13,6 +15,7 @@ using tRowcnt = System.UInt64; // 64-bit only if requested at compile-time
 #else
 using tRowcnt = System.UInt32; // 32-bit is the default
 #endif
+#endregion
 
 namespace Core
 {

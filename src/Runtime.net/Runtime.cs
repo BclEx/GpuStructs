@@ -263,10 +263,9 @@ namespace Core
         }
         public static void _free<T>(ref T p) where T : class { }
         public static void _tagfree<T>(object tag, ref T p) where T : class { p = null; }
-        public static byte[] _stackalloc(int size) { return new byte[size]; }
-        public static void _stackfree(ref byte[] p) { p = null; }
         static byte[][] _scratch; // Scratch memory
-        public static byte[][] _stackalloc(byte[][] cell, int n)
+        public static byte[] _stackalloc(object tag, int size) { return new byte[size]; }
+        public static byte[][] _stackalloc(object tag, byte[][] cell, int n)
         {
             cell = _scratch;
             if (cell == null)
@@ -276,8 +275,9 @@ namespace Core
             _scratch = null;
             return cell;
         }
-        public static void _stackfree(byte[][] cell)
+        public static void _stackfree<T>(object tag, ref T p) where T : class
         {
+            byte[][] cell = (p as byte[][]);
             if (cell != null)
             {
                 if (_scratch == null || _scratch.Length < cell.Length)
@@ -290,6 +290,7 @@ namespace Core
                 // larger Scratch 2 already in use, let the C# GC handle
                 cell = null;
             }
+            p = null;
         }
         public static T[] _realloc<T>(int s, T[] p, int bytes)
         {
@@ -304,6 +305,23 @@ namespace Core
             return newT;
         }
         public static bool _heapnearlyfull() { return false; }
+        public static T[] _tagrealloc_or_free<T>(object tag, ref T[] old, int newSize)
+        {
+            T[] p = _tagrealloc(tag, 0, old, newSize);
+            if (p == null) _tagfree(tag, ref old);
+            return p;
+        }
+        public static void _tagrealloc_or_free2<T>(object tag, ref T[] data, int newSize)
+        {
+            Array.Resize(ref data, newSize);
+        }
+        public static void _tagrealloc_or_create<T>(object tag, ref T[] data, int newSize) where T : new()
+        {
+            if (data == null)
+                data = new T[newSize];
+            else
+                Array.Resize(ref data, newSize);
+        }
 
         public const Action<object> DESTRUCTOR_TRANSIENT = null;
         public const Action<object> DESTRUCTOR_STATIC = null;
@@ -916,7 +934,7 @@ namespace Core
 
         static TextBuilder _b = new TextBuilder(BUFSIZE);
 
-        static string _vmtagprintf(object tag, string fmt, params object[] args)
+        public static string _vmtagprintf(object tag, string fmt, params object[] args)
         {
             if (fmt == null) return null;
             if (args.Length == 0) return fmt;
@@ -931,7 +949,7 @@ namespace Core
         }
 
 
-        static string _vmprintf(string fmt, params  object[] args)
+        public static string _vmprintf(string fmt, params object[] args)
         {
             //: if (!RuntimeInitialize()) return null;
             //: TextBuilder b = new TextBuilder(BUFSIZE);

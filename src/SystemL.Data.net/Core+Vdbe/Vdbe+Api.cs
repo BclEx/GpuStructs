@@ -808,7 +808,7 @@ namespace Core
         public static Vdbe Stmt_Next(Context ctx, Vdbe p)
         {
             MutexEx.Enter(ctx.Mutex);
-            Vdbe next = (p == null ? ctx.Vdbe[0] : p.Next);
+            Vdbe next = (p == null ? ctx.Vdbes[0] : p.Next);
             MutexEx.Leave(ctx.Mutex);
             return next;
         }

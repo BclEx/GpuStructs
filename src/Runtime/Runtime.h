@@ -222,17 +222,17 @@ __device__ inline static int _tagallocsize(void *tag, void *p)
 __device__ inline static void _free(void *p) { free(p); }
 __device__ inline static void _tagfree(void *tag, void *p) { free(p); }
 #if __CUDACC__
-__device__ inline static void *_stackalloc(size_t size) { return malloc(size); }
-__device__ inline static void _stackfree(void *p) { free(p); }
+__device__ inline static void *_stackalloc(void *tag, size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
+__device__ inline static void _stackfree(void *tag, void *p) { free(p); }
 #else
-__device__ inline static void *_stackalloc(size_t size) { return alloca(size); }
-__device__ inline static void _stackfree(void *p) { }
+__device__ inline static void *_stackalloc(void *tag, size_t size, bool clear) { char *b = (char *)alloca(size); if (clear) _memset(b, 0, size); return b; }
+__device__ inline static void _stackfree(void *tag, void *p) { }
 #endif
 __device__ inline static void *_realloc(void *old, size_t newSize) { return nullptr; }
 __device__ inline static void *_tagrealloc(void *tag, void *old, size_t newSize) { return nullptr; }
 __device__ inline static bool _heapnearlyfull() { return false; }
 
-__device__ inline static void *_tagrelloc_or_free(void *tag, void *old, size_t newSize)
+__device__ inline static void *_tagrealloc_or_free(void *tag, void *old, size_t newSize)
 {
 	void *p = _tagrealloc(tag, old, newSize);
 	if (!p) _tagfree(tag, old);

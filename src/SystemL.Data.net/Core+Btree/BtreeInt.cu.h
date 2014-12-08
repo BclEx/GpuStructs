@@ -141,6 +141,10 @@ namespace Core
 		int16 ID;				// Index of current page in apPage
 		uint16 Idxs[BTCURSOR_MAX_DEPTH]; // Current index in apPage[i]
 		MemPage *Pages[BTCURSOR_MAX_DEPTH]; // Pages from root to current page
+#ifndef OMIT_INCRBLOB
+		__device__ inline void EnterCursor() { Btree->Enter(); };
+		__device__ inline void LeaveCursor() { Btree->Leave(); };
+#endif
 	} BtCursor;
 
 #define MJ_PID(x) ((Pid)((PENDING_BYTE / ((x)->PageSize)) + 1))

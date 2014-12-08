@@ -203,16 +203,8 @@ namespace Core
 #ifndef OMIT_SHARED_CACHE
 		__device__ inline static void Enter() { }
 		__device__ static void EnterAll(BContext *ctx) { }
-#else
-#define Enter(X) 
-		//#define EnterAll(X)
-#endif
-
-#ifndef OMIT_SHARED_CACHE
 		//__device__ int Sharable();
 		__device__ inline static void Leave() { }
-		//__device__ static void EnterCursor(BtCursor *);
-		//__device__ static void LeaveCursor(BtCursor *);
 		__device__ static void LeaveAll(BContext *ctx) { }
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.
@@ -221,16 +213,15 @@ namespace Core
 		__device__ inline static bool SchemaMutexHeld(BContext *ctx, int db, Core::Schema *schema) { return true; }
 		//#endif
 #else
+		//#define EnterAll(X)
 #define Sharable(X) 0
 #define Leave(X)
-#define EnterCursor(X)
-#define LeaveCursor(X)
 #define LeaveAll(X)
 #ifndef _DEBUG
 		// These routines are used inside assert() statements only.
 #define HoldsMutex(X) 1
 #define HoldsAllMutexes(X) 1
-#define sqlite3SchemaMutexHeld(X,Y,Z) 1
+#define SchemaMutexHeld(X,Y,Z) 1
 #endif
 #endif
 

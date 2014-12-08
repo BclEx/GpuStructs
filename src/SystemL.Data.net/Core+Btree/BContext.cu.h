@@ -28,29 +28,29 @@ namespace Core
 
 		enum FLAG : uint32
 		{
-			FLAG_VdbeTrace = 0x00000100,
-			FLAG_InternChanges = 0x00000200,
-			FLAG_FullColNames = 0x00000400,
-			FLAG_ShortColNames = 0x00000800,
-			FLAG_CountRows = 0x00001000,
-			FLAG_NullCallback = 0x00002000,
-			FLAG_SqlTrace = 0x00004000,
-			FLAG_VdbeListing = 0x00008000,
-			FLAG_WriteSchema = 0x00010000,
-			FLAG_NoReadlock = 0x00020000,
-			FLAG_IgnoreChecks = 0x00040000,
-			FLAG_ReadUncommitted = 0x0080000,
-			FLAG_LegacyFileFmt = 0x00100000,
-			FLAG_FullFSync = 0x00200000,
-			FLAG_CkptFullFSync = 0x00400000,
-			FLAG_RecoveryMode = 0x00800000,
-			FLAG_ReverseOrder = 0x01000000,
-			FLAG_RecTriggers = 0x02000000,
-			FLAG_ForeignKeys = 0x04000000,
-			FLAG_AutoIndex = 0x08000000,
-			FLAG_PreferBuiltin = 0x10000000,
-			FLAG_LoadExtension = 0x20000000,
-			FLAG_EnableTrigger = 0x40000000,
+			FLAG_VdbeTrace      = 0x00000001,	// True to trace VDBE execution
+			FLAG_InternChanges  = 0x00000002,	// Uncommitted Hash table changes
+			FLAG_FullColNames   = 0x00000004,	// Show full column names on SELECT
+			FLAG_ShortColNames  = 0x00000008,	// Show short columns names
+			FLAG_CountRows      = 0x00000010,	// Count rows changed by INSERT, DELETE, or UPDATE and return the count using a callback.
+			FLAG_NullCallback   = 0x00000020,	// Invoke the callback once if the result set is empty
+			FLAG_SqlTrace       = 0x00000040,	// Debug print SQL as it executes
+			FLAG_VdbeListing    = 0x00000080,	// Debug listings of VDBE programs
+			FLAG_WriteSchema    = 0x00000100,	// OK to update SQLITE_MASTER
+			FLAG_VdbeAddopTrace = 0x00000200,	// Trace sqlite3VdbeAddOp() calls
+			FLAG_IgnoreChecks   = 0x00000400,	// Do not enforce check constraints
+			FLAG_ReadUncommitted = 0x0000800,	// For shared-cache mode
+			FLAG_LegacyFileFmt  = 0x00001000,	// Create new databases in format 1
+			FLAG_FullFSync      = 0x00002000,	// Use full fsync on the backend
+			FLAG_CkptFullFSync  = 0x00004000,	// Use full fsync for checkpoint
+			FLAG_RecoveryMode   = 0x00008000,	// Ignore schema errors
+			FLAG_ReverseOrder   = 0x00010000,	// Reverse unordered SELECTs
+			FLAG_RecTriggers    = 0x00020000,	// Enable recursive triggers
+			FLAG_ForeignKeys    = 0x00040000,	// Enforce foreign key constraints
+			FLAG_AutoIndex      = 0x00080000,	// Enable automatic indexes
+			FLAG_PreferBuiltin  = 0x00100000,	// Preference to built-in funcs
+			FLAG_LoadExtension  = 0x00200000,	// Enable load_extension
+			FLAG_EnableTrigger  = 0x00400000,	// True to enable triggers
 		};
 
 		array_t<DB> DBs;				// All backends / Number of backends currently in use

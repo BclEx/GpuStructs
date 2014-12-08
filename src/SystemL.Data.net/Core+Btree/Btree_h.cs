@@ -11,6 +11,8 @@ namespace Core
         public ushort Fields;      // Number of entries in aColl[]
         public byte[] SortOrders;  // Sort order for each column.  May be NULL
         public CollSeq[] Colls = new CollSeq[1];  // Collating sequence for each term of the key
+
+        public KeyInfo _memcpy() { return (KeyInfo)MemberwiseClone(); }
     }
 
     [Flags]
@@ -103,18 +105,10 @@ namespace Core
         const int BTREE_BULKLOAD = 0x00000001;
 
 #if !OMIT_SHARED_CACHE
-        void Enter() { }
+        static void Enter() { }
         static void EnterAll(BContext ctx) { }
-#else
-        void Enter() { }
-        static void EnterAll(BContext ctx) { }
-#endif
-
-#if !OMIT_SHARED_CACHE
         //int Sharable() { }
         static void Leave() { }
-        //void EnterCursor(BtCursor *) { }
-        //void LeaveCursor(BtCursor *) { }
         public static void LeaveAll(BContext ctx) { }
         //#if !DEBUG
         // These routines are used inside Debug.Assert() statements only.
@@ -123,13 +117,13 @@ namespace Core
         public static bool SchemaMutexHeld(BContext ctx, int db, Schema schema) { return true; }
         //#endif
 #else
+        static void Enter() { }
+        static void EnterAll(BContext ctx) { }
         static bool Sharable(Btree b) { return false; }
         static void Leave(Btree b) { }
-        static void EnterCursor(BtCursor b) { }
-        static void LeaveCursor(BtCursor b) { }
         static void LeaveAll(object b) { }
         static bool HoldsMutex(Btree b) { return true; }
-        static bool BtreeHoldsAllMutexes(BContext ctx) { return true; }
+        static bool HoldsAllMutexes(BContext ctx) { return true; }
         static bool SchemaMutexHeld(BContext ctx, int db, Schema schema) { return true; }
 #endif
     }

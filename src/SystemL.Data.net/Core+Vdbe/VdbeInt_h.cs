@@ -123,6 +123,17 @@ namespace Core
 #endif
     }
 
+    public partial class E
+    {
+        public static void MemSetTypeFlag(Mem p, MEM f) { p.Flags = (p.Flags & ~(MEM.TypeMask | MEM.Zero) | f); }
+
+#if DEBUG
+        public static bool MemIsValid(Mem M) { return ((M).Flags & MEM.Invalid) == 0; }
+#else
+        public static bool MemIsValid( Mem M ) { return true; }
+#endif
+    }
+
     public class Mem
     {
         public Context Ctx;              // The associated database connection
@@ -191,37 +202,29 @@ namespace Core
         }
         #endregion
 
-        static void MemSetTypeFlag(Mem p, MEM f) { p.Flags = (p.Flags & ~(MEM.TypeMask | MEM.Zero) | f); }
-
-#if DEBUG
-        static bool memIsValid(Mem M) { return ((M).Flags & MEM.Invalid) == 0; }
-#else
-        static bool memIsValid( Mem M ) { return true; }
-#endif
-
-        public string GetBlob()
-        {
-            if ((Flags & (MEM.Blob | MEM.Str)) != 0)
-            {
-                sqlite3VdbeMemExpandBlob(p);
-                Flags &= ~MEM.Str;
-                Flags |= MEM.Blob;
-                return (N != 0 ? Z : null);
-            }
-            return GetText();
-        }
-        public int GetBytes() { return Mem_Bytes(this, TEXTENCODE.UTF8); }
-        public int GetBytes16() { return Mem_Bytes(this, TEXTENCODE.UTF16NATIVE); }
-        public double GetDouble() { return sqlite3VdbeRealValue(this); }
-        public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
-        public long GetInt64() { return sqlite3VdbeIntValue(this); }
-        public string GetText() { return (string)Mem_Text(this, TEXTENCODE.UTF8); }
-#if !OMIT_UTF16
-        public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
-        public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
-        public string GetText16le() { return Mem_Text(this, TEXTENCODE.UTF16LE); }
-#endif
-        public TYPE GetType() { return Type; }
+//        public string GetBlob()
+//        {
+//            if ((Flags & (MEM.Blob | MEM.Str)) != 0)
+//            {
+//                sqlite3VdbeMemExpandBlob(p);
+//                Flags &= ~MEM.Str;
+//                Flags |= MEM.Blob;
+//                return (N != 0 ? Z : null);
+//            }
+//            return GetText();
+//        }
+//        public int GetBytes() { return Mem_Bytes(this, TEXTENCODE.UTF8); }
+//        public int GetBytes16() { return Mem_Bytes(this, TEXTENCODE.UTF16NATIVE); }
+//        public double GetDouble() { return sqlite3VdbeRealValue(this); }
+//        public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
+//        public long GetInt64() { return sqlite3VdbeIntValue(this); }
+//        public string GetText() { return (string)Mem_Text(this, TEXTENCODE.UTF8); }
+//#if !OMIT_UTF16
+//        public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
+//        public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
+//        public string GetText16le() { return Mem_Text(this, TEXTENCODE.UTF16LE); }
+//#endif
+//        public TYPE GetType() { return Type; }
 
         public Mem() { }
         public Mem(Context db, string z, double r, int i, int n, MEM flags, TYPE type, TEXTENCODE encode
@@ -280,4 +283,3 @@ namespace Core
         public bool SkipFlag;			// Skip skip accumulator loading if true
     }
 }
-

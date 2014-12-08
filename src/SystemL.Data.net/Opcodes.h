@@ -1,4 +1,4 @@
-typedef int OP;
+typedef uint8 OP;
 /* Automatically generated.  Do not edit */
 /* See the mkopcodeh.awk script for details */
 #define OP_Goto                                 1
@@ -157,6 +157,7 @@ typedef int OP;
 ** comments following the "case" for each opcode in the vdbe.c
 ** are encoded into bitvectors as follows:
 */
+typedef uint16 OPFLG;
 #define OPFLG_JUMP            0x0001  /* jump:  P2 holds jmp target */
 #define OPFLG_OUT2_PRERELEASE 0x0002  /* out2-prerelease: */
 #define OPFLG_IN1             0x0004  /* in1:   P1 is an input */

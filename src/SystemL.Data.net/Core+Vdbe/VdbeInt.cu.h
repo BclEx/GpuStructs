@@ -155,10 +155,10 @@ namespace Core
 //		inline TYPE GetType() { return Type; }
 	};
 
-	struct VdbeFunc
+	struct VdbeFunc : public FuncDef
 	{
-		FuncDef *Func;			// The definition of the function
-		int AuxLength;          // Number of entries allocated for apAux[]
+		// FuncDef *Func;		// The definition of the function
+		int AuxsLength;         // Number of entries allocated for apAux[]
 		struct AuxData
 		{
 			void *Aux;                 // Aux data for the i-th argument
@@ -180,7 +180,7 @@ namespace Core
 
 	struct Explain
 	{
-		Vdbe *Vdbe;				// Attach the explanation to this Vdbe
+		Vdbe *Vdbe_;			// Attach the explanation to this Vdbe
 		TextBuilder Str;		// The string being accumulated
 		int IndentLength;		// Number of elements in aIndent
 		uint16 Indents[100];	// Levels of indentation
