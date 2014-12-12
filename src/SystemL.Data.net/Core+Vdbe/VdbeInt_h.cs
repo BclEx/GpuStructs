@@ -40,7 +40,7 @@ namespace Core
         public bool IsSorter;		    // True if a new-style sorter
         public bool MultiPseudo;	    // Multi-register pseudo-cursor
 #if !OMIT_VIRTUALTABLE
-        public VTableCursor VtabCursor;   // The cursor for a virtual table
+        public IVTableCursor VtabCursor;   // The cursor for a virtual table
         public ITableModule IModule;      // Module for cursor pVtabCursor
 #endif
         public long SeqCount;           // Sequence counter
@@ -62,7 +62,7 @@ namespace Core
         public uint[] Offsets;          // Cached offsets to the start of each columns data
         public int Rows;                // Pointer to Data for the current row, if all on one page
 
-        public VdbeCursor Copy() { return (VdbeCursor)MemberwiseClone(); }
+        public VdbeCursor _memcpy() { return (VdbeCursor)MemberwiseClone(); }
 
         const int CACHE_STALE = 0; // A value for VdbeCursor.cacheValid that means the cache is always invalid.
     }
@@ -71,16 +71,12 @@ namespace Core
     {
         public Vdbe V;                  // VM this frame belongs to
         public VdbeFrame Parent;        // Parent of this frame, or NULL if parent is main
-        public Vdbe.VdbeOp[] Ops;       // Program instructions for parent frame
-        public int OpsLength;
-        public Mem[] Mems;              // Array of memory cells for parent frame
-        public int MemsLength;
-        public byte[] OnceFlags;        // Array of OP_Once flags for parent frame
-        public int OnceFlagsLength;
-        public VdbeCursor[] Cursors;    // Array of Vdbe cursors for parent frame
-        public int CursorsLength;
+        public array_t<Vdbe.VdbeOp> Ops;// Program instructions for parent frame
+        public array_t<Mem> Mems;     // Array of memory cells for parent frame
+        public array_t<byte> OnceFlags; // Array of OP_Once flags for parent frame
+        public array_t<VdbeCursor> Cursors;    // Array of Vdbe cursors for parent frame
         public int Token;               // Copy of SubProgram.token
-        public long LastRowid;          // Last insert rowid (sqlite3.lastRowid)
+        public long LastRowID;          // Last insert rowid (sqlite3.lastRowid)
         public int PC;                  // Program Counter in parent (calling) frame
         public int ChildMems;           // Number of memory cells for child frame
         public int ChildCursors;        // Number of cursors for child frame
@@ -160,7 +156,7 @@ namespace Core
 
         // Needed for C# Implementation
         #region Needed for C# Implementation
-        Mem Mem_;                // Used when C# overload Z as MEM space
+        internal Mem Mem_;                // Used when C# overload Z as MEM space
         public static Mem ToMem_(Mem mem)
         {
             if (mem == null) return null;
@@ -168,7 +164,7 @@ namespace Core
                 mem.Mem_ = new Mem();
             return mem.Mem_;
         }
-        Command.Func.SumCtx SumCtx_; // Used when C# overload Z as Sum context
+        internal Command.Func.SumCtx SumCtx_; // Used when C# overload Z as Sum context
         public static Command.Func.SumCtx ToSumCtx_(Mem mem)
         {
             if (mem == null) return null;
@@ -176,7 +172,7 @@ namespace Core
                 mem.SumCtx_ = new Command.Func.SumCtx();
             return mem.SumCtx_;
         }
-        Vdbe.SubProgram[] SubProgram_;   // Used when C# overload Z as SubProgram
+        internal Vdbe.SubProgram[] SubProgram_;   // Used when C# overload Z as SubProgram
         public static Vdbe.SubProgram[] ToSubProgram_(Mem mem, int size)
         {
             if (mem == null) return null;
@@ -184,7 +180,7 @@ namespace Core
                 mem.SubProgram_ = new Vdbe.SubProgram[size];
             return mem.SubProgram_;
         }
-        TextBuilder TextBuilder_;    // Used when C# overload Z as STR context
+        internal TextBuilder TextBuilder_;    // Used when C# overload Z as STR context
         public static TextBuilder ToTextBuilder_(Mem mem, int maxSize)
         {
             if (mem == null) return null;
@@ -192,7 +188,7 @@ namespace Core
                 mem.TextBuilder_ = new TextBuilder(maxSize);
             return mem.TextBuilder_;
         }
-        object MD5Context_;    // Used when C# overload Z as MD5 context
+        internal object MD5Context_;    // Used when C# overload Z as MD5 context
         public static object ToMD5Context_(Mem mem, Func<object> func)
         {
             if (mem == null) return null;
@@ -202,29 +198,29 @@ namespace Core
         }
         #endregion
 
-//        public string GetBlob()
-//        {
-//            if ((Flags & (MEM.Blob | MEM.Str)) != 0)
-//            {
-//                sqlite3VdbeMemExpandBlob(p);
-//                Flags &= ~MEM.Str;
-//                Flags |= MEM.Blob;
-//                return (N != 0 ? Z : null);
-//            }
-//            return GetText();
-//        }
-//        public int GetBytes() { return Mem_Bytes(this, TEXTENCODE.UTF8); }
-//        public int GetBytes16() { return Mem_Bytes(this, TEXTENCODE.UTF16NATIVE); }
-//        public double GetDouble() { return sqlite3VdbeRealValue(this); }
-//        public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
-//        public long GetInt64() { return sqlite3VdbeIntValue(this); }
-//        public string GetText() { return (string)Mem_Text(this, TEXTENCODE.UTF8); }
-//#if !OMIT_UTF16
-//        public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
-//        public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
-//        public string GetText16le() { return Mem_Text(this, TEXTENCODE.UTF16LE); }
-//#endif
-//        public TYPE GetType() { return Type; }
+        //        public string GetBlob()
+        //        {
+        //            if ((Flags & (MEM.Blob | MEM.Str)) != 0)
+        //            {
+        //                sqlite3VdbeMemExpandBlob(p);
+        //                Flags &= ~MEM.Str;
+        //                Flags |= MEM.Blob;
+        //                return (N != 0 ? Z : null);
+        //            }
+        //            return GetText();
+        //        }
+        //        public int GetBytes() { return Mem_Bytes(this, TEXTENCODE.UTF8); }
+        //        public int GetBytes16() { return Mem_Bytes(this, TEXTENCODE.UTF16NATIVE); }
+        //        public double GetDouble() { return sqlite3VdbeRealValue(this); }
+        //        public int GetInt() { return (int)sqlite3VdbeIntValue(this); }
+        //        public long GetInt64() { return sqlite3VdbeIntValue(this); }
+        //        public string GetText() { return (string)Mem_Text(this, TEXTENCODE.UTF8); }
+        //#if !OMIT_UTF16
+        //        public string GetText16() { return Mem_Text(this, TEXTENCODE.UTF16NATIVE); }
+        //        public string GetText16be() { return Mem_Text(this, TEXTENCODE.UTF16BE); }
+        //        public string GetText16le() { return Mem_Text(this, TEXTENCODE.UTF16LE); }
+        //#endif
+        //        public TYPE GetType() { return Type; }
 
         public Mem() { }
         public Mem(Context db, string z, double r, int i, int n, MEM flags, TYPE type, TEXTENCODE encode
@@ -247,7 +243,20 @@ namespace Core
             Encode = encode;
         }
 
-        public void memcopy(ref Mem ct)
+        //public void _memset()
+        //{
+        //    u = new u_t { };
+        //    R = 0;
+        //    Ctx = null;
+        //    Z = null;
+        //    N = 0;
+        //    Flags = 0;
+        //    Type = 0;
+        //    Encode = 0;
+        //    Del = null;
+        //}
+
+        public void _memcpy(ref Mem ct)
         {
             if (ct == null) ct = new Mem();
             ct.u = u;

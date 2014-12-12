@@ -282,13 +282,13 @@ namespace Core
             Context ctx = Ctx;
             if (ctx.MallocFailed)
             {
-                RC = RC.NOMEM;
+                RC_ = RC.NOMEM;
                 return RC.NOMEM;
             }
 
             if (PC <= 0 && Expired)
             {
-                RC = RC.SCHEMA;
+                RC_ = RC.SCHEMA;
                 rc = RC.ERROR;
                 goto end_of_step;
             }
@@ -309,7 +309,7 @@ namespace Core
             }
 
 #if  !OMIT_EXPLAIN
-            if (Explain)
+            if (_explain)
                 rc = List();
             else
 #endif
@@ -331,22 +331,22 @@ namespace Core
 
             if (rc == RC.DONE)
             {
-                Debug.Assert(RC == RC.OK);
-                RC = DoWalCallbacks(ctx);
-                if (RC != RC.OK)
+                Debug.Assert(RC_ == RC.OK);
+                RC_ = DoWalCallbacks(ctx);
+                if (RC_ != RC.OK)
                     rc = RC.ERROR;
             }
 
             ctx.ErrCode = rc;
-            if (SysEx.ApiExit(Ctx, RC) == RC.NOMEM)
-                RC = RC.NOMEM;
+            if (SysEx.ApiExit(Ctx, RC_) == RC.NOMEM)
+                RC_ = RC.NOMEM;
 
         end_of_step:
             // At this point local variable rc holds the value that should be returned if this statement was compiled using the legacy 
             // sqlite3_prepare() interface. According to the docs, this can only be one of the values in the first assert() below. Variable p->rc 
             // contains the value that would be returned if sqlite3_finalize() were called on statement p.
             Debug.Assert(rc == RC.ROW || rc == RC.DONE || rc == RC.ERROR || rc == RC.BUSY || rc == RC.MISUSE);
-            Debug.Assert(RC != RC.ROW && RC != RC.DONE);
+            Debug.Assert(RC_ != RC.ROW && RC_ != RC.DONE);
             // If this statement was prepared using sqlite3_prepare_v2(), and an error has occurred, then return the error code in p->rc to the
             // caller. Set the error code in the database handle to the same value.
             if (IsPrepareV2 && rc != RC.ROW && rc != RC.DONE)
@@ -378,8 +378,8 @@ namespace Core
                 // sqlite3_errmsg() and sqlite3_errcode().
                 string err = Value_Text(ctx.Err);
                 C._tagfree(ctx, ref ErrMsg);
-                if (!ctx.MallocFailed) { ErrMsg = err; RC = rc2; }
-                else { ErrMsg = null; RC = rc = RC.NOMEM; }
+                if (!ctx.MallocFailed) { ErrMsg = err; RC_ = rc2; }
+                else { ErrMsg = null; RC_ = rc = RC.NOMEM; }
             }
             rc = SysEx.ApiExit(ctx, rc);
             MutexEx.Leave(ctx.Mutex);
@@ -523,7 +523,7 @@ namespace Core
             // RC_NOMEM. The next call to _step() (if any) will return RC_ERROR and _finalize() will return NOMEM.
             if (p != null)
             {
-                p.RC = SysEx.ApiExit(p.Ctx, p.RC);
+                p.RC_ = SysEx.ApiExit(p.Ctx, p.RC_);
                 MutexEx.Leave(p.Ctx.Mutex);
             }
         }

@@ -308,7 +308,7 @@ namespace Core
                 else
                 {
                     ctx.ErrCode = rc;
-                    v.RC = rc;
+                    v.RC_ = rc;
                 }
             }
             rc = SysEx.ApiExit(ctx, rc);

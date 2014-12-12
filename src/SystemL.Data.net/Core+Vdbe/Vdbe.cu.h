@@ -81,7 +81,7 @@ namespace Core
 				int *Is;				// Used when p4type is P4T_INTARRAY
 				SubProgram *Program;	// Used when p4type is P4T_SUBPROGRAM
 				RC (*Advance)(BtCursor *, int *); // Used when p4type is P4T_ADVANCE
-			} P4;			// fourth parameter
+			} P4;						// fourth parameter
 #ifdef _DEBUG
 			char *Comment;  // Comment to improve readability
 #endif
@@ -110,16 +110,16 @@ namespace Core
 		};
 
 
-
-#ifndef NDEBUG
-		//__device__ void Comment(const char*, ...);
-		//__device__ void NoopComment(const char*, ...);
-#define VdbeComment(X) Comment X
-#define VdbeNoopComment(X) NoopComment X
-#else
-#define VdbeComment(X)
-#define VdbeNoopComment(X)
-#endif
+		//
+		//#ifndef NDEBUG
+		//		//__device__ void Comment(const char*, ...);
+		//		//__device__ void NoopComment(const char*, ...);
+		//#define VdbeComment(X) Comment X
+		//#define VdbeNoopComment(X) NoopComment X
+		//#else
+		//#define VdbeComment(X)
+		//#define VdbeNoopComment(X)
+		//#endif
 
 	public: //was:private
 		Context *Ctx;           // The database connection that owns this statement
@@ -140,9 +140,9 @@ namespace Core
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
 		RC RC_;					// Value to return
-		uint8 ErrorAction;      // Recovery action to do in case of an error
+		OE ErrorAction;      // Recovery action to do in case of an error
 		uint8 MinWriteFileFormat;  // Minimum file format for writable database files
-		bft HasExplain:2;          // True if EXPLAIN present on SQL command
+		bft HasExplain:2;       // True if EXPLAIN present on SQL command
 		bft InVtabMethod:2;     // See comments above
 		bft ChangeCntOn:1;      // True to update the change-counter
 		bft Expired:1;          // True if the VM needs to be recompiled
@@ -179,9 +179,6 @@ namespace Core
 		__device__ void FreeCursor(VdbeCursor *);
 		__device__ void PopStack(int);
 		__device__ static int CursorMoveto(VdbeCursor *);
-#if defined(_DEBUG) || defined(VDBE_PROFILE)
-		__device__ static void PrintOp(FILE *, int, VdbeOp *);
-#endif
 		__device__ static uint32 SerialTypeLen(uint32);
 		__device__ static uint32 SerialType(Mem *, int);
 		__device__ static uint32 SerialPut(unsigned char *, int, Mem *, int);
@@ -198,7 +195,6 @@ namespace Core
 
 		__device__ static const char *sqlite3OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);
-		__device__ static void FrameDelete(VdbeFrame *);
 		__device__ static int FrameRestore(VdbeFrame *);
 		__device__ static void MemStoreType(Mem *mem);
 		__device__ int TransferError();
@@ -347,7 +343,7 @@ namespace Core
 #ifdef _DEBUG
 		__device__ bool AssertMayAbort(bool mayAbort);
 #endif
-		__device__ Vdbe::VdbeOp *TakeOpArray(int *opsLength, int *maxArgs);
+		__device__ VdbeOp *TakeOpArray(int *opsLength, int *maxArgs);
 		__device__ int AddOpList(int opsLength, VdbeOpList const *ops);
 		__device__ void ChangeP1(uint32 addr, int val);
 		__device__ void ChangeP2(uint32 addr, int val);
@@ -359,18 +355,55 @@ namespace Core
 #endif
 		__device__ void ChangeToNoop(int addr);
 		__device__ void ChangeP4(int addr, const char *p4, int n);
+#ifndef NDEBUG
+		__device__ static void Comment(Vdbe *p, const char *format, va_list args);
+		__device__ static void NoopComment(Vdbe *p, const char *format, va_list args);
+#else
+		__device__ inline static void Comment(Vdbe *p, const char *format, va_list args) { }
+		__device__ inline static void NoopComment(Vdbe *p, const char *format, va_list args) { }
+#endif
+		__device__ VdbeOp *GetOp(int addr);
+		__device__ void Vdbe::UsesBtree(int i);
+#if !defined(OMIT_SHARED_CACHE) && THREADSAFE>0
+		__device__ void Enter();
+		__device__ void Leave();
+#else
+		__device__ inline void Enter() { }
+		__device__ inline void Leave() { }
+#endif
+#if defined(VDBE_PROFILE) || defined(_DEBUG)
+		__device__ static void PrintOp(FILE *out_, int pc, VdbeOp *op);
+#endif
+		__device__ static void FrameDelete(VdbeFrame *p);
+#ifndef OMIT_EXPLAIN
+		__device__ RC List();
+#endif
+#ifdef _DEBUG
+		__device__ void PrintSql();
+#endif
+#if true || !defined(OMIT_TRACE) && defined(ENABLE_IOTRACE)
+		__device__ void IOTraceSql();
+#endif
+		__device__ void Rewind();
+		__device__ void MakeReady(Parse *parse);
+		__device__ void FreeCursor(VdbeCursor *cur);
+		__device__ static int FrameRestore(VdbeFrame *frame);
+		__device__ void SetNumCols(int resColumns);
+		__device__ RC SetColName(int idx, int var, const char *name, void (*del)(void*));
 
 
 
-		__device__ void UsesBtree(int);
-		__device__ VdbeOp *GetOp(int);
+
+
+
+
 		__device__ void Delete();
 		__device__ static void ClearObject(Context *, Vdbe *);
 		__device__ void MakeReady(Parse *);
 
 		__device__ int CurrentAddr();
 		__device__ void ResetStepResult();
-		__device__ void Rewind();
+
 		__device__ void SetNumCols(int);
 		__device__ int SetColName(int, int, const char *, void(*)(void *));
 		__device__ void CountChanges();
@@ -490,13 +523,6 @@ namespace Core
 #endif
 #pragma endregion
 
-#if !defined(OMIT_SHARED_CACHE) && THREADSAFE>0
-		__device__ void Enter();
-		__device__ void Leave();
-#else
-#define sqlite3VdbeEnter(X)
-#define sqlite3VdbeLeave(X)
-#endif
 
 #ifndef OMIT_FOREIGN_KEY
 		__device__ int CheckFk(int);
@@ -504,7 +530,6 @@ namespace Core
 #define CheckFk(i) 0
 #endif
 #ifdef _DEBUG
-		__device__ void PrintSql();
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif
 	};

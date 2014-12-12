@@ -118,7 +118,7 @@ namespace Core
 		void (*Profile)(void*,const char*,uint64);  // Profiling function
 		void *ProfileArg;                   // Argument to profile function
 		void *CommitArg;					// Argument to xCommitCallback()
-		int (*CommitCallback)(void*);		// Invoked at every commit.
+		RC (*CommitCallback)(void*);		// Invoked at every commit.
 		void *RollbackArg;					// Argument to xRollbackCallback()
 		void (*RollbackCallback)(void*);	// Invoked at every commit.
 		void *UpdateArg;

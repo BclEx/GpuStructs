@@ -77,7 +77,7 @@ namespace Core
         public BContext Ctx;        // The database connection holding this Btree
         public BtShared Bt;         // Sharable content of this Btree
         public TRANS InTrans;       // TRANS_NONE, TRANS_READ or TRANS_WRITE
-        public bool Sharable;       // True if we can share pBt with another db
+        public bool Sharable_;       // True if we can share pBt with another db
         public bool Locked;         // True if db currently has pBt locked
         public int WantToLock;      // Number of nested calls to sqlite3BtreeEnter()
         public int Backups;         // Number of backup operations reading this btree
@@ -105,10 +105,10 @@ namespace Core
         const int BTREE_BULKLOAD = 0x00000001;
 
 #if !OMIT_SHARED_CACHE
-        static void Enter() { }
-        static void EnterAll(BContext ctx) { }
-        //int Sharable() { }
-        static void Leave() { }
+        public void Enter() { }
+        public static void EnterAll(BContext ctx) { }
+        public bool Sharable() { return Sharable_; }
+        public void Leave() { }
         public static void LeaveAll(BContext ctx) { }
         //#if !DEBUG
         // These routines are used inside Debug.Assert() statements only.

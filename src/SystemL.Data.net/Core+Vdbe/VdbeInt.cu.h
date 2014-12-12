@@ -27,7 +27,7 @@ namespace Core
 		bool IsSorter;			// True if a new-style sorter
 		bool MultiPseudo;		// Multi-register pseudo-cursor
 #ifndef OMIT_VIRTUALTABLE
-		VTableCursor *VtabCursor;		// The cursor for a virtual table
+		IVTableCursor *VtabCursor;		// The cursor for a virtual table
 		const ITableModule *IModule;    // Module for cursor pVtabCursor
 #endif
 		int64 SeqCount;			// Sequence counter

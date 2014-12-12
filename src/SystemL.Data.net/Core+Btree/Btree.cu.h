@@ -79,7 +79,7 @@ namespace Core
 		BContext *Ctx;				// The database connection holding this btree
 		BtShared *Bt;				// Sharable content of this btree
 		TRANS InTrans;				// TRANS_NONE, TRANS_READ or TRANS_WRITE
-		bool Sharable;				// True if we can share pBt with another db
+		bool Sharable_;				// True if we can share pBt with another db
 		bool Locked;				// True if db currently has pBt locked
 		int WantToLock;				// Number of nested calls to sqlite3BtreeEnter()
 		int Backups;				// Number of backup operations reading this btree
@@ -201,10 +201,10 @@ namespace Core
 #endif
 
 #ifndef OMIT_SHARED_CACHE
-		__device__ inline static void Enter() { }
+		__device__ inline void Enter() { }
 		__device__ static void EnterAll(BContext *ctx) { }
-		//__device__ int Sharable();
-		__device__ inline static void Leave() { }
+		__device__ inline bool Sharable() { return Sharable_; }
+		__device__ inline void Leave() { }
 		__device__ static void LeaveAll(BContext *ctx) { }
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.

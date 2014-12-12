@@ -61,7 +61,7 @@ namespace Core
         {
             // If this database is not shareable, or if the client is reading and has the read-uncommitted flag set, then no lock is required. 
             // Return true immediately.
-            if (!btree.Sharable || (lockType == LOCK.READ && (btree.Ctx.Flags & BContext.FLAG.ReadUncommitted) != 0))
+            if (!btree.Sharable_ || (lockType == LOCK.READ && (btree.Ctx.Flags & BContext.FLAG.ReadUncommitted) != 0))
                 return true;
 
             // If the client is reading  or writing an index and the schema is not loaded, then it is too difficult to actually check to see if
@@ -121,7 +121,7 @@ namespace Core
             Debug.Assert(lockType == LOCK.READ || bt.InTransaction == TRANS.WRITE);
 
             // This routine is a no-op if the shared-cache is not enabled
-            if (!p.Sharable)
+            if (!p.Sharable_)
                 return RC.OK;
 
             // If some other connection is holding an exclusive lock, the requested lock may not be obtained.
@@ -168,7 +168,7 @@ namespace Core
             // This function should only be called on a sharable b-tree after it has been determined that no other b-tree holds a conflicting lock.
             var bt = p.Bt;
 
-            Debug.Assert(p.Sharable);
+            Debug.Assert(p.Sharable_);
             Debug.Assert(RC.OK == querySharedCacheTableLock(p, table, lock_));
 
             // First search the list for an existing lock on this table.
@@ -205,7 +205,7 @@ namespace Core
             var iter = bt.Lock;
 
             Debug.Assert(p.HoldsMutex());
-            Debug.Assert(p.Sharable || iter == null);
+            Debug.Assert(p.Sharable_ || iter == null);
             Debug.Assert((int)p.InTrans > 0);
 
             while (iter != null)
@@ -1215,7 +1215,7 @@ namespace Core
                 if ((vfsFlags & VSystem.OPEN.SHAREDCACHE) != 0)
                 {
                     string fullPathname;
-                    p.Sharable = true;
+                    p.Sharable_ = true;
                     if (memoryDB)
                         fullPathname = filename;
                     else
@@ -1256,7 +1256,7 @@ namespace Core
                 else
                     // In debug mode, we mark all persistent databases as sharable even when they are not.  This exercises the locking code and
                     // gives more opportunity for asserts(sqlite3_mutex_held()) statements to find locking problems.
-                    p.Sharable = true;
+                    p.Sharable_ = true;
 #endif
 #endif
 
@@ -1326,7 +1326,7 @@ namespace Core
 
 #if !SHARED_CACHE && !OMIT_DISKIO
                 // Add the new BtShared object to the linked list sharable BtShareds.
-                if (p.Sharable)
+                if (p.Sharable_)
                 {
                     bt.Refs = 1;
                     MutexEx mutexShared;
@@ -1345,11 +1345,11 @@ namespace Core
 #if !OMIT_SHARED_CACHE && !OMIT_DISKIO
             // If the new Btree uses a sharable pBtShared, then link the new Btree into the list of all sharable Btrees for the same connection.
             // The list is kept in ascending order by pBt address.
-            if (p.Sharable)
+            if (p.Sharable_)
             {
                 Btree sib;
                 for (var i = 0; i < ctx.DBs.length; i++)
-                    if ((sib = ctx.DBs[i].Bt) != null && sib.Sharable)
+                    if ((sib = ctx.DBs[i].Bt) != null && sib.Sharable_)
                     {
                         while (sib.Prev != null) { sib = sib.Prev; }
                         if (p.Bt.AutoID < sib.Bt.AutoID)
@@ -1462,7 +1462,7 @@ namespace Core
 
             // If there are still other outstanding references to the shared-btree structure, return now. The remainder of this procedure cleans up the shared-btree.
             Debug.Assert(WantToLock == 0 && !Locked);
-            if (!Sharable || removeFromSharingList(bt))
+            if (!Sharable_ || removeFromSharingList(bt))
             {
                 // The pBt is no longer on the sharing list, so we can access it without having to hold the mutex.
                 //
@@ -1884,7 +1884,7 @@ namespace Core
                 {
                     bt.Transactions++;
 #if !OMIT_SHARED_CACHE
-                    if (Sharable)
+                    if (Sharable_)
                     {
                         Debug.Assert(Lock.Btree == this && Lock.Table == 1);
                         Lock.Lock = LOCK.READ;
@@ -6195,7 +6195,7 @@ namespace Core
         {
             Debug.Assert(InTrans != TRANS.NONE);
             RC rc = RC.OK;
-            if (Sharable)
+            if (Sharable_)
             {
                 LOCK lockType = (isWriteLock ? LOCK.READ : LOCK.WRITE);
                 Enter();

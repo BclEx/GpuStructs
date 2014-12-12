@@ -122,7 +122,7 @@ namespace Core
         public Action<object, string, ulong> Profile;  // Profiling function
         public object ProfileArg;                   // Argument to profile function
         public object CommitArg;                    // Argument to xCommitCallback()
-        public Func<object, int> CommitCallback;    // Invoked at every commit.
+        public Func<object, RC> CommitCallback;    // Invoked at every commit.
         public object RollbackArg;                  // Argument to xRollbackCallback()
         public Action<object> RollbackCallback;     // Invoked at every commit.
         public object UpdateArg;

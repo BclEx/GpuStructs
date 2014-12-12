@@ -57,26 +57,20 @@
   <ItemGroup>
     <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
     <ClCompile Include="..\SystemL.Data.net\Shell.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Alter.cu">
-      <Filter>Core+Vdbe\Command</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
+      <Filter>Core+Pager</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Analyze.cu">
-      <Filter>Core+Vdbe\Command</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu">
+      <Filter>Core+Pager</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Attach.cu">
-      <Filter>Core+Vdbe\Command</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu">
+      <Filter>Core+Btree</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Date.cu">
-      <Filter>Core+Vdbe\Command</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu">
+      <Filter>Core+Pager</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Delete.cu">
-      <Filter>Core+Vdbe\Command</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Func.cu">
-      <Filter>Core+Vdbe\Command</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Insert.cu">
-      <Filter>Core+Vdbe\Command</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu">
+      <Filter>Core+Pager</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Auth.cu">
       <Filter>Core+Vdbe</Filter>
@@ -86,18 +80,6 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Callback.cu">
       <Filter>Core+Vdbe</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Vacuum.cu">
-      <Filter>Core+Vdbe\Command</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Update.cu">
-      <Filter>Core+Vdbe\Command</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Select.cu">
-      <Filter>Core+Vdbe\Command</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Pragma.cu">
-      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Expr.cu">
       <Filter>Core+Vdbe</Filter>
@@ -138,10 +120,13 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Mem.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Sort.cu">
+      <Filter>Core+Vdbe</Filter>
+    </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Trace.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Sort.cu">
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Utf.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe.cu">
@@ -159,23 +144,38 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Where.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache.cu">
-      <Filter>Core+Pager</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Alter.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\PCache1.cu">
-      <Filter>Core+Pager</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Analyze.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Wal.cu">
-      <Filter>Core+Pager</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Attach.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu">
-      <Filter>Core+Btree</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Date.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Pager\Pager.cu">
-      <Filter>Core+Pager</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Delete.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Vdbe+Utf.cu">
-      <Filter>Core+Vdbe</Filter>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Func.cu">
+      <Filter>Core+Vdbe\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Insert.cu">
+      <Filter>Core+Vdbe\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Pragma.cu">
+      <Filter>Core+Vdbe\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Select.cu">
+      <Filter>Core+Vdbe\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Update.cu">
+      <Filter>Core+Vdbe\Command</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Command\Vacuum.cu">
+      <Filter>Core+Vdbe\Command</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

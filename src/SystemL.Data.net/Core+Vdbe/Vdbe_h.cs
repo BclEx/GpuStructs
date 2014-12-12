@@ -84,7 +84,7 @@ namespace Core
                 public VdbeFunc VdbeFunc;   // Used when p4type is P4T_VDBEFUNC
                 public CollSeq Coll;        // Used when p4type is P4T_COLLSEQ
                 public Mem Mem;             // Used when p4type is P4T_MEM
-                public VTable Vtab;         // Used when p4type is P4T_VTAB
+                public VTable VTable;         // Used when p4type is P4T_VTAB
                 public KeyInfo KeyInfo;     // Used when p4type is P4T_KEYINFO
                 public int[] Is;            // Used when p4type is P4T_INTARRAY
                 public SubProgram Program;  // Used when p4type is P4T_SUBPROGRAM
@@ -142,94 +142,94 @@ namespace Core
             }
         }
 
-#if !DEBUG
-        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeComment(v, zFormat, ap); }
-        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeNoopComment(v, zFormat, ap); }
-#else
-        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { }
-        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { }
-#endif
+//#if !DEBUG
+//        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeComment(v, zFormat, ap); }
+//        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeNoopComment(v, zFormat, ap); }
+//#else
+//        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { }
+//        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { }
+//#endif
 
-#if OMIT_FLOATING_POINT
-//# define sqlite3VdbeMemSetDouble sqlite3VdbeMemSetInt64
-#else
-        //void sqlite3VdbeMemSetDouble(Mem*, double);
-#endif
+//#if OMIT_FLOATING_POINT
+////# define sqlite3VdbeMemSetDouble sqlite3VdbeMemSetInt64
+//#else
+//        //void sqlite3VdbeMemSetDouble(Mem*, double);
+//#endif
 
-#if !OMIT_SHARED_CACHE && THREADSAFE
-        //void Enter(Vdbe);
-        //void Leave(Vdbe);
-#else
-    static void Enter( Vdbe p ) { }
-    static void Leave( Vdbe p ) { }
-#endif
+//#if !OMIT_SHARED_CACHE && THREADSAFE
+//        //void Enter(Vdbe);
+//        //void Leave(Vdbe);
+//#else
+//    static void Enter( Vdbe p ) { }
+//    static void Leave( Vdbe p ) { }
+//#endif
 
-#if !OMIT_FOREIGN_KEY
-        //int sqlite3VdbeCheckFk(Vdbe *, int);
-#else
-        static int sqlite3VdbeCheckFk(Vdbe p, int i) { return 0; }
-#endif
+//#if !OMIT_FOREIGN_KEY
+//        //int sqlite3VdbeCheckFk(Vdbe *, int);
+//#else
+//        static int sqlite3VdbeCheckFk(Vdbe p, int i) { return 0; }
+//#endif
 
-#if !OMIT_INCRBLOB
-        //      int sqlite3VdbeMemExpandBlob(Mem);
-#else
-        static RC sqlite3VdbeMemExpandBlob(Mem x) { return RC.OK; }
-#endif
+//#if !OMIT_INCRBLOB
+//        //      int sqlite3VdbeMemExpandBlob(Mem);
+//#else
+//        static RC sqlite3VdbeMemExpandBlob(Mem x) { return RC.OK; }
+//#endif
 
-        public Context Ctx;             // The database connection that owns this statement
-        public array_t<VdbeOp> Ops;     // Space to hold the virtual machine's program
-        public array_t<Mem> Mems;       // The memory locations
-        public Mem[] Args;              // Arguments to currently executing user function
-        public Mem[] ColNames;          // Column names to return
-        public Mem[] ResultSet;         // Pointer to an array of results
-        public int OpsAlloc;            // Number of slots allocated for aOp[]
-        public int LabelsAlloc;         // Number of slots allocated in aLabel[]
-        public array_t<int> Labels;     // Space to hold the labels
-        public ushort ResColumns;       // Number of columns in one row of the result set
-        public uint Magic;              // Magic number for sanity checking
-        public string ErrMsg;           // Error message written here
-        public Vdbe Prev, Next;         // Linked list of VDBEs with the same Vdbe.db
+        public Context Ctx;                 // The database connection that owns this statement
+        public array_t<VdbeOp> Ops;         // Space to hold the virtual machine's program
+        public array_t<Mem> Mems;           // The memory locations
+        public Mem[] Args;                  // Arguments to currently executing user function
+        public Mem[] ColNames;              // Column names to return
+        public Mem[] ResultSet;             // Pointer to an array of results
+        public int OpsAlloc;                // Number of slots allocated for aOp[]
+        public int LabelsAlloc;             // Number of slots allocated in aLabel[]
+        public array_t<int> Labels;         // Space to hold the labels
+        public ushort ResColumns;           // Number of columns in one row of the result set
+        public uint Magic;                  // Magic number for sanity checking
+        public string ErrMsg;               // Error message written here
+        public Vdbe Prev, Next;             // Linked list of VDBEs with the same Vdbe.db
         public array_t<VdbeCursor> Cursors; // One element of this array for each open cursor
-        public array_t2<ynVar, Mem> Vars;       // Values for the OP_Variable opcode.
+        public array_t2<ynVar, Mem> Vars;   // Values for the OP_Variable opcode.
         public array_t2<ynVar, string> VarNames; // Name of variables
-        public uint CacheCtr;           // VdbeCursor row cache generation counter
-        public int PC;                  // The program counter
-        public RC RC;                   // Value to return
-        public byte ErrorAction;        // Recovery action to do in case of an error
-        public int MinWriteFileFormat;  // Minimum file format for writable database files
-        public byte HasExplain;         // True if EXPLAIN present on SQL command
-        public byte InVtabMethod;       // See comments above
-        public bool ChangeCntOn;        // True to update the change-counter
-        public bool Expired;            // True if the VM needs to be recompiled
-        public bool RunOnlyOnce;        // Automatically expire on reset
-        public bool UsesStmtJournal;    // True if uses a statement journal
-        public bool ReadOnly;           // True for read-only statements
-        public bool IsPrepareV2;        // True if prepared with prepare_v2()
-        public bool DoingRerun;         // True if rerunning after an auto-reprepare
-        public int Changes;             // Number of db changes made since last reset
-        public yDbMask BtreeMask;       // Bitmask of db.aDb[] entries referenced
-        public yDbMask LockMask;        // Subset of btreeMask that requires a lock
-        public int StatementID;         // Statement number (or 0 if has not opened stmt)
+        public uint CacheCtr;               // VdbeCursor row cache generation counter
+        public int PC;                      // The program counter
+        public RC RC_;                      // Value to return
+        public OE ErrorAction;              // Recovery action to do in case of an error
+        public int MinWriteFileFormat;      // Minimum file format for writable database files
+        public byte HasExplain;             // True if EXPLAIN present on SQL command
+        public byte InVtabMethod;           // See comments above
+        public bool ChangeCntOn;            // True to update the change-counter
+        public bool Expired;                // True if the VM needs to be recompiled
+        public bool RunOnlyOnce;            // Automatically expire on reset
+        public bool UsesStmtJournal;        // True if uses a statement journal
+        public bool ReadOnly;               // True for read-only statements
+        public bool IsPrepareV2;            // True if prepared with prepare_v2()
+        public bool DoingRerun;             // True if rerunning after an auto-reprepare
+        public int Changes;                 // Number of db changes made since last reset
+        public yDbMask BtreeMask;           // Bitmask of db.aDb[] entries referenced
+        public yDbMask LockMask;            // Subset of btreeMask that requires a lock
+        public int StatementID;             // Statement number (or 0 if has not opened stmt)
         public int[] Counters = new int[3]; // Counters used by sqlite3_stmt_status()
 #if !OMIT_TRACE
-        public long StartTime;          // Time when query started - used for profiling
+        public long StartTime;              // Time when query started - used for profiling
 #endif
-        public long FkConstraints;      // Number of imm. FK constraints this VM
-        public long StmtDefCons;        // Number of def. constraints when stmt started
-        public string Sql_;             // Text of the SQL statement that generated this
-        public object FreeThis;         // Free this when deleting the vdbe
+        public long FkConstraints;          // Number of imm. FK constraints this VM
+        public long StmtDefCons;            // Number of def. constraints when stmt started
+        public string Sql_;                 // Text of the SQL statement that generated this
+        public object FreeThis;             // Free this when deleting the vdbe
 #if DEBUG
-        public FILE Trace;              // Write an execution trace here, if not NULL
+        public FILE Trace;                  // Write an execution trace here, if not NULL
 #endif
 #if ENABLE_TREE_EXPLAIN
-        Explain Explain;		        // The explainer
-        string ExplainString;           // Explanation of data structures
+        Explain _explain;		            // The explainer
+        string _explainString;              // Explanation of data structures
 #endif
-        public array_t<VdbeFrame> Frame; // Parent frame
-        public VdbeFrame DelFrame;      // List of frame objects to free on VM reset
-        public uint Expmask;            // Binding to these vars invalidates VM
-        public SubProgram Programs;      // Linked list of all sub-programs used by VM
-        array_t<byte> OnceFlags;        // Flags for OP_Once
+        public array_t<VdbeFrame> Frames;   // Parent frame
+        public VdbeFrame DelFrames;          // List of frame objects to free on VM reset
+        public uint Expmask;                // Binding to these vars invalidates VM
+        public SubProgram Programs;         // Linked list of all sub-programs used by VM
+        public array_t<byte> OnceFlags;     // Flags for OP_Once
 
         public Vdbe _memcpy() { return (Vdbe)MemberwiseClone(); }
         public void _memcpy(Vdbe ct)
@@ -252,7 +252,7 @@ namespace Core
             ct.VarNames = VarNames; ct.VarNames.length = VarNames.length;
             ct.CacheCtr = CacheCtr;
             ct.PC = PC;
-            ct.RC = RC;
+            ct.RC_ = RC_;
             ct.ErrorAction = ErrorAction;
             ct.MinWriteFileFormat = MinWriteFileFormat;
             ct.HasExplain = HasExplain;
@@ -280,11 +280,11 @@ namespace Core
             ct.Trace = Trace;
 #endif
 #if ENABLE_TREE_EXPLAIN
-            ct.Explain = Explain;
-            ct.ExplainString = ExplainString;
+            ct._explain = _explain;
+            ct._explainString = _explainString;
 #endif
-            ct.Frame = Frame;
-            ct.DelFrame = DelFrame;
+            ct.Frames = Frames;
+            ct.DelFrames = DelFrames;
             ct.Expmask = Expmask;
             ct.Programs = Programs;
             ct.OnceFlags = OnceFlags;

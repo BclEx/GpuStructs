@@ -635,7 +635,7 @@ namespace Core.Command
                 StringBuilder zdtBuf = new StringBuilder(100);
                 Mem[] argv1 = new Mem[argc - 1];
                 for (i = 0; i < argc - 1; i++)
-                    argv[i + 1].memcopy(ref argv1[i]);
+                    argv[i + 1]._memcpy(ref argv1[i]);
                 if (fmt == null || IsDate(fctx, argc - 1, argv1, out x)) return;
                 Context ctx = Vdbe.Context_Ctx(fctx);
                 for (i = 0, n = 1; i < fmt.Length; i++, n++)
