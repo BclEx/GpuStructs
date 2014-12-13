@@ -18,9 +18,9 @@ namespace GpuData
             var vfs = VSystem.FindVfs("win32");
             if (vfs == null)
                 throw new InvalidOperationException();
-            var file = vfs.CreateOsFile();
+            VFile file;
             VSystem.OPEN flagOut;
-            var rc = vfs.Open(@"C:\T_\Test.db", file, VSystem.OPEN.CREATE | VSystem.OPEN.READWRITE | VSystem.OPEN.MAIN_DB, out flagOut);
+            var rc = vfs.OpenAndAlloc(@"C:\T_\Test.db", out file, VSystem.OPEN.CREATE | VSystem.OPEN.READWRITE | VSystem.OPEN.MAIN_DB, out flagOut);
             if (rc != RC.OK)
                 throw new InvalidOperationException();
             file.Write4(0, 12345);

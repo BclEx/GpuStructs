@@ -634,7 +634,7 @@ namespace Core
 		return rc;
 	}
 
-	__device__ RC VTable::Savepoint(Context *ctx, int op, IPager::SAVEPOINT savepoint)
+	__device__ RC VTable::Savepoint(Context *ctx, IPager::SAVEPOINT op, int savepoint)
 	{
 		_assert(op == IPager::SAVEPOINT_RELEASE || op == IPager::SAVEPOINT_ROLLBACK || op == IPager::SAVEPOINT_BEGIN);
 		_assert(savepoint >= 0);
@@ -660,7 +660,7 @@ namespace Core
 						method = imodule->Release;
 						break;
 					}
-					if (method && vtable->Savepoints > (int)savepoint)
+					if (method && vtable->Savepoints > savepoint)
 						rc = method(vtable->IVTable, savepoint);
 				}
 			}

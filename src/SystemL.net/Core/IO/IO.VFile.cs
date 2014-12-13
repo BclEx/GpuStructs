@@ -132,6 +132,13 @@ namespace Core.IO
             return Write(ac, 4, offset);
         }
 
+        public RC CloseAndFree()
+        {
+            RC rc = Close();
+            //C._free(ref this);
+            return rc;
+        }
+
         // extensions
 #if ENABLE_ATOMIC_WRITE
         internal static RC JournalVFileOpen(VSystem vfs, string name, ref VFile file, VSystem.OPEN flags, int bufferLength)
@@ -183,7 +190,6 @@ namespace Core.IO
         {
             return 0;
         }
-
 
         //#if ENABLE_ATOMIC_WRITE
         //        static int JournalOpen(VSystem vfs, string a, VFile b, int c, int d) { return 0; }

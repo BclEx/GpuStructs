@@ -2199,7 +2199,7 @@ end_playback:
 		// is the maximum space required for an in-memory journal file handle and a regular journal file-handle. Note that a "regular journal-handle"
 		// may be a wrapper capable of caching the first portion of the journal file in memory to implement the atomic-write optimization (see 
 		// source file journal.c).
-		int journalFileSize = SysEx_ROUND8(VFile::JournalVFileSize(vfs) > VFile::MemoryVFileSize() ? VFile::JournalVFileSize(vfs) : VFile::MemoryVFileSize()); // Bytes to allocate for each journal fd
+		int journalFileSize = _ROUND8(VFile::JournalVFileSize(vfs) > VFile::MemoryVFileSize() ? VFile::JournalVFileSize(vfs) : VFile::MemoryVFileSize()); // Bytes to allocate for each journal fd
 
 		// Set the output variable to NULL in case an error occurs.
 		*pagerOut = nullptr;
@@ -2257,9 +2257,9 @@ end_playback:
 		// Allocate memory for the Pager structure, PCache object, the three file descriptors, the database file name and the journal file name.
 		int pcacheSizeOf = PCache::SizeOf();	// Bytes to allocate for PCache
 		uint8 *ptr = (uint8 *)_alloc2(
-			SysEx_ROUND8(sizeof(Pager)) +		// Pager structure
-			SysEx_ROUND8(pcacheSizeOf) +        // PCache object
-			SysEx_ROUND8(vfs->SizeOsFile) +     // The main db file
+			_ROUND8(sizeof(Pager)) +		// Pager structure
+			_ROUND8(pcacheSizeOf) +        // PCache object
+			_ROUND8(vfs->SizeOsFile) +     // The main db file
 			journalFileSize * 2 +				// The two journal files
 			pathnameLength + 1 + uriLength +    // zFilename
 			pathnameLength + 8 + 2              // zJournal
@@ -2267,19 +2267,19 @@ end_playback:
 			+ pathnameLength + 4 + 2			// zWal
 #endif
 			, true);
-		_assert(SysEx_HASALIGNMENT8(INT_TO_PTR(journalFileSize)));
+		_assert(_HASALIGNMENT8(INT_TO_PTR(journalFileSize)));
 		if (!ptr)
 		{
 			_tagfree(nullptr, pathname);
 			return RC_NOMEM;
 		}
 		Pager *pager = (Pager *)(ptr);
-		pager->PCache = (Core::PCache *)(ptr += SysEx_ROUND8(sizeof(Pager)));
-		pager->File = (VFile *)(ptr += SysEx_ROUND8(pcacheSizeOf));
-		pager->SubJournalFile = vfs->_AttachFile(ptr += SysEx_ROUND8(vfs->SizeOsFile));
+		pager->PCache = (Core::PCache *)(ptr += _ROUND8(sizeof(Pager)));
+		pager->File = (VFile *)(ptr += _ROUND8(pcacheSizeOf));
+		pager->SubJournalFile = vfs->_AttachFile(ptr += _ROUND8(vfs->SizeOsFile));
 		pager->JournalFile = vfs->_AttachFile(ptr += journalFileSize);
 		pager->Filename = (char *)(ptr += journalFileSize);
-		_assert(SysEx_HASALIGNMENT8(pager->JournalFile));
+		_assert(_HASALIGNMENT8(pager->JournalFile));
 
 		// Fill in the Pager.zFilename and Pager.zJournal buffers, if required.
 		if (pathname)
@@ -2368,7 +2368,7 @@ end_playback:
 
 		// Initialize the PCache object.
 		_assert(extraBytes < 1000);
-		extraBytes = SysEx_ROUND8(extraBytes);
+		extraBytes = _ROUND8(extraBytes);
 		PCache::Open(sizePage, extraBytes, !memoryDB, (!memoryDB ? pagerStress : nullptr), (void *)pager, pager->PCache);
 
 		PAGERTRACE("OPEN %d %s\n", FILEHANDLEID(pager->File), pager->Filename);

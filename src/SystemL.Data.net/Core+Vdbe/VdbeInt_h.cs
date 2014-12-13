@@ -33,7 +33,7 @@ namespace Core
         public bool AtFirst;            // True if pointing to first entry
         public bool UseRandomRowid;     // Generate new record numbers semi-randomly
         public bool NullRow;            // True if pointing to a row with no data
-        public bool deferredMoveto;     // A call to sqlite3BtreeMoveto() is needed
+        public bool DeferredMoveto;     // A call to sqlite3BtreeMoveto() is needed
         public bool IsTable;            // True if a table requiring integer keys
         public bool IsIndex;            // True if an index containing keys only - no data
         public bool IsOrdered;          // True if the underlying table is BTREE_UNORDERED
@@ -64,7 +64,7 @@ namespace Core
 
         public VdbeCursor _memcpy() { return (VdbeCursor)MemberwiseClone(); }
 
-        const int CACHE_STALE = 0; // A value for VdbeCursor.cacheValid that means the cache is always invalid.
+        public const int CACHE_STALE = 0; // A value for VdbeCursor.cacheValid that means the cache is always invalid.
     }
 
     public class VdbeFrame
@@ -156,6 +156,7 @@ namespace Core
 
         // Needed for C# Implementation
         #region Needed for C# Implementation
+        internal byte[] Z_;
         internal Mem Mem_;                // Used when C# overload Z as MEM space
         public static Mem ToMem_(Mem mem)
         {
@@ -276,6 +277,7 @@ namespace Core
         public struct AuxData
         {
             public object Aux;                     // Aux data for the i-th argument
+            public Action<object> Delete;
         }
         public int AuxsLength;                         // Number of entries allocated for apAux[]
         public AuxData[] Auxs = new AuxData[2]; // One slot for each function argument

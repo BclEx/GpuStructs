@@ -108,9 +108,20 @@ namespace Core
     {
         public const double BIG_DOUBLE = 1e99;
 
-        public static bool _ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
+        public static int _ROUND8(int x) { return (x + 7) & ~7; }
+        public static int _ROUNDDOWN8(int x) { return x & ~7; }
+
+#if BYTEALIGNED4
+        public static bool _HASALIGNMENT8(int x) { return true; }
+#else
+        public static bool _HASALIGNMENT8(int x) { return true; }
+#endif
+
+        #region ASSERT
         public static bool _NEVER(bool x) { return x; }
         public static void ASSERTCOVERAGE(bool p) { }
+        public static bool _ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
+        #endregion
 
         //////////////////////
         // STDARGS

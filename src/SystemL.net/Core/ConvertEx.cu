@@ -6,17 +6,23 @@ namespace Core
 
 #pragma region Varint
 
+	// The variable-length integer encoding is as follows:
+	//
+	// KEY:
+	//         A = 0xxxxxxx    7 bits of data and one flag bit
+	//         B = 1xxxxxxx    7 bits of data and one flag bit
+	//         C = xxxxxxxx    8 bits of data
+	//  7 bits - A
+	// 14 bits - BA
+	// 21 bits - BBA
+	// 28 bits - BBBA
+	// 35 bits - BBBBA
+	// 42 bits - BBBBBA
+	// 49 bits - BBBBBBA
+	// 56 bits - BBBBBBBA
+
 #define SLOT_2_0     0x001fc07f
 #define SLOT_4_2_0   0xf01fc07f
-
-#define getVarint4(A,B) \
-	(uint8)((*(A)<(uint8)0x80)?((B)=(uint32)*(A)),1:\
-	ConvertEx::GetVarint4((A),(u32 *)&(B)))
-#define putVarint4(A,B) \
-	(uint8)(((uint32)(B)<(uint32)0x80)?(*(A)=(unsigned char)(B)),1:\
-	ConvertEx::PutVarint4((A),(B)))
-#define getVarint ConvertEx::GetVarint
-#define putVarint ConvertEx::PutVarint
 
 	__device__ int ConvertEx::PutVarint(unsigned char *p, uint64 v)
 	{
@@ -46,7 +52,7 @@ namespace Core
 		return n;
 	}
 
-	__device__ int ConvertEx::PutVarint4(unsigned char *p, uint32 v)
+	__device__ int ConvertEx::PutVarint32(unsigned char *p, uint32 v)
 	{
 		if ((v & ~0x3fff) == 0)
 		{
@@ -201,7 +207,7 @@ namespace Core
 		return 9;
 	}
 
-	__device__ uint8 ConvertEx::GetVarint4(const unsigned char *p, uint32 *v)
+	__device__ uint8 ConvertEx::GetVarint32(const unsigned char *p, uint32 *v)
 	{
 		uint32 a, b;
 		// The 1-byte case.  Overwhelmingly the most common.  Handled inline by the getVarin32() macro

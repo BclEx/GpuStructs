@@ -17,10 +17,6 @@ namespace Core
     {
         #region Varint
 
-        private const uint SLOT_0_2_0 = 0x001fc07f;
-        private const uint SLOT_4_2_0 = 0xf01fc07f;
-        private const uint MAX_U32 = (uint)((((ulong)1) << 32) - 1);
-
         // The variable-length integer encoding is as follows:
         //
         // KEY:
@@ -36,12 +32,66 @@ namespace Core
         // 49 bits - BBBBBBA
         // 56 bits - BBBBBBBA
         // 64 bits - BBBBBBBBC
-        public static byte GetVarint(byte[] p, out int v) { v = p[0]; if (v <= 0x7F) return 1; ulong uv; var r = _getVarint(p, 0, out uv); v = (int)uv; return r; }
-        public static byte GetVarint(byte[] p, out uint v) { v = p[0]; if (v <= 0x7F) return 1; ulong uv; var r = _getVarint(p, 0, out uv); v = (uint)uv; return r; }
-        public static byte GetVarint(byte[] p, uint offset, out int v) { v = p[offset]; if (v <= 0x7F) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (int)uv; return r; }
-        public static byte GetVarint(byte[] p, uint offset, out uint v) { v = p[offset]; if (v <= 0x7F) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (uint)uv; return r; }
-        public static byte GetVarint(byte[] p, uint offset, out long v) { v = p[offset]; if (v <= 0x7F) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (long)uv; return r; }
-        public static byte GetVarint(byte[] p, uint offset, out ulong v) { v = p[offset]; if (v <= 0x7F) return 1; var r = _getVarint(p, offset, out v); return r; }
+
+        public static byte PutVarint(byte[] p, int v) { return PutVarint(p, 0, (ulong)v); }
+        public static byte PutVarint(byte[] p, uint offset, int v) { return PutVarint(p, offset, (ulong)v); }
+        public static byte PutVarint(byte[] p, ulong v) { return PutVarint(p, 0, (ulong)v); }
+        public static byte PutVarint(byte[] p, uint offset, ulong v)
+        {
+            int i, j; byte n;
+            if ((v & (((ulong)0xff000000) << 32)) != 0)
+            {
+                p[offset + 8] = (byte)v;
+                v >>= 8;
+                for (i = 7; i >= 0; i--)
+                {
+                    p[offset + i] = (byte)((v & 0x7f) | 0x80);
+                    v >>= 7;
+                }
+                return 9;
+            }
+            n = 0;
+            var b = new byte[10];
+            do
+            {
+                b[n++] = (byte)((v & 0x7f) | 0x80);
+                v >>= 7;
+            } while (v != 0);
+            b[0] &= 0x7f;
+            Debug.Assert(n <= 9);
+            for (i = 0, j = n - 1; j >= 0; j--, i++)
+                p[offset + i] = b[j];
+            return n;
+        }
+
+        public static byte PutVarint32(byte[] p, int v)
+        {
+            if ((v & ~0x7f) == 0) { p[0] = (byte)v; return 1; }
+            if ((v & ~0x3fff) == 0) { p[0] = (byte)((v >> 7) | 0x80); p[1] = (byte)(v & 0x7f); return 2; }
+            return PutVarint(p, 0, v);
+        }
+        public static byte PutVarint32(byte[] p, uint offset, int v)
+        {
+            if ((v & ~0x7f) == 0) { p[offset] = (byte)v; return 1; }
+            if ((v & ~0x3fff) == 0) { p[offset] = (byte)((v >> 7) | 0x80); p[offset + 1] = (byte)(v & 0x7f); return 2; }
+            return PutVarint(p, offset, v);
+        }
+
+        // Bitmasks used by sqlite3GetVarint().  These precomputed constants are defined here rather than simply putting the constant expressions
+        // inline in order to work around bugs in the RVT compiler.
+        //
+        // SLOT_2_0     A mask for  (0x7f<<14) | 0x7f
+        // SLOT_4_2_0   A mask for  (0x7f<<28) | SLOT_2_0
+        private const uint SLOT_0_2_0 = 0x001fc07f;
+        private const uint SLOT_4_2_0 = 0xf01fc07f;
+        private const uint MAX_U32 = (uint)((((ulong)1) << 32) - 1);
+
+        public static byte GetVarint(byte[] p, out int v) { v = p[0]; if (v < 0x80) return 1; ulong uv; var r = _getVarint(p, 0, out uv); v = (int)uv; return r; }
+        public static byte GetVarint(byte[] p, out uint v) { v = p[0]; if (v < 0x80) return 1; ulong uv; var r = _getVarint(p, 0, out uv); v = (uint)uv; return r; }
+        public static byte GetVarint(byte[] p, uint offset, out int v) { v = p[offset]; if (v < 0x80) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (int)uv; return r; }
+        public static byte GetVarint(byte[] p, uint offset, out uint v) { v = p[offset]; if (v < 0x80) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (uint)uv; return r; }
+        public static byte GetVarint(byte[] p, uint offset, out long v) { v = p[offset]; if (v < 0x80) return 1; ulong uv; var r = _getVarint(p, offset, out uv); v = (long)uv; return r; }
+        public static byte GetVarint(byte[] p, uint offset, out ulong v) { v = p[offset]; if (v < 0x80) return 1; var r = _getVarint(p, offset, out v); return r; }
         private static byte _getVarint(byte[] p, uint offset, out ulong v)
         {
             uint a, b, s;
@@ -172,11 +222,11 @@ namespace Core
             return 9;
         }
 
-        public static byte GetVarint4(byte[] p, out int v) { v = p[0]; if (v <= 0x7F) return 1; uint uv; var r = _getVarint4(p, 0, out uv); v = (int)uv; return r; }
-        public static byte GetVarint4(byte[] p, out uint v) { v = p[0]; if (v <= 0x7F) return 1; return _getVarint4(p, 0, out v); }
-        public static byte GetVarint4(byte[] p, uint offset, out int v) { v = p[offset]; if (v <= 0x7F) return 1; uint uv; var r = _getVarint4(p, offset, out uv); v = (int)uv; return r; }
-        public static byte GetVarint4(byte[] p, uint offset, out uint v) { v = p[offset]; if (v <= 0x7F) return 1; return _getVarint4(p, offset, out v); }
-        private static byte _getVarint4(byte[] p, uint offset, out uint v)
+        public static byte GetVarint32(byte[] p, out int v) { v = p[0]; if (v < 0x80) return 1; uint uv; var r = _getVarint32(p, 0, out uv); v = (int)uv; return r; }
+        public static byte GetVarint32(byte[] p, out uint v) { v = p[0]; if (v < 0x80) return 1; return _getVarint32(p, 0, out v); }
+        public static byte GetVarint32(byte[] p, uint offset, out int v) { v = p[offset]; if (v < 0x80) return 1; uint uv; var r = _getVarint32(p, offset, out uv); v = (int)uv; return r; }
+        public static byte GetVarint32(byte[] p, uint offset, out uint v) { v = p[offset]; if (v < 0x80) return 1; return _getVarint32(p, offset, out v); }
+        private static byte _getVarint32(byte[] p, uint offset, out uint v)
         {
             uint a, b;
             // The 1-byte case.  Overwhelmingly the most common.  Handled inline  by the getVarin32() macro
@@ -217,69 +267,25 @@ namespace Core
                 return n;
             }
         }
-        public static byte GetVarint4(string p, uint offset, out int v)
+        public static byte GetVarint32(string p, uint offset, out int v)
         {
-            v = p[(int)offset]; if (v <= 0x7F) return 1;
+            v = p[(int)offset]; if (v < 0x80) return 1;
             var a = new byte[4];
             a[0] = (byte)p[(int)offset + 0];
             a[1] = (byte)p[(int)offset + 1];
             a[2] = (byte)p[(int)offset + 2];
             a[3] = (byte)p[(int)offset + 3];
-            uint uv; var r = _getVarint4(a, 0, out uv); v = (int)uv; return r;
+            uint uv; var r = _getVarint32(a, 0, out uv); v = (int)uv; return r;
         }
-        public static byte GetVarint4(string p, uint offset, out uint v)
+        public static byte GetVarint32(string p, uint offset, out uint v)
         {
-            v = p[(int)offset]; if (v <= 0x7F) return 1;
+            v = p[(int)offset]; if (v < 0x80) return 1;
             var a = new byte[4];
             a[0] = (byte)p[(int)offset + 0];
             a[1] = (byte)p[(int)offset + 1];
             a[2] = (byte)p[(int)offset + 2];
             a[3] = (byte)p[(int)offset + 3];
-            return _getVarint4(a, 0, out v);
-        }
-
-        public static byte PutVarint(byte[] p, int v) { return PutVarint(p, 0, (ulong)v); }
-        public static byte PutVarint(byte[] p, uint offset, int v) { return PutVarint(p, offset, (ulong)v); }
-        public static byte PutVarint(byte[] p, ulong v) { return PutVarint(p, 0, (ulong)v); }
-        public static byte PutVarint(byte[] p, uint offset, ulong v)
-        {
-            int i, j; byte n;
-            if ((v & (((ulong)0xff000000) << 32)) != 0)
-            {
-                p[offset + 8] = (byte)v;
-                v >>= 8;
-                for (i = 7; i >= 0; i--)
-                {
-                    p[offset + i] = (byte)((v & 0x7f) | 0x80);
-                    v >>= 7;
-                }
-                return 9;
-            }
-            n = 0;
-            var b = new byte[10];
-            do
-            {
-                b[n++] = (byte)((v & 0x7f) | 0x80);
-                v >>= 7;
-            } while (v != 0);
-            b[0] &= 0x7f;
-            Debug.Assert(n <= 9);
-            for (i = 0, j = n - 1; j >= 0; j--, i++)
-                p[offset + i] = b[j];
-            return n;
-        }
-
-        public static byte PutVarint4(byte[] p, int v)
-        {
-            if ((v & ~0x7f) == 0) { p[0] = (byte)v; return 1; }
-            if ((v & ~0x3fff) == 0) { p[0] = (byte)((v >> 7) | 0x80); p[1] = (byte)(v & 0x7f); return 2; }
-            return PutVarint(p, 0, v);
-        }
-        public static byte PutVarint4(byte[] p, uint offset, int v)
-        {
-            if ((v & ~0x7f) == 0) { p[offset] = (byte)v; return 1; }
-            if ((v & ~0x3fff) == 0) { p[offset] = (byte)((v >> 7) | 0x80); p[offset + 1] = (byte)(v & 0x7f); return 2; }
-            return PutVarint(p, offset, v);
+            return _getVarint32(a, 0, out v);
         }
 
         public static byte GetVarintLength(ulong v)

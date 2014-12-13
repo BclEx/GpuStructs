@@ -26,7 +26,7 @@ namespace Core
 #endif
 
 #if TEST
-        static int sqlite3_search_count = 0;
+        static int _search_count = 0;
         static int sqlite3_interrupt_count = 0;
         static int sqlite3_sort_count = 0;
         static int sqlite3_max_blobsize = 0;

@@ -568,7 +568,7 @@ namespace Core
             if (page.IntKey)
             {
                 if (page.HasData)
-                    n += (ushort)ConvertEx.GetVarint4(cell, cellIdx + n, out payloadLength);
+                    n += (ushort)ConvertEx.GetVarint32(cell, cellIdx + n, out payloadLength);
                 else
                     payloadLength = 0;
                 n += (ushort)ConvertEx.GetVarint(cell, cellIdx + n, out info.Key);
@@ -577,7 +577,7 @@ namespace Core
             else
             {
                 info.Data = 0;
-                n += (ushort)ConvertEx.GetVarint4(cell, cellIdx + n, out payloadLength);
+                n += (ushort)ConvertEx.GetVarint32(cell, cellIdx + n, out payloadLength);
                 info.Key = payloadLength;
             }
             info.Payload = payloadLength;
@@ -650,7 +650,7 @@ namespace Core
             if (page.IntKey)
             {
                 if (page.HasData)
-                    iter += ConvertEx.GetVarint4(cell, out size); // iter += ConvertEx.GetVarint4(iter, out size);
+                    iter += ConvertEx.GetVarint32(cell, out size); // iter += ConvertEx.GetVarint32(iter, out size);
                 else
                     size = 0;
 
@@ -660,7 +660,7 @@ namespace Core
                 while (((cell[iter++]) & 0x80) != 0 && iter < end) { } // while ((iter++) & 0x80 && iter < end);
             }
             else
-                iter += ConvertEx.GetVarint4(cell, iter, out size); //pIter += getVarint32( pIter, out nSize );
+                iter += ConvertEx.GetVarint32(cell, iter, out size); //pIter += getVarint32( pIter, out nSize );
 
             if (size > page.MaxLocal)
             {
@@ -3205,7 +3205,7 @@ namespace Core
                         if (page.HasData)
                         {
                             uint dummy = 0;
-                            cell_ += ConvertEx.GetVarint4(page.Data, cell_, out dummy);
+                            cell_ += ConvertEx.GetVarint32(page.Data, cell_, out dummy);
                         }
                         long cellKeyLength = 0;
                         ConvertEx.GetVarint(page.Data, cell_, out cellKeyLength);
@@ -4524,7 +4524,7 @@ namespace Core
             if (sizeCell.Length < maxCells)
                 Array.Resize(ref sizeCell, (int)maxCells); // sizeCell = (ushort *)&cell[maxCells];
             //var space1 = new byte[bt.PageSize * maxCells]; // Space for copies of dividers cells
-            //Debug.Assert(SysEx_HASALIGNMENT8(space1));
+            //Debug.Assert(_HASALIGNMENT8(space1));
 
             // Load pointers to all cells on sibling pages and the divider cells into the local apCell[] array.  Make copies of the divider cells
             // into space obtained from aSpace1[] and remove the divider cells from pParent.

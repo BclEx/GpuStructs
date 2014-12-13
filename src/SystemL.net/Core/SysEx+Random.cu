@@ -3,7 +3,8 @@
 
 namespace Core
 {
-	__device__ static struct PrngType {
+	__device__ static struct PrngType
+	{
 		unsigned char IsInit;
 		unsigned char I;
 		unsigned char J;
@@ -65,11 +66,11 @@ namespace Core
 #endif
 	}
 
-#if !OMIT_BUILTIN_TEST
-	__device__ static PrngType *_savedPrng = nullptr;
-	__device__ inline static void PrngSaveState() { _memcpy(_savedPrng, &_prng, sizeof(PrngType)); }
-	__device__ inline static void PrngRestoreState() { _memcpy(&_prng, _savedPrng, sizeof(PrngType)); }
-	__device__ inline static void PrngResetState() { _prng.IsInit = false; }
-#endif
+//#if !OMIT_BUILTIN_TEST
+//	__device__ static PrngType *_savedPrng = nullptr;
+//	__device__ inline static void PrngSaveState() { _memcpy(_savedPrng, &_prng, sizeof(PrngType)); }
+//	__device__ inline static void PrngRestoreState() { _memcpy(&_prng, _savedPrng, sizeof(PrngType)); }
+//	__device__ inline static void PrngResetState() { _prng.IsInit = false; }
+//#endif
 
 }

@@ -3476,7 +3476,7 @@ cancel:
 		// struct, the contents of WhereInfo.a[], the WhereClause structure and the WhereMaskSet structure. Since WhereClause contains an 8-byte
 		// field (type Bitmask) it must be aligned on an 8-byte boundary on some architectures. Hence the ROUND8() below.
 		Context *ctx = parse->Ctx; // Database connection
-		int bytesWInfo = SysEx_ROUND8(sizeof(WhereInfo)+(tabListLength-1)*sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
+		int bytesWInfo = _ROUND8(sizeof(WhereInfo)+(tabListLength-1)*sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
 		WhereInfo *winfo = (WhereInfo *)_tagalloc(ctx, bytesWInfo +  sizeof(WhereClause) + sizeof(WhereMaskSet), true); // Will become the return value of this function
 		if (ctx->MallocFailed)
 		{

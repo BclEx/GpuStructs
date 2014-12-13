@@ -160,8 +160,8 @@ __device__ fallocCtx *_fallocTestCtx;
 __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 {
 	_fallocSetHeap(heap);
-	char *testString;
-	int *testInteger;
+	//char *testString;
+	//int *testInteger;
 	switch (key)
 	{
 	case 'a':
@@ -173,10 +173,10 @@ __global__ static void Keypress(fallocHeap *heap, unsigned char key)
 	case 'x':
 		_fallocTestCtx = fallocCreateCtx(heap);
 		break;
-	case 'y':
-		testString = (char *)falloc(_fallocTestCtx, 10);
-		testInteger = falloc<int>(_fallocTestCtx);
-		break;
+	//case 'y':
+	//	testString = (char *)falloc(_fallocTestCtx, 10);
+	//	testInteger = falloc<int>(_fallocTestCtx);
+	//	break;
 	case 'z':
 		fallocDisposeCtx(_fallocTestCtx);
 		break;

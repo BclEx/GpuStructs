@@ -1143,11 +1143,11 @@ namespace Core
 		__device__ inline static RC Sync(Context *ctx, char **error) { return RC_OK; }
 		__device__ static RC Rollback(Context *ctx);
 		__device__ static RC Commit(Context *ctx);
-#define VTable_InSync(ctx) 0
+		__device__ inline static bool InSync(Context *ctx) { return false; }
 		__device__ inline void Lock() {}
 		__device__ inline void Unlock() {}
 		__device__ inline static void UnlockList(Context *ctx) {}
-		__device__ inline static RC Savepoint(Context *ctx, int op, IPager::SAVEPOINT savepoint) { return RC_OK; }
+		__device__ inline static RC Savepoint(Context *ctx, IPager::SAVEPOINT op, int savepoint) { return RC_OK; }
 		__device__ inline static VTable *GetVTable(Context *ctx, Table *table) { return nullptr; }
 #else
 		__device__ static RC CreateModule(Context *ctx, const char *name, const ITableModule *imodule, void *aux, void (*destroy)(void *));
@@ -1168,9 +1168,9 @@ namespace Core
 		__device__ static RC Sync(Context *ctx, char **error);
 		__device__ static RC Rollback(Context *ctx);
 		__device__ static RC Commit(Context *ctx);
-#define VTable_InSync(ctx) ((ctx)->VTrans.length>0 && (ctx)->VTrans==nullptr)
+		__device__ inline static bool InSync(Context *ctx) { return (ctx->VTrans.length > 0 && ctx->VTrans.data == nullptr); }
 		__device__ static RC Begin(Context *ctx, VTable *vtable);
-		__device__ static RC Savepoint(Context *ctx, int op, IPager::SAVEPOINT savepoint);
+		__device__ static RC Savepoint(Context *ctx, IPager::SAVEPOINT op, int savepoint);
 		__device__ static FuncDef *OverloadFunction(Context *ctx, FuncDef *def, int argsLength, Expr *expr);
 		__device__ static void MakeWritable(Parse *parse, Table *table);
 		__device__ static CONFLICT OnConflict(Context *ctx);

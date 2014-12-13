@@ -71,6 +71,21 @@ namespace Core
         public abstract RC CurrentTime(ref double now);
         public abstract RC GetLastError(int bufLength, ref string buf);
 
+        public RC OpenAndAlloc(string path, out VFile file, OPEN flags, out OPEN outFlags)
+        {
+            file = null;
+            outFlags = 0;
+            VFile file2 = CreateOsFile();
+            if (file2 == null)
+                return RC.NOMEM;
+            RC rc = Open(path, file2, flags, out outFlags);
+            if (rc != RC.OK)
+                C._free(ref file2);
+            else
+                file = file2;
+            return rc;
+        }
+
         public static VSystem FindVfs(string name)
         {
             VSystem vfs = null;

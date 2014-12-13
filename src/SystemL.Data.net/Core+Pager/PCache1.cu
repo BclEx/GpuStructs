@@ -98,7 +98,7 @@ namespace Core
 	{
 		if (_pcache1.IsInit)
 		{
-			size = SysEx_ROUNDDOWN8(size);
+			size = _ROUNDDOWN8(size);
 			_pcache1.SizeSlot = size;
 			_pcache1.Slots = _pcache1.FreeSlots = n;
 			_pcache1.Reserves = (n > 90 ? 10 : (n / 10 + 1));

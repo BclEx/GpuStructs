@@ -583,7 +583,7 @@ ptrmap_exit:
 		if (page->IntKey)
 		{
 			if (page->HasData)
-				n += ConvertEx::GetVarint4(&cell[n], &payloadLength);
+				n += ConvertEx::GetVarint32(&cell[n], &payloadLength);
 			else
 				payloadLength = 0;
 			n += ConvertEx::GetVarint(&cell[n], (uint64 *)&info->Key);
@@ -592,7 +592,7 @@ ptrmap_exit:
 		else
 		{
 			info->Data = 0;
-			n += ConvertEx::GetVarint4(&cell[n], &payloadLength);
+			n += ConvertEx::GetVarint32(&cell[n], &payloadLength);
 			info->Key = payloadLength;
 		}
 		info->Payload = payloadLength;
@@ -643,7 +643,7 @@ ptrmap_exit:
 		if (page->IntKey)
 		{
 			if (page->HasData)
-				iter += ConvertEx::GetVarint4(iter, &size);
+				iter += ConvertEx::GetVarint32(iter, &size);
 			else
 				size = 0;
 
@@ -653,7 +653,7 @@ ptrmap_exit:
 			while ((*iter++) & 0x80 && iter < end) { }
 		}
 		else
-			iter += ConvertEx::GetVarint4(iter, &size);
+			iter += ConvertEx::GetVarint32(iter, &size);
 
 		ASSERTCOVERAGE(size == page->MaxLocal);
 		ASSERTCOVERAGE(size == page->MaxLocal + 1);
@@ -2550,7 +2550,7 @@ set_child_ptrmaps_out:
 
 	__device__ int Btree::CursorSize()
 	{
-		return SysEx_ROUND8(sizeof(BtCursor));
+		return _ROUND8(sizeof(BtCursor));
 	}
 
 	__device__ void Btree::CursorZero(BtCursor *p)
@@ -3231,7 +3231,7 @@ set_child_ptrmaps_out:
 					if (page->HasData)
 					{
 						uint32 dummy;
-						cell += ConvertEx::GetVarint4(cell, &dummy);
+						cell += ConvertEx::GetVarint32(cell, &dummy);
 					}
 					int64 cellKeyLength;
 					ConvertEx::GetVarint(cell, (uint64 *)&cellKeyLength);
@@ -4467,7 +4467,7 @@ freepage_out:
 		maxCells = (maxCells + 3) & ~3;
 
 		// Allocate space for memory structures
-		k = bt->PageSize + SysEx_ROUND8(sizeof(MemPage));
+		k = bt->PageSize + _ROUND8(sizeof(MemPage));
 		sizeScratch = // Size of scratch memory requested
 			maxCells * sizeof(uint8 *) // apCell
 			+ maxCells * sizeof(uint16) // szCell
@@ -4484,7 +4484,7 @@ freepage_out:
 		sizeCell = (uint16 *)&cell[maxCells]; // Local size of all cells in apCell[]
 		space1Idx = 0; // First unused byte of aSpace1[]
 		space1 = (uint8 *)&sizeCell[maxCells]; // Space for copies of dividers cells
-		_assert(SysEx_HASALIGNMENT8(space1));
+		_assert(_HASALIGNMENT8(space1));
 
 		// Load pointers to all cells on sibling pages and the divider cells into the local apCell[] array.  Make copies of the divider cells
 		// into space obtained from aSpace1[] and remove the divider cells from pParent.

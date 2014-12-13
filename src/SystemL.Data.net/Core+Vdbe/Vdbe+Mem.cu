@@ -125,7 +125,7 @@ namespace Core {
 		_assert(!(f & (MEM_Str | MEM_Blob)));
 		_assert(f & (MEM_Int | MEM_Real));
 		_assert((mem->Flags & MEM_RowSet) == 0);
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 
 		const int bytes = 32;
 		if (MemGrow(mem, bytes, false))
@@ -214,7 +214,7 @@ namespace Core {
 	__device__ int64 Vdbe::IntValue(Mem *mem)
 	{
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 		MEM flags = mem->Flags;
 		if (flags & MEM_Int) return mem->u.I;
 		else if (flags & MEM_Real) return DoubleToInt64(mem->R);
@@ -232,7 +232,7 @@ namespace Core {
 	__device__ double Vdbe::RealValue(Mem *mem)
 	{
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 		if (mem->Flags & MEM_Real) return mem->R;
 		else if (mem->Flags & MEM_Int) return (double)mem->u.I;
 		else if (mem->Flags & (MEM_Str | MEM_Blob)) { double val = (double)0; ConvertEx::Atof(mem->Z, &val, mem->N, mem->Encode); return val; } // (double)0 In case of SQLITE_OMIT_FLOATING_POINT...
@@ -244,7 +244,7 @@ namespace Core {
 		_assert(mem->Flags & MEM_Real);
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 		mem->u.I = DoubleToInt64(mem->R);
 		// Only mark the value as an integer if
 		//    (1) the round-trip conversion real->int->real is a no-op, and
@@ -267,7 +267,7 @@ namespace Core {
 	{
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 		_assert((mem->Flags & MEM_RowSet) == 0);
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 		mem->u.I = IntValue(mem);
 		MemSetTypeFlag(mem, MEM_Int);
 		return RC_OK;
@@ -276,7 +276,7 @@ namespace Core {
 	__device__ RC Vdbe::MemRealify(Mem *mem)
 	{
 		_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
-		_assert(SysEx_HASALIGNMENT8(mem));
+		_assert(_HASALIGNMENT8(mem));
 		mem->R = RealValue(mem);
 		MemSetTypeFlag(mem, MEM_Real);
 		return RC_OK;

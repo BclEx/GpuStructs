@@ -51,8 +51,14 @@ namespace Core
 	public:
 		__device__ static RC Initialize();
 		__device__ static void Shutdown();
+#ifdef ENABLE_8_3_NAMES
+		__device__ static void FileSuffix3(const char *baseFilename, char *z)
+#else
+		__device__ inline static void FileSuffix3(const char *baseFilename, char *z) { }
+#endif
+		// random
 		__device__ static void PutRandom(int length, void *buffer);
-		// UTF
+		// utf
 		__device__ static uint32 Utf8Read(const unsigned char **z);
 		__device__ static int Utf8CharLen(const char *z, int bytes);
 #if defined(TEST) && defined(_DEBUG)
@@ -91,14 +97,6 @@ namespace Core
 #pragma endregion
 
 	};
-
-#define SysEx_ROUND8(x)     (((x)+7)&~7)
-#define SysEx_ROUNDDOWN8(x) ((x)&~7)
-#ifdef BYTEALIGNED4
-#define SysEx_HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&3) == 0)
-#else
-#define SysEx_HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&7) == 0)
-#endif
 
 #if _DEBUG
 	__device__ inline static RC CORRUPT_BKPT_(int line)

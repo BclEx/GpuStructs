@@ -90,6 +90,9 @@
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu">
       <Filter>Core\IO</Filter>
     </CudaCompile>
+    <CudaCompile Include="..\SystemL.net\Core\MathEx.cu">
+      <Filter>Core</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\SystemL.net\Core\WinVSystem.cu">

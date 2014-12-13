@@ -82,7 +82,7 @@ namespace Core
 #endif
         }
 
-        public static void __PutRandom__(int length, ref long bufferIdx)
+        public static void PutRandom(int length, ref long bufferIdx)
         {
             bufferIdx = 0;
             byte[] b = new byte[length];
@@ -97,11 +97,11 @@ namespace Core
 #endif
         }
 
-#if !OMIT_BUILTIN_TEST
-        static PrngType _savedPrng = null;
-        static void PrngSaveState() { _savedPrng = _prng.memcpy(); }
-        static void PrngRestoreState() { _prng = _savedPrng.memcpy(); }
-        static void PrngResetState() { _prng.IsInit = false; }
-#endif
+//#if !OMIT_BUILTIN_TEST
+//        static PrngType _savedPrng = null;
+//        static void PrngSaveState() { _savedPrng = _prng.memcpy(); }
+//        static void PrngRestoreState() { _prng = _savedPrng.memcpy(); }
+//        static void PrngResetState() { _prng.IsInit = false; }
+//#endif
     }
 }

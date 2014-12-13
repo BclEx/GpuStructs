@@ -3537,7 +3537,7 @@ namespace Core
             // struct, the contents of WhereInfo.a[], the WhereClause structure and the WhereMaskSet structure. Since WhereClause contains an 8-byte
             // field (type Bitmask) it must be aligned on an 8-byte boundary on some architectures. Hence the ROUND8() below.
             Context ctx = parse.Ctx; // Data_base connection
-            //: int bytesWInfo = SysEx_ROUND8(sizeof(WhereInfo) + (tabListLength - 1) * sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
+            //: int bytesWInfo = _ROUND8(sizeof(WhereInfo) + (tabListLength - 1) * sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
             WhereInfo winfo = new WhereInfo { Data = new WhereLevel[tabList.Srcs] }; // Will become the return value of this function
             for (int ai = 0; ai < winfo.Data.Length; ai++)
                 winfo.Data[ai] = new WhereLevel();

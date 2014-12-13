@@ -955,6 +955,8 @@ namespace Core
         public bool Constraint;			    // True if constraints are supported
         public int Savepoints;				// Depth of the SAVEPOINT stack
         public VTable Next;				    // Next in linked list (see above)
+
+        public static bool InSync(Context ctx) { return (ctx.VTrans.length > 0 && ctx.VTrans.data == null); }
     }
 
     public enum TF : byte

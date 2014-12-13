@@ -33,7 +33,7 @@ namespace Core { namespace IO
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
 		__device__ virtual RC Close();
-		__device__ virtual RC Sync(int flags);
+		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 	};
 
@@ -116,7 +116,7 @@ namespace Core { namespace IO
 		return RC_OK;
 	}
 
-	__device__ RC MemoryVFile::Sync(int flags)
+	__device__ RC MemoryVFile::Sync(SYNC flags)
 	{
 		return RC_OK;
 	}
@@ -130,7 +130,7 @@ namespace Core { namespace IO
 	// extensions
 	__device__ void VFile::MemoryVFileOpen(VFile *file)
 	{
-		_assert(SysEx_HASALIGNMENT8(file));
+		_assert(_HASALIGNMENT8(file));
 		_memset(file, 0, MemoryVFileSize());
 		file = new (file) MemoryVFile();
 		file->Type = 1;

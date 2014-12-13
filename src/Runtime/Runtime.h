@@ -14,6 +14,14 @@
 
 #pragma endregion
 
+#define _ROUND8(x)     (((x)+7)&~7)
+#define _ROUNDDOWN8(x) ((x)&~7)
+#ifdef BYTEALIGNED4
+#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&3) == 0)
+#else
+#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&7) == 0)
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // RUNTIME
 //struct cudaRuntime

@@ -14,7 +14,7 @@ namespace Core
 	struct KeyInfo
 	{
 		BContext *Ctx;		// The database connection
-		uint8 Enc;			// Text encoding - one of the SQLITE_UTF* values
+		TEXTENCODE Encode;	// Text encoding - one of the SQLITE_UTF* values
 		uint16 Fields;      // Number of entries in aColl[]
 		uint8 *SortOrders;  // Sort order for each column.  May be NULL
 		CollSeq *Colls[1];  // Collating sequence for each term of the key

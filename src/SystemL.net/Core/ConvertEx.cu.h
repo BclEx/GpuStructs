@@ -10,14 +10,20 @@
 		TEXTENCODE_UTF16_ALIGNED = 8, // sqlite3_create_collation only
 	};
 
+#define ConvertEx_GetVarint32(A,B) \
+	(uint8)((*(A)<(uint8)0x80)?((B)=(uint32)*(A)),1:\
+	ConvertEx::GetVarint32((A),(u32 *)&(B)))
+#define ConvertEx_PutVarint32(A,B) \
+	(uint8)(((uint32)(B)<(uint32)0x80)?(*(A)=(unsigned char)(B)),1:\
+	ConvertEx::PutVarint32((A),(B)))
 	class ConvertEx
 	{
 	public:
 #pragma region Varint
 		__device__ static int PutVarint(unsigned char *p, uint64 v);
-		__device__ static int PutVarint4(unsigned char *p, uint32 v);
+		__device__ static int PutVarint32(unsigned char *p, uint32 v);
 		__device__ static uint8 GetVarint(const unsigned char *p, uint64 *v);
-		__device__ static uint8 GetVarint4(const unsigned char *p, uint32 *v);
+		__device__ static uint8 GetVarint32(const unsigned char *p, uint32 *v);
 		__device__ static int GetVarintLength(uint64 v);
 #pragma endregion
 #pragma region AtoX

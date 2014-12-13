@@ -43,8 +43,8 @@ namespace Core
 		// the cache is out of date.
 		//
 		// aRow might point to (ephemeral) data for the current row, or it might be NULL.
-		uint32 cacheStatus;     // Cache is valid if this matches Vdbe.cacheCtr
-		int payloadSize;		// Total number of bytes in the record
+		uint32 CacheStatus;     // Cache is valid if this matches Vdbe.cacheCtr
+		int PayloadSize;		// Total number of bytes in the record
 		uint32 *Types;          // Type values for all entries in the record
 		uint32 *Offsets;        // Cached offsets to the start of each columns data
 		uint8 *Rows;            // Data for the current row, if all on one page
@@ -66,7 +66,7 @@ namespace Core
 		int Changes;				// Statement changes (Vdbe.nChanges)
 	};
 
-#define VdbeFrameMem(p) ((Mem *)&((uint8 *)p)[SysEx_ROUND8(sizeof(VdbeFrame))])
+#define VdbeFrameMem(p) ((Mem *)&((uint8 *)p)[_ROUND8(sizeof(VdbeFrame))])
 
 #define CACHE_STALE 0 // A value for VdbeCursor.cacheValid that means the cache is always invalid.
 

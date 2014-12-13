@@ -40,15 +40,15 @@ namespace Core
 
 	__device__ RowSet *RowSet_Init(Context *db, void *space, unsigned int n)
 	{
-		_assert(n >= SysEx_ROUND8(sizeof(RowSet **)));
+		_assert(n >= _ROUND8(sizeof(RowSet **)));
 		RowSet *p = (RowSet *)space;
 		p->Chunk = nullptr;
 		p->Db = db;
 		p->Entry = nullptr;
 		p->Last = nullptr;
 		p->Forest = nullptr;
-		p->Fresh = (struct RowSetEntry *)(SysEx_ROUND8(sizeof(*p)) + (char *)p);
-		p->Fresh.length = (uint16)((n - SysEx_ROUND8(sizeof(*p))) / sizeof(RowSetEntry));
+		p->Fresh = (struct RowSetEntry *)(_ROUND8(sizeof(*p)) + (char *)p);
+		p->Fresh.length = (uint16)((n - _ROUND8(sizeof(*p))) / sizeof(RowSetEntry));
 		p->Flags = ROWSET_SORTED;
 		p->Batch = 0;
 		return p;

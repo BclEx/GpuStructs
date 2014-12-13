@@ -178,26 +178,18 @@ namespace Core
 
 		__device__ void FreeCursor(VdbeCursor *);
 		__device__ void PopStack(int);
-		__device__ static int CursorMoveto(VdbeCursor *);
-		__device__ static uint32 SerialTypeLen(uint32);
-		__device__ static uint32 SerialType(Mem *, int);
-		__device__ static uint32 SerialPut(unsigned char *, int, Mem *, int);
-		__device__ static uint32 SerialGet(const unsigned char *, uint32, Mem *);
-		__device__ static void DeleteAuxData(VdbeFunc *, int);
-
 		__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
-		__device__ static int IdxKeyCompare(VdbeCursor *, UnpackedRecord *, int *);
-		__device__ static int IdxRowid(Context *, BtCursor *, int64 *);
-		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll); //@.mem
+		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll);
 		__device__ int Exec();
-		__device__ int List();
-		__device__ int Halt();
-
-		__device__ static const char *sqlite3OpcodeName(int);
+		__device__ static const char *OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);
-		__device__ static int FrameRestore(VdbeFrame *);
 		__device__ static void MemStoreType(Mem *mem);
-		__device__ int TransferError();
+		__device__ int CurrentAddr();
+		__device__ void ResetStepResult();
+
+
+
+
 
 #pragma region Vdbe+Api
 		// name1
@@ -390,41 +382,40 @@ namespace Core
 		__device__ static int FrameRestore(VdbeFrame *frame);
 		__device__ void SetNumCols(int resColumns);
 		__device__ RC SetColName(int idx, int var, const char *name, void (*del)(void*));
-
-
-
-
-
-
-
-		__device__ void Delete();
-		__device__ static void ClearObject(Context *, Vdbe *);
-		__device__ void MakeReady(Parse *);
-
-		__device__ int CurrentAddr();
+		__device__ RC CloseStatement(IPager::SAVEPOINT op);
+#ifndef OMIT_FOREIGN_KEY
+		__device__ RC CheckFk(bool deferred);
+#else
+		__device__ inline RC CheckFk(bool deferred) { return 0; }
+#endif
+		__device__ RC Halt();
 		__device__ void ResetStepResult();
-
-		__device__ void SetNumCols(int);
-		__device__ int SetColName(int, int, const char *, void(*)(void *));
+		__device__ RC TransferError();
+		__device__ RC Reset();
+		__device__ RC Finalize();
+		__device__ static void DeleteAuxData(VdbeFunc *func, int mask);
+		__device__ void ClearObject(Context *ctx);
+		__device__ static void Delete(Vdbe *p);
+		__device__ static RC CursorMoveto(VdbeCursor *p);
+		// serialize
+		__device__ static uint32 SerialType(Mem *mem, int fileFormat);
+		__device__ static uint32 SerialTypeLen(uint32 serialType);
+		__device__ static uint32 SerialPut(uint8 *buf, int bufLength, Mem *mem, int fileFormat);
+		__device__ static uint32 SerialGet(const unsigned char *buf, uint32 serialType, Mem *mem);
+		// unpacked record
+		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *keyInfo, char *space, int spaceLength, char **freeOut);
+		__device__ static void RecordUnpack(KeyInfo *keyInfo, int keyLength, const void *key, UnpackedRecord *p);
+		__device__ static int RecordCompare(int key1Length, const void *key1, UnpackedRecord *key2);
+		// index entry
+		__device__ static RC IdxRowid(Context *ctx, BtCursor *cur, int64 *rowid);
+		__device__ static RC IdxKeyCompare(VdbeCursor *c, UnpackedRecord *unpacked, int *r);
+		//
+		__device__ static void SetChanges(Context *ctx, int changes);
 		__device__ void CountChanges();
-		__device__ Context *get_Db();
-
-
-		__device__ Mem *GetValue(int, AFF);
-		__device__ void SetVarmask(int);
-
-		__device__ static void RecordUnpack(KeyInfo *, int, const void *, UnpackedRecord *);
-		__device__ static int RecordCompare(int, const void *, UnpackedRecord *);
-		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *, char *, int, char **);
-
-
-
-
-
-
-
-
-
+		__device__ static void ExpirePreparedStatements(Context *ctx);
+		__device__ Context *Vdbe::get_Ctx();
+		__device__ Mem *GetValue(int var, AFF aff);
+		__device__ void SetVarmask(int var);
 #pragma endregion
 
 #pragma region Vdbe+Blob
@@ -523,12 +514,6 @@ namespace Core
 #endif
 #pragma endregion
 
-
-#ifndef OMIT_FOREIGN_KEY
-		__device__ int CheckFk(int);
-#else
-#define CheckFk(i) 0
-#endif
 #ifdef _DEBUG
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif

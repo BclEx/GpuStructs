@@ -57,7 +57,7 @@ namespace Core
 		Mem *mem = &p->Mems[p->Mems.length - curID];
 
 		VdbeCursor *cx = nullptr;
-		int bytes = SysEx_ROUND8(sizeof(VdbeCursor)) +
+		int bytes = _ROUND8(sizeof(VdbeCursor)) +
 			(isBtreeCursor ? Btree::CursorSize() : 0) +
 			2*fields*sizeof(uint32);
 
@@ -74,10 +74,10 @@ namespace Core
 			cx->Db = dbId;
 			cx->Fields = fields;
 			if (fields)
-				cx->Types = (uint32 *)&mem->Z[SysEx_ROUND8(sizeof(VdbeCursor))];
+				cx->Types = (uint32 *)&mem->Z[_ROUND8(sizeof(VdbeCursor))];
 			if (isBtreeCursor)
 			{
-				cx->Cursor = (BtCursor *)&mem->Z[SysEx_ROUND8(sizeof(VdbeCursor)) + 2*fields*sizeof(uint32)];
+				cx->Cursor = (BtCursor *)&mem->Z[_ROUND8(sizeof(VdbeCursor)) + 2*fields*sizeof(uint32)];
 				Btree::CursorZero(cx->Cursor);
 			}
 		}

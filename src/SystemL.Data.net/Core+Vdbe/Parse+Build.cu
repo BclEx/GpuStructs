@@ -1889,8 +1889,8 @@ fk_end:
 		int nameLength = _strlen30(name); // Number of characters in zName
 		int cols = list->Exprs;
 		Index *index = (Index *)_tagalloc(ctx, 
-			SysEx_ROUND8(sizeof(Index)) +			// Index structure
-			SysEx_ROUND8(sizeof(tRowcnt)*(cols+1)) +// Index.aiRowEst
+			_ROUND8(sizeof(Index)) +			// Index structure
+			_ROUND8(sizeof(tRowcnt)*(cols+1)) +// Index.aiRowEst
 			sizeof(char *)*cols +					// Index.azColl
 			sizeof(int)*cols +						// Index.aiColumn
 			sizeof(uint8)*cols +                    // Index.aSortOrder
@@ -1899,10 +1899,10 @@ fk_end:
 		if (ctx->MallocFailed)
 			goto exit_create_index;
 		char *extra = (char *)index;
-		index->RowEsts = (tRowcnt *)&extra[SysEx_ROUND8(sizeof(Index))];
-		index->CollNames = (char **)((char *)index->RowEsts + SysEx_ROUND8(sizeof(tRowcnt)*cols+1));
-		_assert(SysEx_HASALIGNMENT8(index->RowEsts) );
-		_assert(SysEx_HASALIGNMENT8(index->CollNames) );
+		index->RowEsts = (tRowcnt *)&extra[_ROUND8(sizeof(Index))];
+		index->CollNames = (char **)((char *)index->RowEsts + _ROUND8(sizeof(tRowcnt)*cols+1));
+		_assert(_HASALIGNMENT8(index->RowEsts) );
+		_assert(_HASALIGNMENT8(index->CollNames) );
 		index->Columns = (int *)(&index->CollNames[cols]);
 		index->SortOrders = (uint8 *)(&index->Columns[cols]);
 		index->Name = (char *)(&index->SortOrders[cols]);

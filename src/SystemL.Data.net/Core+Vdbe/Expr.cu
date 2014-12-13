@@ -521,7 +521,7 @@ namespace Core
 		int bytes = DupedExprStructSize(expr, flags) & 0xfff;
 		if (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token)
 			bytes += _strlen30(expr->u.Token) + 1;
-		return SysEx_ROUND8(bytes);
+		return _ROUND8(bytes);
 	}
 
 	__device__ static int DupedExprSize(Expr *expr, int flags)

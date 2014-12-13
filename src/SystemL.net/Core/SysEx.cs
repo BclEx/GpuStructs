@@ -31,12 +31,6 @@ namespace Core
 
         internal const int VERSION_NUMBER = 3007016;
 
-        #region Memory Allocation
-
-        public static Action<object> DESTRUCTOR_DYNAMIC;
-
-        #endregion
-
         public static RC Initialize()
         {
             // mutex
@@ -59,6 +53,21 @@ namespace Core
             //MutexEx.Shutdown();
         }
 
+#if ENABLE_8_3_NAMES
+        public static void FileSuffix3(string baseFilename, ref string z)
+        {
+#if ENABLE_8_3_NAMESx2
+		if (!sqlite3_uri_boolean(baseFilename, "8_3_names", 0)) return;
+#endif
+            int sz = z.Length;
+            int i;
+            for (i = sz - 1; i > 0 && z[i] != '/' && z[i] != '.'; i--) { }
+            if (z[i] == '.' && C._ALWAYS(sz > i + 4)) C._memmove(&z[i + 1], &z[sz - 3], 4);
+        }
+#else
+        public static void FileSuffix3(string baseFilename, ref string z) { }
+#endif
+
         //internal static RC OSError(RC rc, string func, string path)
         //{
         //    var sf = new StackTrace(new StackFrame(true)).GetFrame(0);
@@ -73,15 +82,6 @@ namespace Core
         //    //sqlite3_log("os_win.c:%d: (%d) %s(%s) - %s", sf.GetFileLineNumber(), errorID, func, sf.GetFileName(), message);
         //    return rc;
         //}
-
-        public static int ROUND8(int x) { return (x + 7) & ~7; }
-        public static int ROUNDDOWN8(int x) { return x & ~7; }
-
-#if BYTEALIGNED4
-        public static bool HASALIGNMENT8(int x) { return true; }
-#else
-        public static bool HASALIGNMENT8(int x) { return true; }
-#endif
 
 #if DEBUG
         internal static RC CORRUPT_BKPT()
