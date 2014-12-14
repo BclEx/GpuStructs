@@ -196,7 +196,7 @@ namespace Core
             }
         }
 
-        public Table FindTable(Context ctx, string name, string dbName)
+        public static Table FindTable(Context ctx, string name, string dbName)
         {
             Debug.Assert(name != null);
             int nameLength = name.Length;

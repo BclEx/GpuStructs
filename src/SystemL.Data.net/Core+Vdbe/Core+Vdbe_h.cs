@@ -72,6 +72,23 @@ namespace Core
         public string Name;					// SQL name of the function.
         public FuncDef Hash;				// Next with a different name but the same hash
         public FuncDestructor Destructor; // Reference counted destructor function
+
+        internal FuncDef _memcpy()
+        {
+            FuncDef c = new FuncDef();
+            c.Args = Args;
+            c.PrefEncode = PrefEncode;
+            c.Flags = Flags;
+            c.UserData = UserData;
+            c.Next = Next;
+            c.Func = Func;
+            c.Step = Step;
+            c.Finalize = Finalize;
+            c.Name = Name;
+            c.Hash = Hash;
+            c.Destructor = Destructor;
+            return c;
+        }
     }
 
     //   FUNCTION(zName, nArg, iArg, bNC, xFunc)
@@ -117,10 +134,10 @@ namespace Core
         int Column(IVTableCursor a, FuncContext b, int c);
         int Rowid(IVTableCursor a, long[] rowid);
         int Update(VTable a, int b, Mem[] c, long[] d);
-        int Begin(VTable vtab);
-        int Sync(VTable vtab);
-        int Commit(VTable vtab);
-        int Rollback(VTable vtab);
+        int Begin(IVTable vtab);
+        int Sync(IVTable vtab);
+        int Commit(IVTable vtab);
+        int Rollback(IVTable vtab);
         int FindFunction(VTable vtab, int argsLength, string name, Action<FuncContext, int, Mem[]> func, object[] args);
         int Rename(VTable vtab, string new_);
         int Savepoint(VTable vtab, int a);
@@ -169,7 +186,7 @@ namespace Core
         public double EstimatedCost;    // Estimated cost of using this index
     }
 
-    public struct IVTable
+    public class IVTable
     {
         public ITableModule IModule;	// The module for this virtual table
         public string ErrMsg;			// Error message from sqlite3_mprintf()

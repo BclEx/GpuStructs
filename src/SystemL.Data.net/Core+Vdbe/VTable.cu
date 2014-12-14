@@ -6,7 +6,7 @@ namespace Core
 {
 	struct VTableContext
 	{
-		VTable *VTable;   // The virtual table being constructed
+		VTable *VTable;		// The virtual table being constructed
 		Table *Table;		// The Table object to which the virtual table belongs
 	};
 
@@ -28,12 +28,12 @@ namespace Core
 				module->IModule = imodule;
 				module->Aux = aux;
 				module->Destroy = destroy;
-				TableModule *delModule = (TableModule *)ctx->Modules.Insert(nameCopy, nameLength, (void *)module);
-				_assert(!delModule || delModule == module);
-				if (delModule)
+				TableModule *del = (TableModule *)ctx->Modules.Insert(nameCopy, nameLength, (void *)module);
+				_assert(!del || del == module);
+				if (del)
 				{
 					ctx->MallocFailed = true;
-					_tagfree(ctx, delModule);
+					_tagfree(ctx, del);
 				}
 			}
 		}
@@ -66,7 +66,7 @@ namespace Core
 		if (Refs == 0)
 		{
 			if (IVTable)
-				((ITableModule *)IVTable->IModule)->Disconnect(this->IVTable);
+				((ITableModule *)IVTable->IModule)->Disconnect(IVTable);
 			_tagfree(ctx, this);
 		}
 	}
@@ -120,7 +120,7 @@ namespace Core
 	__device__ void VTable::UnlockList(Context *ctx)
 	{
 		_assert(Btree::HoldsAllMutexes(ctx));
-		_assert(MutexEx::Held(ctx->Mutex) );
+		_assert(MutexEx::Held(ctx->Mutex));
 		VTable *vtable = ctx->Disconnect;
 		ctx->Disconnect = nullptr;
 		if (vtable)
@@ -164,26 +164,26 @@ namespace Core
 		else
 		{
 			moduleArgs[i] = arg;
-			moduleArgs[i + 1] = 0;
+			moduleArgs[i + 1] = nullptr;
 		}
 		table->ModuleArgs = moduleArgs;
 	}
 
-	__device__ void VTable::BeginParse(Parse *parse, Token *name1, Token *name2, Token *moduleName, int ifNotExists)
+	__device__ void VTable::BeginParse(Parse *parse, Token *name1, Token *name2, Token *moduleName, bool ifNotExists)
 	{
-		sqlite3StartTable(parse, name1, name2, 0, 0, 1, ifNotExists);
+		parse->StartTable(name1, name2, false, false, true, ifNotExists);
 		Table *table = parse->NewTable; // The new virtual table
 		if (!table) return;
-		_assert(table->Index == 0);
+		_assert(table->Index == nullptr);
 
 		Context *ctx = parse->Ctx; // Database connection
-		int dbidx = sqlite3SchemaToIndex(ctx, table->Schema); // The database the table is being created in
-		_assert(dbidx >= 0);
+		int db = sqlite3SchemaToIndex(ctx, table->Schema); // The database the table is being created in
+		_assert(db >= 0);
 
 		table->TabFlags |= TF_Virtual;
 		table->ModuleArgs.length = 0;
-		AddModuleArgument(ctx, table, sqlite3NameFromToken(ctx, moduleName));
-		AddModuleArgument(ctx, table, 0);
+		AddModuleArgument(ctx, table, Parse::NameFromToken(ctx, moduleName));
+		AddModuleArgument(ctx, table, nullptr);
 		AddModuleArgument(ctx, table, _tagstrdup(ctx, table->Name));
 		parse->NameToken.length = (int)(&moduleName[moduleName->length] - name1);
 
@@ -191,15 +191,15 @@ namespace Core
 		// Creating a virtual table invokes the authorization callback twice. The first invocation, to obtain permission to INSERT a row into the
 		// sqlite_master table, has already been made by sqlite3StartTable(). The second call, to obtain permission to create the table, is made now.
 		if (table->ModuleArgs)
-			sqlite3AuthCheck(parse, OP_CREATE_VTABLE, table->Name, table->ModuleArgs[0], parse->Ctx->DBs[dbidx].Name);
+			Auth::Check(parse, AUTH_CREATE_VTABLE, table->Name, table->ModuleArgs[0], ctx->DBs[db].Name);
 #endif
 	}
 
 	__device__ static void AddArgumentToVTable(Parse *parse)
 	{
-		if (parse->Arg && parse->NewTable)
+		if (parse->Arg.data && parse->NewTable)
 		{
-			const char *z = (const char*)parse->Arg;
+			const char *z = (const char*)parse->Arg.data;
 			int length = parse->Arg.length;
 			Context *ctx = parse->Ctx;
 			AddModuleArgument(ctx, parse->NewTable, _tagstrndup(ctx, z, length));
@@ -213,7 +213,7 @@ namespace Core
 		if (!table)
 			return;
 		AddArgumentToVTable(parse);
-		parse->Arg = nullptr;
+		parse->Arg.data = nullptr;
 		if (table->ModuleArgs.length < 1)
 			return;
 
@@ -225,31 +225,27 @@ namespace Core
 			// Compute the complete text of the CREATE VIRTUAL TABLE statement
 			if (end)
 				parse->NameToken.length = (int)(end->data - parse->NameToken) + end->length;
-			char *stmt = _mprintf(ctx, "CREATE VIRTUAL TABLE %T", &parse->NameToken);
+			char *stmt = _mtagprintf(ctx, "CREATE VIRTUAL TABLE %T", &parse->NameToken);
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
 			// the information we've collected.  
 			//
 			// The VM register number pParse->regRowid holds the rowid of an entry in the sqlite_master table tht was created for this vtab
 			// by sqlite3StartTable().
-			int dbidx = sqlite3SchemaToIndex(ctx, table->Schema);
-			sqlite3NestedParse(parse,
-				"UPDATE %Q.%s "
-				"SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q "
-				"WHERE rowid=#%d",
-				ctx->DBs[dbidx].Name, SCHEMA_TABLE(dbidx),
-				table->Name,
-				table->Name,
+			int db = sqlite3SchemaToIndex(ctx, table->Schema);
+			parse->NestedParse("UPDATE %Q.%s SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q WHERE rowid=#%d",
+				ctx->DBs[db].Name, SCHEMA_TABLE(db),
+				table->Name, table->Name,
 				stmt,
 				parse->RegRowid);
 			_tagfree(ctx, stmt);
-			Vdbe *v = Vdbe::GetVdbe(parse);
-			sqlite3ChangeCookie(parse, dbidx);
+			Vdbe *v = parse->GetVdbe();
+			parse->ChangeCookie(db);
 
-			Vdbe::AddOp2(v, OP_Expire, 0, 0);
-			char *where = _mprintf(ctx, "name='%q' AND type='table'", table->Name);
-			Vdbe::AddParseSchemaOp(v, dbidx, where);
-			Vdbe::AddOp4(v, OP_VCreate, dbidx, 0, 0, table->Name, _strlen30(table->Name) + 1);
+			v->AddOp2(OP_Expire, 0, 0);
+			char *where_ = _mtagprintf(ctx, "name='%q' AND type='table'", table->Name);
+			v->AddParseSchemaOp(db, where_);
+			v->AddOp4(OP_VCreate, db, 0, 0, table->Name, _strlen30(table->Name) + 1);
 		}
 
 		// If we are rereading the sqlite_master table create the in-memory record of the table. The xConnect() method is not called until
@@ -275,7 +271,7 @@ namespace Core
 	__device__ void VTable::ArgInit(Parse *parse)
 	{
 		AddArgumentToVTable(parse);
-		parse->Arg = nullptr;
+		parse->Arg.data = nullptr;
 		parse->Arg.length = 0;
 	}
 
@@ -295,9 +291,9 @@ namespace Core
 		}
 	}
 
-	__device__ static RC VTableCallConstructor(Context *ctx,  Table *table, TableModule *module, RC (*construct)(Context *, void *, int, const char *const*, IVTable **, char**), char **perror)
+	__device__ static RC VTableCallConstructor(Context *ctx,  Table *table, TableModule *module, RC (*construct)(Context *, void *, int, const char *const*, IVTable **, char**), char **errorOut)
 	{
-		char *moduleName = _mprintf(ctx, "%s", table->Name);
+		char *moduleName = _mtagprintf(ctx, "%s", table->Name);
 		if (!moduleName)
 			return RC_NOMEM;
 
@@ -310,18 +306,18 @@ namespace Core
 		vtable->Ctx = ctx;
 		vtable->Module = module;
 
-		int dbidx = sqlite3SchemaToIndex(ctx, table->Schema);
-		table->ModuleArgs[1] = ctx->DBs[dbidx].Name;
+		int db = sqlite3SchemaToIndex(ctx, table->Schema);
+		table->ModuleArgs[1] = ctx->DBs[db].Name;
 
 		// Invoke the virtual table constructor
 		_assert(&ctx->VTableCtx);
 		_assert(construct);
-		VTableContext vtableCtx;
-		vtableCtx.Table = table;
-		vtableCtx.VTable = vtable;
+		VTableContext sVtableCtx;
+		sVtableCtx.Table = table;
+		sVtableCtx.VTable = vtable;
 		VTableContext *priorCtx = ctx->VTableCtx;
-		ctx->VTableCtx = &vtableCtx;
-		const char *const*args = (const char *const*)table->ModuleArgs;
+		ctx->VTableCtx = &sVtableCtx;
+		const char *const *args = (const char * const*)table->ModuleArgs.data;
 		int argsLength = table->ModuleArgs.length;
 		char *error = nullptr;
 		RC rc = construct(ctx, module->Aux, argsLength, args, &vtable->IVTable, &error);
@@ -332,10 +328,10 @@ namespace Core
 		if (rc != RC_OK)
 		{
 			if (!error)
-				*perror = _mprintf(ctx, "vtable constructor failed: %s", moduleName);
+				*errorOut = _mtagprintf(ctx, "vtable constructor failed: %s", moduleName);
 			else
 			{
-				*perror = _mprintf(ctx, "%s", error);
+				*errorOut = _mtagprintf(ctx, "%s", error);
 				_free(error);
 			}
 			_tagfree(ctx, vtable);
@@ -345,9 +341,9 @@ namespace Core
 			// Justification of ALWAYS():  A correct vtab constructor must allocate the sqlite3_vtab object if successful.
 			vtable->IVTable->IModule = module->IModule;
 			vtable->Refs = 1;
-			if (vtableCtx.Table)
+			if (sVtableCtx.Table)
 			{
-				*perror = _mprintf(ctx, "vtable constructor did not declare schema: %s", table->Name);
+				*errorOut = _mtagprintf(ctx, "vtable constructor did not declare schema: %s", table->Name);
 				vtable->Unlock();
 				rc = RC_ERROR;
 			}
@@ -405,14 +401,14 @@ namespace Core
 		TableModule *module = (TableModule *)ctx->Modules.Find(moduleName, _strlen30(moduleName));
 		if (!module)
 		{
-			Context::ErrorMsg(parse, "no such module: %s", moduleName);
+			parse->ErrorMsg("no such module: %s", moduleName);
 			return RC_ERROR;
 		}
 
 		char *error = nullptr;
 		RC rc = VTableCallConstructor(ctx, table, module, module->IModule->Connect, &error);
 		if (rc != RC_OK)
-			Context::ErrorMsg(parse, "%s", error);
+			parse->ErrorMsg("%s", error);
 		_tagfree(ctx, error);
 		return rc;
 	}
@@ -440,10 +436,9 @@ namespace Core
 		vtable->Lock();
 	}
 
-	__device__ RC VTable::CallCreate(Context *ctx, int dbidx, const char *tableName, char **error)
+	__device__ RC VTable::CallCreate(Context *ctx, int dbidx, const char *tableName, char **errorOut)
 	{
-
-		Table *table = sqlite3FindTable(ctx, tableName, ctx->DBs[dbidx].Name);
+		Table *table = Parse::FindTable(ctx, tableName, ctx->DBs[dbidx].Name);
 		_assert(table && (table->TabFlags & TF_Virtual) != 0 && !table->VTable);
 
 		// Locate the required virtual table module
@@ -455,11 +450,11 @@ namespace Core
 		RC rc = RC_OK;
 		if (!module)
 		{
-			*error = _mprintf(ctx, "no such module: %s", moduleName);
+			*errorOut = _mtagprintf(ctx, "no such module: %s", moduleName);
 			rc = RC_ERROR;
 		}
 		else
-			rc = VTableCallConstructor(ctx, table, module, module->IModule->Create, error);
+			rc = VTableCallConstructor(ctx, table, module, module->IModule->Create, errorOut);
 
 		// Justification of ALWAYS():  The xConstructor method is required to create a valid sqlite3_vtab if it returns SQLITE_OK.
 		if (rc == RC_OK && _ALWAYS(VTable::GetVTable(ctx, table)))
@@ -471,13 +466,13 @@ namespace Core
 		return rc;
 	}
 
-	__device__ RC VTable::DeclareVTable(Context *ctx, const char *createTable)
+	__device__ RC VTable::DeclareVTable(Context *ctx, const char *createTableName)
 	{
 		MutexEx::Enter(ctx->Mutex);
 		Table *table;
 		if (!ctx->VTableCtx || !(table = ctx->VTableCtx->Table))
 		{
-			Context::Error(ctx, RC_MISUSE, 0);
+			sqlite3Error(ctx, RC_MISUSE, nullptr);
 			MutexEx::Leave(ctx->Mutex);
 			return SysEx_MISUSE_BKPT;
 		}
@@ -493,7 +488,7 @@ namespace Core
 			parse->Ctx = ctx;
 			parse->QueryLoops = 1;
 			char *error = nullptr;
-			if (sqlite3RunParser(parse, createTable, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
+			if (sqlite3RunParser(parse, createTableName, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
 			{
 				if (!table->Cols)
 				{
@@ -506,28 +501,28 @@ namespace Core
 			}
 			else
 			{
-				Context::Error(ctx, RC_ERROR, (error ? "%s" : 0), error);
+				sqlite3Error(ctx, RC_ERROR, (error ? "%s" : 0), error);
 				_tagfree(ctx, error);
 				rc = RC_ERROR;
 			}
 			parse->DeclareVTable = false;
 
-			if (parse->Vdbe)
-				Vdbe::Finalize(parse->Vdbe);
-			sqlite3DeleteTable(ctx, parse->NewTable);
+			if (parse->V)
+				parse->V->Finalize();
+			Parse::DeleteTable(ctx, parse->NewTable);
 			_stackfree(ctx, parse);
 		}
 
 		_assert((rc & 0xff) == rc);
-		rc = Context::ApiExit(ctx, rc);
+		rc = SysEx::ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}
 
-	__device__ RC VTable::CallDestroy(Context *ctx, int dbidx, const char *tableName)
+	__device__ RC VTable::CallDestroy(Context *ctx, int db, const char *tableName)
 	{
 		RC rc = RC_OK;
-		Table *table = sqlite3FindTable(ctx, tableName, ctx->DBs[dbidx].Name);
+		Table *table = Parse::FindTable(ctx, tableName, ctx->DBs[db].Name);
 		if (_ALWAYS(table != 0 && table->VTables != 0))
 		{
 			VTable *vtable = VTableDisconnectAll(ctx, table);
@@ -556,37 +551,38 @@ namespace Core
 				IVTable *ivtable = vtable->IVTable;
 				if (ivtable)
 				{
-					RC (*x)(IVTable *); // = *(int (**)(IVTable *))((char *)ivtable->IModule + offset);
-					if (offset == 0)
-						x = ivtable->IModule->Rollback;
-					else if (offset == 1)
-						x = ivtable->IModule->Commit;
+					int (*x)(IVTable *) = *(int (**)(IVTable *))((char *)ivtable->IModule + offset);
+					//if (offset == 0)
+					//	x = ivtable->IModule->Rollback;
+					//else if (offset == 1)
+					//	x = ivtable->IModule->Commit;
 					if (x)
 						x(ivtable);
 				}
-				vtable->Savepoint = 0;
+				vtable->Savepoints = 0;
 				vtable->Unlock();
 			}
 			_tagfree(ctx, ctx->VTrans);
 			ctx->VTrans.length = 0;
-			ctx->VTrans = nullptr;
+			ctx->VTrans.data = nullptr;
 		}
 	}
 
-	__device__ RC VTable::Sync(Context *ctx, char **error)
+	__device__ RC VTable::Sync(Context *ctx, char **errorOut)
 	{
 		RC rc = RC_OK;
-		VTable **vtrans = ctx->VTrans;
-		ctx->VTrans = nullptr;
-		for (int i = 0; rc == RC_OK && i < ctx->VTrans.length; i++)
+		VTable **vtrans = ctx->VTrans.data;
+		ctx->VTrans.data = nullptr;
+		int i;
+		for (i = 0; rc == RC_OK && i < ctx->VTrans.length; i++)
 		{
 			RC (*x)(Core::IVTable *);
 			Core::IVTable *ivtable = vtrans[i]->IVTable;
 			if (ivtable && (x = ivtable->IModule->Sync))
 			{
 				rc = x(ivtable);
-				_tagfree(ctx, *error);
-				*error = _tagstrdup(ctx, ivtable->ErrMsg);
+				_tagfree(ctx, *errorOut);
+				*errorOut = _tagstrdup(ctx, ivtable->ErrMsg);
 				_free(ivtable->ErrMsg);
 			}
 		}
@@ -596,13 +592,13 @@ namespace Core
 
 	__device__ RC VTable::Rollback(Context *ctx)
 	{
-		CallFinaliser(ctx, 0);
+		CallFinaliser(ctx, 0); //: offsetof(IVTable, Rollback)
 		return RC_OK;
 	}
 
 	__device__ RC VTable::Commit(Context *ctx)
 	{
-		CallFinaliser(ctx, 1);
+		CallFinaliser(ctx, 1); //: offsetof(IVTable, Commit)
 		return RC_OK;
 	}
 
@@ -610,7 +606,7 @@ namespace Core
 	{
 		// Special case: If ctx->aVTrans is NULL and ctx->nVTrans is greater than zero, then this function is being called from within a
 		// virtual module xSync() callback. It is illegal to write to virtual module tables in this case, so return SQLITE_LOCKED.
-		if (VTable_InSync(ctx))
+		if (InSync(ctx))
 			return RC_LOCKED;
 		if (!vtable)
 			return RC_OK;
@@ -626,7 +622,8 @@ namespace Core
 			rc = GrowVTrans(ctx);
 			if (rc == RC_OK)
 			{
-				rc = ((ITableModule *)imodule)->Begin(vtable->IVTable);
+				//rc = ((ITableModule *)imodule)->Begin(vtable->IVTable);
+				rc = imodule->Begin(vtable->IVTable);
 				if (rc == RC_OK)
 					AddToVTrans(ctx, vtable);
 			}
@@ -715,7 +712,7 @@ namespace Core
 		for (int i = 0; i < toplevel->VTableLocks.length; i++)
 			if (table == toplevel->VTableLocks[i]) return;
 		int newSize = (toplevel->VTableLocks.length + 1) * sizeof(toplevel->VTableLocks[0]);
-		Table **vtablelocks = (Table **)SysEx::Realloc(toplevel->VTableLocks, newSize);
+		Table **vtablelocks = (Table **)_realloc(toplevel->VTableLocks, newSize);
 		if (vtablelocks)
 		{
 			toplevel->VTableLocks = vtablelocks;
@@ -725,20 +722,20 @@ namespace Core
 			toplevel->Ctx->MallocFailed = true;
 	}
 
+	__constant__ static const CONFLICT _map[] =
+	{
+		CONFLICT_ROLLBACK,
+		CONFLICT_ABORT,
+		CONFLICT_FAIL,
+		CONFLICT_IGNORE,
+		CONFLICT_REPLACE,
+	};
 	__device__ CONFLICT VTable::OnConflict(Context *ctx)
 	{
-		static const CONFLICT map[] =
-		{
-			CONFLICT_ROLLBACK,
-			CONFLICT_ABORT,
-			CONFLICT_FAIL,
-			CONFLICT_IGNORE,
-			CONFLICT_REPLACE,
-		};
 		_assert(OE_Rollback == 1 && OE_Abort == 2 && OE_Fail == 3);
 		_assert(OE_Ignore == 4 && OE_Replace == 5);
 		_assert(ctx->VTableOnConflict >= 1 && ctx->VTableOnConflict <= 5);
-		return map[ctx->VTableOnConflict - 1];
+		return _map[ctx->VTableOnConflict - 1];
 	}
 
 	__device__ RC VTable::Config(Context *ctx, VTABLECONFIG op, void *arg1)
@@ -761,8 +758,7 @@ namespace Core
 			rc = SysEx_MISUSE_BKPT;
 			break;
 		}
-		if (rc != RC_OK)
-			Context::Error(ctx, rc, nullptr);
+		if (rc != RC_OK) sqlite3Error(ctx, rc, nullptr);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}

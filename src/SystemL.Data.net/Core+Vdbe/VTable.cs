@@ -8,46 +8,41 @@ namespace Core
 {
     public class VTableContext
     {
-        public Table pTab;
-        public VTable pVTable;
+        public VTable VTable;  // The virtual table being constructed
+        public Table Table;      // The Table object to which the virtual table belongs
     }
 
     public partial class VTable
     {
-        public static RC CreateModule(Context ctx, string name, ITableModule module, object aux, Action<object> destroy)
+        public static RC CreateModule(Context ctx, string name, ITableModule imodule, object aux, Action<object> destroy)
         {
-            int rc, nName;
-            Module pMod;
-
-            sqlite3_mutex_enter(ctx.mutex);
-            nName = sqlite3Strlen30(name);
-            pMod = new Module();//  (Module)sqlite3DbMallocRaw( db, sizeof( Module ) + nName + 1 );
-            if (pMod != null)
+            RC rc = RC.OK;
+            MutexEx.Enter(ctx.Mutex);
+            int nameLength = name.Length;
+            if (ctx.Modules.Find(name, nameLength, null) != null)
+                rc = SysEx.MISUSE_BKPT();
+            else
             {
-                Module pDel;
-                string zCopy;// = (char )(&pMod[1]);
-                zCopy = name;//memcpy(zCopy, zName, nName+1);
-                pMod.zName = zCopy;
-                pMod.pModule = module;
-                pMod.pAux = aux;
-                pMod.xDestroy = destroy;
-                pDel = (Module)sqlite3HashInsert(ref ctx.aModule, zCopy, nName, pMod);
-                if (pDel != null && pDel.xDestroy != null)
+                TableModule module = new TableModule(); //: _tagalloc(ctx, sizeof(TableModule) + nameLength + 1)
+                if (module != null)
                 {
-                    sqlite3ResetInternalSchema(ctx, -1);
-                    pDel.xDestroy(ref pDel.pAux);
+                    var nameCopy = name;
+                    module.Name = nameCopy;
+                    module.IModule = imodule;
+                    module.Aux = aux;
+                    module.Destroy = destroy;
+                    TableModule del = (TableModule)ctx.Modules.Insert(nameCopy, nameLength, module);
+                    Debug.Assert(del == null && del == module);
+                    if (del != null)
+                    {
+                        ctx.MallocFailed = true;
+                        C._tagfree(ctx, ref del);
+                    }
                 }
-                sqlite3DbFree(ctx, ref pDel);
-                //if( pDel==pMod ){
-                //  db.mallocFailed = 1;
-                //}
             }
-            else if (destroy != null)
-            {
-                destroy(ref aux);
-            }
-            rc = sqlite3ApiExit(ctx, SQLITE_OK);
-            sqlite3_mutex_leave(ctx.mutex);
+            rc = SysEx.ApiExit(ctx, rc);
+            if (rc != RC.OK && destroy != null) destroy(aux);
+            MutexEx.Leave(ctx.Mutex);
             return rc;
         }
 
@@ -56,9 +51,9 @@ namespace Core
             Refs++;
         }
 
-        static VTable sqlite3GetVTable(Context ctx, Table table)
+        public static VTable GetVTable(Context ctx, Table table)
         {
-            Debug.Assert(IsVirtual(table));
+            Debug.Assert(E.IsVirtual(table));
             VTable vtable;
             for (vtable = table.VTables; vtable != null && vtable.Ctx != ctx; vtable = vtable.Next) ;
             return vtable;
@@ -73,9 +68,9 @@ namespace Core
             Refs--;
             if (Refs == 0)
             {
-                if (IVTable)
-                    IVTable.Module.Disconnect(ref IVTable);
-                C._tagfree(ctx, ref this);
+                if (IVTable != null)
+                    IVTable.IModule.Disconnect(IVTable);
+                //C._tagfree(ctx, ref this);
             }
         }
 
@@ -86,8 +81,8 @@ namespace Core
             // database connection that may have an entry in the p->pVTable list.
             Debug.Assert(ctx == null || Btree.SchemaMutexHeld(ctx, 0, table.Schema));
             VTable r = null;
-            VTable vtable = table.VTable;
-            table.VTable = null;
+            VTable vtable = table.VTables;
+            table.VTables = null;
             while (vtable != null)
             {
                 VTable next = vtable.Next;
@@ -96,7 +91,7 @@ namespace Core
                 if (ctx2 == ctx)
                 {
                     r = vtable;
-                    table.VTable = r;
+                    table.VTables = r;
                     r.Next = null;
                 }
                 else
@@ -112,10 +107,10 @@ namespace Core
 
         public static void Disconnect(Context ctx, Table table)
         {
-            Debug.Assert(IsVirtual(table));
-            Debug.Aassert(Btree.HoldsAllMutexes(ctx));
-            Debug.Aassert(MutexEx.Held(ctx.Mutex));
-            for (VTable pvtable = table.VTables; pvtable; pvtable = pvtable.Next)
+            Debug.Assert(E.IsVirtual(table));
+            Debug.Assert(Btree.HoldsAllMutexes(ctx));
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            for (VTable pvtable = table.VTables; pvtable != null; pvtable = pvtable.Next)
                 if (pvtable.Ctx == ctx)
                 {
                     VTable vtable = pvtable;
@@ -124,7 +119,6 @@ namespace Core
                     break;
                 }
         }
-
 
         public static void UnlockList(Context ctx)
         {
@@ -147,809 +141,637 @@ namespace Core
         public static void Clear(Context ctx, Table table)
         {
             if (ctx == null || ctx.BytesFreed == 0)
-                VtableDisconnectAll(null, table);
-            if (table.ModuleArgs != null)
+                VTableDisconnectAll(null, table);
+            if (table.ModuleArgs.data != null)
             {
-                for (int i = 0; i < table.ModuleArgs.Length; i++)
-                    C._tagfree(ctx, ref table.ModuleArgs[i]);
-                C._tagfree(ctx, ref table.ModuleArgs);
+                for (int i = 0; i < table.ModuleArgs.length; i++)
+                    C._tagfree(ctx, ref table.ModuleArgs.data[i]);
+                C._tagfree(ctx, ref table.ModuleArgs.data);
             }
         }
 
         static void AddModuleArgument(Context ctx, Table table, string arg)
         {
             int i = table.ModuleArgs.length++;
-            //int nBytes = sizeof(char )*(1+pTable.nModuleArg);
-            //string[] azModuleArg;
-            //sqlite3DbRealloc( db, pTable.azModuleArg, nBytes );
-            if (table.azModuleArg == null || table.azModuleArg.Length < table.nModuleArg)
-                Array.Resize(ref table.azModuleArg, 3 + table.nModuleArg);
-            //if ( azModuleArg == null )
-            //{
-            //  int j;
-            //  for ( j = 0; j < i; j++ )
-            //  {
-            //    sqlite3DbFree( db, ref pTable.azModuleArg[j] );
-            //  }
-            //  sqlite3DbFree( db, ref zArg );
-            //  sqlite3DbFree( db, ref pTable.azModuleArg );
-            //  pTable.nModuleArg = 0;
-            //}
-            //else
+            //: int bytes = sizeof(char*) * (1 + table->ModuleArgs.length);
+            //: char** moduleArgs = (char**)_tagrealloc(ctx, table->ModuleArgs, bytes);
+            if (table.ModuleArgs.data == null || table.ModuleArgs.data.Length < table.ModuleArgs.length)
+                Array.Resize(ref table.ModuleArgs.data, 3 + table.ModuleArgs.length);
+            if (table.ModuleArgs.data == null)
             {
-                table.azModuleArg[i] = arg;
-                //pTable.azModuleArg[i + 1] = null;
-                //azModuleArg[i+1] = 0;
+                for (int j = 0; j < i; j++)
+                    C._tagfree(ctx, ref table.ModuleArgs.data[j]);
+                C._tagfree(ctx, ref arg);
+                C._tagfree(ctx, ref table.ModuleArgs.data);
+                table.ModuleArgs.length = 0;
             }
-            //pTable.azModuleArg = azModuleArg;
+            else
+            {
+                table.ModuleArgs[i] = arg;
+                //: table.ModuleArgs[i + 1] = null;
+            }
+            //: table.ModuleArgs.data = moduleArgs;
         }
 
-        static void sqlite3VtabBeginParse(
-          Parse pParse,        /* Parsing context */
-          Token pName1,        /* Name of new table, or database name */
-          Token pName2,        /* Name of new table or NULL */
-          Token pModuleName    /* Name of the module for the virtual table */
-        )
+        public static void BeginParse(Parse parse, Token name1, Token name2, Token moduleName, bool ifNotExists)
         {
-            int iDb;              /* The database the table is being created in */
-            Table pTable;        /* The new virtual table */
-            sqlite3 db;          /* Database connection */
+            parse.StartTable(name1, name2, false, false, true, false);
+            Table table = parse.NewTable; // The new virtual table
+            if (table == null) return;
+            Debug.Assert(table.Index == null);
 
-            sqlite3StartTable(pParse, pName1, pName2, 0, 0, 1, 0);
-            pTable = pParse.pNewTable;
-            if (pTable == null)
-                return;
-            Debug.Assert(null == pTable.pIndex);
+            Context ctx = parse.Ctx; // Database connection
+            int db = sqlite3SchemaToIndex(ctx, table.Schema); // The database the table is being created in
+            Debug.Assert(db >= 0);
 
-            db = pParse.db;
-            iDb = sqlite3SchemaToIndex(db, pTable.pSchema);
-            Debug.Assert(iDb >= 0);
-
-            pTable.tabFlags |= TF_Virtual;
-            pTable.nModuleArg = 0;
-            addModuleArgument(db, pTable, sqlite3NameFromToken(db, pModuleName));
-            addModuleArgument(db, pTable, db.aDb[iDb].zName);//sqlite3DbStrDup( db, db.aDb[iDb].zName ) );
-            addModuleArgument(db, pTable, pTable.zName);//sqlite3DbStrDup( db, pTable.zName ) );
-            pParse.sNameToken.n = pParse.sNameToken.z.Length;//      (int)[pModuleName.n] - pName1.z );
+            table.TabFlags |= TF.Virtual;
+            table.ModuleArgs.length = 0;
+            AddModuleArgument(ctx, table, Parse.NameFromToken(ctx, moduleName));
+            AddModuleArgument(ctx, table, null);
+            AddModuleArgument(ctx, table, table.Name);
+            parse.NameToken.length = parse.NameToken.data.Length; //: (int)(&moduleName[moduleName->length] - name1);
 
 #if !OMIT_AUTHORIZATION
-            /* Creating a virtual table invokes the authorization callback twice.
-  ** The first invocation, to obtain permission to INSERT a row into the
-  ** sqlite_master table, has already been made by sqlite3StartTable().
-  ** The second call, to obtain permission to create the table, is made now.
-  */
-            if (pTable->azModuleArg)
-            {
-                sqlite3AuthCheck(pParse, SQLITE_CREATE_VTABLE, pTable->zName,
-                        pTable->azModuleArg[0], pParse->db->aDb[iDb].zName);
-            }
+            // Creating a virtual table invokes the authorization callback twice. The first invocation, to obtain permission to INSERT a row into the
+            // sqlite_master table, has already been made by sqlite3StartTable(). The second call, to obtain permission to create the table, is made now.
+            if (table->ModuleArgs.data != null)
+                Auth.Check(parse, AUTH.CREATE_VTABLE, table.Name, table.ModuleArgs[0], ctx.DBs[db].Name);
 #endif
         }
 
-        static void addArgumentToVtab(Parse pParse)
+        static void AddArgumentToVtab(Parse parse)
         {
-            if (pParse.sArg.z != null && ALWAYS(pParse.pNewTable))
+            if (parse.Arg.data != null && C._ALWAYS(parse.NewTable != null))
             {
-                string z = pParse.sArg.z.Substring(0, pParse.sArg.n);
-                int n = pParse.sArg.n;
-                sqlite3 db = pParse.db;
-                addModuleArgument(db, pParse.pNewTable, z);///sqlite3DbStrNDup( db, z, n ) );
+                string z = parse.Arg.data.Substring(0, (int)parse.Arg.length);
+                //: uint length = parse.Arg.length;
+                Context ctx = parse.Ctx;
+                AddModuleArgument(ctx, parse.NewTable, z);
             }
         }
 
-        static void sqlite3VtabFinishParse(Parse pParse, Token pEnd)
+        public static void FinishParse(Parse parse, Token end)
         {
-            Table pTab = pParse.pNewTable;  /* The table being constructed */
-            sqlite3 db = pParse.db;         /* The database connection */
-
-            if (pTab == null)
+            Table table = parse.NewTable; // The table being constructed
+            Context ctx = parse.Ctx; // The database connection
+            if (table == null)
                 return;
-            addArgumentToVtab(pParse);
-            pParse.sArg.z = "";
-            if (pTab.nModuleArg < 1)
+            AddArgumentToVtab(parse);
+            parse.Arg.data = null;
+            if (table.ModuleArgs.length < 1)
                 return;
 
-            /* If the CREATE VIRTUAL TABLE statement is being entered for the
-            ** first time (in other words if the virtual table is actually being
-            ** created now instead of just being read out of sqlite_master) then
-            ** do additional initialization work and store the statement text
-            ** in the sqlite_master table.
-            */
-            if (0 == db.init.busy)
+            // If the CREATE VIRTUAL TABLE statement is being entered for the first time (in other words if the virtual table is actually being
+            // created now instead of just being read out of sqlite_master) then do additional initialization work and store the statement text
+            // in the sqlite_master table.
+            if (!ctx.Init.Busy)
             {
-                string zStmt;
-                string zWhere;
-                int iDb;
-                Vdbe v;
+                // Compute the complete text of the CREATE VIRTUAL TABLE statement
+                if (end != null)
+                    parse.NameToken.length = (uint)parse.NameToken.data.Length; //: (int)(end->data - parse->NameToken) + end->length;
+                string stmt = C._mtagprintf(ctx, "CREATE VIRTUAL TABLE %T", parse.NameToken); //.Z.Substring(0, parse.NameToken.length));
 
-                /* Compute the complete text of the CREATE VIRTUAL TABLE statement */
-                if (pEnd != null)
-                {
-                    pParse.sNameToken.n = pParse.sNameToken.z.Length;//(int)( pEnd.z - pParse.sNameToken.z ) + pEnd.n;
-                }
-                zStmt = sqlite3MPrintf(db, "CREATE VIRTUAL TABLE %T", pParse.sNameToken.z.Substring(0, pParse.sNameToken.n));
-
-                /* A slot for the record has already been allocated in the 
-                ** SQLITE_MASTER table.  We just need to update that slot with all
-                ** the information we've collected.  
-                **
-                ** The VM register number pParse.regRowid holds the rowid of an
-                ** entry in the sqlite_master table tht was created for this vtab
-                ** by sqlite3StartTable().
-                */
-                iDb = sqlite3SchemaToIndex(db, pTab.pSchema);
-                sqlite3NestedParse(pParse,
-                  "UPDATE %Q.%s " +
-                     "SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q " +
-                   "WHERE rowid=#%d",
-                  db.aDb[iDb].zName, SCHEMA_TABLE(iDb),
-                  pTab.zName,
-                  pTab.zName,
-                  zStmt,
-                  pParse.regRowid
+                // A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
+                // the information we've collected.  
+                //
+                // The VM register number pParse->regRowid holds the rowid of an entry in the sqlite_master table tht was created for this vtab
+                // by sqlite3StartTable().
+                int db = sqlite3SchemaToIndex(ctx, table.Schema);
+                parse.NestedParse("UPDATE %Q.%s SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q WHERE rowid=#%d",
+                  ctx.DBs[db].Name, E.SCHEMA_TABLE(db),
+                  table.Name, table.Name,
+                  stmt,
+                  parse.RegRowid
                 );
-                sqlite3DbFree(db, ref zStmt);
-                v = sqlite3GetVdbe(pParse);
-                sqlite3ChangeCookie(pParse, iDb);
+                C._tagfree(ctx, ref stmt);
+                Vdbe v = parse.GetVdbe();
+                parse.ChangeCookie(db);
 
-                sqlite3VdbeAddOp2(v, OP_Expire, 0, 0);
-                zWhere = sqlite3MPrintf(db, "name='%q' AND type='table'", pTab.zName);
-                sqlite3VdbeAddParseSchemaOp(v, iDb, zWhere);
-                sqlite3VdbeAddOp4(v, OP_VCreate, iDb, 0, 0,
-                                     pTab.zName, sqlite3Strlen30(pTab.zName) + 1);
+                v.AddOp2(OP.Expire, 0, 0);
+                string where_ = C._mtagprintf(ctx, "name='%q' AND type='table'", table.Name);
+                v.AddParseSchemaOp(db, where_);
+                v.AddOp4(OP.VCreate, db, 0, 0, table.Name, (Vdbe.P4T)table.Name.Length + 1);
             }
 
-            /* If we are rereading the sqlite_master table create the in-memory
-            ** record of the table. The xConnect() method is not called until
-            ** the first time the virtual table is used in an SQL statement. This
-            ** allows a schema that contains virtual tables to be loaded before
-            ** the required virtual table implementations are registered.  */
+            // If we are rereading the sqlite_master table create the in-memory record of the table. The xConnect() method is not called until
+            // the first time the virtual table is used in an SQL statement. This allows a schema that contains virtual tables to be loaded before
+            // the required virtual table implementations are registered.
             else
             {
-                Table pOld;
-                Schema pSchema = pTab.pSchema;
-                string zName = pTab.zName;
-                int nName = sqlite3Strlen30(zName);
-                Debug.Assert(sqlite3SchemaMutexHeld(db, 0, pSchema));
-                pOld = sqlite3HashInsert(ref pSchema.tblHash, zName, nName, pTab);
-                if (pOld != null)
+                Schema schema = table.Schema;
+                string name = table.Name;
+                int nameLength = name.Length;
+                Debug.Assert(Btree.SchemaMutexHeld(ctx, 0, schema));
+                Table oldTable = schema.TableHash.Insert(name, nameLength, table);
+                if (oldTable != null)
                 {
-                    //db.mallocFailed = 1;
-                    Debug.Assert(pTab == pOld);  /* Malloc must have failed inside HashInsert() */
+                    ctx.MallocFailed = true;
+                    Debug.Assert(table == oldTable); // Malloc must have failed inside HashInsert()
                     return;
                 }
-                pParse.pNewTable = null;
+                parse.NewTable = null;
             }
         }
 
-        static void sqlite3VtabArgInit(Parse pParse)
+        public static void ArgInit(Parse parse)
         {
-            addArgumentToVtab(pParse);
-            pParse.sArg.z = null;
-            pParse.sArg.n = 0;
+            AddArgumentToVtab(parse);
+            parse.Arg.data = null;
+            parse.Arg.length = 0;
         }
 
-        static void sqlite3VtabArgExtend(Parse pParse, Token p)
+        public static void ArgExtend(Parse parse, Token token)
         {
-            Token pArg = pParse.sArg;
-            if (pArg.z == null)
+            Token arg = parse.Arg;
+            if (arg.data == null)
             {
-                pArg.z = p.z;
-                pArg.n = p.n;
+                arg.data = token.data;
+                arg.length = token.length;
             }
             else
             {
-                //Debug.Assert( pArg.z< p.z );
-                pArg.n += p.n + 1;//(int)( p.z[p.n] - pArg.z );
+                //: Debug.Assert(arg < token);
+                arg.length += token.length + 1; //: (int)(&token[token->length] - arg);
             }
         }
 
-        static int vtabCallConstructor(sqlite3 db, Table pTab, Module pMod, smdxCreateConnect xConstruct, ref string pzErr)
+        public delegate RC Construct_t(Context ctx, object aux, int argsLength, string[] args, out IVTable vtable, out string error);
+        static RC VTableCallConstructor(Context ctx, Table table, TableModule module, Construct_t construct, ref string errorOut)
         {
-            VtabCtx sCtx = new VtabCtx();
-            VTable pVTable;
-            int rc;
-            string[] azArg = pTab.azModuleArg;
-            int nArg = pTab.nModuleArg;
-            string zErr = null;
-            string zModuleName = sqlite3MPrintf(db, "%s", pTab.zName);
+            string moduleName = table.Name;
+            if (moduleName == null)
+                return RC.NOMEM;
 
-            //if ( String.IsNullOrEmpty( zModuleName ) )
-            //{
-            //  return SQLITE_NOMEM;
-            //}
-
-            pVTable = new VTable();//sqlite3DbMallocZero( db, sizeof( VTable ) );
-            //if ( null == pVTable )
-            //{
-            //  sqlite3DbFree( db, ref zModuleName );
-            //  return SQLITE_NOMEM;
-            //}
-            pVTable.db = db;
-            pVTable.pMod = pMod;
-
-            /* Invoke the virtual table constructor */
-            //assert( &db->pVtabCtx );
-            Debug.Assert(xConstruct != null);
-            sCtx.pTab = pTab;
-            sCtx.pVTable = pVTable;
-            db.pVtabCtx = sCtx;
-            rc = xConstruct(db, pMod.pAux, nArg, azArg, out pVTable.pVtab, out zErr);
-            db.pVtabCtx = null;
-            //if ( rc == SQLITE_NOMEM )
-            //  db.mallocFailed = 1;
-
-            if (SQLITE_OK != rc)
+            VTable vtable = new VTable();
+            if (vtable == null)
             {
-                if (zErr == "")
-                {
-                    pzErr = sqlite3MPrintf(db, "vtable constructor failed: %s", zModuleName);
-                }
-                else
-                {
-                    pzErr = sqlite3MPrintf(db, "%s", zErr);
-                    zErr = null;//sqlite3_free( zErr );
-                }
-                sqlite3DbFree(db, ref pVTable);
+                C._tagfree(ctx, ref moduleName);
+                return RC.NOMEM;
             }
-            else if (ALWAYS(pVTable.pVtab))
+            vtable.Ctx = ctx;
+            vtable.Module = module;
+
+            int db = sqlite3SchemaToIndex(ctx, table.Schema);
+            table.ModuleArgs[1] = ctx.DBs[db].Name;
+
+            // Invoke the virtual table constructor
+            Debug.Assert(ctx.VTableCtx != null);
+            Debug.Assert(construct != null);
+            VTableContext sVtableCtx = new VTableContext();
+            sVtableCtx.Table = table;
+            sVtableCtx.VTable = vtable;
+            VTableContext priorCtx = ctx.VTableCtx;
+            ctx.VTableCtx = sVtableCtx;
+
+            string[] args = table.ModuleArgs.data;
+            int argsLength = table.ModuleArgs.length;
+            string error = null;
+            RC rc = construct(ctx, module.Aux, argsLength, args, out vtable.IVTable, out error);
+            ctx.VTableCtx = null;
+            if (rc == RC.NOMEM)
+                ctx.MallocFailed = true;
+
+            if (rc != RC.OK)
             {
-                /* Justification of ALWAYS():  A correct vtab constructor must allocate
-                ** the sqlite3_vtab object if successful.  */
-                pVTable.pVtab.pModule = pMod.pModule;
-                pVTable.nRef = 1;
-                if (sCtx.pTab != null)
+                if (error == null)
+                    errorOut = C._mtagprintf(ctx, "vtable constructor failed: %s", moduleName);
+                else
                 {
-                    string zFormat = "vtable constructor did not declare schema: %s";
-                    pzErr = sqlite3MPrintf(db, zFormat, pTab.zName);
-                    sqlite3VtabUnlock(pVTable);
-                    rc = SQLITE_ERROR;
+                    errorOut = error;
+                    error = null; //: _free(error);
+                }
+                C._tagfree(ctx, ref vtable);
+            }
+            else if (C._ALWAYS(vtable.IVTable != null))
+            {
+                // Justification of ALWAYS():  A correct vtab constructor must allocate the sqlite3_vtab object if successful.
+                vtable.IVTable.IModule = module.IModule;
+                vtable.Refs = 1;
+                if (sVtableCtx.Table != null)
+                {
+                    errorOut = C._mtagprintf(ctx, "vtable constructor did not declare schema: %s", table.Name);
+                    vtable->Unlock();
+                    rc = RC.ERROR;
                 }
                 else
                 {
-                    int iCol;
-                    /* If everything went according to plan, link the new VTable structure
-                    ** into the linked list headed by pTab->pVTable. Then loop through the 
-                    ** columns of the table to see if any of them contain the token "hidden".
-                    ** If so, set the Column.isHidden flag and remove the token from
-                    ** the type string.  */
-                    pVTable.pNext = pTab.pVTable;
-                    pTab.pVTable = pVTable;
-
-                    for (iCol = 0; iCol < pTab.nCol; iCol++)
+                    // If everything went according to plan, link the new VTable structure into the linked list headed by pTab->pVTable. Then loop through the 
+                    // columns of the table to see if any of them contain the token "hidden". If so, set the Column COLFLAG_HIDDEN flag and remove the token from
+                    // the type string.
+                    vtable.Next = table.VTables;
+                    table.VTables = vtable;
+                    for (int col = 0; col < table.Cols.length; col++)
                     {
-                        if (String.IsNullOrEmpty(pTab.aCol[iCol].zType))
-                            continue;
-                        StringBuilder zType = new StringBuilder(pTab.aCol[iCol].zType);
-                        int nType;
+                        string type = table.Cols[col].Type;
+                        if (type == null) continue;
+                        int typeLength = type.Length;
                         int i = 0;
-                        //if ( zType )
-                        //  continue;
-                        nType = sqlite3Strlen30(zType);
-                        if (sqlite3StrNICmp("hidden", 0, zType.ToString(), 6) != 0 || (zType.Length > 6 && zType[6] != ' '))
+                        if (string.Compare("hidden", 0, type, 0, 6, StringComparison.OrdinalIgnoreCase) == 0 || (type.Length > 6 && type[6] != ' '))
                         {
-                            for (i = 0; i < nType; i++)
-                            {
-                                if ((0 == sqlite3StrNICmp(" hidden", zType.ToString().Substring(i), 7))
-                                 && (i + 7 == zType.Length || (zType[i + 7] == '\0' || zType[i + 7] == ' '))
-                                )
+                            for (i = 0; i < typeLength; i++)
+                                if (string.Compare(" hidden", 0, type, i, 7, StringComparison.OrdinalIgnoreCase) == 0 && (i + 7 == type.Length || (type[i + 7] == '\0' || type[i + 7] == ' ')))
                                 {
                                     i++;
                                     break;
                                 }
-                            }
                         }
-                        if (i < nType)
+                        if (i < typeLength)
                         {
+                            StringBuilder type2 = new StringBuilder(type);
+                            int del = 6 + (type2.Length > i + 6 ? 1 : 0);
                             int j;
-                            int nDel = 6 + (zType.Length > i + 6 ? 1 : 0);
-                            for (j = i; (j + nDel) < nType; j++)
+                            for (j = i; (j + del) < typeLength; j++)
+                                type2[j] = type2[j + del];
+                            if (type2[i] == '\0' && i > 0)
                             {
-                                zType[j] = zType[j + nDel];
+                                Debug.Assert(type[i - 1] == ' ');
+                                type2.Length = i; //: type[i - 1] = '\0';
                             }
-                            if (zType[i] == '\0' && i > 0)
-                            {
-                                Debug.Assert(zType[i - 1] == ' ');
-                                zType.Length = i;//[i - 1] = '\0';
-                            }
-                            pTab.aCol[iCol].isHidden = 1;
-                            pTab.aCol[iCol].zType = zType.ToString().Substring(0, j);
+                            table.Cols[col].ColFlags |= COLFLAG.HIDDEN;
+                            table.Cols[col].Type = type.ToString().Substring(0, j);
                         }
                     }
                 }
             }
 
-            sqlite3DbFree(db, ref zModuleName);
+            C._tagfree(ctx, ref moduleName);
             return rc;
         }
 
-        static int sqlite3VtabCallConnect(Parse pParse, Table pTab)
+        public static RC CallConnect(Parse parse, Table table)
         {
-            sqlite3 db = pParse.db;
-            string zMod;
-            Module pMod;
-            int rc;
+            Debug.Assert(table != null);
+            Context ctx = parse.Ctx;
+            if ((table.TabFlags & TF.Virtual) == 0 || GetVTable(ctx, table) != null)
+                return RC.OK;
 
-            Debug.Assert(pTab != null);
-            if ((pTab.tabFlags & TF_Virtual) == 0 || sqlite3GetVTable(db, pTab) != null)
+            // Locate the required virtual table module
+            string moduleName = table.ModuleArgs[0];
+            TableModule module = (TableModule)ctx.Modules.Find(moduleName, moduleName.Length, (TableModule)null);
+            if (module == null)
             {
-                return SQLITE_OK;
+                parse.ErrorMsg("no such module: %s", moduleName);
+                return RC.ERROR;
             }
 
-            /* Locate the required virtual table module */
-            zMod = pTab.azModuleArg[0];
-            pMod = (Module)sqlite3HashFind(db.aModule, zMod, sqlite3Strlen30(zMod), (Module)null);
-
-            if (null == pMod)
-            {
-                string zModule = pTab.azModuleArg[0];
-                sqlite3ErrorMsg(pParse, "no such module: %s", zModule);
-                rc = SQLITE_ERROR;
-            }
-            else
-            {
-                string zErr = null;
-                rc = vtabCallConstructor(db, pTab, pMod, pMod.pModule.xConnect, ref zErr);
-                if (rc != SQLITE_OK)
-                {
-                    sqlite3ErrorMsg(pParse, "%s", zErr);
-                }
-                zErr = null;//sqlite3DbFree( db, zErr );
-            }
-
+            string error = null;
+            RC rc = VTableCallConstructor(ctx, table, module, module.IModule.Connect, ref error);
+            if (rc != RC.OK)
+                parse.ErrorMsg("%s", error);
+            C._tagfree(ctx, ref error);
             return rc;
         }
 
-        static int growVTrans(sqlite3 db)
+        static RC GrowVTrans(Context ctx)
         {
             const int ARRAY_INCR = 5;
-
-            /* Grow the sqlite3.aVTrans array if required */
-            if ((db.nVTrans % ARRAY_INCR) == 0)
+            // Grow the sqlite3.aVTrans array if required
+            if ((ctx.VTrans.length % ARRAY_INCR) == 0)
             {
-                //VTable** aVTrans;
-                //int nBytes = sizeof( sqlite3_vtab* ) * ( db.nVTrans + ARRAY_INCR );
-                //aVTrans = sqlite3DbRealloc( db, (void)db.aVTrans, nBytes );
-                //if ( !aVTrans )
-                //{
-                //  return SQLITE_NOMEM;
-                //}
-                //memset( &aVTrans[db.nVTrans], 0, sizeof( sqlite3_vtab* ) * ARRAY_INCR );
-                Array.Resize(ref db.aVTrans, db.nVTrans + ARRAY_INCR);
+                //: int bytes = sizeof(IVTable*) * (ctx->VTrans.length + ARRAY_INCR);
+                //: VTable** vtrans = (VTable**)_tagrealloc(ctx, (void*)ctx->VTrans, bytes);
+                //: if (!vtrans)
+                //:     return RC_NOMEM;
+                //: _memset(&vtrans[ctx->VTrans.length], 0, sizeof(IVTable*) * ARRAY_INCR);
+                //: ctx->VTrans = vtrans;
+                Array.Resize(ref ctx.VTrans.data, ctx.VTrans.length + ARRAY_INCR);
             }
-
-            return SQLITE_OK;
+            return RC.OK;
         }
 
-        static void addToVTrans(sqlite3 db, VTable pVTab)
+        static void AddToVTrans(Context ctx, VTable vtable)
         {
-            /* Add pVtab to the end of sqlite3.aVTrans */
-            db.aVTrans[db.nVTrans++] = pVTab;
-            sqlite3VtabLock(pVTab);
+            // Add pVtab to the end of sqlite3.aVTrans
+            ctx.VTrans[ctx.VTrans.length++] = vtable;
+            vtable.Lock();
         }
 
-        static int sqlite3VtabCallCreate(sqlite3 db, int iDb, string zTab, ref string pzErr)
+        public static RC CallCreate(Context ctx, int db, string tableName, ref string errorOut)
         {
-            int rc = SQLITE_OK;
-            Table pTab;
-            Module pMod;
-            string zMod;
 
-            pTab = sqlite3FindTable(db, zTab, db.aDb[iDb].zName);
-            Debug.Assert(pTab != null && (pTab.tabFlags & TF_Virtual) != 0 && null == pTab.pVTable);
+            Table table = Parse.FindTable(ctx, tableName, ctx.DBs[db].Name);
+            Debug.Assert(table != null && (table.TabFlags & TF.Virtual) != 0 && table.VTables == null);
 
-            /* Locate the required virtual table module */
-            zMod = pTab.azModuleArg[0];
-            pMod = (Module)sqlite3HashFind(db.aModule, zMod, sqlite3Strlen30(zMod), (Module)null);
+            // Locate the required virtual table module
+            string moduleName = table.ModuleArgs[0];
+            TableModule module = (TableModule)ctx.Modules.Find(moduleName, moduleName.Length, (TableModule)null);
 
-            /* If the module has been registered and includes a Create method, 
-            ** invoke it now. If the module has not been registered, return an 
-            ** error. Otherwise, do nothing.
-            */
-            if (null == pMod)
+            // If the module has been registered and includes a Create method, invoke it now. If the module has not been registered, return an 
+            // error. Otherwise, do nothing.
+            RC rc = RC.OK;
+            if (module == null)
             {
-                pzErr = sqlite3MPrintf(db, "no such module: %s", zMod);
-                rc = SQLITE_ERROR;
+                errorOut = C._mtagprintf(ctx, "no such module: %s", moduleName);
+                rc = RC.ERROR;
             }
             else
-            {
-                rc = vtabCallConstructor(db, pTab, pMod, pMod.pModule.xCreate, ref pzErr);
-            }
+                rc = VTableCallConstructor(ctx, table, module, module.IModule.Create, ref errorOut);
 
-            /* Justification of ALWAYS():  The xConstructor method is required to
-            ** create a valid sqlite3_vtab if it returns SQLITE_OK. */
-            if (rc == SQLITE_OK && ALWAYS(sqlite3GetVTable(db, pTab)))
+            // Justification of ALWAYS():  The xConstructor method is required to create a valid sqlite3_vtab if it returns SQLITE_OK.
+            if (rc == RC.OK && C._ALWAYS(GetVTable(ctx, table) != null))
             {
-                rc = growVTrans(db);
-                if (rc == SQLITE_OK)
-                {
-                    addToVTrans(db, sqlite3GetVTable(db, pTab));
-                }
+                rc = GrowVTrans(ctx);
+                if (rc == RC.OK)
+                    AddToVTrans(ctx, GetVTable(ctx, table));
             }
-
             return rc;
         }
 
-        static int sqlite3_declare_vtab(sqlite3 db, string zCreateTable)
+        public static RC DeclareVTable(Context ctx, string createTableName)
         {
-            Parse pParse;
-
-            int rc = SQLITE_OK;
-            Table pTab;
-            string zErr = "";
-
-            sqlite3_mutex_enter(db.mutex);
-            if (null == db.pVtabCtx || null == (pTab = db.pVtabCtx.pTab))
+            MutexEx.Enter(ctx.Mutex);
+            Table table;
+            if (ctx.VTableCtx == null || (table = ctx.VTableCtx.Table) == null)
             {
-                sqlite3Error(db, SQLITE_MISUSE, 0);
-                sqlite3_mutex_leave(db.mutex);
-                return SQLITE_MISUSE_BKPT();
+                sqlite3Error(ctx, RC.MISUSE, null);
+                MutexEx.Leave(ctx.Mutex);
+                return SysEx.MISUSE_BKPT();
             }
-            Debug.Assert((pTab.tabFlags & TF_Virtual) != 0);
+            Debug.Assert((table.TabFlags & TF.Virtual) != 0);
 
-            pParse = new Parse();//sqlite3StackAllocZero(db, sizeof(*pParse));
-            //if ( pParse == null )
-            //{
-            //  rc = SQLITE_NOMEM;
-            //}
-            //else
+            RC rc = RC.OK;
+            Parse parse = new Parse(); //: _stackalloc(ctx, sizeof(Parse));
+            if (parse = null)
+                rc = RC.NOMEM;
+            else
             {
-                pParse.declareVtab = 1;
-                pParse.db = db;
-                pParse.nQueryLoop = 1;
+                parse.DeclareVTable = true;
+                parse.Ctx = ctx;
+                parse.QueryLoops = 1;
 
-                if (SQLITE_OK == sqlite3RunParser(pParse, zCreateTable, ref zErr)
-                 && pParse.pNewTable != null
-                    //&& !db.mallocFailed
-                 && null == pParse.pNewTable.pSelect
-                 && (pParse.pNewTable.tabFlags & TF_Virtual) == 0
-                )
+                string error = null;
+                if (sqlite3RunParser(parse, createTableName, ref error) == RC.OK && parse.NewTable != null && !ctx.MallocFailed && parse.NewTable.Select == null && (parse.NewTable.TabFlags & TF.Virtual) == 0)
                 {
-                    if (null == pTab.aCol)
+                    if (table.Cols.data == null)
                     {
-                        pTab.aCol = pParse.pNewTable.aCol;
-                        pTab.nCol = pParse.pNewTable.nCol;
-                        pParse.pNewTable.nCol = 0;
-                        pParse.pNewTable.aCol = null;
+                        table.Cols.data = parse.NewTable.Cols.data;
+                        table.Cols.length = parse.NewTable.Cols.length;
+                        parse.NewTable.Cols.length = 0;
+                        parse.NewTable.Cols.data = null;
                     }
-                    db.pVtabCtx.pTab = null;
+                    ctx.VTableCtx.Table = null;
                 }
                 else
                 {
-                    sqlite3Error(db, SQLITE_ERROR, (zErr != null ? "%s" : null), zErr);
-                    zErr = null;//sqlite3DbFree( db, zErr );
-                    rc = SQLITE_ERROR;
+                    sqlite3Error(ctx, RC.ERROR, (error != null ? "%s" : null), error);
+                    C._tagfree(ctx, ref error);
+                    rc = RC.ERROR;
                 }
-                pParse.declareVtab = 0;
+                parse.DeclareVTable = false;
 
-                if (pParse.pVdbe != null)
-                {
-                    sqlite3VdbeFinalize(ref pParse.pVdbe);
-                }
-                sqlite3DeleteTable(db, ref pParse.pNewTable);
-                //sqlite3StackFree( db, pParse );
+                if (parse.V != null)
+                    parse.V.Finalize();
+                Parse.DeleteTable(ctx, ref parse.NewTable);
+                parse = null; //: C._stackfree(ctx, parse);
             }
 
-            Debug.Assert((rc & 0xff) == rc);
-            rc = sqlite3ApiExit(db, rc);
-            sqlite3_mutex_leave(db.mutex);
+            Debug.Assert(((int)rc & 0xff) == (int)rc);
+            rc = SysEx.ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
             return rc;
         }
 
-        static int sqlite3VtabCallDestroy(sqlite3 db, int iDb, string zTab)
+        public static RC CallDestroy(Context ctx, int db, string tableName)
         {
-            int rc = SQLITE_OK;
-            Table pTab;
-
-            pTab = sqlite3FindTable(db, zTab, db.aDb[iDb].zName);
-            if (ALWAYS(pTab != null && pTab.pVTable != null))
+            RC rc = RC.OK;
+            Table table = Parse.FindTable(ctx, tableName, ctx.DBs[db].Name);
+            if (C._ALWAYS(table != null && table.VTables != null))
             {
-                VTable p = vtabDisconnectAll(db, pTab);
+                VTable vtable = VTableDisconnectAll(ctx, table);
+                Debug.Assert(rc == RC.OK);
+                rc = vtable.Module.IModule.Destroy(vtable.IVTable);
 
-                Debug.Assert(rc == SQLITE_OK);
-                object obj = p.pVtab;
-                rc = p.pMod.pModule.xDestroy(ref obj);
-                p.pVtab = null;
-
-                /* Remove the sqlite3_vtab* from the aVTrans[] array, if applicable */
-                if (rc == SQLITE_OK)
+                // Remove the sqlite3_vtab* from the aVTrans[] array, if applicable
+                if (rc == RC.OK)
                 {
-                    Debug.Assert(pTab.pVTable == p && p.pNext == null);
-                    p.pVtab = null;
-                    pTab.pVTable = null;
-                    sqlite3VtabUnlock(p);
+                    Debug.Assert(table.VTables == vtable && vtable.Next == null);
+                    vtable.IVTable = null;
+                    table.VTables = null;
+                    vtable.Unlock();
                 }
             }
-
             return rc;
         }
 
-        static void callFinaliser(sqlite3 db, int offset)
+        static void CallFinaliser(Context ctx, int offset)
         {
-            int i;
-            if (db.aVTrans != null)
+            if (ctx.VTrans.data != null)
             {
-                for (i = 0; i < db.nVTrans; i++)
+                for (int i = 0; i < ctx.VTrans.length; i++)
                 {
-                    VTable pVTab = db.aVTrans[i];
-                    sqlite3_vtab p = pVTab.pVtab;
-                    if (p != null)
+                    VTable vtable = ctx.VTrans[i];
+                    IVTable ivtable = vtable.IVTable;
+                    if (ivtable != null)
                     {
-                        //int (*x)(sqlite3_vtab );
-                        //x = *(int (*)(sqlite3_vtab ))((char )p.pModule + offset);
-                        //if( x ) x(p);
+                        Func<IVTable, int> x = null;
                         if (offset == 0)
-                        {
-                            if (p.pModule.xCommit != null)
-                                p.pModule.xCommit(p);
-                        }
+                            x = ivtable.IModule.Rollback;
+                        else if (offset == 1)
+                            x = ivtable.IModule.Commit;
                         else
-                        {
-                            if (p.pModule.xRollback != null)
-                                p.pModule.xRollback(p);
-                        }
+                            throw new InvalidOperationException();
+                        if (x != null)
+                            x(ivtable);
                     }
-                    pVTab.iSavepoint = 0;
-                    sqlite3VtabUnlock(pVTab);
+                    vtable.Savepoints = 0;
+                    vtable.Unlock();
                 }
-                sqlite3DbFree(db, ref db.aVTrans);
-                db.nVTrans = 0;
-                db.aVTrans = null;
+                C._tagfree(ctx, ref ctx.VTrans.data);
+                ctx.VTrans.length = 0;
+                ctx.VTrans.data = null;
             }
         }
 
-        static int sqlite3VtabSync(sqlite3 db, ref string pzErrmsg)
+        public static RC Sync(Context ctx, ref string errorOut)
         {
-            int i;
-            int rc = SQLITE_OK;
-            VTable[] aVTrans = db.aVTrans;
+            RC rc = RC.OK;
+            VTable[] vtrans = ctx.VTrans.data;
 
-            db.aVTrans = null;
-            for (i = 0; rc == SQLITE_OK && i < db.nVTrans; i++)
+            ctx.VTrans.data = null;
+            for (int i = 0; rc == RC.OK && i < ctx.VTrans.length; i++)
             {
-                smdxFunction x;//int (*x)(sqlite3_vtab );
-                sqlite3_vtab pVtab = aVTrans[i].pVtab;
-                if (pVtab != null && (x = pVtab.pModule.xSync) != null)
+                Func<IVTable, int> x = null;
+                IVTable ivtable = vtrans[i].IVTable;
+                if (ivtable != null && (x = ivtable.IModule.Sync) != null)
                 {
-                    rc = x(pVtab);
-                    //sqlite3DbFree(db, ref pzErrmsg);
-                    pzErrmsg = pVtab.zErrMsg;// sqlite3DbStrDup( db, pVtab.zErrMsg );
-                    pVtab.zErrMsg = null;//sqlite3_free( ref pVtab.zErrMsg );
+                    rc = (RC)x(ivtable);
+                    C._tagfree(ctx, ref errorOut);
+                    errorOut = ivtable.ErrMsg;
+                    C._free(ref ivtable.ErrMsg);
                 }
             }
-            db.aVTrans = aVTrans;
+            ctx.VTrans.data = vtrans;
             return rc;
         }
 
-        static int sqlite3VtabRollback(sqlite3 db)
+        public static RC Rollback(Context ctx)
         {
-            callFinaliser(db, 1);//offsetof( sqlite3_module, xRollback ) );
-            return SQLITE_OK;
+            CallFinaliser(ctx, offsetof(IVTable, Rollback));
+            return RC.OK;
         }
 
-        static int sqlite3VtabCommit(sqlite3 db)
+        public static RC Commit(Context ctx)
         {
-            callFinaliser(db, 0);//offsetof( sqlite3_module, xCommit ) );
-            return SQLITE_OK;
+            CallFinaliser(ctx, offsetof(IVTable, Commit));
+            return RC.OK;
         }
 
-        static int sqlite3VtabBegin(sqlite3 db, VTable pVTab)
+        public static RC Begin(Context ctx, VTable vtable)
         {
-            int rc = SQLITE_OK;
-            sqlite3_module pModule;
-
-            /* Special case: If db.aVTrans is NULL and db.nVTrans is greater
-            ** than zero, then this function is being called from within a
-            ** virtual module xSync() callback. It is illegal to write to 
-            ** virtual module tables in this case, so return SQLITE_LOCKED.
-            */
-            if (sqlite3VtabInSync(db))
+            // Special case: If ctx->aVTrans is NULL and ctx->nVTrans is greater than zero, then this function is being called from within a
+            // virtual module xSync() callback. It is illegal to write to virtual module tables in this case, so return SQLITE_LOCKED.
+            if (InSync(ctx))
+                return RC.LOCKED;
+            if (vtable == null)
+                return RC.OK;
+            RC rc = RC.OK;
+            ITableModule imodule = vtable.IVTable.IModule;
+            if (imodule.Begin != null)
             {
-                return SQLITE_LOCKED;
-            }
-            if (null == pVTab)
-            {
-                return SQLITE_OK;
-            }
-            pModule = pVTab.pVtab.pModule;
-
-            if (pModule.xBegin != null)
-            {
-                int i;
-
-                /* If pVtab is already in the aVTrans array, return early */
-                for (i = 0; i < db.nVTrans; i++)
+                // If pVtab is already in the aVTrans array, return early
+                for (int i = 0; i < ctx.VTrans.length; i++)
+                    if (ctx.VTrans[i] == vtable)
+                        return RC.OK;
+                // Invoke the xBegin method. If successful, add the vtab to the sqlite3.aVTrans[] array.
+                rc = GrowVTrans(ctx);
+                if (rc == RC.OK)
                 {
-                    if (db.aVTrans[i] == pVTab)
-                    {
-                        return SQLITE_OK;
-                    }
-                }
-
-                /* Invoke the xBegin method. If successful, add the vtab to the 
-                ** sqlite3.aVTrans[] array. */
-                rc = growVTrans(db);
-                if (rc == SQLITE_OK)
-                {
-                    rc = pModule.xBegin(pVTab.pVtab);
-                    if (rc == SQLITE_OK)
-                    {
-                        addToVTrans(db, pVTab);
-                    }
+                    rc = imodule.Begin(vtable.IVTable);
+                    if (rc == RC.OK)
+                        AddToVTrans(ctx, vtable);
                 }
             }
             return rc;
         }
 
-        static int sqlite3VtabSavepoint(sqlite3 db, int op, int iSavepoint)
+        public static RC Savepoint(Context ctx, IPager.SAVEPOINT op, int savepoint)
         {
-            int rc = SQLITE_OK;
-
-            Debug.Assert(op == SAVEPOINT_RELEASE || op == SAVEPOINT_ROLLBACK || op == SAVEPOINT_BEGIN);
-            Debug.Assert(iSavepoint >= 0);
-            if (db.aVTrans != null)
-            {
-                int i;
-                for (i = 0; rc == SQLITE_OK && i < db.nVTrans; i++)
+            Debug.Assert(op == IPager.SAVEPOINT.RELEASE || op == IPager.SAVEPOINT.ROLLBACK || op == IPager.SAVEPOINT.BEGIN);
+            Debug.Assert(savepoint >= 0);
+            RC rc = RC.OK;
+            if (ctx.VTrans.data != null)
+                for (int i = 0; rc == RC.OK && i < ctx.VTrans.length; i++)
                 {
-                    VTable pVTab = db.aVTrans[i];
-                    sqlite3_module pMod = pVTab.pMod.pModule;
-                    if (pMod.iVersion >= 2)
+                    VTable vtable = ctx.VTrans[i];
+                    ITableModule itablemodule = vtable.Module.IModule;
+                    if (vtable.IVTable != null && itablemodule.Version >= 2)
                     {
-                        smdxFunctionArg xMethod = null; //int (*xMethod)(sqlite3_vtab *, int);
+                        Func<VTable, int, int> method = null;
                         switch (op)
                         {
-                            case SAVEPOINT_BEGIN:
-                                xMethod = pMod.xSavepoint;
-                                pVTab.iSavepoint = iSavepoint + 1;
+                            case IPager.SAVEPOINT.BEGIN:
+                                method = itablemodule.Savepoint;
+                                vtable.Savepoints = savepoint + 1;
                                 break;
-                            case SAVEPOINT_ROLLBACK:
-                                xMethod = pMod.xRollbackTo;
+                            case IPager.SAVEPOINT.ROLLBACK:
+                                method = itablemodule.RollbackTo;
                                 break;
                             default:
-                                xMethod = pMod.xRelease;
+                                method = itablemodule.Release;
                                 break;
                         }
-                        if (xMethod != null && pVTab.iSavepoint > iSavepoint)
-                        {
-                            rc = xMethod(db.aVTrans[i].pVtab, iSavepoint);
-                        }
+                        if (method != null && vtable.Savepoints > savepoint)
+                            rc = (RC)method(vtable.IVTable, savepoint);
                     }
                 }
-            }
             return rc;
         }
 
-        static FuncDef sqlite3VtabOverloadFunction(sqlite3 db, FuncDef pDef, int nArg, Expr pExpr)
+        public static FuncDef OverloadFunction(Context ctx, FuncDef def, int argsLength, Expr expr)
         {
-            Table pTab;
-            sqlite3_vtab pVtab;
-            sqlite3_module pMod;
-            dxFunc xFunc = null;//void (*xFunc)(sqlite3_context*,int,sqlite3_value*) = 0;
-            object pArg = null;
-            FuncDef pNew;
-            int rc = 0;
-            string zLowerName;
-            string z;
+            // Check to see the left operand is a column in a virtual table
+            if (C._NEVER(expr == null)) return def;
+            if (expr.OP != TK.COLUMN) return def;
+            Table table = expr.Table;
+            if (C._NEVER(table == null)) return def;
+            if ((table.TabFlags & TF.Virtual) == 0) return def;
+            IVTable ivtable = GetVTable(ctx, table).IVTable;
+            Debug.Assert(ivtable != null);
+            Debug.Assert(ivtable.IModule != null);
+            ITableModule imodule = (ITableModule)ivtable.IModule;
+            if (imodule.FindFunction == null) return def;
 
-            /* Check to see the left operand is a column in a virtual table */
-            if (NEVER(pExpr == null))
-                return pDef;
-            if (pExpr.op != TK_COLUMN)
-                return pDef;
-            pTab = pExpr.pTab;
-            if (NEVER(pTab == null))
-                return pDef;
-            if ((pTab.tabFlags & TF_Virtual) == 0)
-                return pDef;
-            pVtab = sqlite3GetVTable(db, pTab).pVtab;
-            Debug.Assert(pVtab != null);
-            Debug.Assert(pVtab.pModule != null);
-            pMod = (sqlite3_module)pVtab.pModule;
-            if (pMod.xFindFunction == null)
-                return pDef;
-
-            /* Call the xFindFunction method on the virtual table implementation
-            ** to see if the implementation wants to overload this function 
-            */
-            zLowerName = pDef.zName;//sqlite3DbStrDup(db, pDef.zName);
-            if (zLowerName != null)
+            // Call the xFindFunction method on the virtual table implementation to see if the implementation wants to overload this function 
+            string lowerName = def.Name;
+            RC rc = RC.OK;
+            Action<FuncContext, int, Mem[]> func = null;
+            object[] args = null;
+            if (lowerName != null)
             {
-                //for(z=(unsigned char)zLowerName; *z; z++){
-                //  *z = sqlite3UpperToLower[*z];
-                //}
-                rc = pMod.xFindFunction(pVtab, nArg, zLowerName.ToLowerInvariant(), ref xFunc, ref pArg);
-                sqlite3DbFree(db, ref zLowerName);
+                lowerName = lowerName.ToLowerInvariant();
+                rc = imodule.FindFunction(ivtable, argsLength, lowerName, func, args);
+                C._tagfree(ctx, ref lowerName);
             }
-            if (rc == 0)
-            {
-                return pDef;
-            }
+            if (rc == RC.OK)
+                return def;
 
-            /* Create a new ephemeral function definition for the overloaded
-            ** function */
-            //sqlite3DbMallocZero(db, sizeof(*pNew)
-            //      + sqlite3Strlen30(pDef.zName) + 1);
-            //if ( pNew == null )
-            //{
-            //  return pDef;
-            //}
-            pNew = pDef.Copy();
-            pNew.zName = pDef.zName;
-            //pNew.zName = (char )&pNew[1];
-            //memcpy(pNew.zName, pDef.zName, sqlite3Strlen30(pDef.zName)+1);
-            pNew.xFunc = xFunc;
-            pNew.pUserData = pArg;
-            pNew.flags |= SQLITE_FUNC_EPHEM;
-            return pNew;
+            // Create a new ephemeral function definition for the overloaded function
+            FuncDef newFunc = new FuncDef();//: (FuncDef*)_tagalloc(ctx, sizeof(FuncDef) + _strlen30(def->Name) + 1, true);
+            if (newFunc == null) return def;
+            newFunc = def._memcpy();
+            newFunc.Name = def.Name;
+            newFunc.Func = func;
+            newFunc.UserData = args;
+            newFunc.Flags |= FUNC.EPHEM;
+            return newFunc;
         }
 
-        static void sqlite3VtabMakeWritable(Parse pParse, Table pTab)
+        public static void MakeWritable(Parse parse, Table table)
         {
-            Parse pToplevel = sqlite3ParseToplevel(pParse);
-            int i, n;
-            //Table[] apVtabLock = null;
-
-            Debug.Assert(IsVirtual(pTab));
-            for (i = 0; i < pToplevel.nVtabLock; i++)
+            Debug.Assert(E.IsVirtual(table));
+            Parse toplevel = parse.Toplevel();
+            for (int i = 0; i < toplevel.VTableLocks.length; i++)
+                if (table == toplevel.VTableLocks[i]) return;
+            int newSize = (toplevel.VTableLocks.data == null ? 1 : toplevel.VTableLocks.length + 1); //: (toplevel->VTableLocks.length + 1) * sizeof(toplevel->VTableLocks[0]);
+            Array.Resize(ref toplevel.VTableLocks.data, newSize); //: Table vtablelocks = (Table **)_realloc(toplevel->VTableLocks, newSize);
+            if (true) //vtablelocks != null)
             {
-                if (pTab == pToplevel.apVtabLock[i])
-                    return;
+                //: toplevel.VTableLocks = vtablelocks;
+                toplevel.VTableLocks[toplevel.VTableLocks.length++] = table;
             }
-            n = pToplevel.apVtabLock == null ? 1 : pToplevel.apVtabLock.Length + 1;//(pToplevel.nVtabLock+1)*sizeof(pToplevel.apVtabLock[0]);
-            //sqlite3_realloc( pToplevel.apVtabLock, n );
-            //if ( apVtabLock != null )
-            {
-                Array.Resize(ref pToplevel.apVtabLock, n);// pToplevel.apVtabLock= apVtabLock;
-                pToplevel.apVtabLock[pToplevel.nVtabLock++] = pTab;
-            }
-            //else
-            //{
-            //  pToplevel.db.mallocFailed = 1;
-            //}
+            else
+                toplevel.Ctx.MallocFailed = true;
         }
 
-        static int[] aMap = new int[] { SQLITE_ROLLBACK, SQLITE_ABORT, SQLITE_FAIL, SQLITE_IGNORE, SQLITE_REPLACE };
-        static int sqlite3_vtab_on_conflict(sqlite3 db)
+        static CONFLICT[] _map = new[] {
+            CONFLICT.ROLLBACK,
+            CONFLICT.ABORT,
+            CONFLICT.FAIL,
+            CONFLICT.IGNORE, 
+            CONFLICT.REPLACE
+        };
+        public static CONFLICT OnConflict(Context ctx)
         {
-            Debug.Assert(OE_Rollback == 1 && OE_Abort == 2 && OE_Fail == 3);
-            Debug.Assert(OE_Ignore == 4 && OE_Replace == 5);
-            Debug.Assert(db.vtabOnConflict >= 1 && db.vtabOnConflict <= 5);
-            return (int)aMap[db.vtabOnConflict - 1];
+            Debug.Assert((int)OE.Rollback == 1 && (int)OE.Abort == 2 && (int)OE.Fail == 3);
+            Debug.Assert((int)OE.Ignore == 4 && (int)OE.Replace == 5);
+            Debug.Assert(ctx.VTableOnConflict >= 1 && ctx.VTableOnConflict <= 5);
+            return _map[ctx.VTableOnConflict - 1];
         }
 
-        static int sqlite3_vtab_config(sqlite3 db, int op, params object[] ap)
-        { // TODO ...){
-            //va_list ap;
-            int rc = SQLITE_OK;
-
-            sqlite3_mutex_enter(db.mutex);
-
-            va_start(ap, "op");
+        public static RC Config(Context ctx, VTABLECONFIG op, object arg1)
+        {
+            RC rc = RC.OK;
+            MutexEx.Enter(ctx.Mutex);
             switch (op)
             {
-                case SQLITE_VTAB_CONSTRAINT_SUPPORT:
+                case VTABLECONFIG.CONSTRAINT:
                     {
-                        VtabCtx p = db.pVtabCtx;
-                        if (null == p)
-                        {
-                            rc = SQLITE_MISUSE_BKPT();
-                        }
+                        VTableContext p = ctx.VTableCtx;
+                        if (p == null)
+                            rc = SysEx.MISUSE_BKPT();
                         else
                         {
-                            Debug.Assert(p.pTab == null || (p.pTab.tabFlags & TF_Virtual) != 0);
-                            p.pVTable.bConstraint = (Byte)va_arg(ap, (Int32)0);
+                            Debug.Assert(p.Table == null || (p.Table.TabFlags & TF.Virtual) != 0);
+                            p.VTable.Constraint = (bool)arg1;
                         }
                         break;
                     }
                 default:
-                    rc = SQLITE_MISUSE_BKPT();
+                    rc = SysEx.MISUSE_BKPT();
                     break;
             }
-            va_end(ref ap);
-
-            if (rc != SQLITE_OK) sqlite3Error(db, rc, 0);
-            sqlite3_mutex_leave(db.mutex);
+            if (rc != RC.OK) sqlite3Error(ctx, rc, null);
+            MutexEx.Leave(ctx.Mutex);
             return rc;
         }
     }

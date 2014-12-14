@@ -1140,7 +1140,7 @@ namespace Core
 
 #ifdef OMIT_VIRTUALTABLE
 		__device__ inline static void Clear(Context *ctx, Table *table) {}
-		__device__ inline static RC Sync(Context *ctx, char **error) { return RC_OK; }
+		__device__ inline static RC Sync(Context *ctx, char **errorOut) { return RC_OK; }
 		__device__ static RC Rollback(Context *ctx);
 		__device__ static RC Commit(Context *ctx);
 		__device__ inline static bool InSync(Context *ctx) { return false; }
@@ -1157,15 +1157,15 @@ namespace Core
 		__device__ static void Disconnect(Context *ctx, Table *table);
 		__device__ static void UnlockList(Context *ctx);
 		__device__ static void Clear(Context *ctx, Table *table);
-		__device__ static void BeginParse(Parse *parse, Token *name1, Token *name2, Token *moduleName, int ifNotExists);
+		__device__ static void BeginParse(Parse *parse, Token *name1, Token *name2, Token *moduleName, bool ifNotExists);
 		__device__ static void FinishParse(Parse *parse, Token *end);
 		__device__ static void ArgInit(Parse *parse);
 		__device__ static void ArgExtend(Parse *parse, Token *token);
 		__device__ static RC CallConnect(Parse *parse, Table *table);
 		__device__ static RC CallCreate(Context *ctx, int dbidx, const char *tableName, char **error);
-		__device__ static RC DeclareVTable(Context *ctx, const char *createTable);
-		__device__ static RC CallDestroy(Context *ctx, int dbidx, const char *tableName);
-		__device__ static RC Sync(Context *ctx, char **error);
+		__device__ static RC DeclareVTable(Context *ctx, const char *createTableName);
+		__device__ static RC CallDestroy(Context *ctx, int db, const char *tableName);
+		__device__ static RC Sync(Context *ctx, char **errorOut);
 		__device__ static RC Rollback(Context *ctx);
 		__device__ static RC Commit(Context *ctx);
 		__device__ inline static bool InSync(Context *ctx) { return (ctx->VTrans.length > 0 && ctx->VTrans.data == nullptr); }
