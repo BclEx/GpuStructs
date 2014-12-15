@@ -466,7 +466,7 @@ lookupname_end:
 #ifndef OMIT_AUTHORIZATION
 			if (def)
 			{
-				ARC auth = Auth::Check(parse, AUTH_FUNCTION, 0, def->Name, 0); // Authorization to use the function
+				ARC auth = Auth::Check(parse, AUTH_FUNCTION, nullptr, def->Name, nullptr); // Authorization to use the function
 				if (auth != ARC_OK)
 				{
 					if (auth == ARC_DENY)
@@ -485,7 +485,7 @@ lookupname_end:
 				nc->Errs++;
 				isAgg = false;
 			}
-			else if (!noSuchFunc && ctx->Init.Busy)
+			else if (noSuchFunc && !ctx->Init.Busy)
 			{
 				parse->ErrorMsg("no such function: %.*s", idLength, id);
 				nc->Errs++;
@@ -573,7 +573,7 @@ lookupname_end:
 		nc.Errs = 0;
 		Context *ctx = parse->Ctx; // Database connection
 		uint8 savedSuppErr = ctx->SuppressErr; // Saved value of db->suppressErr
-		ctx->SuppressErr = true;
+		ctx->SuppressErr = 1;
 		RC rc = sqlite3ResolveExprNames(&nc, expr); // Return code from subprocedures
 		ctx->SuppressErr = savedSuppErr;
 		if (rc) return 0;
@@ -592,7 +592,6 @@ lookupname_end:
 
 	__device__ static int ResolveCompoundOrderBy(Parse *parse, Select *select)
 	{
-
 		ExprList *orderBy = select->OrderBy;
 		if (!orderBy) return 0;
 		Context *ctx = parse->Ctx;
@@ -648,9 +647,8 @@ lookupname_end:
 				}
 				if (colId > 0)
 				{
-					/* Convert the ORDER BY term into an integer column number iCol,
-					** taking care to preserve the COLLATE clause if it exists */
-					Expr *newExpr = Expr::Expr_(ctx, TK_INTEGER, 0);
+					// Convert the ORDER BY term into an integer column number iCol, taking care to preserve the COLLATE clause if it exists
+					Expr *newExpr = Expr::Expr_(ctx, TK_INTEGER, nullptr);
 					if (!newExpr) return 1;
 					newExpr->Flags |= EP_IntValue;
 					newExpr->u.I = colId;

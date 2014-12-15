@@ -454,409 +454,283 @@ namespace Core
                 case TK.CONST_FUNC:
                 case TK.FUNCTION: // Resolve function names
                     {
-                        ExprList pList = expr.x.pList;    /* The argument list */
-                        int n = pList != null ? pList.nExpr : 0;  /* Number of arguments */
-                        bool no_such_func = false;       /* True if no such function exists */
-                        bool wrong_num_args = false;     /* True if wrong number of arguments */
-                        bool is_agg = false;             /* True if is an aggregate function */
-                        int auth;                   /* Authorization to use the function */
-                        int nId;                    /* Number of characters in function name */
-                        string zId;                 /* The function name. */
-                        FuncDef pDef;              /* Information about the function */
-                        u8 enc = (u8)parse.db.aDbStatic[0].pSchema.enc;// ENC( pParse.db );   /* The database encoding */
+                        ExprList list = expr.x.List; // The argument list
+                        int n = (list != null ? list.Exprs : 0); // Number of arguments
+                        bool noSuchFunc = false; // True if no such function exists
+                        bool wrongNumArgs = false; // True if wrong number of arguments
+                        bool isAgg = false; // True if is an aggregate function
+                        TEXTENCODE encode = E.CTXENCODE(parse.Ctx); // The database encoding
 
-                        testcase(expr.op == TK_CONST_FUNC);
-                        Debug.Assert(!ExprHasProperty(expr, EP_xIsSelect));
-                        zId = expr.u.zToken;
-                        nId = sqlite3Strlen30(zId);
-                        pDef = sqlite3FindFunction(parse.db, zId, nId, n, enc, 0);
-                        if (pDef == null)
+                        C.ASSERTCOVERAGE(expr.OP == TK.CONST_FUNC);
+                        Debug.Assert(!E.ExprHasProperty(expr, EP.xIsSelect));
+                        string id = expr.u.Token; // The function name.
+                        int idLength = id.Length; // Number of characters in function name
+                        FuncDef def = sqlite3FindFunction(parse.Ctx, id, idLength, n, encode, 0); // Information about the function
+                        if (def == null)
                         {
-                            pDef = sqlite3FindFunction(parse.db, zId, nId, -1, enc, 0);
-                            if (pDef == null)
-                            {
-                                no_such_func = true;
-                            }
+                            def = sqlite3FindFunction(parse.Ctx, id, idLength, -2, encode, 0);
+                            if (def == null)
+                                noSuchFunc = true;
                             else
-                            {
-                                wrong_num_args = true;
-                            }
+                                wrongNumArgs = true;
                         }
                         else
+                            isAgg = (def.Func == null);
+#if !OMIT_AUTHORIZATION
+                        if (def != null)
                         {
-                            is_agg = pDef.xFunc == null;
-                        }
-#if !SQLITE_OMIT_AUTHORIZATION
-                        if (pDef)
-                        {
-                            auth = sqlite3AuthCheck(parse, SQLITE_FUNCTION, 0, pDef.zName, 0);
-                            if (auth != SQLITE_OK)
+                            ARC auth = Auth.Check(parse, AUTH.FUNCTION, null, def.Name, null); // Authorization to use the function
+                            if (auth != ARC.OK)
                             {
-                                if (auth == SQLITE_DENY)
+                                if (auth == ARC.DENY)
                                 {
-                                    sqlite3ErrorMsg(parse, "not authorized to use function: %s",
-                                    pDef.zName);
-                                    nc.nErr++;
+                                    parse->ErrorMsg("not authorized to use function: %s", def.Name);
+                                    nc.Errs++;
                                 }
-                                expr.op = TK_NULL;
-                                return WRC_Prune;
+                                expr.OP = TK.NULL;
+                                return WRC.Prune;
                             }
                         }
 #endif
-                        if (is_agg && 0 == nc.allowAgg)
+                        if (isAgg && (nc.NCFlags & NC.AllowAgg) == 0)
                         {
-                            sqlite3ErrorMsg(parse, "misuse of aggregate function %.*s()", nId, zId);
-                            nc.nErr++;
-                            is_agg = false;
+                            parse->ErrorMsg("misuse of aggregate function %.*s()", idLength, id);
+                            nc.Errs++;
+                            isAgg = false;
                         }
-                        else if (no_such_func)
+                        else if (noSuchFunc && !ctx.Init.Busy)
                         {
-                            sqlite3ErrorMsg(parse, "no such function: %.*s", nId, zId);
-                            nc.nErr++;
+                            parse.ErrorMsg("no such function: %.*s", idLength, id);
+                            nc.Errs++;
                         }
-                        else if (wrong_num_args)
+                        else if (wrongNumArgs)
                         {
-                            sqlite3ErrorMsg(parse, "wrong number of arguments to function %.*s()",
-                            nId, zId);
-                            nc.nErr++;
+                            parse.ErrorMsg("wrong number of arguments to function %.*s()", idLength, id);
+                            nc.Errs++;
                         }
-                        if (is_agg)
+                        if (isAgg) nc.NCFlags &= ~NC.AllowAgg;
+                        Walkler.ExprList(walker, list);
+                        if (isAgg)
                         {
-                            expr.op = TK_AGG_FUNCTION;
-                            nc.hasAgg = 1;
-                        }
-                        if (is_agg)
-                            nc.allowAgg = 0;
-                        sqlite3WalkExprList(walker, pList);
-                        if (is_agg)
-                            nc.allowAgg = 1;
-                        /* FIX ME:  Compute pExpr.affinity based on the expected return
-                        ** type of the function
-                        */
-                        return WRC_Prune;
-                    }
-#if !SQLITE_OMIT_SUBQUERY
-                case TK_SELECT:
-                case TK_EXISTS:
-                    {
-                        testcase(expr.op == TK_EXISTS);
-                        goto case TK_IN;
-                    }
-#endif
-                case TK_IN:
-                    {
-                        testcase(expr.op == TK_IN);
-                        if (ExprHasProperty(expr, EP_xIsSelect))
-                        {
-                            int nRef = nc.nRef;
-#if !SQLITE_OMIT_CHECK
-                            if (nc.isCheck != 0)
+                            NameContext nc2 = nc;
+                            expr.OP = TK.AGG_FUNCTION;
+                            expr.OP2 = 0;
+                            while (nc2 && !sqlite3FunctionUsesThisSrc(expr, nc2.SrcList))
                             {
-                                sqlite3ErrorMsg(parse, "subqueries prohibited in CHECK constraints");
+                                expr.OP2++;
+                                nc2 = nc2.Next;
                             }
+                            if (nc2 != null) nc2.NCFlags |= NC.HasAgg;
+                            nc.NCFlags |= NC.AllowAgg;
+                        }
+                        // FIX ME:  Compute pExpr->affinity based on the expected return type of the function 
+                        return WRC.Prune;
+                    }
+#if !OMIT_SUBQUERY
+                case TK.SELECT:
+                case TK.EXISTS:
+                    {
+                        C.ASSERTCOVERAGE(expr.OP == TK.EXISTS);
+                        goto case TK.IN;
+                    }
 #endif
-                            sqlite3WalkSelect(walker, expr.x.pSelect);
-                            Debug.Assert(nc.nRef >= nRef);
-                            if (nRef != nc.nRef)
-                            {
-                                ExprSetProperty(expr, EP_VarSelect);
-                            }
+                case TK.IN:
+                    {
+                        C.ASSERTCOVERAGE(expr.OP == TK.IN);
+                        if (E.ExprHasProperty(expr, EP.xIsSelect))
+                        {
+                            int refs = nc.Refs;
+#if !OMIT_CHECK
+                            if ((nc.NCFlags & NC.IsCheck) != 0)
+                                parse.ErrorMsg("subqueries prohibited in CHECK constraints");
+#endif
+                            Walker.Select(walker, expr.x.Select);
+                            Debug.Assert(nc.Refs >= refs);
+                            if (refs != nc.Refs)
+                                E.ExprSetProperty(expr, EP.VarSelect);
                         }
                         break;
                     }
-#if !SQLITE_OMIT_CHECK
-                case TK_VARIABLE:
+#if !OMIT_CHECK
+                case TK.VARIABLE:
                     {
-                        if (nc.isCheck != 0)
-                        {
-                            sqlite3ErrorMsg(parse, "parameters prohibited in CHECK constraints");
-                        }
+                        if ((nc.NCFlags & NC.IsCheck) != 0)
+                            parse.ErrorMsg("parameters prohibited in CHECK constraints");
+
                         break;
                     }
 #endif
             }
-            return (parse.nErr != 0 /* || pParse.db.mallocFailed != 0 */ ) ? WRC_Abort : WRC_Continue;
+            return (parse.Errs != 0 || parse.Ctx.MallocFailed ? WRC.Abort : WRC.Continue);
         }
 
-        /*
-        ** pEList is a list of expressions which are really the result set of the
-        ** a SELECT statement.  pE is a term in an ORDER BY or GROUP BY clause.
-        ** This routine checks to see if pE is a simple identifier which corresponds
-        ** to the AS-name of one of the terms of the expression list.  If it is,
-        ** this routine return an integer between 1 and N where N is the number of
-        ** elements in pEList, corresponding to the matching entry.  If there is
-        ** no match, or if pE is not a simple identifier, then this routine
-        ** return 0.
-        **
-        ** pEList has been resolved.  pE has not.
-        */
-        static int resolveAsName(
-        Parse pParse,     /* Parsing context for error messages */
-        ExprList pEList,  /* List of expressions to scan */
-        Expr pE           /* Expression we are trying to match */
-        )
+        static int ResolveAsName(Parse parse, ExprList list, Expr expr)
         {
-            int i;             /* Loop counter */
-
-            UNUSED_PARAMETER(pParse);
-
-            if (pE.op == TK_ID)
+            if (expr.OP == TK.ID)
             {
-                string zCol = pE.u.zToken;
-
-                for (i = 0; i < pEList.nExpr; i++)
+                string colName = expr.u.Token;
+                for (int i = 0; i < list.Exprs; i++)
                 {
-                    string zAs = pEList.a[i].zName;
-                    if (zAs != null && zAs.Equals(zCol, StringComparison.InvariantCultureIgnoreCase))
-                    {
+                    string asName = list.Ids[i].Name;
+                    if (asName != null && string.Equals(asName, colName, StringComparison.InvariantCultureIgnoreCase))
                         return i + 1;
-                    }
                 }
             }
             return 0;
         }
 
-        /*
-        ** pE is a pointer to an expression which is a single term in the
-        ** ORDER BY of a compound SELECT.  The expression has not been
-        ** name resolved.
-        **
-        ** At the point this routine is called, we already know that the
-        ** ORDER BY term is not an integer index into the result set.  That
-        ** case is handled by the calling routine.
-        **
-        ** Attempt to match pE against result set columns in the left-most
-        ** SELECT statement.  Return the index i of the matching column,
-        ** as an indication to the caller that it should sort by the i-th column.
-        ** The left-most column is 1.  In other words, the value returned is the
-        ** same integer value that would be used in the SQL statement to indicate
-        ** the column.
-        **
-        ** If there is no match, return 0.  Return -1 if an error occurs.
-        */
-        static int resolveOrderByTermToExprList(
-        Parse pParse,     /* Parsing context for error messages */
-        Select pSelect,   /* The SELECT statement with the ORDER BY clause */
-        Expr pE           /* The specific ORDER BY term */
-        )
+        static int ResolveOrderByTermToExprList(Parse parse, Select select, Expr expr)
         {
-            int i = 0;         /* Loop counter */
-            ExprList pEList;   /* The columns of the result set */
-            NameContext nc;    /* Name context for resolving pE */
-            sqlite3 db;        /* Database connection */
-            int rc;            /* Return code from subprocedures */
-            u8 savedSuppErr;   /* Saved value of db->suppressErr */
-
-            Debug.Assert(sqlite3ExprIsInteger(pE, ref i) == 0);
-            pEList = pSelect.pEList;
-
-            /* Resolve all names in the ORDER BY term expression
-            */
-            nc = new NameContext();// memset( &nc, 0, sizeof( nc ) );
-            nc.pParse = pParse;
-            nc.pSrcList = pSelect.pSrc;
-            nc.pEList = pEList;
-            nc.allowAgg = 1;
-            nc.nErr = 0;
-            db = pParse.db;
-            savedSuppErr = db.suppressErr;
-            db.suppressErr = 1;
-            rc = sqlite3ResolveExprNames(nc, ref pE);
-            db.suppressErr = savedSuppErr;
-            if (rc != 0)
-                return 0;
-
-            /* Try to match the ORDER BY expression against an expression
-            ** in the result set.  Return an 1-based index of the matching
-            ** result-set entry.
-            */
-            for (i = 0; i < pEList.nExpr; i++)
-            {
-                if (sqlite3ExprCompare(pEList.a[i].pExpr, pE) < 2)
-                {
+            int i = 0;
+            Debug.Assert(!expr.IsInteger(ref i));
+            ExprList list = select.EList; // The columns of the result set
+            // Resolve all names in the ORDER BY term expression
+            NameContext nc = new NameContext(); // Name context for resolving pE
+            nc.Parse = parse;
+            nc.SrcList = select.Src;
+            nc.EList = list;
+            nc.NCFlags = NC.AllowAgg;
+            nc.Errs = 0;
+            Context ctx = parse.Ctx; // Database connection
+            byte savedSuppErr = ctx.SuppressErr; // Saved value of db->suppressErr
+            ctx.SuppressErr = 1;
+            RC rc = sqlite3ResolveExprNames(nc, ref expr);
+            ctx.SuppressErr = savedSuppErr;
+            if (rc != 0) return 0;
+            // Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
+            for (i = 0; i < list.Exprs; i++)
+                if (Expr.Compare(list.Ids[i].Expr, expr) < 2)
                     return i + 1;
-                }
-            }
-
-            /* If no match, return 0. */
+            // If no match, return 0.
             return 0;
         }
 
-        /*
-        ** Generate an ORDER BY or GROUP BY term out-of-range error.
-        */
-        static void resolveOutOfRangeError(
-        Parse pParse,         /* The error context into which to write the error */
-        string zType,     /* "ORDER" or "GROUP" */
-        int i,                 /* The index (1-based) of the term out of range */
-        int mx                 /* Largest permissible value of i */
-        )
+        static void ResolveOutOfRangeError(Parse parse, string typeName, int i, int max)
         {
-            sqlite3ErrorMsg(pParse,
-            "%r %s BY term out of range - should be " +
-            "between 1 and %d", i, zType, mx);
+            parse.ErrorMsg("%r %s BY term out of range - should be between 1 and %d", i, typeName, max);
         }
 
-        /*
-        ** Analyze the ORDER BY clause in a compound SELECT statement.   Modify
-        ** each term of the ORDER BY clause is a constant integer between 1
-        ** and N where N is the number of columns in the compound SELECT.
-        **
-        ** ORDER BY terms that are already an integer between 1 and N are
-        ** unmodified.  ORDER BY terms that are integers outside the range of
-        ** 1 through N generate an error.  ORDER BY terms that are expressions
-        ** are matched against result set expressions of compound SELECT
-        ** beginning with the left-most SELECT and working toward the right.
-        ** At the first match, the ORDER BY expression is transformed into
-        ** the integer column number.
-        **
-        ** Return the number of errors seen.
-        */
-        static int resolveCompoundOrderBy(
-        Parse pParse,        /* Parsing context.  Leave error messages here */
-        Select pSelect       /* The SELECT statement containing the ORDER BY */
-        )
+        static int ResolveCompoundOrderBy(Parse parse, Select select)
         {
-            int i;
-            ExprList pOrderBy;
-            ExprList pEList;
-            sqlite3 db;
-            int moreToDo = 1;
-
-            pOrderBy = pSelect.pOrderBy;
-            if (pOrderBy == null)
-                return 0;
-            db = pParse.db;
-            //#if SQLITE_MAX_COLUMN
-            if (pOrderBy.nExpr > db.aLimit[SQLITE_LIMIT_COLUMN])
+            ExprList orderBy = select.OrderBy;
+            if (orderBy == null) return 0;
+            Context ctx = parse.Ctx;
+#if true || MAX_COLUMN
+            if (orderBy.Exprs > ctx.Limits[(int)LIMIT.COLUMN])
             {
-                sqlite3ErrorMsg(pParse, "too many terms in ORDER BY clause");
+                parse.ErrorMsg("too many terms in ORDER BY clause");
                 return 1;
             }
-            //#endif
-            for (i = 0; i < pOrderBy.nExpr; i++)
+#endif
+            int i;
+            for (i = 0; i < orderBy.Exprs; i++)
+                orderBy.Ids[i].Done = false;
+            select.Next = null;
+            while (select.Prior != null)
             {
-                pOrderBy.a[i].done = 0;
+                select.Prior.Next = select;
+                select = select.Prior;
             }
-            pSelect.pNext = null;
-            while (pSelect.pPrior != null)
+            bool moreToDo = true;
+            while (select != null && moreToDo)
             {
-                pSelect.pPrior.pNext = pSelect;
-                pSelect = pSelect.pPrior;
-            }
-            while (pSelect != null && moreToDo != 0)
-            {
-                ExprList_item pItem;
-                moreToDo = 0;
-                pEList = pSelect.pEList;
-                Debug.Assert(pEList != null);
-                for (i = 0; i < pOrderBy.nExpr; i++)//, pItem++)
+                moreToDo = false;
+                ExprList list = select.EList;
+                Debug.Assert(list != null);
+                ExprList.ExprListItem item;
+                for (i = 0; i < orderBy.Exprs; i++)
                 {
-                    pItem = pOrderBy.a[i];
-                    int iCol = -1;
-                    Expr pE, pDup;
-                    if (pItem.done != 0)
-                        continue;
-                    pE = pItem.pExpr;
-                    if (sqlite3ExprIsInteger(pE, ref iCol) != 0)
+                    item = orderBy.Ids[i];
+
+                    Expr pDup;
+                    if (item.Done) continue;
+                    Expr expr = item.Expr;
+                    int colId = -1;
+                    if (expr.IsInteger(ref colId))
                     {
-                        if (iCol <= 0 || iCol > pEList.nExpr)
+                        if (colId <= 0 || colId > list.Exprs)
                         {
-                            resolveOutOfRangeError(pParse, "ORDER", i + 1, pEList.nExpr);
+                            ResolveOutOfRangeError(parse, "ORDER", i + 1, list.Exprs);
                             return 1;
                         }
                     }
                     else
                     {
-                        iCol = resolveAsName(pParse, pEList, pE);
-                        if (iCol == 0)
+                        colId = ResolveAsName(parse, list, expr);
+                        if (colId == 0)
                         {
-                            pDup = sqlite3ExprDup(db, pE, 0);
-                            ////if ( 0 == db.mallocFailed )
+                            Expr dupExpr = Expr.Dup(ctx, expr, 0);
+                            if (!ctx.MallocFailed)
                             {
-                                Debug.Assert(pDup != null);
-                                iCol = resolveOrderByTermToExprList(pParse, pSelect, pDup);
+                                Debug.Assert(dupExpr != null);
+                                colId = ResolveOrderByTermToExprList(parse, select, dupExpr);
                             }
-                            sqlite3ExprDelete(db, ref pDup);
+                            Expr.Delete(ctx, ref dupExpr);
                         }
                     }
-                    if (iCol > 0)
+                    if (colId > 0)
                     {
-                        CollSeq pColl = pE.pColl;
-                        int flags = pE.flags & EP_ExpCollate;
-                        sqlite3ExprDelete(db, ref pE);
-                        pItem.pExpr = pE = sqlite3Expr(db, TK_INTEGER, null);
-                        if (pE == null)
-                            return 1;
-                        pE.pColl = pColl;
-                        pE.flags = (u16)(pE.flags | EP_IntValue | flags);
-                        pE.u.iValue = iCol;
-                        pItem.iCol = (u16)iCol;
-                        pItem.done = 1;
+                        // Convert the ORDER BY term into an integer column number iCol, taking care to preserve the COLLATE clause if it exists
+                        Expr newExpr = Expr.Expr_(ctx, TK.INTEGER, null);
+                        if (newExpr == null) return 1;
+                        newExpr.Flags |= EP.IntValue;
+                        newExpr.u.I = colId;
+                        if (item.Expr == expr)
+                            item.Expr = newExpr;
+                        else
+                        {
+                            Debug.Assert(item.Expr.OP == TK.COLLATE);
+                            Debug.Assert(item.Expr.Left == expr);
+                            item.Expr.Left = newExpr;
+                        }
+                        Expr.Delete(ctx, ref expr);
+                        item.OrderByCol = (ushort)colId;
+                        item.Done = true;
+
                     }
                     else
-                    {
-                        moreToDo = 1;
-                    }
+                        moreToDo = true;
                 }
-                pSelect = pSelect.pNext;
+                select = select.Next;
             }
-            for (i = 0; i < pOrderBy.nExpr; i++)
+            for (i = 0; i < orderBy.Exprs; i++)
             {
-                if (pOrderBy.a[i].done == 0)
+                if (!orderBy.Ids[i].Done)
                 {
-                    sqlite3ErrorMsg(pParse, "%r ORDER BY term does not match any " +
-                    "column in the result set", i + 1);
+                    parse.ErrorMsg("%r ORDER BY term does not match any column in the result set", i + 1);
                     return 1;
                 }
             }
             return 0;
         }
 
-        /*
-        ** Check every term in the ORDER BY or GROUP BY clause pOrderBy of
-        ** the SELECT statement pSelect.  If any term is reference to a
-        ** result set expression (as determined by the ExprList.a.iCol field)
-        ** then convert that term into a copy of the corresponding result set
-        ** column.
-        **
-        ** If any errors are detected, add an error message to pParse and
-        ** return non-zero.  Return zero if no errors are seen.
-        */
-        static int sqlite3ResolveOrderGroupBy(
-        Parse pParse,        /* Parsing context.  Leave error messages here */
-        Select pSelect,      /* The SELECT statement containing the clause */
-        ExprList pOrderBy,   /* The ORDER BY or GROUP BY clause to be processed */
-        string zType         /* "ORDER" or "GROUP" */
-        )
+        public static int ResolveOrderGroupBy(Parse parse, Select select, ExprList orderBy, string type)
         {
-            int i;
-            sqlite3 db = pParse.db;
-            ExprList pEList;
-            ExprList_item pItem;
+            Context ctx = parse.Ctx;
 
-            if (pOrderBy == null /* || pParse.db.mallocFailed != 0 */ )
-                return 0;
-            //#if SQLITE_MAX_COLUMN
-            if (pOrderBy.nExpr > db.aLimit[SQLITE_LIMIT_COLUMN])
+            if (orderBy == null || parse.Ctx.MallocFailed) return 0;
+#if !MAX_COLUMN
+            if (orderBy.Exprs > ctx.Limits[(int)LIMIT.COLUMN])
             {
-                sqlite3ErrorMsg(pParse, "too many terms in %s BY clause", zType);
+                parse.ErrorMsg("too many terms in %s BY clause", type);
                 return 1;
             }
-            //#endif
-            pEList = pSelect.pEList;
-            Debug.Assert(pEList != null);  /* sqlite3SelectNew() guarantees this */
-            for (i = 0; i < pOrderBy.nExpr; i++)//, pItem++)
+#endif
+            ExprList list = select.EList;
+            Debug.Assert(list != null); // sqlite3SelectNew() guarantees this
+            int i;
+            ExprList.ExprListItem item;
+            for (i = 0; i < orderBy.Exprs; i++)
             {
-                pItem = pOrderBy.a[i];
-                if (pItem.iCol != 0)
+                item = orderBy.Ids[i];
+                if (item.OrderByCol != null)
                 {
-                    if (pItem.iCol > pEList.nExpr)
+                    if (item.OrderByCol > list.Exprs)
                     {
-                        resolveOutOfRangeError(pParse, zType, i + 1, pEList.nExpr);
+                        ResolveOutOfRangeError(parse, type, i + 1, list.Exprs);
                         return 1;
                     }
-                    resolveAlias(pParse, pEList, pItem.iCol - 1, pItem.pExpr, zType);
+                    ResolveAlias(parse, list, item.OrderByCol - 1, item.Expr, type);
                 }
             }
             return 0;
@@ -901,7 +775,7 @@ namespace Core
             {
                 pItem = pOrderBy.a[i];
                 Expr pE = pItem.pExpr;
-                iCol = resolveAsName(pParse, pSelect.pEList, pE);
+                iCol = ResolveAsName(pParse, pSelect.pEList, pE);
                 if (iCol > 0)
                 {
                     /* If an AS-name match is found, mark this ORDER BY column as being
@@ -918,7 +792,7 @@ namespace Core
                     ** order-by term to a copy of the result-set expression */
                     if (iCol < 1)
                     {
-                        resolveOutOfRangeError(pParse, zType, i + 1, nResult);
+                        ResolveOutOfRangeError(pParse, zType, i + 1, nResult);
                         return 1;
                     }
                     pItem.iCol = (u16)iCol;
@@ -932,7 +806,7 @@ namespace Core
                     return 1;
                 }
             }
-            return sqlite3ResolveOrderGroupBy(pParse, pSelect, pOrderBy, zType);
+            return ResolveOrderGroupBy(pParse, pSelect, pOrderBy, zType);
         }
 
         /*
@@ -1121,7 +995,7 @@ namespace Core
             /* Resolve the ORDER BY on a compound SELECT after all terms of
             ** the compound have been resolved.
             */
-            if (isCompound && resolveCompoundOrderBy(pParse, pLeftmost) != 0)
+            if (isCompound && ResolveCompoundOrderBy(pParse, pLeftmost) != 0)
             {
                 return WRC_Abort;
             }
