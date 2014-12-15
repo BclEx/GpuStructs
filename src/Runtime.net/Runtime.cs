@@ -233,6 +233,27 @@ namespace Core
             return (rc < 0 ? -1 : +1);
         }
 
+        public static char _hextobyte(char h)
+        {
+            Debug.Assert((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'));
+            return (char)((h + 9 * (1 & (h >> 6))) & 0xf);
+        }
+#if !OMIT_BLOB_LITERAL
+        public static byte[] _taghextoblob(object tag, string z, int size)
+        {
+            StringBuilder b = new StringBuilder(size / 2 + 1);
+            size--;
+            if (b != null)
+            {
+                int i;
+                for (i = 0; i < size; i += 2)
+                    b.Append(Convert.ToChar((C._hextobyte(z[i]) << 4) | C._hextobyte(z[i + 1])));
+                //z_[i / 2] = '\0'; ;
+            }
+            return Encoding.UTF8.GetBytes(b.ToString());
+        }
+#endif
+
         #endregion
 
         //////////////////////

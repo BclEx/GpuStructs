@@ -586,7 +586,7 @@ namespace Core
                             Expr.PExpr(parse, TK.ID, null, null, oldToken),
                             Expr.PExpr(parse, TK.ID, null, null, toCol)
                             , 0),
-                        Expr.PExpr(parse, TK_ID, null, null, fromCol)
+                        Expr.PExpr(parse, TK.ID, null, null, fromCol)
                         , 0); // tFromCol = OLD.tToCol
                     where_ = Expr.And(ctx, where_, eq);
 
@@ -641,7 +641,7 @@ namespace Core
                     Token from = new Token();
                     from.data = fromName;
                     from.length = fromNameLength;
-                    Expr raise = Expr.Expr(ctx, TK_RAISE, "foreign key constraint failed");
+                    Expr raise = Expr.Expr(ctx, TK.RAISE, "foreign key constraint failed");
                     if (raise != null)
                         raise.Affinity = OE.Abort;
                     select = Select.New(parse,
@@ -666,8 +666,8 @@ namespace Core
                 if (trigger != null)
                 {
                     step = trigger.StepList = new TriggerStep(); //: (TriggerStep)trigger[1];
-                    step.target.data = fromName; //: (char *)&step[1];
-                    step.target.length = fromNameLength;
+                    step.Target.data = fromName; //: (char *)&step[1];
+                    step.Target.length = fromNameLength;
                     //: _memcpy((const char *)step->Target.data, fromName, fromNameLength);
 
                     step.Where = Expr.Dup(ctx, where_, EXPRDUP_REDUCE);
@@ -675,7 +675,7 @@ namespace Core
                     step.Select = Select.Dup(ctx, select, EXPRDUP_REDUCE);
                     if (when != null)
                     {
-                        when = Expr.PExpr(parse, TK_NOT, when, 0, 0);
+                        when = Expr.PExpr(parse, TK.NOT, when, 0, 0);
                         trigger.When = Expr.Dup(ctx, when, EXPRDUP_REDUCE);
                     }
                 }
@@ -695,10 +695,10 @@ namespace Core
 
                 switch (action)
                 {
-                    case OE_Restrict:
+                    case OE.Restrict:
                         step.OP = TK.SELECT;
                         break;
-                    case OE_Cascade:
+                    case OE.Cascade:
                         if (changes == null)
                         {
                             step.OP = TK.DELETE;
@@ -706,14 +706,14 @@ namespace Core
                         }
                         goto default;
                     default:
-                        step.OP = TK_UPDATE;
+                        step.OP = TK.UPDATE;
                         break;
                 }
                 step.Trigger = trigger;
                 trigger.Schema = table.Schema;
                 trigger.TabSchema = table.Schema;
                 fkey.Triggers[actionId] = trigger;
-                trigger.OP = (TK)(changes != null ? TK_UPDATE : TK_DELETE);
+                trigger.OP = (TK)(changes != null ? TK.UPDATE : TK.DELETE);
             }
 
             return trigger;
@@ -756,7 +756,7 @@ namespace Core
                 }
 
                 // EV: R-30323-21917 Each foreign key constraint in SQLite is classified as either immediate or deferred.
-                Debug.Assert(fkey->IsDeferred == false || fkey->IsDeferred == true);
+                Debug.Assert(fkey.IsDeferred == false || fkey.IsDeferred == true);
 
                 // Delete any triggers created to implement actions for this FK.
 #if !OMIT_TRIGGER

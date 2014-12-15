@@ -1,1607 +1,921 @@
+using Core.IO;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 
-using i64 = System.Int64;
-using u8 = System.Byte;
-using u16 = System.UInt16;
-using u32 = System.UInt32;
-
-namespace Community.CsharpSqlite
+namespace Core
 {
-  using sqlite3_value = Sqlite3.Mem;
-  using System.Globalization;
-
-  public partial class Sqlite3
-  {
-    /*
-    ** 2004 May 26
-    **
-    ** The author disclaims copyright to this source code.  In place of
-    ** a legal notice, here is a blessing:
-    **
-    **    May you do good and not evil.
-    **    May you find forgiveness for yourself and forgive others.
-    **    May you share freely, never taking more than you give.
-    **
-    *************************************************************************
-    **
-    ** This file contains code use to manipulate "Mem" structure.  A "Mem"
-    ** stores a single value in the VDBE.  Mem is an opaque structure visible
-    ** only within the VDBE.  Interface routines refer to a Mem using the
-    ** name sqlite_value
-    *************************************************************************
-    **  Included in SQLite3 port to C#-SQLite;  2008 Noah B Hart
-    **  C#-SQLite is an independent reimplementation of the SQLite software library
-    **
-    **  SQLITE_SOURCE_ID: 2011-05-19 13:26:54 ed1da510a239ea767a01dc332b667119fa3c908e
-    **
-    *************************************************************************
-    */
-    //#include "sqliteInt.h"
-    //#include "vdbeInt.h"
-
-    /*
-    ** Call sqlite3VdbeMemExpandBlob() on the supplied value (type Mem*)
-    ** P if required.
-    */
-    //#define expandBlob(P) (((P)->flags&MEM_Zero)?sqlite3VdbeMemExpandBlob(P):0)
-    static void expandBlob( Mem P )
+    public partial class Vdbe
     {
-      if ( ( P.flags & MEM_Zero ) != 0 )
-        sqlite3VdbeMemExpandBlob( P );
-    } // TODO -- Convert to inline for speed
-
-    /*
-    ** If pMem is an object with a valid string representation, this routine
-    ** ensures the internal encoding for the string representation is
-    ** 'desiredEnc', one of SQLITE_UTF8, SQLITE_UTF16LE or SQLITE_UTF16BE.
-    **
-    ** If pMem is not a string object, or the encoding of the string
-    ** representation is already stored using the requested encoding, then this
-    ** routine is a no-op.
-    **
-    ** SQLITE_OK is returned if the conversion is successful (or not required).
-    ** SQLITE_NOMEM may be returned if a malloc() fails during conversion
-    ** between formats.
-    */
-    static int sqlite3VdbeChangeEncoding( Mem pMem, int desiredEnc )
-    {
-      int rc;
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      Debug.Assert( desiredEnc == SQLITE_UTF8 || desiredEnc == SQLITE_UTF16LE
-      || desiredEnc == SQLITE_UTF16BE );
-      if ( ( pMem.flags & MEM_Str ) == 0 || pMem.enc == desiredEnc )
-      {
-        if ( String.IsNullOrEmpty( pMem.z ) && pMem.zBLOB != null )
-          pMem.z = Encoding.UTF8.GetString( pMem.zBLOB, 0, pMem.zBLOB.Length );
-        return SQLITE_OK;
-      }
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-#if  SQLITE_OMIT_UTF16
-      return SQLITE_ERROR;
+        public static RC ChangeEncoding(Mem mem, TEXTENCODE newEncode)
+        {
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            Debug.Assert(newEncode == TEXTENCODE.UTF8 || newEncode == TEXTENCODE.UTF16LE || newEncode == TEXTENCODE.UTF16BE);
+            if ((mem.Flags & MEM.Str) == 0 || mem.Encode == newEncode)
+            {
+                if (mem.Z == null && mem.Z_ != null)
+                    mem.Z = Encoding.UTF8.GetString(mem.Z_, 0, mem.Z_.Length);
+                return RC.OK;
+            }
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+#if OMIT_UTF16
+            return RC.ERROR;
 #else
-
-/* MemTranslate() may return SQLITE_OK or SQLITE_NOMEM. If NOMEM is returned,
-** then the encoding of the value may not have changed.
-*/
-rc = sqlite3VdbeMemTranslate(pMem, (u8)desiredEnc);
-Debug.Assert(rc==SQLITE_OK    || rc==SQLITE_NOMEM);
-Debug.Assert(rc==SQLITE_OK    || pMem.enc!=desiredEnc);
-Debug.Assert(rc==SQLITE_NOMEM || pMem.enc==desiredEnc);
-return rc;
-#endif
-    }
-
-    /*
-    ** Make sure pMem.z points to a writable allocation of at least
-    ** n bytes.
-    **
-    ** If the memory cell currently contains string or blob data
-    ** and the third argument passed to this function is true, the
-    ** current content of the cell is preserved. Otherwise, it may
-    ** be discarded.
-    **
-    ** This function sets the MEM_Dyn flag and clears any xDel callback.
-    ** It also clears MEM_Ephem and MEM_Static. If the preserve flag is
-    ** not set, Mem.n is zeroed.
-    */
-    static int sqlite3VdbeMemGrow( Mem pMem, int n, int preserve )
-    {
-      // TODO -- What do we want to do about this routine?
-      //Debug.Assert( 1 >=
-      //  ((pMem.zMalloc !=null )? 1 : 0) + //&& pMem.zMalloc==pMem.z) ? 1 : 0) +
-      //  (((pMem.flags & MEM_Dyn)!=0 && pMem.xDel!=null) ? 1 : 0) +
-      //  ((pMem.flags & MEM_Ephem)!=0 ? 1 : 0) +
-      //  ((pMem.flags & MEM_Static)!=0 ? 1 : 0)
-      //);
-      //assert( (pMem->flags&MEM_RowSet)==0 );
-
-      //if( n<32 ) n = 32;
-      //if( sqlite3DbMallocSize(pMem->db, pMem.zMalloc)<n ){
-      if ( preserve != 0 )
-      {//& pMem.z==pMem.zMalloc ){
-        if ( pMem.z == null )
-          pMem.z = "";//      sqlite3DbReallocOrFree( pMem.db, pMem.z, n );
-        else
-          if ( n < pMem.z.Length )
-            pMem.z = pMem.z.Substring( 0, n );
-        preserve = 0;
-      }
-      else
-      {
-        //  sqlite3DbFree(pMem->db,ref pMem.zMalloc);
-        pMem.z = "";//   sqlite3DbMallocRaw( pMem.db, n );
-      }
-      //}
-
-      //  if( pMem->z && preserve && pMem->zMalloc && pMem->z!=pMem->zMalloc ){
-      // memcpy(pMem.zMalloc, pMem.z, pMem.n);
-      //}
-      if ( ( pMem.flags & MEM_Dyn ) != 0 && pMem.xDel != null )
-      {
-        pMem.xDel( ref pMem.z );
-      }
-
-      // TODO --pMem.z = pMem.zMalloc;
-      if ( pMem.z == null )
-      {
-        pMem.flags = MEM_Null;
-      }
-      else
-      {
-        pMem.flags = (u16)( pMem.flags & ~( MEM_Ephem | MEM_Static ) );
-      }
-      pMem.xDel = null;
-      return pMem.z != null ? SQLITE_OK : SQLITE_NOMEM;
-    }
-
-    /*
-    ** Make the given Mem object MEM_Dyn.  In other words, make it so
-    ** that any TEXT or BLOB content is stored in memory obtained from
-    ** malloc().  In this way, we know that the memory is safe to be
-    ** overwritten or altered.
-    **
-    ** Return SQLITE_OK on success or SQLITE_NOMEM if malloc fails.
-    */
-    static int sqlite3VdbeMemMakeWriteable( Mem pMem )
-    {
-      int f;
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      expandBlob( pMem );
-      f = pMem.flags;
-      if ( ( f & ( MEM_Str | MEM_Blob ) ) != 0 ) // TODO -- && pMem.z != pMem.zMalloc )
-      {
-        if ( sqlite3VdbeMemGrow( pMem, pMem.n + 2, 1 ) != 0 )
-        //{
-        //  return SQLITE_NOMEM;
-        //}
-        //pMem.z[pMem->n] = 0;
-        //pMem.z[pMem->n + 1] = 0;
-        pMem.flags |= MEM_Term;
-#if SQLITE_DEBUG
-        pMem.pScopyFrom = null;
-#endif
-      }
-
-      return SQLITE_OK;
-    }
-    /*
-    ** If the given Mem* has a zero-filled tail, turn it into an ordinary
-    ** blob stored in dynamically allocated space.
-    */
-#if !SQLITE_OMIT_INCRBLOB
-static int sqlite3VdbeMemExpandBlob( Mem pMem )
-{
-if ( ( pMem.flags & MEM_Zero ) != 0 )
-{
-u32 nByte;
-Debug.Assert( ( pMem.flags & MEM_Blob ) != 0 );
-Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-/* Set nByte to the number of bytes required to store the expanded blob. */
-nByte = (u32)( pMem.n + pMem.u.nZero );
-if ( nByte <= 0 )
-{
-nByte = 1;
-}
-if ( sqlite3VdbeMemGrow( pMem, (int)nByte, 1 ) != 0 )
-{
-return SQLITE_NOMEM;
-} /* Set nByte to the number of bytes required to store the expanded blob. */
-nByte = (u32)( pMem.n + pMem.u.nZero );
-if ( nByte <= 0 )
-{
-nByte = 1;
-}
-if ( sqlite3VdbeMemGrow( pMem, (int)nByte, 1 ) != 0 )
-{
-return SQLITE_NOMEM;
-}
-//memset(&pMem->z[pMem->n], 0, pMem->u.nZero);
-pMem.zBLOB = Encoding.UTF8.GetBytes( pMem.z );
-pMem.z = null;
-pMem.n += (int)pMem.u.nZero;
-pMem.u.i = 0;
-pMem.flags = (u16)( pMem.flags & ~( MEM_Zero | MEM_Static | MEM_Ephem | MEM_Term ) );
-pMem.flags |= MEM_Dyn;
-}
-return SQLITE_OK;
-}
-#endif
-
-
-    /*
-** Make sure the given Mem is \u0000 terminated.
-*/
-    static int sqlite3VdbeMemNulTerminate( Mem pMem )
-    {
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      if ( ( pMem.flags & MEM_Term ) != 0 || ( pMem.flags & MEM_Str ) == 0 )
-      {
-        return SQLITE_OK;   /* Nothing to do */
-      }
-      //if ( pMem.n != 0 && sqlite3VdbeMemGrow( pMem, pMem.n + 2, 1 ) != 0 )
-      //{
-      //  return SQLITE_NOMEM;
-      //}
-      //  pMem.z[pMem->n] = 0;
-      //  pMem.z[pMem->n+1] = 0;
-      if ( pMem.z != null && pMem.n < pMem.z.Length )
-        pMem.z = pMem.z.Substring( 0, pMem.n );
-      pMem.flags |= MEM_Term;
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Add MEM_Str to the set of representations for the given Mem.  Numbers
-    ** are converted using sqlite3_snprintf().  Converting a BLOB to a string
-    ** is a no-op.
-    **
-    ** Existing representations MEM_Int and MEM_Real are *not* invalidated.
-    **
-    ** A MEM_Null value will never be passed to this function. This function is
-    ** used for converting values to text for returning to the user (i.e. via
-    ** sqlite3_value_text()), or for ensuring that values to be used as btree
-    ** keys are strings. In the former case a NULL pointer is returned the
-    ** user and the later is an internal programming error.
-    */
-    static int sqlite3VdbeMemStringify( Mem pMem, int enc )
-    {
-      int rc = SQLITE_OK;
-      int fg = pMem.flags;
-      const int nByte = 32;
-
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      Debug.Assert( ( fg & MEM_Zero ) == 0 );
-      Debug.Assert( ( fg & ( MEM_Str | MEM_Blob ) ) == 0 );
-      Debug.Assert( ( fg & ( MEM_Int | MEM_Real ) ) != 0 );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      //assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-
-      if ( sqlite3VdbeMemGrow( pMem, nByte, 0 ) != 0 )
-      {
-        return SQLITE_NOMEM;
-      }
-
-      /* For a Real or Integer, use sqlite3_snprintf() to produce the UTF-8
-      ** string representation of the value. Then, if the required encoding
-      ** is UTF-16le or UTF-16be do a translation.
-      **
-      ** FIX ME: It would be better if sqlite3_snprintf() could do UTF-16.
-      */
-      if ( ( fg & MEM_Int ) != 0 )
-      {
-        pMem.z = pMem.u.i.ToString(); //sqlite3_snprintf(nByte, pMem.z, "%lld", pMem->u.i);
-      }
-      else
-      {
-        Debug.Assert( ( fg & MEM_Real ) != 0 );
-        if ( Double.IsNegativeInfinity( pMem.r ) )
-          pMem.z = "-Inf";
-        else if ( Double.IsInfinity( pMem.r ) )
-          pMem.z = "Inf";
-        else if ( Double.IsPositiveInfinity( pMem.r ) )
-          pMem.z = "+Inf";
-        else if ( pMem.r.ToString( CultureInfo.InvariantCulture ).Contains( "." ) )
-          pMem.z = pMem.r.ToString( CultureInfo.InvariantCulture ).ToLower();//sqlite3_snprintf(nByte, pMem.z, "%!.15g", pMem->r);
-        else
-          pMem.z = pMem.r.ToString( CultureInfo.InvariantCulture) + ".0";
-      }
-      pMem.n = sqlite3Strlen30( pMem.z );
-      pMem.enc = SQLITE_UTF8;
-      pMem.flags |= MEM_Str | MEM_Term;
-      sqlite3VdbeChangeEncoding( pMem, enc );
-      return rc;
-    }
-
-    /*
-    ** Memory cell pMem contains the context of an aggregate function.
-    ** This routine calls the finalize method for that function.  The
-    ** result of the aggregate is stored back into pMem.
-    **
-    ** Return SQLITE_ERROR if the finalizer reports an error.  SQLITE_OK
-    ** otherwise.
-    */
-    static int sqlite3VdbeMemFinalize( Mem pMem, FuncDef pFunc )
-    {
-      int rc = SQLITE_OK;
-      if ( ALWAYS( pFunc != null && pFunc.xFinalize != null ) )
-      {
-        sqlite3_context ctx = new sqlite3_context();
-        Debug.Assert( ( pMem.flags & MEM_Null ) != 0 || pFunc == pMem.u.pDef );
-        Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-        //memset(&ctx, 0, sizeof(ctx));
-        ctx.s.flags = MEM_Null;
-        ctx.s.db = pMem.db;
-        ctx.pMem = pMem;
-        ctx.pFunc = pFunc;
-        pFunc.xFinalize( ctx ); /* IMP: R-24505-23230 */
-        Debug.Assert( 0 == ( pMem.flags & MEM_Dyn ) && pMem.xDel == null );
-        sqlite3DbFree( pMem.db, ref pMem.zBLOB );//zMalloc );
-        ctx.s.CopyTo( ref pMem );//memcpy(pMem, &ctx.s, sizeof(ctx.s));
-        rc = ctx.isError;
-      }
-      return rc;
-    }
-
-    /*
-    ** If the memory cell contains a string value that must be freed by
-    ** invoking an external callback, free it now. Calling this function
-    ** does not free any Mem.zMalloc buffer.
-    */
-    static void sqlite3VdbeMemReleaseExternal( Mem p )
-    {
-      Debug.Assert( p.db == null || sqlite3_mutex_held( p.db.mutex ) );
-      testcase( p.flags & MEM_Agg );
-      testcase( p.flags & MEM_Dyn );
-      testcase( p.flags & MEM_RowSet );
-      testcase( p.flags & MEM_Frame );
-      if ( ( p.flags & ( MEM_Agg | MEM_Dyn | MEM_RowSet | MEM_Frame ) ) != 0 )
-      {
-        if ( ( p.flags & MEM_Agg ) != 0 )
-        {
-          sqlite3VdbeMemFinalize( p, p.u.pDef );
-          Debug.Assert( ( p.flags & MEM_Agg ) == 0 );
-          sqlite3VdbeMemRelease( p );
-        }
-        else if ( ( p.flags & MEM_Dyn ) != 0 && p.xDel != null )
-        {
-          Debug.Assert( ( p.flags & MEM_RowSet ) == 0 );
-          p.xDel( ref p.z );
-          p.xDel = null;
-        }
-        else if ( ( p.flags & MEM_RowSet ) != 0 )
-        {
-          sqlite3RowSetClear( p.u.pRowSet );
-        }
-        else if ( ( p.flags & MEM_Frame ) != 0 )
-        {
-          sqlite3VdbeMemSetNull( p );
-        }
-      }
-      p.n = 0;
-      p.z = null;
-      p.zBLOB = null;
-    }
-
-    /*
-    ** Release any memory held by the Mem. This may leave the Mem in an
-    ** inconsistent state, for example with (Mem.z==0) and
-    ** (Mem.type==SQLITE_TEXT).
-    */
-    static void sqlite3VdbeMemRelease( Mem p )
-    {
-      sqlite3VdbeMemReleaseExternal( p );
-      sqlite3DbFree( p.db, ref p.zBLOB );//zMalloc );
-      p.z = null;
-      //p.zMalloc = 0;
-      p.xDel = null;
-    }
-
-    /*
-    ** Convert a 64-bit IEEE double into a 64-bit signed integer.
-    ** If the double is too large, return 0x8000000000000000.
-    **
-    ** Most systems appear to do this simply by assigning
-    ** variables and without the extra range tests.  But
-    ** there are reports that windows throws an expection
-    ** if the floating point value is out of range. (See ticket #2880.)
-    ** Because we do not completely understand the problem, we will
-    ** take the conservative approach and always do range tests
-    ** before attempting the conversion.
-    */
-    static i64 doubleToInt64( double r )
-    {
-#if SQLITE_OMIT_FLOATING_POINT
-/* When floating-point is omitted, double and int64 are the same thing */
-return r;
-#else
-      /*
-** Many compilers we encounter do not define constants for the
-** minimum and maximum 64-bit integers, or they define them
-** inconsistently.  And many do not understand the "LL" notation.
-** So we define our own static constants here using nothing
-** larger than a 32-bit integer constant.
-*/
-      const i64 maxInt = LARGEST_INT64;
-      const i64 minInt = SMALLEST_INT64;
-
-      if ( r < (double)minInt )
-      {
-        return minInt;
-      }
-      else if ( r > (double)maxInt )
-      {
-        /* minInt is correct here - not maxInt.  It turns out that assigning
-        ** a very large positive number to an integer results in a very large
-        ** negative integer.  This makes no sense, but it is what x86 hardware
-        ** does so for compatibility we will do the same in software. */
-        return minInt;
-      }
-      else
-      {
-        return (i64)r;
-      }
-#endif
-    }
-
-    /*
-    ** Return some kind of integer value which is the best we can do
-    ** at representing the value that *pMem describes as an integer.
-    ** If pMem is an integer, then the value is exact.  If pMem is
-    ** a floating-point then the value returned is the integer part.
-    ** If pMem is a string or blob, then we make an attempt to convert
-    ** it into a integer and return that.  If pMem represents an
-    ** an SQL-NULL value, return 0.
-    **
-    ** If pMem represents a string value, its encoding might be changed.
-    */
-    static i64 sqlite3VdbeIntValue( Mem pMem )
-    {
-      int flags;
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      // assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-      flags = pMem.flags;
-      if ( ( flags & MEM_Int ) != 0 )
-      {
-        return pMem.u.i;
-      }
-      else if ( ( flags & MEM_Real ) != 0 )
-      {
-        return doubleToInt64( pMem.r );
-      }
-      else if ( ( flags & ( MEM_Str ) ) != 0 )
-      {
-        i64 value = 0;
-        Debug.Assert( pMem.z != null || pMem.n == 0 );
-        testcase( pMem.z == null );
-        sqlite3Atoi64( pMem.z, ref value, pMem.n, pMem.enc );
-        return value;
-      }
-      else if ( ( flags & ( MEM_Blob ) ) != 0 )
-      {
-        i64 value = 0;
-        Debug.Assert( pMem.zBLOB != null || pMem.n == 0 );
-        testcase( pMem.zBLOB == null );
-        sqlite3Atoi64( Encoding.UTF8.GetString( pMem.zBLOB, 0, pMem.n ), ref value, pMem.n, pMem.enc );
-        return value;
-      }
-      else
-      {
-        return 0;
-      }
-    }
-
-    /*
-    ** Return the best representation of pMem that we can get into a
-    ** double.  If pMem is already a double or an integer, return its
-    ** value.  If it is a string or blob, try to convert it to a double.
-    ** If it is a NULL, return 0.0.
-    */
-    static double sqlite3VdbeRealValue( Mem pMem )
-    {
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      //assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-      if ( ( pMem.flags & MEM_Real ) != 0 )
-      {
-        return pMem.r;
-      }
-      else if ( ( pMem.flags & MEM_Int ) != 0 )
-      {
-        return (double)pMem.u.i;
-      }
-      else if ( ( pMem.flags & ( MEM_Str ) ) != 0 )
-      {
-        /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-        double val = (double)0;
-        sqlite3AtoF( pMem.z, ref val, pMem.n, pMem.enc );
-        return val;
-      }
-      else if ( ( pMem.flags & ( MEM_Blob ) ) != 0 )
-      {
-        /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-        double val = (double)0;
-        Debug.Assert( pMem.zBLOB != null || pMem.n == 0 );
-        sqlite3AtoF( Encoding.UTF8.GetString( pMem.zBLOB, 0, pMem.n ), ref val, pMem.n, pMem.enc );
-        return val;
-      }
-      else
-      {
-        /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-        return (double)0;
-      }
-    }
-
-    /*
-    ** The MEM structure is already a MEM_Real.  Try to also make it a
-    ** MEM_Int if we can.
-    */
-    static void sqlite3VdbeIntegerAffinity( Mem pMem )
-    {
-      Debug.Assert( ( pMem.flags & MEM_Real ) != 0 );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      //assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-
-      pMem.u.i = doubleToInt64( pMem.r );
-
-      /* Only mark the value as an integer if
-      **
-      **    (1) the round-trip conversion real->int->real is a no-op, and
-      **    (2) The integer is neither the largest nor the smallest
-      **        possible integer (ticket #3922)
-      **
-      ** The second and third terms in the following conditional enforces
-      ** the second condition under the assumption that addition overflow causes
-      ** values to wrap around.  On x86 hardware, the third term is always
-      ** true and could be omitted.  But we leave it in because other
-      ** architectures might behave differently.
-      */
-      if ( pMem.r == (double)pMem.u.i && pMem.u.i > SMALLEST_INT64
-      && ALWAYS( pMem.u.i < LARGEST_INT64 ) )
-      {
-        pMem.flags |= MEM_Int;
-      }
-    }
-
-    /*
-    ** Convert pMem to type integer.  Invalidate any prior representations.
-    */
-    static int sqlite3VdbeMemIntegerify( Mem pMem )
-    {
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      //assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-
-      pMem.u.i = sqlite3VdbeIntValue( pMem );
-      MemSetTypeFlag( pMem, MEM_Int );
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Convert pMem so that it is of type MEM_Real.
-    ** Invalidate any prior representations.
-    */
-    static int sqlite3VdbeMemRealify( Mem pMem )
-    {
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      //assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-
-      pMem.r = sqlite3VdbeRealValue( pMem );
-      MemSetTypeFlag( pMem, MEM_Real );
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Convert pMem so that it has types MEM_Real or MEM_Int or both.
-    ** Invalidate any prior representations.
-    **
-    ** Every effort is made to force the conversion, even if the input
-    ** is a string that does not look completely like a number.  Convert
-    ** as much of the string as we can and ignore the rest.
-    */
-    static int sqlite3VdbeMemNumerify( Mem pMem )
-    {
-      if ( ( pMem.flags & ( MEM_Int | MEM_Real | MEM_Null ) ) == 0 )
-      {
-        Debug.Assert( ( pMem.flags & ( MEM_Blob | MEM_Str ) ) != 0 );
-        Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-        if ( ( pMem.flags & MEM_Blob ) != 0 && pMem.z == null )
-        {
-          if ( 0 == sqlite3Atoi64( Encoding.UTF8.GetString( pMem.zBLOB, 0, pMem.zBLOB.Length ), ref pMem.u.i, pMem.n, pMem.enc ) )
-            MemSetTypeFlag( pMem, MEM_Int );
-          else
-          {
-            pMem.r = sqlite3VdbeRealValue( pMem );
-            MemSetTypeFlag( pMem, MEM_Real );
-            sqlite3VdbeIntegerAffinity( pMem );
-          }
-        }
-        else if ( 0 == sqlite3Atoi64( pMem.z, ref pMem.u.i, pMem.n, pMem.enc ) )
-        {
-          MemSetTypeFlag( pMem, MEM_Int );
-        }
-        else
-        {
-          pMem.r = sqlite3VdbeRealValue( pMem );
-          MemSetTypeFlag( pMem, MEM_Real );
-          sqlite3VdbeIntegerAffinity( pMem );
-        }
-      }
-      Debug.Assert( ( pMem.flags & ( MEM_Int | MEM_Real | MEM_Null ) ) != 0 );
-      pMem.flags = (ushort)( pMem.flags & ~( MEM_Str | MEM_Blob ) );
-      return SQLITE_OK;
-    }
-
-#if !SQLITE_OMIT_FLOATING_POINT
-    /*
-** Delete any previous value and set the value stored in pMem to NULL.
-*/
-    static void sqlite3VdbeMemSetNull( Mem pMem )
-    {
-      if ( ( pMem.flags & MEM_Frame ) != 0 )
-      {
-        VdbeFrame pFrame = pMem.u.pFrame;
-        pFrame.pParent = pFrame.v.pDelFrame;
-        pFrame.v.pDelFrame = pFrame;
-      }
-      if ( ( pMem.flags & MEM_RowSet ) != 0 )
-      {
-        sqlite3RowSetClear( pMem.u.pRowSet );
-      }
-      MemSetTypeFlag( pMem, MEM_Null );
-      sqlite3_free( ref pMem.zBLOB );
-      pMem.z = null;
-      pMem.type = SQLITE_NULL;
-    }
-#endif
-
-    /*
-** Delete any previous value and set the value to be a BLOB of length
-** n containing all zeros.
-*/
-    static void sqlite3VdbeMemSetZeroBlob( Mem pMem, int n )
-    {
-      sqlite3VdbeMemRelease( pMem );
-      pMem.flags = MEM_Blob | MEM_Zero;
-      pMem.type = SQLITE_BLOB;
-      pMem.n = 0;
-      if ( n < 0 )
-        n = 0;
-      pMem.u.nZero = n;
-      pMem.enc = SQLITE_UTF8;
-#if SQLITE_OMIT_INCRBLOB
-      sqlite3VdbeMemGrow( pMem, n, 0 );
-      //if( pMem.z!= null ){
-      pMem.n = n;
-      pMem.z = null;//memset(pMem.z, 0, n);
-      pMem.zBLOB = sqlite3Malloc( n );
-      //}
-#endif
-    }
-
-    /*
-    ** Delete any previous value and set the value stored in pMem to val,
-    ** manifest type INTEGER.
-    */
-    static void sqlite3VdbeMemSetInt64( Mem pMem, i64 val )
-    {
-      sqlite3VdbeMemRelease( pMem );
-      pMem.u.i = val;
-      pMem.flags = MEM_Int;
-      pMem.type = SQLITE_INTEGER;
-    }
-
-    /*
-    ** Delete any previous value and set the value stored in pMem to val,
-    ** manifest type REAL.
-    */
-    static void sqlite3VdbeMemSetDouble( Mem pMem, double val )
-    {
-      if ( sqlite3IsNaN( val ) )
-      {
-        sqlite3VdbeMemSetNull( pMem );
-      }
-      else
-      {
-        sqlite3VdbeMemRelease( pMem );
-        pMem.r = val;
-        pMem.flags = MEM_Real;
-        pMem.type = SQLITE_FLOAT;
-      }
-    }
-
-    /*
-    ** Delete any previous value and set the value of pMem to be an
-    ** empty boolean index.
-    */
-    static void sqlite3VdbeMemSetRowSet( Mem pMem )
-    {
-      sqlite3 db = pMem.db;
-      Debug.Assert( db != null );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      sqlite3VdbeMemRelease( pMem );
-      //pMem.zMalloc = sqlite3DbMallocRaw( db, 64 );
-      //if ( db.mallocFailed != 0 )
-      //{
-      //  pMem.flags = MEM_Null;
-      //}
-      //else
-      {
-        //Debug.Assert( pMem.zMalloc );
-        pMem.u.pRowSet = new RowSet( db, 5 );// sqlite3RowSetInit( db, pMem.zMalloc,
-        //     sqlite3DbMallocSize( db, pMem.zMalloc ) );
-        Debug.Assert( pMem.u.pRowSet != null );
-        pMem.flags = MEM_RowSet;
-      }
-    }
-
-    /*
-    ** Return true if the Mem object contains a TEXT or BLOB that is
-    ** too large - whose size exceeds p.db.aLimit[SQLITE_LIMIT_LENGTH].
-    */
-    static bool sqlite3VdbeMemTooBig( Mem p )
-    {
-      //Debug.Assert( p.db != null );
-      if ( ( p.flags & ( MEM_Str | MEM_Blob ) ) != 0 )
-      {
-        int n = p.n;
-        if ( ( p.flags & MEM_Zero ) != 0 )
-        {
-          n += p.u.nZero;
-        }
-        return n > p.db.aLimit[SQLITE_LIMIT_LENGTH];
-      }
-      return false;
-    }
-
-#if SQLITE_DEBUG
-    /*
-** This routine prepares a memory cell for modication by breaking
-** its link to a shallow copy and by marking any current shallow
-** copies of this cell as invalid.
-**
-** This is used for testing and debugging only - to make sure shallow
-** copies are not misused.
-*/
-    static void sqlite3VdbeMemPrepareToChange( Vdbe pVdbe, Mem pMem )
-    {
-      int i;
-      Mem pX;
-      for ( i = 1; i <= pVdbe.nMem; i++ )
-      {
-        pX = pVdbe.aMem[i];
-        if ( pX.pScopyFrom == pMem )
-        {
-          pX.flags |= MEM_Invalid;
-          pX.pScopyFrom = null;
-        }
-      }
-      pMem.pScopyFrom = null;
-    }
-#endif //* SQLITE_DEBUG */
-
-    /*
-** Size of struct Mem not including the Mem.zMalloc member.
-*/
-    //#define MEMCELLSIZE (size_t)(&(((Mem *)0).zMalloc))
-
-    /*
-    ** Make an shallow copy of pFrom into pTo.  Prior contents of
-    ** pTo are freed.  The pFrom.z field is not duplicated.  If
-    ** pFrom.z is used, then pTo.z points to the same thing as pFrom.z
-    ** and flags gets srcType (either MEM_Ephem or MEM_Static).
-    */
-    static void sqlite3VdbeMemShallowCopy( Mem pTo, Mem pFrom, int srcType )
-    {
-      Debug.Assert( ( pFrom.flags & MEM_RowSet ) == 0 );
-      sqlite3VdbeMemReleaseExternal( pTo );
-      pFrom.CopyTo( ref pTo );//  memcpy(pTo, pFrom, MEMCELLSIZE);
-      pTo.xDel = null;
-      if ( ( pFrom.flags & MEM_Static ) != 0 )
-      {
-        pTo.flags = (u16)( pFrom.flags & ~( MEM_Dyn | MEM_Static | MEM_Ephem ) );
-        Debug.Assert( srcType == MEM_Ephem || srcType == MEM_Static );
-        pTo.flags |= (u16)srcType;
-      }
-    }
-
-    /*
-    ** Make a full copy of pFrom into pTo.  Prior contents of pTo are
-    ** freed before the copy is made.
-    */
-    static int sqlite3VdbeMemCopy( Mem pTo, Mem pFrom )
-    {
-      int rc = SQLITE_OK;
-
-      Debug.Assert( ( pFrom.flags & MEM_RowSet ) == 0 );
-      sqlite3VdbeMemReleaseExternal( pTo );
-      pFrom.CopyTo( ref pTo );// memcpy(pTo, pFrom, MEMCELLSIZE);
-      pTo.flags = (u16)( pTo.flags & ~MEM_Dyn );
-
-      if ( ( pTo.flags & ( MEM_Str | MEM_Blob ) ) != 0 )
-      {
-        if ( 0 == ( pFrom.flags & MEM_Static ) )
-        {
-          pTo.flags |= MEM_Ephem;
-          rc = sqlite3VdbeMemMakeWriteable( pTo );
-        }
-      }
-
-      return rc;
-    }
-
-
-
-
-    /*
-    ** Transfer the contents of pFrom to pTo. Any existing value in pTo is
-    ** freed. If pFrom contains ephemeral data, a copy is made.
-    **
-    ** pFrom contains an SQL NULL when this routine returns.
-    */
-    static void sqlite3VdbeMemMove( Mem pTo, Mem pFrom )
-    {
-      Debug.Assert( pFrom.db == null || sqlite3_mutex_held( pFrom.db.mutex ) );
-      Debug.Assert( pTo.db == null || sqlite3_mutex_held( pTo.db.mutex ) );
-      Debug.Assert( pFrom.db == null || pTo.db == null || pFrom.db == pTo.db );
-      sqlite3VdbeMemRelease( pTo );
-      pFrom.CopyTo( ref pTo );// memcpy(pTo, pFrom, Mem).Length;
-      pFrom.flags = MEM_Null;
-      pFrom.xDel = null;
-      pFrom.z = null;
-      sqlite3_free( ref pFrom.zBLOB ); //pFrom.zMalloc=0;
-    }
-
-    /*
-    ** Change the value of a Mem to be a string or a BLOB.
-    **
-    ** The memory management strategy depends on the value of the xDel
-    ** parameter. If the value passed is SQLITE_TRANSIENT, then the
-    ** string is copied into a (possibly existing) buffer managed by the
-    ** Mem structure. Otherwise, any existing buffer is freed and the
-    ** pointer copied.
-    **
-    ** If the string is too large (if it exceeds the SQLITE_LIMIT_LENGTH
-    ** size limit) then no memory allocation occurs.  If the string can be
-    ** stored without allocating memory, then it is.  If a memory allocation
-    ** is required to store the string, then value of pMem is unchanged.  In
-    ** either case, SQLITE_TOOBIG is returned.
-    */
-    static int sqlite3VdbeMemSetBlob(
-    Mem pMem,           /* Memory cell to set to string value */
-    byte[] zBlob,       /* Blob pointer */
-    int n,              /* Bytes in Blob */
-    u8 enc,             /* 0 for BLOBs */
-    dxDel xDel          /* Destructor function */
-    )
-    {
-      return sqlite3VdbeMemSetBlob( pMem, zBlob, 0, n >= 0 ? n : zBlob.Length, enc, xDel );
-    } // Call w/o offset
-
-    static int sqlite3VdbeMemSetBlob(
-    Mem pMem,           /* Memory cell to set to string value */
-    byte[] zBlob,       /* Blob pointer */
-    int offset,         /* offset into string */
-    int n,              /* Bytes in string, or negative */
-    u8 enc,             /* Encoding of z.  0 for BLOBs */
-    dxDel xDel//)(void*)/* Destructor function */
-    )
-    {
-      int nByte = n;      /* New value for pMem->n */
-      int iLimit;         /* Maximum allowed string or blob size */
-
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-
-      /* If zBlob is a NULL pointer, set pMem to contain an SQL NULL. */
-      if ( zBlob == null || zBlob.Length < offset )
-      {
-        sqlite3VdbeMemSetNull( pMem );
-        return SQLITE_OK;
-      }
-
-      if ( pMem.db != null )
-      {
-        iLimit = pMem.db.aLimit[SQLITE_LIMIT_LENGTH];
-      }
-      else
-      {
-        iLimit = SQLITE_MAX_LENGTH;
-      }
-      if ( nByte < 0 )
-      {
-        Debug.Assert( enc != 0 );
-        if ( enc == SQLITE_UTF8 )
-        {
-          for ( nByte = 0; nByte <= iLimit && nByte < zBlob.Length - offset && zBlob[offset + nByte] != 0; nByte++ )
-          {
-          }
-        }
-        else
-        {
-          for ( nByte = 0; nByte <= iLimit && zBlob[nByte + offset] != 0 || zBlob[offset + nByte + 1] != 0; nByte += 2 )
-          {
-          }
-        }
-      }
-
-      /* The following block sets the new values of Mem.z and Mem.xDel. It
-      ** also sets a flag in local variable "flags" to indicate the memory
-      ** management (one of MEM_Dyn or MEM_Static).
-      */
-      Debug.Assert( enc == 0 );
-      {
-        pMem.z = null;
-        pMem.zBLOB = sqlite3Malloc( n );
-        Buffer.BlockCopy( zBlob, offset, pMem.zBLOB, 0, n );
-      }
-      pMem.n = nByte;
-      pMem.flags = MEM_Blob | MEM_Term;
-      pMem.enc = ( enc == 0 ? SQLITE_UTF8 : enc );
-      pMem.type = ( enc == 0 ? SQLITE_BLOB : SQLITE_TEXT );
-
-      if ( nByte > iLimit )
-      {
-        return SQLITE_TOOBIG;
-      }
-
-      return SQLITE_OK;
-    }
-
-    static int sqlite3VdbeMemSetStr(
-    Mem pMem,           /* Memory cell to set to string value */
-    string z,           /* String pointer */
-    int n,              /* Bytes in string, or negative */
-    u8 enc,             /* Encoding of z.  0 for BLOBs */
-    dxDel xDel          /* Destructor function */
-    )
-    {
-      return sqlite3VdbeMemSetStr( pMem, z, 0, n, enc, xDel );
-    } // Call w/o offset
-
-    static int sqlite3VdbeMemSetStr(
-    Mem pMem,           /* Memory cell to set to string value */
-    string z,           /* String pointer */
-    int offset,         /* offset into string */
-    int n,              /* Bytes in string, or negative */
-    u8 enc,             /* Encoding of z.  0 for BLOBs */
-    dxDel xDel//)(void*)/* Destructor function */
-    )
-    {
-      int nByte = n;      /* New value for pMem->n */
-      int iLimit;         /* Maximum allowed string or blob size */
-      u16 flags = 0;      /* New value for pMem->flags */
-
-      Debug.Assert( pMem.db == null || sqlite3_mutex_held( pMem.db.mutex ) );
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-
-      /* If z is a NULL pointer, set pMem to contain an SQL NULL. */
-      if ( z == null || z.Length < offset )
-      {
-        sqlite3VdbeMemSetNull( pMem );
-        return SQLITE_OK;
-      }
-
-      if ( pMem.db != null )
-      {
-        iLimit = pMem.db.aLimit[SQLITE_LIMIT_LENGTH];
-      }
-      else
-      {
-        iLimit = SQLITE_MAX_LENGTH;
-      }
-      flags = (u16)( enc == 0 ? MEM_Blob : MEM_Str );
-      if ( nByte < 0 )
-      {
-        Debug.Assert( enc != 0 );
-        if ( enc == SQLITE_UTF8 )
-        {
-          for ( nByte = 0; nByte <= iLimit && nByte < z.Length - offset && z[offset + nByte] != 0; nByte++ )
-          {
-          }
-        }
-        else
-        {
-          for ( nByte = 0; nByte <= iLimit && z[nByte + offset] != 0 || z[offset + nByte + 1] != 0; nByte += 2 )
-          {
-          }
-        }
-        flags |= MEM_Term;
-      }
-
-      /* The following block sets the new values of Mem.z and Mem.xDel. It
-      ** also sets a flag in local variable "flags" to indicate the memory
-      ** management (one of MEM_Dyn or MEM_Static).
-      */
-      if ( xDel == SQLITE_TRANSIENT )
-      {
-        u32 nAlloc = (u32)nByte;
-        if ( ( flags & MEM_Term ) != 0 )
-        {
-          nAlloc += (u32)( enc == SQLITE_UTF8 ? 1 : 2 );
-        }
-        if ( nByte > iLimit )
-        {
-          return SQLITE_TOOBIG;
-        }
-        if ( sqlite3VdbeMemGrow( pMem, (int)nAlloc, 0 ) != 0 )
-        {
-          return SQLITE_NOMEM;
-        }
-        //if ( nAlloc < z.Length )
-        //pMem.z = new byte[nAlloc]; Buffer.BlockCopy( z, 0, pMem.z, 0, (int)nAlloc ); }
-        //else
-        if ( enc == 0 )
-        {
-          pMem.z = null;
-          pMem.zBLOB = sqlite3Malloc( n );
-          for ( int i = 0; i < n && i < z.Length - offset; i++ )
-            pMem.zBLOB[i] = (byte)z[offset + i];
-        }
-        else
-        {
-          pMem.z = n > 0 && z.Length - offset > n ? z.Substring( offset, n ) : z.Substring( offset );//memcpy(pMem.z, z, nAlloc);
-          sqlite3_free( ref pMem.zBLOB );
-        }
-      }
-      else if ( xDel == SQLITE_DYNAMIC )
-      {
-        sqlite3VdbeMemRelease( pMem );
-        //pMem.zMalloc = pMem.z = (char*)z;
-        if ( enc == 0 )
-        {
-          pMem.z = null;
-          if ( pMem.zBLOB != null )
-            sqlite3_free( ref pMem.zBLOB );
-          pMem.zBLOB = Encoding.UTF8.GetBytes( offset == 0 ? z : z.Length + offset < n ? z.Substring( offset, n ) : z.Substring( offset ) );
-        }
-        else
-        {
-          pMem.z = n > 0 && z.Length - offset > n ? z.Substring( offset, n ) : z.Substring( offset );//memcpy(pMem.z, z, nAlloc);
-          sqlite3_free( ref pMem.zBLOB );
-        }
-        pMem.xDel = null;
-      }
-      else
-      {
-        sqlite3VdbeMemRelease( pMem );
-        if ( enc == 0 )
-        {
-          pMem.z = null;
-          if ( pMem.zBLOB != null )
-            sqlite3_free( ref pMem.zBLOB );
-          pMem.zBLOB = Encoding.UTF8.GetBytes( offset == 0 ? z : z.Length + offset < n ? z.Substring( offset, n ) : z.Substring( offset ) );
-        }
-        else
-        {
-          pMem.z = n > 0 && z.Length - offset > n ? z.Substring( offset, n ) : z.Substring( offset );//memcpy(pMem.z, z, nAlloc);
-          sqlite3_free( ref pMem.zBLOB );
-        }
-        pMem.xDel = xDel;
-        flags |= (u16)( ( xDel == SQLITE_STATIC ) ? MEM_Static : MEM_Dyn );
-      }
-      pMem.n = nByte;
-      pMem.flags = flags;
-      pMem.enc = ( enc == 0 ? SQLITE_UTF8 : enc );
-      pMem.type = ( enc == 0 ? SQLITE_BLOB : SQLITE_TEXT );
-
-#if !SQLITE_OMIT_UTF16
-if( pMem.enc!=SQLITE_UTF8 && sqlite3VdbeMemHandleBom(pMem)!=0 ){
-return SQLITE_NOMEM;
-}
-#endif
-
-      if ( nByte > iLimit )
-      {
-        return SQLITE_TOOBIG;
-      }
-
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Compare the values contained by the two memory cells, returning
-    ** negative, zero or positive if pMem1 is less than, equal to, or greater
-    ** than pMem2. Sorting order is NULL's first, followed by numbers (integers
-    ** and reals) sorted numerically, followed by text ordered by the collating
-    ** sequence pColl and finally blob's ordered by memcmp().
-    **
-    ** Two NULL values are considered equal by this function.
-    */
-    static int sqlite3MemCompare( Mem pMem1, Mem pMem2, CollSeq pColl )
-    {
-      int rc;
-      int f1, f2;
-      int combined_flags;
-
-      f1 = pMem1.flags;
-      f2 = pMem2.flags;
-      combined_flags = f1 | f2;
-      Debug.Assert( ( combined_flags & MEM_RowSet ) == 0 );
-
-      /* If one value is NULL, it is less than the other. If both values
-      ** are NULL, return 0.
-      */
-      if ( ( combined_flags & MEM_Null ) != 0 )
-      {
-        return ( f2 & MEM_Null ) - ( f1 & MEM_Null );
-      }
-
-      /* If one value is a number and the other is not, the number is less.
-      ** If both are numbers, compare as reals if one is a real, or as integers
-      ** if both values are integers.
-      */
-      if ( ( combined_flags & ( MEM_Int | MEM_Real ) ) != 0 )
-      {
-        if ( ( f1 & ( MEM_Int | MEM_Real ) ) == 0 )
-        {
-          return 1;
-        }
-        if ( ( f2 & ( MEM_Int | MEM_Real ) ) == 0 )
-        {
-          return -1;
-        }
-        if ( ( f1 & f2 & MEM_Int ) == 0 )
-        {
-          double r1, r2;
-          if ( ( f1 & MEM_Real ) == 0 )
-          {
-            r1 = (double)pMem1.u.i;
-          }
-          else
-          {
-            r1 = pMem1.r;
-          }
-          if ( ( f2 & MEM_Real ) == 0 )
-          {
-            r2 = (double)pMem2.u.i;
-          }
-          else
-          {
-            r2 = pMem2.r;
-          }
-          if ( r1 < r2 )
-            return -1;
-          if ( r1 > r2 )
-            return 1;
-          return 0;
-        }
-        else
-        {
-          Debug.Assert( ( f1 & MEM_Int ) != 0 );
-          Debug.Assert( ( f2 & MEM_Int ) != 0 );
-          if ( pMem1.u.i < pMem2.u.i )
-            return -1;
-          if ( pMem1.u.i > pMem2.u.i )
-            return 1;
-          return 0;
-        }
-      }
-
-      /* If one value is a string and the other is a blob, the string is less.
-      ** If both are strings, compare using the collating functions.
-      */
-      if ( ( combined_flags & MEM_Str ) != 0 )
-      {
-        if ( ( f1 & MEM_Str ) == 0 )
-        {
-          return 1;
-        }
-        if ( ( f2 & MEM_Str ) == 0 )
-        {
-          return -1;
-        }
-
-        Debug.Assert( pMem1.enc == pMem2.enc );
-        Debug.Assert( pMem1.enc == SQLITE_UTF8 ||
-        pMem1.enc == SQLITE_UTF16LE || pMem1.enc == SQLITE_UTF16BE );
-
-        /* The collation sequence must be defined at this point, even if
-        ** the user deletes the collation sequence after the vdbe program is
-        ** compiled (this was not always the case).
-        */
-        Debug.Assert( pColl == null || pColl.xCmp != null );
-
-        if ( pColl != null )
-        {
-          if ( pMem1.enc == pColl.enc )
-          {
-            /* The strings are already in the correct encoding.  Call the
-            ** comparison function directly */
-            return pColl.xCmp( pColl.pUser, pMem1.n, pMem1.z, pMem2.n, pMem2.z );
-          }
-          else
-          {
-            string v1, v2;
-            int n1, n2;
-            Mem c1 = null;
-            Mem c2 = null;
-
-            c1 = sqlite3Malloc( c1 );// memset( &c1, 0, sizeof( c1 ) );
-            c2 = sqlite3Malloc( c2 );// memset( &c2, 0, sizeof( c2 ) );
-
-            sqlite3VdbeMemShallowCopy( c1, pMem1, MEM_Ephem );
-            sqlite3VdbeMemShallowCopy( c2, pMem2, MEM_Ephem );
-            v1 = sqlite3ValueText( (sqlite3_value)c1, pColl.enc );
-            n1 = v1 == null ? 0 : c1.n;
-            v2 = sqlite3ValueText( (sqlite3_value)c2, pColl.enc );
-            n2 = v2 == null ? 0 : c2.n;
-            rc = pColl.xCmp( pColl.pUser, n1, v1, n2, v2 );
-            sqlite3VdbeMemRelease( c1 );
-            sqlite3VdbeMemRelease( c2 );
+            // MemTranslate() may return SQLITE_OK or SQLITE_NOMEM. If NOMEM is returned, then the encoding of the value may not have changed.
+            RC rc = MemTranslate(mem, newEncode);
+            Debug.Assert(rc == RC.OK || rc == RC.NOMEM);
+            Debug.Assert(rc == RC.OK || mem.Encode != newEncode);
+            Debug.Assert(rc == RC.NOMEM || mem.Encode == newEncode);
             return rc;
-          }
+#endif
         }
-        /* If a NULL pointer was passed as the collate function, fall through
-        ** to the blob case and use memcmp().  */
-      }
 
-      /* Both values must be blobs.  Compare using memcmp().  */
-      if ( ( pMem1.flags & MEM_Blob ) != 0 )
-        if ( pMem1.zBLOB != null )
-          rc = memcmp( pMem1.zBLOB, pMem2.zBLOB, ( pMem1.n > pMem2.n ) ? pMem2.n : pMem1.n );
-        else
-          rc = memcmp( pMem1.z, pMem2.zBLOB, ( pMem1.n > pMem2.n ) ? pMem2.n : pMem1.n );
-      else
-        rc = memcmp( pMem1.z, pMem2.z, ( pMem1.n > pMem2.n ) ? pMem2.n : pMem1.n );
-      if ( rc == 0 )
-      {
-        rc = pMem1.n - pMem2.n;
-      }
-      return rc;
-    }
-
-    /*
-    ** Move data out of a btree key or data field and into a Mem structure.
-    ** The data or key is taken from the entry that pCur is currently pointing
-    ** to.  offset and amt determine what portion of the data or key to retrieve.
-    ** key is true to get the key or false to get data.  The result is written
-    ** into the pMem element.
-    **
-    ** The pMem structure is assumed to be uninitialized.  Any prior content
-    ** is overwritten without being freed.
-    **
-    ** If this routine fails for any reason (malloc returns NULL or unable
-    ** to read from the disk) then the pMem is left in an inconsistent state.
-    */
-    static int sqlite3VdbeMemFromBtree(
-    BtCursor pCur,    /* Cursor pointing at record to retrieve. */
-    int offset,       /* Offset from the start of data to return bytes from. */
-    int amt,          /* Number of bytes to return. */
-    bool key,         /* If true, retrieve from the btree key, not data. */
-    Mem pMem          /* OUT: Return data in this Mem structure. */
-    )
-    {
-      byte[] zData;       /* Data from the btree layer */
-      int available = 0; /* Number of bytes available on the local btree page */
-      int rc = SQLITE_OK; /* Return code */
-
-      Debug.Assert( sqlite3BtreeCursorIsValid( pCur ) );
-
-      /* Note: the calls to BtreeKeyFetch() and DataFetch() below assert()
-      ** that both the BtShared and database handle mutexes are held. */
-      Debug.Assert( ( pMem.flags & MEM_RowSet ) == 0 );
-      int outOffset = -1;
-      if ( key )
-      {
-        zData = sqlite3BtreeKeyFetch( pCur, ref available, ref outOffset );
-      }
-      else
-      {
-        zData = sqlite3BtreeDataFetch( pCur, ref available, ref outOffset );
-      }
-      Debug.Assert( zData != null );
-
-      if ( offset + amt <= available && ( pMem.flags & MEM_Dyn ) == 0 )
-      {
-        sqlite3VdbeMemRelease( pMem );
-        pMem.zBLOB = sqlite3Malloc( amt );
-        Buffer.BlockCopy( zData, offset, pMem.zBLOB, 0, amt );//pMem.z = &zData[offset];
-        pMem.flags = MEM_Blob | MEM_Ephem;
-      }
-      else if ( SQLITE_OK == ( rc = sqlite3VdbeMemGrow( pMem, amt + 2, 0 ) ) )
-      {
-        pMem.enc = 0;
-        pMem.type = SQLITE_BLOB;
-        pMem.z = null;
-        pMem.zBLOB = sqlite3Malloc( amt );
-        pMem.flags = MEM_Blob | MEM_Dyn | MEM_Term;
-        if ( key )
+        public static RC MemGrow(Mem mem, int newSize, bool preserve)
         {
-          rc = sqlite3BtreeKey( pCur, (u32)offset, (u32)amt, pMem.zBLOB );
+            //Debug.Assert((mem.Malloc != null && mem.Malloc == mem.Z ? 1 : 0) +
+            //    ((mem.Flags & MEM.Dyn) && mem.Del ? 1 : 0) +
+            //    ((mem.Flags & MEM.Ephem) ? 1 : 0) +
+            //    ((mem.Flags & MEM.Static) ? 1 : 0) <= 1);
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+
+            // If the preserve flag is set to true, then the memory cell must already contain a valid string or blob value.
+            Debug.Assert(!preserve || (mem.Flags & (MEM.Blob | MEM.Str)) != 0);
+
+            if (newSize < 32) newSize = 32;
+            //: if (_tagallocsize(mem->Ctx, mem->Malloc) < newSize)
+            if (preserve) //: && mem->Z == mem->Malloc)
+            {
+                if (mem.Z == null)
+                    mem.Z = null;
+                else
+                    if (newSize < mem.Z.Length)
+                        mem.Z = mem.Z.Substring(0, newSize);
+                preserve = false;
+            }
+            else
+            {
+                //: _tagfree(mem->Ctx, mem->Malloc);
+                mem.Z = null; //: mem->Malloc = (char*)_tagalloc(mem->Ctx, newSize);
+            }
+
+            //: if (mem.Z && preserve && mem.Malloc && mem.Z != mem->Malloc)
+            //:     _memcpy(mem.Malloc, mem.Z, mem.N);
+            if ((mem.Flags & MEM.Dyn) != 0 && mem.Del != null)
+            {
+                Debug.Assert(mem.Del != C.DESTRUCTOR_DYNAMIC);
+                mem.Del(mem.Z);
+            }
+
+            //: mem.Z = mem->Malloc;
+            mem.Flags = (MEM)(mem.Z == null ? MEM.Null : mem.Flags & ~(MEM.Ephem | MEM.Static));
+            mem.Del = null;
+            return (mem.Z != null ? RC.OK : RC.NOMEM);
         }
-        else
+
+        public static RC MemMakeWriteable(Mem mem)
         {
-          rc = sqlite3BtreeData( pCur, (u32)offset, (u32)amt, pMem.zBLOB );//pMem.z =  pMem_z ;
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            E.ExpandBlob(mem);
+            MEM f = mem.Flags;
+            if ((f & (MEM.Str | MEM.Blob)) != 0) //: mem->Z != mem->Malloc)
+            {
+                if (MemGrow(mem, mem.N + 2, true) != 0)
+                    return RC.NOMEM;
+                //: mem.Z[mem.N] = 0;
+                //: mem.Z[mem.N + 1] = 0;
+                mem.Flags |= MEM.Term;
+#if DEBUG
+                mem.ScopyFrom = null;
+#endif
+            }
+            return RC.OK;
         }
-        //pMem.z[amt] = 0;
-        //pMem.z[amt+1] = 0;
-        if ( rc != SQLITE_OK )
+
+#if !OMIT_INCRBLOB
+        public static RC MemExpandBlob(Mem mem)
         {
-          sqlite3VdbeMemRelease( pMem );
+            if ((mem.Flags & MEM.Zero) != 0)
+            {
+                Debug.Assert((mem.Flags & MEM.Blob) != 0);
+                Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+                Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+                // Set nByte to the number of bytes required to store the expanded blob.
+                int bytes = mem.N + mem.u.Zero;
+                if (bytes <= 0)
+                    bytes = 1;
+                if (MemGrow(mem, bytes, true) != 0)
+                    return RC.NOMEM;
+                //: _memset(&mem->Z[mem->N], 0, mem->u.Zero);
+                mem.Z_ = Encoding.UTF8.GetBytes(mem.Z);
+                mem.Z = null;
+                mem.N += (int)mem.u.Zero;
+                mem.u.I = 0;
+                mem.Flags &= ~(MEM.Zero | MEM.Static | MEM.Ephem | MEM.Term);
+                mem.Flags |= MEM.Dyn;
+            }
+            return RC.OK;
         }
-      }
-      pMem.n = amt;
-      sqlite3_free( ref zData );
+#endif
 
-      return rc;
-    }
-
-    /* This function is only available internally, it is not part of the
-    ** external API. It works in a similar way to sqlite3_value_text(),
-    ** except the data returned is in the encoding specified by the second
-    ** parameter, which must be one of SQLITE_UTF16BE, SQLITE_UTF16LE or
-    ** SQLITE_UTF8.
-    **
-    ** (2006-02-16:)  The enc value can be or-ed with SQLITE_UTF16_ALIGNED.
-    ** If that is the case, then the result must be aligned on an even byte
-    ** boundary.
-    */
-    static string sqlite3ValueText( sqlite3_value pVal, int enc )
-    {
-      if ( pVal == null )
-        return null;
-
-      Debug.Assert( pVal.db == null || sqlite3_mutex_held( pVal.db.mutex ) );
-      Debug.Assert( ( enc & 3 ) == ( enc & ~SQLITE_UTF16_ALIGNED ) );
-      Debug.Assert( ( pVal.flags & MEM_RowSet ) == 0 );
-
-      if ( ( pVal.flags & MEM_Null ) != 0 )
-      {
-        return null;
-      }
-      Debug.Assert( ( MEM_Blob >> 3 ) == MEM_Str );
-      pVal.flags |= (u16)( ( pVal.flags & MEM_Blob ) >> 3 );
-      if ( ( pVal.flags & MEM_Zero ) != 0 )
-        sqlite3VdbeMemExpandBlob( pVal ); // expandBlob(pVal);
-      if ( ( pVal.flags & MEM_Str ) != 0 )
-      {
-        if ( sqlite3VdbeChangeEncoding( pVal, enc & ~SQLITE_UTF16_ALIGNED ) != SQLITE_OK )
+        public static RC MemNulTerminate(Mem mem)
         {
-          return null; // Encoding Error
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            if ((mem.Flags & MEM.Term) != 0 || (mem.Flags & MEM.Str) == 0)
+                return RC.OK; // Nothing to do
+            if (MemGrow(mem, mem.N + 2, true) != 0)
+                return RC.NOMEM;
+            //mem.Z[mem.N] = 0;
+            //mem.Z[mem.N + 1] = 0;
+            if (mem.Z != null && mem.N < mem.Z.Length)
+                mem.Z = mem.Z.Substring(0, mem.N);
+            mem.Flags |= MEM.Term;
+            return RC.OK;
         }
-        if ( ( enc & SQLITE_UTF16_ALIGNED ) != 0 && 1 == ( 1 & ( pVal.z[0] ) ) )  //1==(1&SQLITE_PTR_TO_INT(pVal.z))
+
+        public static RC MemStringify(Mem mem, TEXTENCODE encode)
         {
-          Debug.Assert( ( pVal.flags & ( MEM_Ephem | MEM_Static ) ) != 0 );
-          if ( sqlite3VdbeMemMakeWriteable( pVal ) != SQLITE_OK )
-          {
-            return null;
-          }
+            MEM f = mem.Flags;
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((f & MEM.Zero) == 0);
+            Debug.Assert((f & (MEM.Str | MEM.Blob)) == 0);
+            Debug.Assert((f & (MEM.Int | MEM.Real)) != 0);
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            //: Debug.Assert(C._HASALIGNMENT8(mem));
+
+            const int bytes = 32;
+            if (MemGrow(mem, bytes, false) != 0)
+                return RC.NOMEM;
+
+            // For a Real or Integer, use sqlite3_mprintf() to produce the UTF-8 string representation of the value. Then, if the required encoding
+            // is UTF-16le or UTF-16be do a translation.
+            // FIX ME: It would be better if sqlite3_snprintf() could do UTF-16.
+            if ((f & MEM.Int) != 0)
+                mem.Z = mem.u.I.ToString(); //: __snprintf(mem->Z, bytes, "%lld", mem->u.I);
+            else
+            {
+                Debug.Assert((f & MEM.Real) != 0);
+                if (double.IsNegativeInfinity(mem.R)) mem.Z = "-Inf";
+                else if (double.IsInfinity(mem.R)) mem.Z = "Inf";
+                else if (double.IsPositiveInfinity(mem.R)) mem.Z = "+Inf";
+                else if (mem.R.ToString(CultureInfo.InvariantCulture).Contains(".")) mem.Z = mem.R.ToString(CultureInfo.InvariantCulture).ToLower(); //: __snprintf(mem->Z, bytes, "%!.15g", mem->R);
+                else mem.Z = mem.R.ToString(CultureInfo.InvariantCulture) + ".0";
+            }
+            mem.N = mem.Z.Length;
+            mem.Encode = TEXTENCODE.UTF8;
+            mem.Flags |= MEM.Str | MEM.Term;
+            ChangeEncoding(mem, encode);
+            return RC.OK;
         }
-        sqlite3VdbeMemNulTerminate( pVal ); /* IMP: R-59893-45467 */
-      }
-      else
-      {
-        Debug.Assert( ( pVal.flags & MEM_Blob ) == 0 );
-        sqlite3VdbeMemStringify( pVal, enc );
-        //  assert( 0==(1&SQLITE_PTR_TO_INT(pVal->z)) );
-      }
-      Debug.Assert( pVal.enc == ( enc & ~SQLITE_UTF16_ALIGNED ) || pVal.db == null
-        //|| pVal.db.mallocFailed != 0
-      );
-      if ( pVal.enc == ( enc & ~SQLITE_UTF16_ALIGNED ) )
-      {
-        return pVal.z;
-      }
-      else
-      {
-        return null;
-      }
-    }
 
-    /*
-    ** Create a new sqlite3_value object.
-    */
-    static sqlite3_value sqlite3ValueNew( sqlite3 db )
-    {
-      Mem p = null;
-      p = sqlite3DbMallocZero( db, p );
-      //if ( p != null )
-      //{
-      p.flags = MEM_Null;
-      p.type = SQLITE_NULL;
-      p.db = db;
-      //}
-      return p;
-    }
+        public static RC MemFinalize(Mem mem, FuncDef func)
+        {
+            RC rc = RC.OK;
+            if (C._ALWAYS(func != null && func.Finalize != null))
+            {
+                Debug.Assert((mem.Flags & MEM.Null) != 0 || func == mem.u.Def);
+                Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+                //memset(&ctx, 0, sizeof(ctx));
+                FuncContext ctx = new FuncContext();
+                ctx.S.Flags = MEM.Null;
+                ctx.S.Ctx = mem.Ctx;
+                ctx.Mem = mem;
+                ctx.Func = func;
+                func.Finalize(ctx); // IMP: R-24505-23230
+                Debug.Assert((mem.Flags & MEM.Dyn) == 0 && mem.Del == null);
+                C._tagfree(mem.Ctx, ref mem.Z_); //: mem->Malloc);
+                ctx.S._memcpy(ref mem);
+                rc = ctx.IsError;
+            }
+            return rc;
+        }
 
-    /*
-    ** Create a new sqlite3_value object, containing the value of pExpr.
-    **
-    ** This only works for very simple expressions that consist of one constant
-    ** token (i.e. "5", "5.1", "'a string'"). If the expression can
-    ** be converted directly into a value, then the value is allocated and
-    ** a pointer written to ppVal. The caller is responsible for deallocating
-    ** the value by passing it to sqlite3ValueFree() later on. If the expression
-    ** cannot be converted to a value, then ppVal is set to NULL.
-    */
-    static int sqlite3ValueFromExpr(
-    sqlite3 db,              /* The database connection */
-    Expr pExpr,              /* The expression to evaluate */
-    int enc,                   /* Encoding to use */
-    char affinity,              /* Affinity to use */
-    ref sqlite3_value ppVal     /* Write the new value here */
-    )
-    {
-      int op;
-      string zVal = "";
-      sqlite3_value pVal = null;
-      int negInt = 1;
-      string zNeg = "";
+        public static void MemReleaseExternal(Mem mem)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            if ((mem.Flags & MEM.Agg) != 0)
+            {
+                MemFinalize(mem, mem.u.Def);
+                Debug.Assert((mem.Flags & MEM.Agg) == 0);
+                MemRelease(mem);
+            }
+            else if ((mem.Flags & MEM.Dyn) != 0 && mem.Del != null)
+            {
+                Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+                mem.Del(mem.Z);
+                mem.Del = null;
+            }
+            else if ((mem.Flags & MEM.RowSet) != 0) RowSet_Clear(mem.u.RowSet);
+            else if ((mem.Flags & MEM.Frame) != 0) MemSetNull(mem);
+            mem.N = 0;
+            mem.Z = null;
+            mem.Z_ = null;
+        }
 
-      if ( pExpr == null )
-      {
-        ppVal = null;
-        return SQLITE_OK;
-      }
-      op = pExpr.op;
+        public static void MemRelease(Mem mem)
+        {
+            E.VdbeMemRelease(mem);
+            C._tagfree(mem.Ctx, ref mem.Z_); //: mem->Malloc);
+            mem.Z = null;
+            mem.Del = null;
+        }
 
-      /* op can only be TK_REGISTER if we have compiled with SQLITE_ENABLE_STAT2.
-      ** The ifdef here is to enable us to achieve 100% branch test coverage even
-      ** when SQLITE_ENABLE_STAT2 is omitted.
-      */
-#if SQLITE_ENABLE_STAT2
-      if ( op == TK_REGISTER )
-        op = pExpr.op2;
+        static long DoubleToInt64(double r)
+        {
+#if OMIT_FLOATING_POINT
+            return r; // When floating-point is omitted, double and int64 are the same thing
 #else
-if( NEVER(op==TK_REGISTER) ) op = pExpr.op2;
+            if (r < (double)long.MinValue) return long.MinValue;
+            // minInt is correct here - not maxInt.  It turns out that assigning a very large positive number to an integer results in a very large
+            // negative integer.  This makes no sense, but it is what x86 hardware does so for compatibility we will do the same in software.
+            else if (r > (double)long.MaxValue) return long.MinValue;
+            else return (long)r;
+#endif
+        }
+
+        public static long IntValue(Mem mem)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            // assert( EIGHT_BYTE_ALIGNMENT(pMem) );
+            MEM flags = mem.Flags;
+            if ((flags & MEM.Int) != 0) return mem.u.I;
+            else if ((flags & MEM.Real) != 0) return DoubleToInt64(mem.R);
+            else if ((flags & (MEM.Str)) != 0)
+            {
+                Debug.Assert(mem.Z != null || mem.N == 0);
+                C.ASSERTCOVERAGE(mem.Z == null);
+                long value;
+                ConvertEx.Atoi64(mem.Z, out value, mem.N, mem.Encode);
+                return value;
+            }
+            else if ((flags & (MEM.Blob)) != 0)
+            {
+                Debug.Assert(mem.Z_ != null || mem.N == 0);
+                C.ASSERTCOVERAGE(mem.Z_ == null);
+                long value;
+                ConvertEx.Atoi64(Encoding.UTF8.GetString(mem.Z_, 0, mem.N), out value, mem.N, mem.Encode);
+                return value;
+            }
+            return 0;
+        }
+
+        public static double RealValue(Mem mem)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            //Debug.Assert(C._HASALIGNMENT8(mem));
+            if ((mem.Flags & MEM.Real) != 0) return mem.R;
+            else if ((mem.Flags & MEM.Int) != 0) return (double)mem.u.I;
+            else if ((mem.Flags & (MEM.Str)) != 0)
+            {
+                double val = (double)0;
+                ConvertEx.Atof(mem.Z, ref val, mem.N, mem.Encode);
+                return val;
+            }
+            else if ((mem.Flags & (MEM.Blob)) != 0)
+            {
+                double val = (double)0;
+                Debug.Assert(mem.Z_ != null || mem.N == 0);
+                ConvertEx.Atof(Encoding.UTF8.GetString(mem.Z_, 0, mem.N), ref val, mem.N, mem.Encode);
+                return val;
+            }
+            return (double)0;
+        }
+
+        public static void IntegerAffinity(Mem mem)
+        {
+            Debug.Assert((mem.Flags & MEM.Real) != 0);
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            //Debug.Assert(C._HASALIGNMENT8(mem));
+            mem.u.I = DoubleToInt64(mem.R);
+            // Only mark the value as an integer if
+            //    (1) the round-trip conversion real->int->real is a no-op, and
+            //    (2) The integer is neither the largest nor the smallest possible integer (ticket #3922)
+            // The second and third terms in the following conditional enforces the second condition under the assumption that addition overflow causes
+            // values to wrap around.  On x86 hardware, the third term is always true and could be omitted.  But we leave it in because other
+            // architectures might behave differently.
+            if (mem.R == (double)mem.u.I && mem.u.I > long.MinValue && C._ALWAYS(mem.u.I < long.MaxValue))
+                mem.Flags |= MEM.Int;
+        }
+
+        public static RC MemIntegerify(Mem mem)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            //Debug.Assert(C._HASALIGNMENT8(mem));
+            mem.u.I = IntValue(mem);
+            E.MemSetTypeFlag(mem, MEM.Int);
+            return RC.OK;
+        }
+
+        public static RC MemRealify(Mem mem)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            //Debug.Assert(C._HASALIGNMENT8(mem));
+            mem.R = RealValue(mem);
+            E.MemSetTypeFlag(mem, MEM.Real);
+            return RC.OK;
+        }
+
+        public static RC MemNumerify(Mem mem)
+        {
+            if ((mem.Flags & (MEM.Int | MEM.Real | MEM.Null)) == 0)
+            {
+                Debug.Assert((mem.Flags & (MEM.Blob | MEM.Str)) != 0);
+                Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+                if ((mem.Flags & MEM.Blob) != 0 && mem.Z == null)
+                {
+                    if (ConvertEx.Atoi64(Encoding.UTF8.GetString(mem.Z_, 0, mem.Z_.Length), out mem.u.I, mem.N, mem.Encode) == 0)
+                        E.MemSetTypeFlag(mem, MEM.Int);
+                    else
+                    {
+                        mem.R = RealValue(mem);
+                        E.MemSetTypeFlag(mem, MEM.Real);
+                        IntegerAffinity(mem);
+                    }
+                }
+                else if (ConvertEx.Atoi64(mem.Z, out mem.u.I, mem.N, mem.Encode) == 0)
+                    E.MemSetTypeFlag(mem, MEM.Int);
+                else
+                {
+                    mem.R = RealValue(mem);
+                    E.MemSetTypeFlag(mem, MEM.Real);
+                    IntegerAffinity(mem);
+                }
+            }
+            Debug.Assert((mem.Flags & (MEM.Int | MEM.Real | MEM.Null)) != 0);
+            mem.Flags &= ~(MEM.Str | MEM.Blob);
+            return RC.OK;
+        }
+
+#if !OMIT_FLOATING_POINT
+        public static void MemSetNull(Mem mem)
+        {
+            if ((mem.Flags & MEM.Frame) != 0)
+            {
+                VdbeFrame frame = mem.u.Frame;
+                frame.Parent = frame.V.DelFrames;
+                frame.V.DelFrames = frame;
+            }
+            if ((mem.Flags & MEM.RowSet) != 0)
+                RowSet_Clear(mem.u.RowSet);
+            E.MemSetTypeFlag(mem, MEM.Null);
+            mem.Type = TYPE.NULL;
+            C._free(ref mem.Z_);
+            mem.Z = null;
+        }
 #endif
 
-      /* Handle negative integers in a single step.  This is needed in the
-** case when the value is -9223372036854775808.
-*/
-      if ( op == TK_UMINUS
-      && ( pExpr.pLeft.op == TK_INTEGER || pExpr.pLeft.op == TK_FLOAT ) )
-      {
-        pExpr = pExpr.pLeft;
-        op = pExpr.op;
-        negInt = -1;
-        zNeg = "-";
-      }
+        public static void MemSetZeroBlob(Mem mem, int n)
+        {
+            MemRelease(mem);
+            mem.Flags = MEM.Blob | MEM.Zero;
+            mem.Type = TYPE.BLOB;
+            mem.N = 0;
+            if (n < 0) n = 0;
+            mem.u.Zero = n;
+            mem.Encode = TEXTENCODE.UTF8;
+#if OMIT_INCRBLOB
+            MemGrow(mem, n, 0);
+            mem.N = n;
+            mem.Z = null; //:_memset(mem->Z, 0, n);
+            mem.Z_ = C._alloc(n);
+#endif
+        }
 
-      if ( op == TK_STRING || op == TK_FLOAT || op == TK_INTEGER )
-      {
-        pVal = sqlite3ValueNew( db );
-        if ( pVal == null )
-          goto no_mem;
-        if ( ExprHasProperty( pExpr, EP_IntValue ) )
+        public static void MemSetInt64(Mem mem, long val)
         {
-          sqlite3VdbeMemSetInt64( pVal, (i64)pExpr.u.iValue * negInt );
+            MemRelease(mem);
+            mem.u.I = val;
+            mem.Flags = MEM.Int;
+            mem.Type = TYPE.INTEGER;
         }
-        else
+
+#if !OMIT_FLOATING_POINT
+        public static void MemSetDouble(Mem mem, double val)
         {
-          zVal = sqlite3MPrintf( db, "%s%s", zNeg, pExpr.u.zToken );
-          //if ( zVal == null ) goto no_mem;
-          sqlite3ValueSetStr( pVal, -1, zVal, SQLITE_UTF8, SQLITE_DYNAMIC );
-          if ( op == TK_FLOAT )
-            pVal.type = SQLITE_FLOAT;
+            if (double.IsNaN(val))
+                MemSetNull(mem);
+            else
+            {
+                MemRelease(mem);
+                mem.R = val;
+                mem.Flags = MEM.Real;
+                mem.Type = TYPE.FLOAT;
+            }
         }
-        if ( ( op == TK_INTEGER || op == TK_FLOAT ) && affinity == SQLITE_AFF_NONE )
-        {
-          sqlite3ValueApplyAffinity( pVal, SQLITE_AFF_NUMERIC, SQLITE_UTF8 );
-        }
-        else
-        {
-          sqlite3ValueApplyAffinity( pVal, affinity, SQLITE_UTF8 );
-        }
-        if ( ( pVal.flags & ( MEM_Int | MEM_Real ) ) != 0 )
-          pVal.flags = (ushort)( pVal.flags & ~MEM_Str );
-        if ( enc != SQLITE_UTF8 )
-        {
-          sqlite3VdbeChangeEncoding( pVal, enc );
-        }
-      }
-      if ( enc != SQLITE_UTF8 )
-      {
-        sqlite3VdbeChangeEncoding( pVal, enc );
-      }
-      else if ( op == TK_UMINUS )
-      {
-        /* This branch happens for multiple negative signs.  Ex: -(-5) */
-        if ( SQLITE_OK == sqlite3ValueFromExpr( db, pExpr.pLeft, enc, affinity, ref pVal ) )
-        {
-          sqlite3VdbeMemNumerify( pVal );
-          if ( pVal.u.i == SMALLEST_INT64 )
-          {
-            pVal.flags &= MEM_Int;
-            pVal.flags |= MEM_Real;
-            pVal.r = (double)LARGEST_INT64;
-          }
-          else
-          {
-            pVal.u.i = -pVal.u.i;
-          }
-          pVal.r = -pVal.r;
-          sqlite3ValueApplyAffinity( pVal, affinity, enc );
-        }
-      }
-      else if ( op == TK_NULL )
-      {
-        pVal = sqlite3ValueNew( db );
-        if ( pVal == null)
-          goto no_mem;
-      }
-#if !SQLITE_OMIT_BLOB_LITERAL
-      else if ( op == TK_BLOB )
-      {
-        int nVal;
-        Debug.Assert( pExpr.u.zToken[0] == 'x' || pExpr.u.zToken[0] == 'X' );
-        Debug.Assert( pExpr.u.zToken[1] == '\'' );
-        pVal = sqlite3ValueNew( db );
-        if ( null == pVal )
-          goto no_mem;
-        zVal = pExpr.u.zToken.Substring( 2 );
-        nVal = sqlite3Strlen30( zVal ) - 1;
-        Debug.Assert( zVal[nVal] == '\'' );
-        byte[] blob = sqlite3HexToBlob( db, zVal, nVal );
-        sqlite3VdbeMemSetStr( pVal, Encoding.UTF8.GetString( blob, 0, blob.Length ), nVal / 2, 0, SQLITE_DYNAMIC );
-      }
 #endif
 
-      if ( pVal != null )
-      {
-        sqlite3VdbeMemStoreType( pVal );
-      }
-
-      ppVal = pVal;
-      return SQLITE_OK;
-
-no_mem:
-      //db.mallocFailed = 1;
-      sqlite3DbFree( db, ref zVal );
-      pVal = null;// sqlite3ValueFree(pVal);
-      ppVal = null;
-      return SQLITE_NOMEM;
-    }
-
-    /*
-    ** Change the string value of an sqlite3_value object
-    */
-    static void sqlite3ValueSetStr(
-    sqlite3_value v,     /* Value to be set */
-    int n,               /* Length of string z */
-    string z,            /* Text of the new string */
-    u8 enc,              /* Encoding to use */
-    dxDel xDel//)(void*) /* Destructor for the string */
-    )
-    {
-      if ( v != null )
-        sqlite3VdbeMemSetStr( v, z, n, enc, xDel );
-    }
-
-    /*
-    ** Free an sqlite3_value object
-    */
-    static void sqlite3ValueFree( ref sqlite3_value v )
-    {
-      if ( v == null )
-        return;
-      sqlite3VdbeMemRelease( v );
-      sqlite3DbFree( v.db, ref v );
-    }
-
-    /*
-    ** Return the number of bytes in the sqlite3_value object assuming
-    ** that it uses the encoding "enc"
-    */
-    static int sqlite3ValueBytes( sqlite3_value pVal, int enc )
-    {
-      Mem p = (Mem)pVal;
-      if ( ( p.flags & MEM_Blob ) != 0 || sqlite3ValueText( pVal, enc ) != null )
-      {
-        if ( ( p.flags & MEM_Zero ) != 0 )
+        public static void MemSetRowSet(Mem mem)
         {
-          return p.n + p.u.nZero;
+            Context ctx = mem.Ctx;
+            Debug.Assert(ctx != null);
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            MemRelease(mem);
+            //: mem.Malloc = C._alloc(ctx, 64);
+            if (ctx.MallocFailed)
+                mem.Flags = MEM.Null;
+            else
+            {
+                //: Debug.Assert(mem.Malloc);
+                mem.u.RowSet = new RowSet(ctx, 5); //: RowSet_Init(ctx, mem->Malloc, _tagallocsize(ctx, mem->Malloc));
+                Debug.Assert(mem.u.RowSet != null);
+                mem.Flags = MEM.RowSet;
+            }
         }
-        else
+
+        public static bool MemTooBig(Mem mem)
         {
-          return p.z == null ? p.zBLOB.Length : p.n;
+            //Debug.Assert(p.Ctx != null);
+            if ((mem.Flags & (MEM.Str | MEM.Blob)) != 0)
+            {
+                int n = mem.N;
+                if ((mem.Flags & MEM.Zero) != 0)
+                    n += mem.u.Zero;
+                return n > mem.Ctx.Limits[(int)LIMIT.LENGTH];
+            }
+            return false;
         }
-      }
-      return 0;
+
+#if DEBUG
+        static void MemAboutToChange(Vdbe p, Mem mem)
+        {
+            Mem x;
+            int i;
+            for (i = 1; i <= p.Mems.length; i++)
+            {
+                x = p.Mems[i];
+                if (x.ScopyFrom == mem)
+                {
+                    x.Flags |= MEM.Invalid;
+                    x.ScopyFrom = null;
+                }
+            }
+            mem.ScopyFrom = null;
+        }
+#endif
+
+        //: #define MEMCELLSIZE (size_t)(&(((Mem *)0)->Malloc)) // Size of struct Mem not including the Mem.zMalloc member.
+        public static void MemShallowCopy(Mem to, Mem from, ushort srcType)
+        {
+            Debug.Assert((from.Flags & MEM.RowSet) == 0);
+            MemReleaseExternal(to);
+            from._memcpy(ref to);
+            to.Del = null;
+            if ((from.Flags & MEM.Static) != 0)
+            {
+                to.Flags &= ~(MEM.Dyn | MEM.Static | MEM.Ephem);
+                Debug.Assert((MEM)srcType == MEM.Ephem || (MEM)srcType == MEM.Static);
+                to.Flags |= (MEM)srcType;
+            }
+        }
+
+        public static RC MemCopy(Mem to, Mem from)
+        {
+            Debug.Assert((from.Flags & MEM.RowSet) == 0);
+            E.VdbeMemRelease(to);
+            from._memcpy(ref to);
+            to.Flags &= ~MEM.Dyn;
+            RC rc = RC.OK;
+            if ((to.Flags & (MEM.Str | MEM.Blob)) != 0)
+            {
+                if ((from.Flags & MEM.Static) == 0)
+                {
+                    to.Flags |= MEM.Ephem;
+                    rc = MemMakeWriteable(to);
+                }
+            }
+            return rc;
+        }
+
+        public static void MemMove(Mem to, Mem from)
+        {
+            Debug.Assert(from.Ctx == null || MutexEx.Held(from.Ctx.Mutex));
+            Debug.Assert(to.Ctx == null || MutexEx.Held(to.Ctx.Mutex));
+            Debug.Assert(from.Ctx == null || to.Ctx == null || from.Ctx == to.Ctx);
+            MemRelease(to);
+            from._memcpy(ref to);
+            from.Flags = MEM.Null;
+            from.Del = null;
+            from.Z = null;
+            from.Z_ = null;
+        }
+
+        public static RC MemSetStr(Mem mem, byte[] z, int n, TEXTENCODE encode, Action<object> del) { return MemSetStr(mem, z, 0, (n >= 0 ? n : z.Length), encode, del); }
+        public static RC MemSetStr(Mem mem, byte[] z, int offset, int n, TEXTENCODE encode, Action<object> del)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            // If z is a NULL pointer, set pMem to contain an SQL NULL.
+            if (z == null || z.Length < offset)
+            {
+                MemSetNull(mem);
+                return RC.OK;
+            }
+
+            int limit = (mem.Ctx != null ? mem.Ctx.Limits[(int)LIMIT.LENGTH] : CORE_MAX_LENGTH); // Maximum allowed string or blob size
+            MEM flags = (encode == 0 ? MEM.Blob : MEM.Str); // New value for pMem->flags
+            int bytes = n; // New value for pMem->n
+            if (bytes < 0)
+            {
+                Debug.Assert(encode != 0);
+                if (encode == TEXTENCODE.UTF8)
+                    for (bytes = 0; bytes <= limit && bytes < z.Length - offset && z[offset + bytes] != 0; bytes++) { }
+                else
+                    for (bytes = 0; bytes <= limit && z[bytes + offset] != 0 || z[offset + bytes + 1] != 0; bytes += 2) { }
+            }
+
+            // The following block sets the new values of Mem.z and Mem.xDel. It also sets a flag in local variable "flags" to indicate the memory
+            // management (one of MEM_Dyn or MEM_Static).
+            Debug.Assert(encode == 0);
+            {
+                mem.Z = null;
+                mem.Z_ = C._alloc(n);
+                Buffer.BlockCopy(z, offset, mem.Z_, 0, n);
+            }
+            mem.N = bytes;
+            mem.Flags = MEM.Blob | MEM.Term;
+            mem.Encode = (encode == 0 ? TEXTENCODE.UTF8 : encode);
+            mem.Type = (encode == 0 ? TYPE.BLOB : TYPE.TEXT);
+
+#if !OMIT_UTF16
+            if (mem.Encode != TEXTENCODE.UTF8 && MemHandleBom(mem) != 0) return RC.NOMEM;
+#endif
+            return (bytes > limit ? RC.TOOBIG : RC.OK);
+        }
+
+        static RC MemSetStr(Mem mem, string z, int n, TEXTENCODE encode, Action<object> del) { return MemSetStr(mem, z, 0, n, encode, del); }
+        public static RC MemSetStr(Mem mem, string z, int offset, int n, TEXTENCODE encode, Action<object> del)
+        {
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            // If z is a NULL pointer, set pMem to contain an SQL NULL.
+            if (z == null || z.Length < offset)
+            {
+                MemSetNull(mem);
+                return RC.OK;
+            }
+
+            int limit = (mem.Ctx != null ? mem.Ctx.Limits[(int)LIMIT.LENGTH] : CORE_MAX_LENGTH); // Maximum allowed string or blob size
+            MEM flags = (encode == 0 ? MEM.Blob : MEM.Str); // New value for pMem->flags
+            int bytes = n; // New value for pMem->n
+            if (bytes < 0)
+            {
+                Debug.Assert(encode != 0);
+                if (encode == TEXTENCODE.UTF8)
+                    for (bytes = 0; bytes <= limit && bytes < z.Length - offset && z[offset + bytes] != 0; bytes++) { }
+                else
+                    for (bytes = 0; bytes <= limit && z[bytes + offset] != 0 || z[offset + bytes + 1] != 0; bytes += 2) { }
+                flags |= MEM.Term;
+            }
+
+            // The following block sets the new values of Mem.z and Mem.xDel. It also sets a flag in local variable "flags" to indicate the memory
+            // management (one of MEM_Dyn or MEM_Static).
+            if (del == C.DESTRUCTOR_TRANSIENT)
+            {
+                int allocs = bytes;
+                if ((flags & MEM.Term) != 0) allocs += (encode == TEXTENCODE.UTF8 ? 1 : 2);
+                if (bytes > limit) return RC.TOOBIG;
+                if (MemGrow(mem, (int)allocs, false) != 0) return RC.NOMEM;
+                //if (allocs < z.Length) mem.Z = new byte[allocs]; Buffer.BlockCopy(z, 0, mem.Z, 0, allocs); }
+                //else
+                if (encode == 0)
+                {
+                    mem.Z = null;
+                    mem.Z_ = C._alloc(n);
+                    for (int i = 0; i < n && i < z.Length - offset; i++)
+                        mem.Z_[i] = (byte)z[offset + i];
+                }
+                else
+                {
+                    mem.Z = (n > 0 && z.Length - offset > n ? z.Substring(offset, n) : z.Substring(offset));
+                    C._free(ref mem.Z_);
+                }
+            }
+            else if (del == C.DESTRUCTOR_DYNAMIC)
+            {
+                MemRelease(mem);
+                //: mem->Malloc = mem->Z = (char *)z;
+                if (encode == 0)
+                {
+                    mem.Z = null;
+                    if (mem.Z_ != null)
+                        C._free(ref mem.Z_);
+                    mem.Z_ = Encoding.UTF8.GetBytes(offset == 0 ? z : z.Length + offset < n ? z.Substring(offset, n) : z.Substring(offset));
+                }
+                else
+                {
+                    mem.Z = (n > 0 && z.Length - offset > n ? z.Substring(offset, n) : z.Substring(offset))
+                    mem.Z_ = null;
+                }
+                mem.Del = null;
+            }
+            else
+            {
+                MemRelease(mem);
+                if (encode == 0) //: mem->Z = (char *)z;
+                {
+                    mem.Z = null;
+                    if (mem.Z_ != null)
+                        C._free(ref mem.Z_);
+                    mem.Z_ = Encoding.UTF8.GetBytes(offset == 0 ? z : z.Length + offset < n ? z.Substring(offset, n) : z.Substring(offset));
+                }
+                else
+                {
+                    mem.Z = (n > 0 && z.Length - offset > n ? z.Substring(offset, n) : z.Substring(offset));
+                    C._free(ref mem.Z_);
+                }
+                mem.Del = del;
+                flags |= (del == C.DESTRUCTOR_STATIC ? MEM.Static : MEM.Dyn);
+            }
+            mem.N = bytes;
+            mem.Flags = MEM.Blob | MEM.Term;
+            mem.Encode = (encode == 0 ? TEXTENCODE.UTF8 : encode);
+            mem.Type = (encode == 0 ? TYPE.BLOB : TYPE.TEXT);
+
+#if !OMIT_UTF16
+            if (mem.Encode != TEXTENCODE.UTF8 && MemHandleBom(mem) != 0) return RC.NOMEM;
+#endif
+            return (bytes > limit ? RC.TOOBIG : RC.OK);
+        }
+
+        public static int MemCompare(Mem mem1, Mem mem2, CollSeq coll)
+        {
+            MEM f1 = mem1.Flags;
+            MEM f2 = mem2.Flags;
+            MEM cf = f1 | f2;
+            Debug.Assert((cf & MEM.RowSet) == 0);
+
+            // If one value is NULL, it is less than the other. If both values are NULL, return 0.
+            if ((cf & MEM.Null) != 0)
+                return (f2 & MEM.Null) - (f1 & MEM.Null);
+
+            // If one value is a number and the other is not, the number is less. If both are numbers, compare as reals if one is a real, or as integers if both values are integers.
+            if ((cf & (MEM.Int | MEM.Real)) != 0)
+            {
+                if ((f1 & (MEM.Int | MEM.Real)) == 0) return 1;
+                if ((f2 & (MEM.Int | MEM.Real)) == 0) return -1;
+                if ((f1 & f2 & MEM.Int) == 0)
+                {
+                    double r1 = ((f1 & MEM.Real) == 0 ? (double)mem1.u.I : mem1.R);
+                    double r2 = ((f2 & MEM.Real) == 0 ? (double)mem2.u.I : mem2.R);
+                    if (r1 < r2) return -1;
+                    if (r1 > r2) return 1;
+                    return 0;
+                }
+                Debug.Assert((f1 & MEM.Int) != 0);
+                Debug.Assert((f2 & MEM.Int) != 0);
+                if (mem1.u.I < mem2.u.I) return -1;
+                if (mem1.u.I > mem2.u.I) return 1;
+                return 0;
+            }
+
+            // If one value is a string and the other is a blob, the string is less. If both are strings, compare using the collating functions.
+            int r;
+            if ((cf & MEM.Str) != 0)
+            {
+                if ((f1 & MEM.Str) == 0) return 1;
+                if ((f2 & MEM.Str) == 0) return -1;
+
+                Debug.Assert(mem1.Encode == mem2.Encode);
+                Debug.Assert(mem1.Encode == TEXTENCODE.UTF8 || mem1.Encode == TEXTENCODE.UTF16LE || mem1.Encode == TEXTENCODE.UTF16BE);
+                // The collation sequence must be defined at this point, even if the user deletes the collation sequence after the vdbe program is
+                // compiled (this was not always the case).
+                Debug.Assert(coll == null || coll.Cmp != null);
+                if (coll != null)
+                {
+                    if (mem1.Encode == coll.Encode)
+                        return coll.Cmp(coll.User, mem1.N, mem1.Z, mem2.N, mem2.Z); // The strings are already in the correct encoding.  Call the comparison function directly
+                    else
+                    {
+                        Mem c1 = C._alloc(c1); //: _memset(&c1, 0, sizeof(c1));
+                        Mem c2 = C._alloc(c2); //: _memset(&c2, 0, sizeof(c2));
+                        MemShallowCopy(c1, mem1, MEM.Ephem);
+                        MemShallowCopy(c2, mem2, MEM.Ephem);
+                        string v1 = ValueText(c1, coll.Encode);
+                        int n1 = (v1 == null ? 0 : c1.N);
+                        string v2 = ValueText(c2, coll.Encode);
+                        int n2 = (v2 == null ? 0 : c2.N);
+                        r = coll.Cmp(coll.User, n1, v1, n2, v2);
+                        MemRelease(c1);
+                        MemRelease(c2);
+                        return r;
+                    }
+                }
+                // If a NULL pointer was passed as the collate function, fall through to the blob case and use memcmp().
+            }
+            // Both values must be blobs.  Compare using memcmp().
+            if ((mem1.Flags & MEM.Blob) != 0)
+                if (mem1.Z_ != null) r = C._memcmp(mem1.Z_, mem2.Z_, (mem1.N > mem2.N ? mem2.N : mem1.N));
+                else r = C._memcmp(mem1.Z, mem2.Z_, (mem1.N > mem2.N ? mem2.N : mem1.N));
+            else r = C._memcmp(mem1.Z, mem2.Z, (mem1.N > mem2.N ? mem2.N : mem1.N));
+            if (r == 0)
+                r = mem1.N - mem2.N;
+            return r;
+        }
+
+        public static RC MemFromBtree(Btree.BtCursor cur, int offset, int amount, bool key, Mem mem)
+        {
+            RC rc = RC.OK;
+
+            Debug.Assert(Btree.CursorIsValid(cur));
+
+            // Note: the calls to BtreeKeyFetch() and DataFetch() below assert() that both the BtShared and database handle mutexes are held.
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            int available = 0; // Number of bytes available on the local btree page
+            uint dummy1;
+            byte[] data = (byte[])(key ? Btree.KeyFetch(cur, ref available, out dummy1) : Btree.DataFetch(cur, ref available, out dummy1)); // Data from the btree layer
+            Debug.Assert(data != null);
+
+            if (offset + amount <= available && (mem.Flags & MEM.Dyn) == 0)
+            {
+                MemRelease(mem);
+                mem.Z_ = C._alloc(amount);
+                Buffer.BlockCopy(data, offset, mem.Z_, 0, amount); //: mem->Z = &data[offset];
+                mem.Flags = MEM.Blob | MEM.Ephem;
+            }
+            else if ((rc = MemGrow(mem, amount + 2, false)) == RC.OK)
+            {
+                mem.Flags = MEM.Blob | MEM.Dyn | MEM.Term;
+                mem.Encode = 0;
+                mem.Type = TYPE.BLOB;
+                mem.Z = null;
+                mem.Z_ = C._alloc(amount);
+                rc = (key ? Btree.Key(cur, (uint)offset, (uint)amount, mem.Z_) : Btree.Data(cur, (uint)offset, (uint)amount, mem.Z_));
+                //: mem->Z[amount] = 0;
+                //: mem->Z[amount + 1] = 0;
+                if (rc != RC.OK)
+                    MemRelease(mem);
+            }
+            mem.N = amount;
+            return rc;
+        }
+
+        #region Value
+
+        public static string ValueText(Mem mem, TEXTENCODE encode)
+        {
+            if (mem == null) return null;
+            Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
+            Debug.Assert((encode & (TEXTENCODE)3) == (encode & ~TEXTENCODE.UTF16_ALIGNED));
+            Debug.Assert((mem.Flags & MEM.RowSet) == 0);
+            if ((mem.Flags & MEM.Null) != 0) return null;
+            Debug.Assert(((int)MEM.Blob >> 3) == (int)MEM.Str);
+            mem.Flags |= (MEM)((int)(mem.Flags & MEM.Blob) >> 3);
+            E.ExpandBlob(mem);
+            if ((mem.Flags & MEM.Str) != 0)
+            {
+                ChangeEncoding(mem, encode & ~TEXTENCODE.UTF16_ALIGNED);
+                if ((encode & TEXTENCODE.UTF16_ALIGNED) != 0 && (1 & (mem.Z[0])) == 1)
+                {
+                    Debug.Assert((mem.Flags & (MEM.Ephem | MEM.Static)) != 0);
+                    if (MemMakeWriteable(mem) != RC.OK) return null;
+                }
+                MemNulTerminate(mem); // IMP: R-31275-44060
+            }
+            else
+            {
+                Debug.Assert((mem.Flags & MEM.Blob) == 0);
+                MemStringify(mem, encode);
+                Debug.Assert((1 & (mem.Z[0])) == 0);
+            }
+            Debug.Assert(mem.Encode == (encode & ~TEXTENCODE.UTF16_ALIGNED) || mem.Ctx == null || mem.Ctx.MallocFailed);
+            return (mem.Encode == (encode & ~TEXTENCODE.UTF16_ALIGNED) ? mem.Z : null);
+        }
+
+        public static Mem ValueNew(Context ctx)
+        {
+            Mem p = null;
+            p = C._tagalloc(ctx, p);
+            if (p != null)
+            {
+                p.Flags = MEM.Null;
+                p.Type = TYPE.NULL;
+                p.Ctx = ctx;
+            }
+            return p;
+        }
+
+        public static RC ValueFromExpr(Context ctx, Expr expr, TEXTENCODE encode, AFF affinity, ref Mem value)
+        {
+            if (expr == null)
+            {
+                value = null;
+                return RC.OK;
+            }
+            TK op = expr.OP;
+
+            // op can only be TK_REGISTER if we have compiled with SQLITE_ENABLE_STAT3. The ifdef here is to enable us to achieve 100% branch test coverage even when SQLITE_ENABLE_STAT3 is omitted.
+#if ENABLE_STAT3
+            if (op == TK.REGISTER) op = expr.OP2;
+#else
+            if (C._NEVER(op == TK.REGISTER)) op = expr.OP2;
+#endif
+
+            // Handle negative integers in a single step.  This is needed in the case when the value is -9223372036854775808.
+            int negInt = 1;
+            string neg = string.Empty;
+            if (op == TK.UMINUS && (expr.Left.OP == TK.INTEGER || expr.Left.OP == TK.FLOAT))
+            {
+                expr = expr.Left;
+                op = expr.OP;
+                negInt = -1;
+                neg = "-";
+            }
+
+            Mem mem = null;
+            string memAsString = null;
+            if (op == TK.STRING || op == TK.FLOAT || op == TK.INTEGER)
+            {
+                mem = ValueNew(ctx);
+                if (mem == null) goto no_mem;
+                if (E.ExprHasProperty(expr, EP.IntValue))
+                    MemSetInt64(mem, (long)expr.u.I * negInt);
+                else
+                {
+                    memAsString = C._mtagprintf(ctx, "%s%s", neg, expr.u.Token);
+                    if (memAsString == null) goto no_mem;
+                    ValueSetStr(mem, -1, memAsString, TEXTENCODE.UTF8, C.DESTRUCTOR_DYNAMIC);
+                    if (op == TK.FLOAT) mem.Type = TYPE.FLOAT;
+                }
+                if ((op == TK.INTEGER || op == TK.FLOAT) && affinity == AFF.NONE)
+                    ValueApplyAffinity(mem, AFF.NUMERIC, TEXTENCODE.UTF8);
+                else
+                    ValueApplyAffinity(mem, affinity, TEXTENCODE.UTF8);
+                if ((mem.Flags & (MEM.Int | MEM.Real)) != 0) mem.Flags &= ~MEM.Str;
+                if (encode != TEXTENCODE.UTF8)
+                    ChangeEncoding(mem, encode);
+            }
+            else if (op == TK.UMINUS)
+            {
+                // This branch happens for multiple negative signs.  Ex: -(-5)
+                if (ValueFromExpr(ctx, expr.Left, encode, affinity, ref mem) == RC.OK)
+                {
+                    MemNumerify(mem);
+                    if (mem.u.I == long.MinValue)
+                    {
+                        mem.Flags &= MEM.Int;
+                        mem.Flags |= MEM.Real;
+                        mem.R = (double)int.MaxValue;
+                    }
+                    else
+                        mem.u.I = -mem.u.I;
+                    mem.R = -mem.R;
+                    ValueApplyAffinity(mem, affinity, encode);
+                }
+            }
+            else if (op == TK.NULL)
+            {
+                mem = ValueNew(ctx);
+                if (mem == null) goto no_mem;
+            }
+#if !OMIT_BLOB_LITERAL
+            else if (op == TK.BLOB)
+            {
+                Debug.Assert(expr.u.Token[0] == 'x' || expr.u.Token[0] == 'X');
+                Debug.Assert(expr.u.Token[1] == '\'');
+                mem = ValueNew(ctx);
+                if (mem == null) goto no_mem;
+                memAsString = expr.u.Token.Substring(2);
+                int memAsStringLength = memAsString.Length - 1;
+                Debug.Assert(memAsString[memAsStringLength] == '\'');
+                byte[] blob = C._taghextoblob(ctx, memAsString, memAsStringLength);
+                MemSetStr(mem, Encoding.UTF8.GetString(blob, 0, blob.Length), memAsStringLength / 2, 0, C.DESTRUCTOR_DYNAMIC);
+            }
+#endif
+            if (mem != null)
+                MemStoreType(mem);
+            value = mem;
+            return RC.OK;
+
+        no_mem:
+            ctx.MallocFailed = true;
+            C._tagfree(ctx, ref memAsString);
+            ValueFree(ref mem);
+            value = null;
+            return RC.NOMEM;
+        }
+
+        static void ValueSetStr(Mem mem, int n, string z, TEXTENCODE encode, Action<object> del)
+        {
+            if (mem != null) MemSetStr(mem, z, n, encode, del);
+        }
+
+        public static void ValueFree(ref Mem mem)
+        {
+            if (mem == null) return;
+            MemRelease(mem);
+            C._tagfree(mem.Ctx, ref mem);
+        }
+
+        static int ValueBytes(Mem mem, TEXTENCODE encode)
+        {
+            if ((mem.Flags & MEM.Blob) != 0 || ValueText(mem, encode) != null)
+                return ((mem.Flags & MEM.Zero) != 0 ? mem.N + mem.u.Zero : (mem.Z == null ? mem.Z_.Length : mem.N));
+            return 0;
+        }
+
+        #endregion
     }
-  }
 }

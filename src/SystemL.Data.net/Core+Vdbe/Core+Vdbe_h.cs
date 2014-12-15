@@ -882,7 +882,7 @@ namespace Core
         public double QueryLoops;			// Estimated number of iterations of a query
         public uint Oldmask;				// Mask of old.* columns referenced
         public uint Newmask;				// Mask of new.* columns referenced
-        public byte TriggerOp;			    // TK_UPDATE, TK_INSERT or TK_DELETE
+        public TK TriggerOp;			    // TK_UPDATE, TK_INSERT or TK_DELETE
         public byte Orconf;				    // Default ON CONFLICT policy for trigger steps
         public bool DisableTriggers;		// True to disable triggers
 

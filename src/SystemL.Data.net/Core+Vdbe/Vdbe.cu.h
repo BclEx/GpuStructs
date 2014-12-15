@@ -109,18 +109,6 @@ namespace Core
 			int8 P3;		// Third parameter
 		};
 
-
-		//
-		//#ifndef NDEBUG
-		//		//__device__ void Comment(const char*, ...);
-		//		//__device__ void NoopComment(const char*, ...);
-		//#define VdbeComment(X) Comment X
-		//#define VdbeNoopComment(X) NoopComment X
-		//#else
-		//#define VdbeComment(X)
-		//#define VdbeNoopComment(X)
-		//#endif
-
 	public: //was:private
 		Context *Ctx;           // The database connection that owns this statement
 		array_t<VdbeOp> Ops;    // Space to hold the virtual machine's program
@@ -129,7 +117,7 @@ namespace Core
 		Mem *ColNames;          // Column names to return
 		Mem *ResultSet;			// Pointer to an array of results
 		int OpsAlloc;           // Number of slots allocated for Ops[]
-		array_t<int> Labels;   // Space to hold the labels
+		array_t<int> Labels;	// Space to hold the labels
 		uint16 ResColumns;		// Number of columns in one row of the result set
 		uint32 Magic;			// Magic number for sanity checking
 		char *ErrMsg;			// Error message written here
@@ -140,7 +128,7 @@ namespace Core
 		uint32 CacheCtr;        // VdbeCursor row cache generation counter
 		int PC;                 // The program counter
 		RC RC_;					// Value to return
-		OE ErrorAction;      // Recovery action to do in case of an error
+		OE ErrorAction;			// Recovery action to do in case of an error
 		uint8 MinWriteFileFormat;  // Minimum file format for writable database files
 		bft HasExplain:2;       // True if EXPLAIN present on SQL command
 		bft InVtabMethod:2;     // See comments above
@@ -168,7 +156,7 @@ namespace Core
 #endif
 #ifdef ENABLE_TREE_EXPLAIN
 		Explain *_explain;		// The explainer
-		char *_explainString;    // Explanation of data structures
+		char *_explainString;   // Explanation of data structures
 #endif
 		array_t<VdbeFrame> Frames; // Parent frame
 		VdbeFrame *DelFrames;   // List of frame objects to free on VM reset
@@ -186,9 +174,9 @@ namespace Core
 		__device__ static void MemStoreType(Mem *mem);
 		__device__ int CurrentAddr();
 		__device__ void ResetStepResult();
-
-
-
+#ifdef _DEBUG
+		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
+#endif
 
 
 #pragma region Vdbe+Api
@@ -196,6 +184,7 @@ namespace Core
 		__device__ static RC Finalize(Vdbe *p);
 		__device__ static RC Reset(Vdbe *p);
 		__device__ RC ClearBindings(Vdbe *p);
+
 		// value
 		__device__ static const void *Value_Blob(Mem *p);
 		__device__ static int Value_Bytes(Mem *p);
@@ -397,18 +386,22 @@ namespace Core
 		__device__ void ClearObject(Context *ctx);
 		__device__ static void Delete(Vdbe *p);
 		__device__ static RC CursorMoveto(VdbeCursor *p);
+
 		// serialize
 		__device__ static uint32 SerialType(Mem *mem, int fileFormat);
 		__device__ static uint32 SerialTypeLen(uint32 serialType);
 		__device__ static uint32 SerialPut(uint8 *buf, int bufLength, Mem *mem, int fileFormat);
 		__device__ static uint32 SerialGet(const unsigned char *buf, uint32 serialType, Mem *mem);
+
 		// unpacked record
 		__device__ static UnpackedRecord *AllocUnpackedRecord(KeyInfo *keyInfo, char *space, int spaceLength, char **freeOut);
 		__device__ static void RecordUnpack(KeyInfo *keyInfo, int keyLength, const void *key, UnpackedRecord *p);
 		__device__ static int RecordCompare(int key1Length, const void *key1, UnpackedRecord *key2);
+
 		// index entry
 		__device__ static RC IdxRowid(Context *ctx, BtCursor *cur, int64 *rowid);
 		__device__ static RC IdxKeyCompare(VdbeCursor *c, UnpackedRecord *unpacked, int *r);
+
 		//
 		__device__ static void SetChanges(Context *ctx, int changes);
 		__device__ void CountChanges();
@@ -433,9 +426,9 @@ namespace Core
 		__device__ static RC MemMakeWriteable(Mem *mem);
 #ifndef OMIT_INCRBLOB
 		__device__ static RC MemExpandBlob(Mem *mem);
-#define ExpandBlob(P) (((P)->Flags & MEM_Zero)?MemExpandBlob(P):0)
+#define ExpandBlob(P) (((P)->Flags & MEM_Zero)?Vdbe::MemExpandBlob(P):0)
 #else
-#define MemExpandBlob(x) RC_OK
+		__device__ inline static RC MemExpandBlob(Mem *mem) { return RC_OK };
 #define ExpandBlob(P) RC_OK
 #endif
 		__device__ static RC MemNulTerminate(Mem *mem);
@@ -453,20 +446,20 @@ namespace Core
 		__device__ static void MemSetZeroBlob(Mem *mem, int n);
 		__device__ static void MemSetInt64(Mem *mem, int64 value);
 #ifdef OMIT_FLOATING_POINT
-#define MemSetDouble MemSetInt64
+		__device__ inline static void MemSetDouble(Mem *mem, double value) { MemSetInt64(mem,  value); }
 #else
-		__device__ static void MemSetDouble(Mem *mem, double value); //@
+		__device__ static void MemSetDouble(Mem *mem, double value);
 #endif
-		__device__ static void MemSetRowSet(Mem *mem); //@
-		__device__ static bool MemTooBig(Mem *mem); //@
+		__device__ static void MemSetRowSet(Mem *mem);
+		__device__ static bool MemTooBig(Mem *mem);
 #ifdef _DEBUG
-		__device__ void MemAboutToChange(Vdbe *vdbe, Mem *mem); //@
+		__device__ void MemAboutToChange(Vdbe *p, Mem *mem);
 #endif
-		__device__ static void MemShallowCopy(Mem *to, const Mem *from, uint16 srcType); //@
-		__device__ static RC MemCopy(Mem *to, const Mem *from); //@
-		__device__ static void MemMove(Mem *to, Mem *from); //@
-		__device__ static RC MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *)); //@
-		__device__ static RC MemFromBtree(BtCursor *cursor, int offset, int amount, bool key, Mem *mem); //@
+		__device__ static void MemShallowCopy(Mem *to, const Mem *from, uint16 srcType);
+		__device__ static RC MemCopy(Mem *to, const Mem *from);
+		__device__ static void MemMove(Mem *to, Mem *from);
+		__device__ static RC MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *));
+		__device__ static RC MemFromBtree(BtCursor *cur, int offset, int amount, bool key, Mem *mem);
 #define VdbeMemRelease(X) if((X)->Flags&(MEM_Agg|MEM_Dyn|MEM_RowSet|MEM_Frame)) Vdbe::MemReleaseExternal(X);
 
 		// value
@@ -479,13 +472,13 @@ namespace Core
 #pragma endregion
 
 #pragma region Vdbe+Sort
-		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor); //@
-		__device__ static void SorterClose(Context *db, VdbeCursor *cursor); //@
-		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem); //@
-		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof); //@
-		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof); //@
-		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem); //@
-		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r); //@
+		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor);
+		__device__ static void SorterClose(Context *db, VdbeCursor *cursor);
+		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem);
+		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof);
+		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof);
+		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem);
+		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r);
 #pragma endregion
 
 #pragma region Vdbe+Trace
@@ -513,9 +506,5 @@ namespace Core
 #endif
 #endif
 #pragma endregion
-
-#ifdef _DEBUG
-		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
-#endif
 	};
 }

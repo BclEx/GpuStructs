@@ -104,16 +104,16 @@ namespace Core
             return (Value_Text(p) == null ? null : Encoding.UTF8.GetBytes(Value_Text(p)));
         }
 
-        public static int Value_Bytes(Mem p) { return sqlite3ValueBytes(p, TEXTENCODE.UTF8); }
-        public static int Balue_Bytes16(Mem p) { return sqlite3ValueBytes(p, TEXTENCODE.UTF16NATIVE); }
+        public static int Value_Bytes(Mem p) { return ValueBytes(p, TEXTENCODE.UTF8); }
+        public static int Balue_Bytes16(Mem p) { return ValueBytes(p, TEXTENCODE.UTF16NATIVE); }
         public static double Value_Double(Mem p) { return RealValue(p); }
         public static int Value_Int(Mem p) { return (int)IntValue(p); }
         public static long Value_Int64(Mem p) { return IntValue(p); }
-        public static string Value_Text(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF8); }
+        public static string Value_Text(Mem p) { return ValueText(p, TEXTENCODE.UTF8); }
 #if  !OMIT_UTF16
-        public static string Value_Text16(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16NATIVE); }
-        public static string Value_Text16be(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16BE); }
-        public static string Value_Text16le(Mem p) { return sqlite3ValueText(p, TEXTENCODE.UTF16LE); }
+        public static string Value_Text16(Mem p) { return ValueText(p, TEXTENCODE.UTF16NATIVE); }
+        public static string Value_Text16be(Mem p) { return ValueText(p, TEXTENCODE.UTF16BE); }
+        public static string Value_Text16le(Mem p) { return ValueText(p, TEXTENCODE.UTF16LE); }
 #endif
         public static TYPE Value_Type(Mem p) { return p.Type; }
 

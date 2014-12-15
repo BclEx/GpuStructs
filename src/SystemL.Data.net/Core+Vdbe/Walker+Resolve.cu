@@ -27,7 +27,7 @@ namespace Core
 		_assert(colId >= 0 && colId < list->Exprs);
 		Expr *orig = list->Ids[colId].Expr; // The iCol-th column of the result set
 		_assert(orig != nullptr);
-		_assert(orig->Flags & EP_Resolved );
+		_assert(orig->Flags & EP_Resolved);
 		Context *ctx = parse->Ctx; // The database connection
 		Expr *dup = Expr::Dup(ctx, orig, 0); // Copy of pOrig
 		if (!dup) return;
@@ -47,7 +47,7 @@ namespace Core
 		// allowing it to be repopulated by the memcpy() on the following line. The pExpr->u.zToken might point into memory that will be freed by the
 		// sqlite3DbFree(db, pDup) on the last line of this block, so be sure to make a copy of the token before doing the sqlite3DbFree().
 		ExprSetProperty(expr, EP_Static);
-		Expr::ExprDelete(ctx, expr);
+		Expr::Delete(ctx, expr);
 		_memcpy(expr, dup, sizeof(*expr));
 		if (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token != nullptr)
 		{
@@ -191,7 +191,7 @@ namespace Core
 			// If we have not already resolved the name, then maybe it is a new.* or old.* trigger argument reference
 			if (dbName == nullptr && tableName != nullptr && cnt == 0 && parse->TriggerTab != nullptr)
 			{
-				int op = parse->TriggerOP;
+				TK op = parse->TriggerOP;
 				Table *table = nullptr;
 				_assert(op == TK_DELETE || op == TK_UPDATE || op == TK_INSERT);
 				if (op != TK_DELETE && !_strcmp("new", tableName))
@@ -416,7 +416,7 @@ lookupname_end:
 #endif
 
 		case TK_ID: { // A lone identifier is the name of a column.
-			return LookupName(parse, 0, 0, expr->u.Token, nc, expr); }
+			return LookupName(parse, nullptr, nullptr, expr->u.Token, nc, expr); }
 
 		case TK_DOT: { // A table name and column name: ID.ID Or a database, table and column: ID.ID.ID
 			const char *columnName;

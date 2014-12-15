@@ -44,7 +44,7 @@ namespace Core
                 else
                 {
                     p.Offset = v.Cursors[0].Offsets[p.Col];
-                    p.Bytes = Vdbe.SerialTypeLen(type);
+                    p.Bytes = SerialTypeLen(type);
                     p.Cursor = v.Cursors[0].Cursor;
                     p.Cursor.EnterCursor();
                     Btree.CacheOverflow(p.Cursor);

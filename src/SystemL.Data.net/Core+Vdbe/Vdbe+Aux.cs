@@ -1867,7 +1867,7 @@ namespace Core
             {
                 bool mallocFailed = ctx.MallocFailed;
                 C._benignalloc_begin();
-                sqlite3ValueSetStr(ctx.Err, -1, p.ErrMsg, TEXTENCODE.UTF8, C.DESTRUCTOR_TRANSIENT);
+                ValueSetStr(ctx.Err, -1, p.ErrMsg, TEXTENCODE.UTF8, C.DESTRUCTOR_TRANSIENT);
                 C._benignalloc_end();
                 ctx.MallocFailed = mallocFailed;
                 ctx.ErrCode = rc;
@@ -1918,7 +1918,7 @@ namespace Core
                 // The expired flag was set on the VDBE before the first call to sqlite3_step(). For consistency (since sqlite3_step() was
                 // called), set the database error in this case as well.
                 sqlite3Error(ctx, RC_, 0);
-                sqlite3ValueSetStr(ctx.Err, -1, ErrMsg, TEXTENCODE.UTF8, C.DESTRUCTOR_TRANSIENT);
+                ValueSetStr(ctx.Err, -1, ErrMsg, TEXTENCODE.UTF8, C.DESTRUCTOR_TRANSIENT);
                 C._tagfree(ctx, ref ErrMsg);
                 ErrMsg = null;
             }

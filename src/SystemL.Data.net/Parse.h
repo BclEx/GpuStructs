@@ -1,3 +1,4 @@
+typedef uint8 TK;
 #define TK_SEMI                            1
 #define TK_EXPLAIN                         2
 #define TK_QUERY                           3

@@ -19,7 +19,7 @@ namespace Core
             RC rc = RC.OK;
             MutexEx.Enter(ctx.Mutex);
             int nameLength = name.Length;
-            if (ctx.Modules.Find(name, nameLength, null) != null)
+            if (ctx.Modules.Find(name, nameLength, (TableModule)null) != null)
                 rc = SysEx.MISUSE_BKPT();
             else
             {
@@ -189,12 +189,12 @@ namespace Core
             AddModuleArgument(ctx, table, Parse.NameFromToken(ctx, moduleName));
             AddModuleArgument(ctx, table, null);
             AddModuleArgument(ctx, table, table.Name);
-            parse.NameToken.length = parse.NameToken.data.Length; //: (int)(&moduleName[moduleName->length] - name1);
+            parse.NameToken.length = (uint)parse.NameToken.data.Length; //: (int)(&moduleName[moduleName->length] - name1);
 
 #if !OMIT_AUTHORIZATION
             // Creating a virtual table invokes the authorization callback twice. The first invocation, to obtain permission to INSERT a row into the
             // sqlite_master table, has already been made by sqlite3StartTable(). The second call, to obtain permission to create the table, is made now.
-            if (table->ModuleArgs.data != null)
+            if (table.ModuleArgs.data != null)
                 Auth.Check(parse, AUTH.CREATE_VTABLE, table.Name, table.ModuleArgs[0], ctx.DBs[db].Name);
 #endif
         }
@@ -350,7 +350,7 @@ namespace Core
                 if (sVtableCtx.Table != null)
                 {
                     errorOut = C._mtagprintf(ctx, "vtable constructor did not declare schema: %s", table.Name);
-                    vtable->Unlock();
+                    vtable.Unlock();
                     rc = RC.ERROR;
                 }
                 else
@@ -491,7 +491,7 @@ namespace Core
 
             RC rc = RC.OK;
             Parse parse = new Parse(); //: _stackalloc(ctx, sizeof(Parse));
-            if (parse = null)
+            if (parse == null)
                 rc = RC.NOMEM;
             else
             {
@@ -606,13 +606,13 @@ namespace Core
 
         public static RC Rollback(Context ctx)
         {
-            CallFinaliser(ctx, offsetof(IVTable, Rollback));
+            CallFinaliser(ctx, 0); //: offsetof(IVTable, Rollback)
             return RC.OK;
         }
 
         public static RC Commit(Context ctx)
         {
-            CallFinaliser(ctx, offsetof(IVTable, Commit));
+            CallFinaliser(ctx, 1); //: offsetof(IVTable, Commit)
             return RC.OK;
         }
 

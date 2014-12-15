@@ -151,7 +151,7 @@ namespace Core
             return mem.Type;
         }
 
-        static void sqlite3ValueApplyAffinity(Mem mem, char affinity, TEXTENCODE encode)
+        static void ValueApplyAffinity(Mem mem, char affinity, TEXTENCODE encode)
         {
             applyAffinity(mem, (AFF)affinity, encode);
         }

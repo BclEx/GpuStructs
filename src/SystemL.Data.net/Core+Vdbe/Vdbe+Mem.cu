@@ -39,7 +39,7 @@ namespace Core {
 		if (_tagallocsize(mem->Ctx, mem->Malloc) < newSize)
 			if (preserve && mem->Z == mem->Malloc)
 			{
-				mem->Z = mem->Malloc = (char *)_tagrelloc_or_free(mem->Ctx, mem->Z, newSize);
+				mem->Z = mem->Malloc = (char *)_tagrealloc_or_free(mem->Ctx, mem->Z, newSize);
 				preserve = false;
 			}
 			else
@@ -70,7 +70,7 @@ namespace Core {
 		MEM f = mem->Flags;
 		if ((f & (MEM_Str | MEM_Blob)) && mem->Z != mem->Malloc)
 		{
-			if (Vdbe::MemGrow(mem, mem->N + 2, 1))
+			if (MemGrow(mem, mem->N + 2, 1))
 				return RC_NOMEM;
 			mem->Z[mem->N] = 0;
 			mem->Z[mem->N + 1] = 0;
@@ -220,13 +220,13 @@ namespace Core {
 		else if (flags & MEM_Real) return DoubleToInt64(mem->R);
 		else if (flags & (MEM_Str | MEM_Blob))
 		{
-			int64 value = 0;
 			_assert(mem->Z || mem->Z == 0);
 			ASSERTCOVERAGE(mem->Z == 0);
+			int64 value = 0;
 			ConvertEx::Atoi64(mem->Z, &value, mem->N, mem->Encode);
 			return value;
 		}
-		else return 0;
+		return 0;
 	}
 
 	__device__ double Vdbe::RealValue(Mem *mem)
@@ -236,7 +236,7 @@ namespace Core {
 		if (mem->Flags & MEM_Real) return mem->R;
 		else if (mem->Flags & MEM_Int) return (double)mem->u.I;
 		else if (mem->Flags & (MEM_Str | MEM_Blob)) { double val = (double)0; ConvertEx::Atof(mem->Z, &val, mem->N, mem->Encode); return val; } // (double)0 In case of SQLITE_OMIT_FLOATING_POINT...
-		else return (double)0; // (double)0 In case of SQLITE_OMIT_FLOATING_POINT...
+		return (double)0; // (double)0 In case of SQLITE_OMIT_FLOATING_POINT...
 	}
 
 	void Vdbe::IntegerAffinity(Mem *mem)
@@ -371,7 +371,7 @@ namespace Core {
 		{
 			_assert(mem->Malloc);
 			mem->u.RowSet = RowSet_Init(ctx, mem->Malloc, _tagallocsize(ctx, mem->Malloc));
-			_assert(mem->u.RowSet != 0);
+			_assert(mem->u.RowSet != nullptr);
 			mem->Flags = MEM_RowSet;
 		}
 	}
@@ -390,24 +390,23 @@ namespace Core {
 	}
 
 #ifdef _DEBUG
-	__device__ void Vdbe::MemAboutToChange(Vdbe *vdbe, Mem *mem)
+	__device__ void Vdbe::MemAboutToChange(Vdbe *p, Mem *mem)
 	{
 		Mem *x;
 		int i;
-		for (i = 1, x = &vdbe->Mems.data[1]; i <= vdbe->Mems.length; i++, x++)
+		for (i = 1, x = &p->Mems.data[1]; i <= p->Mems.length; i++, x++)
 		{
 			if (x->ScopyFrom == mem)
 			{
 				x->Flags |= MEM_Invalid;
-				x->ScopyFrom = 0;
+				x->ScopyFrom = nullptr;
 			}
 		}
-		mem->ScopyFrom = 0;
+		mem->ScopyFrom = nullptr;
 	}
 #endif
 
 #define MEMCELLSIZE (size_t)(&(((Mem *)0)->Malloc)) // Size of struct Mem not including the Mem.zMalloc member.
-
 	__device__ void Vdbe::MemShallowCopy(Mem *to, const Mem *from, uint16 srcType)
 	{
 		_assert((from->Flags & MEM_RowSet) == 0);
@@ -474,6 +473,7 @@ namespace Core {
 				for (bytes = 0; bytes <= limit && (z[bytes] | z[bytes + 1]); bytes += 2) { }
 				flags |= MEM_Term;
 		}
+
 		// The following block sets the new values of Mem.z and Mem.xDel. It also sets a flag in local variable "flags" to indicate the memory
 		// management (one of MEM_Dyn or MEM_Static).
 		if (del == DESTRUCTOR_TRANSIENT)
@@ -505,9 +505,7 @@ namespace Core {
 #ifndef OMIT_UTF16
 		if (mem->Encode != TEXTENCODE_UTF8 && MemHandleBom(mem)) return RC_NOMEM;
 #endif
-		if (bytes > limit)
-			return RC_TOOBIG;
-		return RC_OK;
+		return (bytes > limit ? RC_TOOBIG : RC_OK);
 	}
 
 	__device__ int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll)
@@ -578,14 +576,14 @@ namespace Core {
 		return r;
 	}
 
-	__device__ RC Vdbe::MemFromBtree(BtCursor *cursor, int offset, int amount, bool key, Mem *mem)
+	__device__ RC Vdbe::MemFromBtree(BtCursor *cur, int offset, int amount, bool key, Mem *mem)
 	{
 		_assert(Btree::CursorIsValid(cursor));
 
 		// Note: the calls to BtreeKeyFetch() and DataFetch() below assert() that both the BtShared and database handle mutexes are held.
 		_assert((mem->Flags & MEM_RowSet) == 0);
 		int available = 0; // Number of bytes available on the local btree page
-		char *data = (char *)(key ? Btree::KeyFetch(cursor, &available) : Btree::DataFetch(cursor, &available)); // Data from the btree layer
+		char *data = (char *)(key ? Btree::KeyFetch(cur, &available) : Btree::DataFetch(cur, &available)); // Data from the btree layer
 		_assert(data);
 
 		RC rc = RC_OK;
@@ -611,6 +609,7 @@ namespace Core {
 	}
 
 #pragma region Value
+
 	__device__ const void *Vdbe::ValueText(Mem *mem, TEXTENCODE encode)
 	{
 		if (!mem) return nullptr;
@@ -661,7 +660,7 @@ namespace Core {
 			*value = nullptr;
 			return RC_OK;
 		}
-		OP op = expr->OP;
+		TK op = expr->OP;
 		// op can only be TK_REGISTER if we have compiled with SQLITE_ENABLE_STAT3. The ifdef here is to enable us to achieve 100% branch test coverage even when SQLITE_ENABLE_STAT3 is omitted.
 #ifdef ENABLE_STAT3
 		if (op == TK_REGISTER) op = expr->OP2;
@@ -701,7 +700,7 @@ namespace Core {
 				ValueApplyAffinity(mem, affinity, TEXTENCODE_UTF8);
 			if (mem->Flags & (MEM_Int | MEM_Real)) mem->Flags &= ~MEM_Str;
 			if (encode != TEXTENCODE_UTF8)
-				Vdbe::ChangeEncoding(mem, encode);
+				ChangeEncoding(mem, encode);
 		}
 		else if (op == TK_UMINUS)
 		{
@@ -736,11 +735,11 @@ namespace Core {
 			memAsString = &expr->u.Token[2];
 			int memAsStringLength = _strlen30(memAsString) - 1;
 			_assert(memAsString[memAsStringLength] == '\'');
-			Vdbe::MemSetStr(mem, (const char *)_taghextoblob(ctx, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
+			MemSetStr(mem, (const char *)_taghextoblob(ctx, memAsString, memAsStringLength), memAsStringLength / 2, (TEXTENCODE)0, DESTRUCTOR_DYNAMIC);
 		}
 #endif
 		if (mem)
-			Vdbe::MemStoreType(mem);
+			MemStoreType(mem);
 		*value = mem;
 		return RC_OK;
 
@@ -770,6 +769,7 @@ no_mem:
 			return (mem->Flags & MEM_Zero ? mem->N + mem->u.Zero : mem->N);
 		return 0;
 	}
+
 #pragma endregion
 
 #pragma endregion

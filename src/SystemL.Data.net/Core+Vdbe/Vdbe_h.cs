@@ -142,39 +142,31 @@ namespace Core
             }
         }
 
-//#if !DEBUG
-//        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeComment(v, zFormat, ap); }
-//        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { sqlite3VdbeNoopComment(v, zFormat, ap); }
-//#else
-//        static void VdbeComment(Vdbe v, string zFormat, params object[] ap) { }
-//        static void VdbeNoopComment(Vdbe v, string zFormat, params object[] ap) { }
-//#endif
+        //#if OMIT_FLOATING_POINT
+        ////# define sqlite3VdbeMemSetDouble sqlite3VdbeMemSetInt64
+        //#else
+        //        //void sqlite3VdbeMemSetDouble(Mem*, double);
+        //#endif
 
-//#if OMIT_FLOATING_POINT
-////# define sqlite3VdbeMemSetDouble sqlite3VdbeMemSetInt64
-//#else
-//        //void sqlite3VdbeMemSetDouble(Mem*, double);
-//#endif
+        //#if !OMIT_SHARED_CACHE && THREADSAFE
+        //        //void Enter(Vdbe);
+        //        //void Leave(Vdbe);
+        //#else
+        //    static void Enter( Vdbe p ) { }
+        //    static void Leave( Vdbe p ) { }
+        //#endif
 
-//#if !OMIT_SHARED_CACHE && THREADSAFE
-//        //void Enter(Vdbe);
-//        //void Leave(Vdbe);
-//#else
-//    static void Enter( Vdbe p ) { }
-//    static void Leave( Vdbe p ) { }
-//#endif
+        //#if !OMIT_FOREIGN_KEY
+        //        //int sqlite3VdbeCheckFk(Vdbe *, int);
+        //#else
+        //        static int sqlite3VdbeCheckFk(Vdbe p, int i) { return 0; }
+        //#endif
 
-//#if !OMIT_FOREIGN_KEY
-//        //int sqlite3VdbeCheckFk(Vdbe *, int);
-//#else
-//        static int sqlite3VdbeCheckFk(Vdbe p, int i) { return 0; }
-//#endif
-
-//#if !OMIT_INCRBLOB
-//        //      int sqlite3VdbeMemExpandBlob(Mem);
-//#else
-//        static RC sqlite3VdbeMemExpandBlob(Mem x) { return RC.OK; }
-//#endif
+        //#if !OMIT_INCRBLOB
+        //        //      int sqlite3VdbeMemExpandBlob(Mem);
+        //#else
+        //        static RC sqlite3VdbeMemExpandBlob(Mem x) { return RC.OK; }
+        //#endif
 
         public Context Ctx;                 // The database connection that owns this statement
         public array_t<VdbeOp> Ops;         // Space to hold the virtual machine's program
@@ -290,9 +282,19 @@ namespace Core
             ct.OnceFlags = OnceFlags;
         }
 
-        const uint VDBE_MAGIC_INIT = 0x26bceaa5;   // Building a VDBE program
-        const uint VDBE_MAGIC_RUN = 0xbdf20da3;   // VDBE is ready to execute
-        const uint VDBE_MAGIC_HALT = 0x519c2973;   // VDBE has completed execution
-        const uint VDBE_MAGIC_DEAD = 0xb606c3c8;   // The VDBE has been deallocated
+        const uint VDBE_MAGIC_INIT = 0x26bceaa5;    // Building a VDBE program
+        const uint VDBE_MAGIC_RUN = 0xbdf20da3;     // VDBE is ready to execute
+        const uint VDBE_MAGIC_HALT = 0x519c2973;    // VDBE has completed execution
+        const uint VDBE_MAGIC_DEAD = 0xb606c3c8;    // The VDBE has been deallocated
+    }
+
+    public partial class E
+    {
+#if !OMIT_INCRBLOB
+        public static RC ExpandBlob(Mem P) { return ((P.Flags & MEM.Zero) != 0 ? Vdbe.MemExpandBlob(P) : 0); }
+#else
+        public static RC ExpandBlob(Mem P) { return RC.OK; }
+#endif
+        public static void VdbeMemRelease(Mem X) { if ((X.Flags & (MEM.Agg | MEM.Dyn | MEM.RowSet | MEM.Frame)) != 0) Vdbe.MemReleaseExternal(X); }
     }
 }

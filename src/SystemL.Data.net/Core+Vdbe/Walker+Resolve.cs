@@ -12,7 +12,6 @@ namespace Core
 {
     public partial class Walker
     {
-
         static WRC IncrAggDepth(Walker walker, Expr expr)
         {
             if (expr.OP == TK.AGG_FUNCTION) expr.OP2 += (byte)walker.u.I;
@@ -26,7 +25,7 @@ namespace Core
                 Walker w = new Walker();
                 w.ExprCallback = IncrAggDepth;
                 w.u.I = n;
-                w.WalkExpr(ref expr);
+                w.WalkExpr(expr);
             }
         }
 
@@ -41,7 +40,7 @@ namespace Core
             if (orig.OP != TK.COLUMN && (type.Length == 0 || type[0] != 'G'))
             {
                 IncrAggFunctionDepth(dup, subqueries);
-                dup = Expr.PExpr(parse, TK.AS, dup, null, null);
+                dup = Expr.PExpr_(parse, TK.AS, dup, null, null);
                 if (dup == null) return;
                 if (list.Ids[colId].Alias == 0)
                     list.Ids[colId].Alias = (ushort)(++parse.Alias.length);
@@ -52,10 +51,10 @@ namespace Core
 
             // Before calling sqlite3ExprDelete(), set the EP_Static flag. This prevents ExprDelete() from deleting the Expr structure itself,
             // allowing it to be repopulated by the memcpy() on the following line.
-            Expr.SetProperty(expr, EP.Static);
+            E.ExprSetProperty(expr, EP.Static);
             Expr.Delete(ctx, ref expr);
             expr.memcpy(dup);
-            if (!Expr.HasProperty(expr, EP.IntValue) && expr.u.Token != null)
+            if (!E.ExprHasProperty(expr, EP.IntValue) && expr.u.Token != null)
             {
                 Debug.Assert((dup.Flags & (EP.Reduced | EP.TokenOnly)) == 0);
                 dup.u.Token = expr.u.Token;
@@ -103,12 +102,12 @@ namespace Core
 
             Debug.Assert(nc != null); // the name context cannot be NULL.
             Debug.Assert(colName != null);    // The Z in X.Y.Z cannot be NULL
-            Debug.Assert(!Expr.HasAnyProperty(expr, EP.TokenOnly | EP.Reduced));
+            Debug.Assert(!E.ExprHasAnyProperty(expr, EP.TokenOnly | EP.Reduced));
 
             // Initialize the node to no-match
             expr.TableIdx = -1;
             expr.Table = null;
-            Expr.SetIrreducible(expr);
+            E.ExprSetIrreducible(expr);
 
             // Translate the schema name in zDb into a pointer to the corresponding schema.  If not found, pSchema will remain NULL and nothing will match
             // resulting in an appropriate error message toward the end of this routine
@@ -233,7 +232,7 @@ namespace Core
                         {
                             cnt++;
                             if (colId < 0)
-                                expr.Affinity = AFF.INTEGER;
+                                expr.Aff = AFF.INTEGER;
                             else if (expr.TableIdx == 0)
                             {
                                 C.ASSERTCOVERAGE(colId == 31);
@@ -259,7 +258,7 @@ namespace Core
                 {
                     cnt = 1;
                     expr.ColumnIdx = -1; // IMP: R-44911-55124
-                    expr.Affinity = AFF.INTEGER;
+                    expr.Aff = AFF.INTEGER;
                 }
 
                 // If the input is of the form Z (not Y.Z or X.Y.Z) then the name Z might refer to an result-set alias.  This happens, for example, when
@@ -280,7 +279,7 @@ namespace Core
                             Debug.Assert(expr.x.List == null);
                             Debug.Assert(expr.x.Select == null);
                             Expr orig = list.Ids[j].Expr;
-                            if ((nc.NCFlags & NC.AllowAgg) == 0 && Expr.HasProperty(orig, EP.Agg))
+                            if ((nc.NCFlags & NC.AllowAgg) == 0 && E.ExprHasProperty(orig, EP.Agg))
                             {
                                 parse.ErrorMsg("misuse of aliased aggregate %s", asName);
                                 return WRC.Abort;
@@ -307,7 +306,7 @@ namespace Core
             // pExpr.
             //
             // Because no reference was made to outer contexts, the pNC->nRef fields are not changed in any context.
-            if (cnt == 0 && tableName == null && Expr.HasProperty(expr, EP.DblQuoted))
+            if (cnt == 0 && tableName == null && E.ExprHasProperty(expr, EP.DblQuoted))
             {
                 expr.OP = TK.STRING;
                 expr.Table = null;
@@ -382,109 +381,80 @@ namespace Core
                     C.ASSERTCOVERAGE(colId == BMS - 1);
                     item.ColUsed |= ((Bitmask)1) << (colId >= BMS ? BMS - 1 : colId);
                 }
-                Expr.SetProperty(p, EP.Resolved);
+                E.ExprSetProperty(p, EP.Resolved);
             }
             return p;
         }
 
-        /*
-        ** This routine is callback for sqlite3WalkExpr().
-        **
-        ** Resolve symbolic names into TK_COLUMN operators for the current
-        ** node in the expression tree.  Return 0 to continue the search down
-        ** the tree or 2 to abort the tree walk.
-        **
-        ** This routine also does error checking and name resolution for
-        ** function names.  The operator for aggregate functions is changed
-        ** to TK_AGG_FUNCTION.
-        */
-        static int resolveExprStep(Walker pWalker, ref Expr pExpr)
+        public static WRC ResolveExprStep(Walker walker, ref Expr expr)
         {
-            NameContext pNC;
-            Parse pParse;
+            NameContext nc = walker.u.NC;
+            Debug.Assert(nc != null);
+            Parse parse = nc.Parse;
+            Debug.Assert(parse == walker.Parse);
 
-            pNC = pWalker.u.pNC;
-            Debug.Assert(pNC != null);
-            pParse = pNC.pParse;
-            Debug.Assert(pParse == pWalker.pParse);
-
-            if (ExprHasAnyProperty(pExpr, EP_Resolved))
-                return WRC_Prune;
-            ExprSetProperty(pExpr, EP_Resolved);
+            if (E.ExprHasAnyProperty(expr, EP.Resolved)) return WRC.Prune;
+            E.ExprSetProperty(expr, EP.Resolved);
 #if !NDEBUG
-            if (pNC.pSrcList != null && pNC.pSrcList.nAlloc > 0)
+            if (nc.SrcList != null && nc.SrcList.Allocs > 0)
             {
-                SrcList pSrcList = pNC.pSrcList;
-                int i;
-                for (i = 0; i < pNC.pSrcList.nSrc; i++)
-                {
-                    Debug.Assert(pSrcList.a[i].iCursor >= 0 && pSrcList.a[i].iCursor < pParse.nTab);
-                }
+                SrcList srcList = nc.SrcList;
+                for (int i = 0; i < nc.SrcList.Srcs; i++)
+                    Debug.Assert(srcList.Ids[i].Cursor >= 0 && srcList.Ids[i].Cursor < parse.Tabs);
             }
 #endif
-            switch (pExpr.op)
+            switch (expr.OP)
             {
 
-#if (SQLITE_ENABLE_UPDATE_DELETE_LIMIT) && !(SQLITE_OMIT_SUBQUERY)
-/* The special operator TK_ROW means use the rowid for the first
-** column in the FROM clause.  This is used by the LIMIT and ORDER BY
-** clause processing on UPDATE and DELETE statements.
-*/
-case TK_ROW: {
-SrcList pSrcList = pNC.pSrcList;
-SrcList_item pItem;
-Debug.Assert( pSrcList !=null && pSrcList.nSrc==1 );
-pItem = pSrcList.a[0];
-pExpr.op = TK_COLUMN;
-pExpr.pTab = pItem.pTab;
-pExpr.iTable = pItem.iCursor;
-pExpr.iColumn = -1;
-pExpr.affinity = SQLITE_AFF_INTEGER;
-break;
-}
-#endif //* defined(SQLITE_ENABLE_UPDATE_DELETE_LIMIT) && !defined(SQLITE_OMIT_SUBQUERY) /
-
-                /* A lone identifier is the name of a column.
-*/
-                case TK_ID:
+#if ENABLE_UPDATE_DELETE_LIMIT && !OMIT_SUBQUERY
+                // The special operator TK_ROW means use the rowid for the first column in the FROM clause.  This is used by the LIMIT and ORDER BY
+                // clause processing on UPDATE and DELETE statements.
+                case TK.ROW:
                     {
-                        return lookupName(pParse, null, null, pExpr.u.zToken, pNC, pExpr);
+                        SrcList srcList = nc.SrcList;
+                        Debug.Assert(srcList != null && srcList.Srcs == 1);
+                        SrcList.SrcListItem item = srcList.Ids[0];
+                        expr.OP = TK.COLUMN;
+                        expr.Table = item.Table;
+                        expr.TableIdx = item.Cursor;
+                        expr.ColumnIdx = -1;
+                        expr.Aff = AFF.INTEGER;
+                        break;
+                    }
+#endif
+
+                case TK.ID:  // A lone identifier is the name of a column.
+                    {
+                        return LookupName(parse, null, null, expr.u.Token, nc, expr);
                     }
 
-                /* A table name and column name:     ID.ID
-                ** Or a database, table and column:  ID.ID.ID
-                */
-                case TK_DOT:
+                case TK.DOT: // A table name and column name: ID.ID Or a database, table and column: ID.ID.ID
                     {
-                        string zColumn;
-                        string zTable;
-                        string zDb;
-                        Expr pRight;
-
-                        /* if( pSrcList==0 ) break; */
-                        pRight = pExpr.pRight;
-                        if (pRight.op == TK_ID)
+                        string columnName;
+                        string tableName;
+                        string dbName;
+                        // if (srcList == nullptr) break;
+                        Expr right = expr.Right;
+                        if (right.OP == TK.ID)
                         {
-                            zDb = null;
-                            zTable = pExpr.pLeft.u.zToken;
-                            zColumn = pRight.u.zToken;
+                            dbName = null;
+                            tableName = expr.Left.u.Token;
+                            columnName = right.u.Token;
                         }
                         else
                         {
-                            Debug.Assert(pRight.op == TK_DOT);
-                            zDb = pExpr.pLeft.u.zToken;
-                            zTable = pRight.pLeft.u.zToken;
-                            zColumn = pRight.pRight.u.zToken;
+                            Debug.Assert(right.OP == TK.DOT);
+                            dbName = expr.Left.u.Token;
+                            tableName = right.Left.u.Token;
+                            columnName = right.Right.u.Token;
                         }
-                        return lookupName(pParse, zDb, zTable, zColumn, pNC, pExpr);
+                        return LookupName(parse, dbName, tableName, columnName, nc, expr);
                     }
 
-                /* Resolve function names
-                */
-                case TK_CONST_FUNC:
-                case TK_FUNCTION:
+                case TK.CONST_FUNC:
+                case TK.FUNCTION: // Resolve function names
                     {
-                        ExprList pList = pExpr.x.pList;    /* The argument list */
+                        ExprList pList = expr.x.pList;    /* The argument list */
                         int n = pList != null ? pList.nExpr : 0;  /* Number of arguments */
                         bool no_such_func = false;       /* True if no such function exists */
                         bool wrong_num_args = false;     /* True if wrong number of arguments */
@@ -493,16 +463,16 @@ break;
                         int nId;                    /* Number of characters in function name */
                         string zId;                 /* The function name. */
                         FuncDef pDef;              /* Information about the function */
-                        u8 enc = (u8)pParse.db.aDbStatic[0].pSchema.enc;// ENC( pParse.db );   /* The database encoding */
+                        u8 enc = (u8)parse.db.aDbStatic[0].pSchema.enc;// ENC( pParse.db );   /* The database encoding */
 
-                        testcase(pExpr.op == TK_CONST_FUNC);
-                        Debug.Assert(!ExprHasProperty(pExpr, EP_xIsSelect));
-                        zId = pExpr.u.zToken;
+                        testcase(expr.op == TK_CONST_FUNC);
+                        Debug.Assert(!ExprHasProperty(expr, EP_xIsSelect));
+                        zId = expr.u.zToken;
                         nId = sqlite3Strlen30(zId);
-                        pDef = sqlite3FindFunction(pParse.db, zId, nId, n, enc, 0);
+                        pDef = sqlite3FindFunction(parse.db, zId, nId, n, enc, 0);
                         if (pDef == null)
                         {
-                            pDef = sqlite3FindFunction(pParse.db, zId, nId, -1, enc, 0);
+                            pDef = sqlite3FindFunction(parse.db, zId, nId, -1, enc, 0);
                             if (pDef == null)
                             {
                                 no_such_func = true;
@@ -519,47 +489,47 @@ break;
 #if !SQLITE_OMIT_AUTHORIZATION
                         if (pDef)
                         {
-                            auth = sqlite3AuthCheck(pParse, SQLITE_FUNCTION, 0, pDef.zName, 0);
+                            auth = sqlite3AuthCheck(parse, SQLITE_FUNCTION, 0, pDef.zName, 0);
                             if (auth != SQLITE_OK)
                             {
                                 if (auth == SQLITE_DENY)
                                 {
-                                    sqlite3ErrorMsg(pParse, "not authorized to use function: %s",
+                                    sqlite3ErrorMsg(parse, "not authorized to use function: %s",
                                     pDef.zName);
-                                    pNC.nErr++;
+                                    nc.nErr++;
                                 }
-                                pExpr.op = TK_NULL;
+                                expr.op = TK_NULL;
                                 return WRC_Prune;
                             }
                         }
 #endif
-                        if (is_agg && 0 == pNC.allowAgg)
+                        if (is_agg && 0 == nc.allowAgg)
                         {
-                            sqlite3ErrorMsg(pParse, "misuse of aggregate function %.*s()", nId, zId);
-                            pNC.nErr++;
+                            sqlite3ErrorMsg(parse, "misuse of aggregate function %.*s()", nId, zId);
+                            nc.nErr++;
                             is_agg = false;
                         }
                         else if (no_such_func)
                         {
-                            sqlite3ErrorMsg(pParse, "no such function: %.*s", nId, zId);
-                            pNC.nErr++;
+                            sqlite3ErrorMsg(parse, "no such function: %.*s", nId, zId);
+                            nc.nErr++;
                         }
                         else if (wrong_num_args)
                         {
-                            sqlite3ErrorMsg(pParse, "wrong number of arguments to function %.*s()",
+                            sqlite3ErrorMsg(parse, "wrong number of arguments to function %.*s()",
                             nId, zId);
-                            pNC.nErr++;
+                            nc.nErr++;
                         }
                         if (is_agg)
                         {
-                            pExpr.op = TK_AGG_FUNCTION;
-                            pNC.hasAgg = 1;
+                            expr.op = TK_AGG_FUNCTION;
+                            nc.hasAgg = 1;
                         }
                         if (is_agg)
-                            pNC.allowAgg = 0;
-                        sqlite3WalkExprList(pWalker, pList);
+                            nc.allowAgg = 0;
+                        sqlite3WalkExprList(walker, pList);
                         if (is_agg)
-                            pNC.allowAgg = 1;
+                            nc.allowAgg = 1;
                         /* FIX ME:  Compute pExpr.affinity based on the expected return
                         ** type of the function
                         */
@@ -569,27 +539,27 @@ break;
                 case TK_SELECT:
                 case TK_EXISTS:
                     {
-                        testcase(pExpr.op == TK_EXISTS);
+                        testcase(expr.op == TK_EXISTS);
                         goto case TK_IN;
                     }
 #endif
                 case TK_IN:
                     {
-                        testcase(pExpr.op == TK_IN);
-                        if (ExprHasProperty(pExpr, EP_xIsSelect))
+                        testcase(expr.op == TK_IN);
+                        if (ExprHasProperty(expr, EP_xIsSelect))
                         {
-                            int nRef = pNC.nRef;
+                            int nRef = nc.nRef;
 #if !SQLITE_OMIT_CHECK
-                            if (pNC.isCheck != 0)
+                            if (nc.isCheck != 0)
                             {
-                                sqlite3ErrorMsg(pParse, "subqueries prohibited in CHECK constraints");
+                                sqlite3ErrorMsg(parse, "subqueries prohibited in CHECK constraints");
                             }
 #endif
-                            sqlite3WalkSelect(pWalker, pExpr.x.pSelect);
-                            Debug.Assert(pNC.nRef >= nRef);
-                            if (nRef != pNC.nRef)
+                            sqlite3WalkSelect(walker, expr.x.pSelect);
+                            Debug.Assert(nc.nRef >= nRef);
+                            if (nRef != nc.nRef)
                             {
-                                ExprSetProperty(pExpr, EP_VarSelect);
+                                ExprSetProperty(expr, EP_VarSelect);
                             }
                         }
                         break;
@@ -597,15 +567,15 @@ break;
 #if !SQLITE_OMIT_CHECK
                 case TK_VARIABLE:
                     {
-                        if (pNC.isCheck != 0)
+                        if (nc.isCheck != 0)
                         {
-                            sqlite3ErrorMsg(pParse, "parameters prohibited in CHECK constraints");
+                            sqlite3ErrorMsg(parse, "parameters prohibited in CHECK constraints");
                         }
                         break;
                     }
 #endif
             }
-            return (pParse.nErr != 0 /* || pParse.db.mallocFailed != 0 */ ) ? WRC_Abort : WRC_Continue;
+            return (parse.nErr != 0 /* || pParse.db.mallocFailed != 0 */ ) ? WRC_Abort : WRC_Continue;
         }
 
         /*

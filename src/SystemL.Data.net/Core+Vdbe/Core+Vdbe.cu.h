@@ -919,7 +919,7 @@ namespace Core
 		double QueryLoops;			// Estimated number of iterations of a query
 		uint32 Oldmask;				// Mask of old.* columns referenced
 		uint32 Newmask;				// Mask of new.* columns referenced
-		uint8 TriggerOP;			// TK_UPDATE, TK_INSERT or TK_DELETE
+		TK TriggerOP;				// TK_UPDATE, TK_INSERT or TK_DELETE
 		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
 		bool DisableTriggers;		// True to disable triggers
 
