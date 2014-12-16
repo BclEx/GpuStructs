@@ -594,7 +594,7 @@ namespace Core
             Context ctx = parse.Ctx; // Database connection
             byte savedSuppErr = ctx.SuppressErr; // Saved value of db->suppressErr
             ctx.SuppressErr = 1;
-            RC rc = sqlite3ResolveExprNames(nc, ref expr);
+            RC rc = ResolveExprNames(nc, ref expr);
             ctx.SuppressErr = savedSuppErr;
             if (rc != 0) return 0;
             // Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
@@ -707,7 +707,6 @@ namespace Core
         public static int ResolveOrderGroupBy(Parse parse, Select select, ExprList orderBy, string type)
         {
             Context ctx = parse.Ctx;
-
             if (orderBy == null || parse.Ctx.MallocFailed) return 0;
 #if !MAX_COLUMN
             if (orderBy.Exprs > ctx.Limits[(int)LIMIT.COLUMN])
@@ -736,392 +735,227 @@ namespace Core
             return 0;
         }
 
-        /*
-        ** pOrderBy is an ORDER BY or GROUP BY clause in SELECT statement pSelect.
-        ** The Name context of the SELECT statement is pNC.  zType is either
-        ** "ORDER" or "GROUP" depending on which type of clause pOrderBy is.
-        **
-        ** This routine resolves each term of the clause into an expression.
-        ** If the order-by term is an integer I between 1 and N (where N is the
-        ** number of columns in the result set of the SELECT) then the expression
-        ** in the resolution is a copy of the I-th result-set expression.  If
-        ** the order-by term is an identify that corresponds to the AS-name of
-        ** a result-set expression, then the term resolves to a copy of the
-        ** result-set expression.  Otherwise, the expression is resolved in
-        ** the usual way - using sqlite3ResolveExprNames().
-        **
-        ** This routine returns the number of errors.  If errors occur, then
-        ** an appropriate error message might be left in pParse.  (OOM errors
-        ** excepted.)
-        */
-        static int resolveOrderGroupBy(
-        NameContext pNC,     /* The name context of the SELECT statement */
-        Select pSelect,      /* The SELECT statement holding pOrderBy */
-        ExprList pOrderBy,   /* An ORDER BY or GROUP BY clause to resolve */
-        string zType         /* Either "ORDER" or "GROUP", as appropriate */
-        )
+        static int ResolveOrderGroupBy(NameContext nc, Select select, ExprList orderBy, string type)
         {
-            int i;                         /* Loop counter */
-            int iCol;                      /* Column number */
-            ExprList_item pItem;   /* A term of the ORDER BY clause */
-            Parse pParse;                 /* Parsing context */
-            int nResult;                   /* Number of terms in the result set */
-
-            if (pOrderBy == null)
-                return 0;
-            nResult = pSelect.pEList.nExpr;
-            pParse = pNC.pParse;
-            for (i = 0; i < pOrderBy.nExpr; i++)//, pItem++ )
+            if (orderBy == null) return 0;
+            int result = select.EList.Exprs; // Number of terms in the result set
+            Parse parse = nc.Parse; // Parsing context
+            int i;
+            ExprList.ExprListItem item; // A term of the ORDER BY clause
+            for (i = 0; i < orderBy.Exprs; i++)
             {
-                pItem = pOrderBy.a[i];
-                Expr pE = pItem.pExpr;
-                iCol = ResolveAsName(pParse, pSelect.pEList, pE);
-                if (iCol > 0)
+                item = orderBy.Ids[i];
+                Expr expr = item.Expr;
+                int colId = ResolveAsName(parse, select.EList, expr); // Column number
+                if (colId > 0)
                 {
-                    /* If an AS-name match is found, mark this ORDER BY column as being
-                    ** a copy of the iCol-th result-set column.  The subsequent call to
-                    ** sqlite3ResolveOrderGroupBy() will convert the expression to a
-                    ** copy of the iCol-th result-set expression. */
-                    pItem.iCol = (u16)iCol;
+                    // If an AS-name match is found, mark this ORDER BY column as being a copy of the iCol-th result-set column.  The subsequent call to
+                    // sqlite3ResolveOrderGroupBy() will convert the expression to a copy of the iCol-th result-set expression.
+                    item.OrderByCol = (ushort)colId;
                     continue;
                 }
-                if (sqlite3ExprIsInteger(pE, ref iCol) != 0)
+                if (expr.SkipCollate().IsInteger(ref colId))
                 {
-                    /* The ORDER BY term is an integer constant.  Again, set the column
-                    ** number so that sqlite3ResolveOrderGroupBy() will convert the
-                    ** order-by term to a copy of the result-set expression */
-                    if (iCol < 1)
+                    // The ORDER BY term is an integer constant.  Again, set the column number so that sqlite3ResolveOrderGroupBy() will convert the
+                    // order-by term to a copy of the result-set expression
+                    if (colId < 1 || colId > 0xffff)
                     {
-                        ResolveOutOfRangeError(pParse, zType, i + 1, nResult);
+                        ResolveOutOfRangeError(parse, type, i + 1, result);
                         return 1;
                     }
-                    pItem.iCol = (u16)iCol;
+                    item.OrderByCol = (ushort)colId;
                     continue;
                 }
 
-                /* Otherwise, treat the ORDER BY term as an ordinary expression */
-                pItem.iCol = 0;
-                if (sqlite3ResolveExprNames(pNC, ref pE) != 0)
-                {
+                // Otherwise, treat the ORDER BY term as an ordinary expression
+                item.OrderByCol = 0;
+                if (ResolveExprNames(nc, ref expr) != 0)
                     return 1;
-                }
+                for (int j = 0; j < select.EList.Exprs; j++)
+                    if (Expr.Compare(expr, select.EList.Ids[j].Expr) == 0)
+                        item.OrderByCol = (ushort)(j + 1);
             }
-            return ResolveOrderGroupBy(pParse, pSelect, pOrderBy, zType);
+            return ResolveOrderGroupBy(parse, select, orderBy, type);
         }
 
-        /*
-        ** Resolve names in the SELECT statement p and all of its descendents.
-        */
-        static int resolveSelectStep(Walker pWalker, Select p)
+        static WRC ResolveSelectStep(Walker walker, Select p)
         {
-            NameContext pOuterNC;  /* Context that contains this SELECT */
-            NameContext sNC;       /* Name context of this SELECT */
-            bool isCompound;       /* True if p is a compound select */
-            int nCompound;         /* Number of compound terms processed so far */
-            Parse pParse;          /* Parsing context */
-            ExprList pEList;       /* Result set expression list */
-            int i;                 /* Loop counter */
-            ExprList pGroupBy;     /* The GROUP BY clause */
-            Select pLeftmost;      /* Left-most of SELECT of a compound */
-            sqlite3 db;            /* Database connection */
-
-
             Debug.Assert(p != null);
-            if ((p.selFlags & SF_Resolved) != 0)
-            {
-                return WRC_Prune;
-            }
-            pOuterNC = pWalker.u.pNC;
-            pParse = pWalker.pParse;
-            db = pParse.db;
+            if ((p.SelFlags & SF.Resolved) != 0)
+                return WRC.Prune;
+            NameContext outerNC = walker.u.NC; // Context that contains this SELECT
+            Parse parse = walker.Parse; // Parsing context
+            Context ctx = parse.Ctx; // Database connection
 
-            /* Normally sqlite3SelectExpand() will be called first and will have
-            ** already expanded this SELECT.  However, if this is a subquery within
-            ** an expression, sqlite3ResolveExprNames() will be called without a
-            ** prior call to sqlite3SelectExpand().  When that happens, let
-            ** sqlite3SelectPrep() do all of the processing for this SELECT.
-            ** sqlite3SelectPrep() will invoke both sqlite3SelectExpand() and
-            ** this routine in the correct order.
-            */
-            if ((p.selFlags & SF_Expanded) == 0)
+            // Normally sqlite3SelectExpand() will be called first and will have already expanded this SELECT.  However, if this is a subquery within
+            // an expression, sqlite3ResolveExprNames() will be called without a prior call to sqlite3SelectExpand().  When that happens, let
+            // sqlite3SelectPrep() do all of the processing for this SELECT. sqlite3SelectPrep() will invoke both sqlite3SelectExpand() and
+            // this routine in the correct order.
+            if ((p.SelFlags & SF.Expanded) == 0)
             {
-                sqlite3SelectPrep(pParse, p, pOuterNC);
-                return (pParse.nErr != 0 /*|| db.mallocFailed != 0 */ ) ? WRC_Abort : WRC_Prune;
+                sqlite3SelectPrep(parse, p, outerNC);
+                return (parse.Errs != 0 || ctx.MallocFailed ? WRC.Abort : WRC.Prune);
             }
 
-            isCompound = p.pPrior != null;
-            nCompound = 0;
-            pLeftmost = p;
+            bool isCompound = (p.Prior != null); // True if p is a compound select
+            int compounds = 0; // Number of compound terms processed so far
+            Select leftmost = p; // Left-most of SELECT of a compound
+            int i;
+            NameContext nc; // Name context of this SELECT
             while (p != null)
             {
-                Debug.Assert((p.selFlags & SF_Expanded) != 0);
-                Debug.Assert((p.selFlags & SF_Resolved) == 0);
-                p.selFlags |= SF_Resolved;
+                Debug.Assert((p.SelFlags & SF.Expanded) != 0);
+                Debug.Assert((p.SelFlags & SF.Resolved) == 0);
+                p.SelFlags |= SF.Resolved;
 
-                /* Resolve the expressions in the LIMIT and OFFSET clauses. These
-                ** are not allowed to refer to any names, so pass an empty NameContext.
-                */
-                sNC = new NameContext();// memset( &sNC, 0, sizeof( sNC ) );
-                sNC.pParse = pParse;
-                if (sqlite3ResolveExprNames(sNC, ref p.pLimit) != 0 ||
-                sqlite3ResolveExprNames(sNC, ref p.pOffset) != 0)
+                // Resolve the expressions in the LIMIT and OFFSET clauses. These are not allowed to refer to any names, so pass an empty NameContext.
+                nc = new NameContext(); //: _memset(&nc, 0, sizeof(nc));
+                nc.Parse = parse;
+                if (ResolveExprNames(nc, ref p.Limit) != 0 || ResolveExprNames(nc, ref p.Offset) != 0)
+                    return WRC.Abort;
+
+                // Recursively resolve names in all subqueries
+                SrcList.SrcListItem item;
+                for (i = 0; i < p.Src.Srcs; i++)
                 {
-                    return WRC_Abort;
-                }
-
-                /* Set up the local name-context to pass to sqlite3ResolveExprNames() to
-                ** resolve the result-set expression list.
-                */
-                sNC.allowAgg = 1;
-                sNC.pSrcList = p.pSrc;
-                sNC.pNext = pOuterNC;
-
-                /* Resolve names in the result set. */
-                pEList = p.pEList;
-                Debug.Assert(pEList != null);
-                for (i = 0; i < pEList.nExpr; i++)
-                {
-                    Expr pX = pEList.a[i].pExpr;
-                    if (sqlite3ResolveExprNames(sNC, ref pX) != 0)
+                    item = p.Src.Ids[i];
+                    if (item.Select != null)
                     {
-                        return WRC_Abort;
+                        NameContext nc2; // Used to iterate name contexts
+                        int refs = 0; // Refcount for pOuterNC and outer contexts
+                        string savedContext = parse.AuthContext;
+
+                        // Count the total number of references to pOuterNC and all of its parent contexts. After resolving references to expressions in
+                        // pItem->pSelect, check if this value has changed. If so, then SELECT statement pItem->pSelect must be correlated. Set the
+                        // pItem->isCorrelated flag if this is the case.
+                        for (nc2 = outerNC; nc2 != null; nc2 = nc2.Next) refs += nc2.Refs;
+
+                        if (item.Name != null) parse.AuthContext = item.Name;
+                        Walker.ResolveSelectNames(parse, item.Select, outerNC);
+                        parse.AuthContext = savedContext;
+                        if (parse.Errs != 0 || ctx.MallocFailed) return WRC.Abort;
+
+                        for (nc2 = outerNC; nc2 != null; nc2 = nc2.Next) refs -= nc2.Refs;
+                        Debug.Assert(!item.IsCorrelated && refs <= 0);
+                        item.IsCorrelated = (refs != 0);
                     }
                 }
 
-                /* Recursively resolve names in all subqueries
-                */
-                for (i = 0; i < p.pSrc.nSrc; i++)
+                // Set up the local name-context to pass to sqlite3ResolveExprNames() to resolve the result-set expression list.
+                nc.NCFlags = NC.AllowAgg;
+                nc.SrcList = p.Src;
+                nc.Next = outerNC;
+
+                // Resolve names in the result set.
+                ExprList list = p.EList; // Result set expression list
+                Debug.Assert(list != null);
+                for (i = 0; i < list.Exprs; i++)
                 {
-                    SrcList_item pItem = p.pSrc.a[i];
-                    if (pItem.pSelect != null)
-                    {
-                        string zSavedContext = pParse.zAuthContext;
-                        if (pItem.zName != null)
-                            pParse.zAuthContext = pItem.zName;
-                        sqlite3ResolveSelectNames(pParse, pItem.pSelect, pOuterNC);
-                        pParse.zAuthContext = zSavedContext;
-                        if (pParse.nErr != 0 /*|| db.mallocFailed != 0 */ )
-                            return WRC_Abort;
-                    }
+                    Expr expr = list.Ids[i].Expr;
+                    if (ResolveExprNames(nc, ref expr) != 0)
+                        return WRC.Abort;
                 }
 
-                /* If there are no aggregate functions in the result-set, and no GROUP BY
-                ** expression, do not allow aggregates in any of the other expressions.
-                */
-                Debug.Assert((p.selFlags & SF_Aggregate) == 0);
-                pGroupBy = p.pGroupBy;
-                if (pGroupBy != null || sNC.hasAgg != 0)
-                {
-                    p.selFlags |= SF_Aggregate;
-                }
+                // If there are no aggregate functions in the result-set, and no GROUP BY expression, do not allow aggregates in any of the other expressions.
+                Debug.Assert((p.SelFlags & SF.Aggregate) == 0);
+                ExprList groupBy = p.GroupBy; // The GROUP BY clause
+                if (groupBy != null || (nc.NCFlags & NC.HasAgg) != 0)
+                    p.SelFlags |= SF.Aggregate;
                 else
+                    nc.NCFlags &= ~NC.AllowAgg;
+
+                // If a HAVING clause is present, then there must be a GROUP BY clause.
+                if (p.Having != null && groupBy == null)
                 {
-                    sNC.allowAgg = 0;
+                    parse.ErrorMsg("a GROUP BY clause is required before HAVING");
+                    return WRC.Abort;
                 }
 
-                /* If a HAVING clause is present, then there must be a GROUP BY clause.
-                */
-                if (p.pHaving != null && pGroupBy == null)
+                // Add the expression list to the name-context before parsing the other expressions in the SELECT statement. This is so that
+                // expressions in the WHERE clause (etc.) can refer to expressions by aliases in the result set.
+                //
+                // Minor point: If this is the case, then the expression will be re-evaluated for each reference to it.
+                nc.EList = p.EList;
+                if (ResolveExprNames(nc, ref p.Where) != 0 || ResolveExprNames(nc, ref p.Having) != 0)
+                    return WRC.Abort;
+
+                // The ORDER BY and GROUP BY clauses may not refer to terms in outer queries 
+                nc.Next = null;
+                nc.NCFlags |= NC.AllowAgg;
+
+                // Process the ORDER BY clause for singleton SELECT statements. The ORDER BY clause for compounds SELECT statements is handled
+                // below, after all of the result-sets for all of the elements of the compound have been resolved.
+                if (!isCompound && ResolveOrderGroupBy(nc, p, p.OrderBy, "ORDER") != 0)
+                    return WRC.Abort;
+                if ( ctx.MallocFailed)
+                  return WRC.Abort;
+
+                // Resolve the GROUP BY clause.  At the same time, make sure the GROUP BY clause does not contain aggregate functions.
+                if (groupBy != null)
                 {
-                    sqlite3ErrorMsg(pParse, "a GROUP BY clause is required before HAVING");
-                    return WRC_Abort;
-                }
-
-                /* Add the expression list to the name-context before parsing the
-                ** other expressions in the SELECT statement. This is so that
-                ** expressions in the WHERE clause (etc.) can refer to expressions by
-                ** aliases in the result set.
-                **
-                ** Minor point: If this is the case, then the expression will be
-                ** re-evaluated for each reference to it.
-                */
-                sNC.pEList = p.pEList;
-                if (sqlite3ResolveExprNames(sNC, ref p.pWhere) != 0 ||
-                sqlite3ResolveExprNames(sNC, ref p.pHaving) != 0
-                )
-                {
-                    return WRC_Abort;
-                }
-
-                /* The ORDER BY and GROUP BY clauses may not refer to terms in
-                ** outer queries
-                */
-                sNC.pNext = null;
-                sNC.allowAgg = 1;
-
-                /* Process the ORDER BY clause for singleton SELECT statements.
-                ** The ORDER BY clause for compounds SELECT statements is handled
-                ** below, after all of the result-sets for all of the elements of
-                ** the compound have been resolved.
-                */
-                if (!isCompound && resolveOrderGroupBy(sNC, p, p.pOrderBy, "ORDER") != 0)
-                {
-                    return WRC_Abort;
-                }
-                //if ( db.mallocFailed != 0 )
-                //{
-                //  return WRC_Abort;
-                //}
-
-                /* Resolve the GROUP BY clause.  At the same time, make sure
-                ** the GROUP BY clause does not contain aggregate functions.
-                */
-                if (pGroupBy != null)
-                {
-                    ExprList_item pItem;
-
-                    if (resolveOrderGroupBy(sNC, p, pGroupBy, "GROUP") != 0 /*|| db.mallocFailed != 0 */ )
+                    if (ResolveOrderGroupBy(nc, p, groupBy, "GROUP") != 0 || ctx.MallocFailed)
+                        return WRC.Abort;
+                    ExprList.ExprListItem item2;
+                    for (i = 0; i < groupBy.Exprs; i++)
                     {
-                        return WRC_Abort;
-                    }
-                    for (i = 0; i < pGroupBy.nExpr; i++)//, pItem++)
-                    {
-                        pItem = pGroupBy.a[i];
-                        if ((pItem.pExpr.flags & EP_Agg) != 0)//HasProperty(pItem.pExpr, EP_Agg) )
+                        item2 = groupBy.Ids[i];
+                        if (E.ExprHasProperty(item2.Expr, EP.Agg))
                         {
-                            sqlite3ErrorMsg(pParse, "aggregate functions are not allowed in " +
-                            "the GROUP BY clause");
-                            return WRC_Abort;
+                            parse.ErrorMsg("aggregate functions are not allowed in the GROUP BY clause");
+                            return WRC.Abort;
                         }
                     }
                 }
 
-                /* Advance to the next term of the compound
-                */
-                p = p.pPrior;
-                nCompound++;
+                // Advance to the next term of the compound
+                p = p.Prior;
+                compounds++;
             }
 
-            /* Resolve the ORDER BY on a compound SELECT after all terms of
-            ** the compound have been resolved.
-            */
-            if (isCompound && ResolveCompoundOrderBy(pParse, pLeftmost) != 0)
-            {
-                return WRC_Abort;
-            }
-
-            return WRC_Prune;
+            // Resolve the ORDER BY on a compound SELECT after all terms of the compound have been resolved.
+            return ((isCompound && ResolveCompoundOrderBy(parse, leftmost) != 0 ? WRC.Abort : WRC.Prune);
         }
 
-        /*
-        ** This routine walks an expression tree and resolves references to
-        ** table columns and result-set columns.  At the same time, do error
-        ** checking on function usage and set a flag if any aggregate functions
-        ** are seen.
-        **
-        ** To resolve table columns references we look for nodes (or subtrees) of the
-        ** form X.Y.Z or Y.Z or just Z where
-        **
-        **      X:   The name of a database.  Ex:  "main" or "temp" or
-        **           the symbolic name assigned to an ATTACH-ed database.
-        **
-        **      Y:   The name of a table in a FROM clause.  Or in a trigger
-        **           one of the special names "old" or "new".
-        **
-        **      Z:   The name of a column in table Y.
-        **
-        ** The node at the root of the subtree is modified as follows:
-        **
-        **    Expr.op        Changed to TK_COLUMN
-        **    Expr.pTab      Points to the Table object for X.Y
-        **    Expr.iColumn   The column index in X.Y.  -1 for the rowid.
-        **    Expr.iTable    The VDBE cursor number for X.Y
-        **
-        **
-        ** To resolve result-set references, look for expression nodes of the
-        ** form Z (with no X and Y prefix) where the Z matches the right-hand
-        ** size of an AS clause in the result-set of a SELECT.  The Z expression
-        ** is replaced by a copy of the left-hand side of the result-set expression.
-        ** Table-name and function resolution occurs on the substituted expression
-        ** tree.  For example, in:
-        **
-        **      SELECT a+b AS x, c+d AS y FROM t1 ORDER BY x;
-        **
-        ** The "x" term of the order by is replaced by "a+b" to render:
-        **
-        **      SELECT a+b AS x, c+d AS y FROM t1 ORDER BY a+b;
-        **
-        ** Function calls are checked to make sure that the function is
-        ** defined and that the correct number of arguments are specified.
-        ** If the function is an aggregate function, then the pNC.hasAgg is
-        ** set and the opcode is changed from TK_FUNCTION to TK_AGG_FUNCTION.
-        ** If an expression contains aggregate functions then the EP_Agg
-        ** property on the expression is set.
-        **
-        ** An error message is left in pParse if anything is amiss.  The number
-        ** if errors is returned.
-        */
-        static int sqlite3ResolveExprNames(
-        NameContext pNC,       /* Namespace to resolve expressions in. */
-        ref Expr pExpr         /* The expression to be analyzed. */
-        )
+        public static bool ResolveExprNames(NameContext nc, ref Expr expr)
         {
-            u8 savedHasAgg;
+            if (expr == null) return false;
+#if MAX_EXPR_DEPTH
+            {
+                Parse parse = nc.Parse;
+                if (Expr.CheckHeight(parse, expr.Height + nc.Parse.Height))
+                    return true;
+                parse.Height += expr.Height;
+            }
+#endif
+            byte savedHasAgg = ((nc.NCFlags & NC.HasAgg) != 0);
+            nc.NCFlags &= ~NC.HasAgg;
             Walker w = new Walker();
-
-            if (pExpr == null)
-                return 0;
-#if SQLITE_MAX_EXPR_DEPTH//>0
-{
-Parse pParse = pNC.pParse;
-if( sqlite3ExprCheckHeight(pParse, pExpr.nHeight+pNC.pParse.nHeight) ){
-return 1;
-}
-pParse.nHeight += pExpr.nHeight;
-}
+            w.ExprCallback = ResolveExprStep;
+            w.SelectCallback = ResolveSelectStep;
+            w.Parse = nc.Parse;
+            w.u.NC = nc;
+            w.WalkExpr(ref expr);
+#if MAX_EXPR_DEPTH
+            nc.Parse.Height -= expr.Height;
 #endif
-            savedHasAgg = pNC.hasAgg;
-            pNC.hasAgg = 0;
-            w.xExprCallback = resolveExprStep;
-            w.xSelectCallback = resolveSelectStep;
-            w.pParse = pNC.pParse;
-            w.u.pNC = pNC;
-            sqlite3WalkExpr(w, ref pExpr);
-#if SQLITE_MAX_EXPR_DEPTH//>0
-pNC.pParse.nHeight -= pExpr.nHeight;
-#endif
-            if (pNC.nErr > 0 || w.pParse.nErr > 0)
-            {
-                ExprSetProperty(pExpr, EP_Error);
-            }
-            if (pNC.hasAgg != 0)
-            {
-                ExprSetProperty(pExpr, EP_Agg);
-            }
+            if (nc.Errs > 0 || w.Parse.Errs > 0)
+                E.ExprSetProperty(expr, EP.Error);
+            if ((nc.NCFlags & NC.HasAgg) != 0)
+                E.ExprSetProperty(expr, EP.Agg);
             else if (savedHasAgg != 0)
-            {
-                pNC.hasAgg = 1;
-            }
-            return ExprHasProperty(pExpr, EP_Error) ? 1 : 0;
+                nc.NCFlags |= NC.HasAgg;
+            return E.ExprHasProperty(expr, EP.Error);
         }
 
-
-        /*
-        ** Resolve all names in all expressions of a SELECT and in all
-        ** decendents of the SELECT, including compounds off of p.pPrior,
-        ** subqueries in expressions, and subqueries used as FROM clause
-        ** terms.
-        **
-        ** See sqlite3ResolveExprNames() for a description of the kinds of
-        ** transformations that occur.
-        **
-        ** All SELECT statements should have been expanded using
-        ** sqlite3SelectExpand() prior to invoking this routine.
-        */
-        static void sqlite3ResolveSelectNames(
-        Parse pParse,         /* The parser context */
-        Select p,             /* The SELECT statement being coded. */
-        NameContext pOuterNC  /* Name context for parent SELECT statement */
-        )
+        public static void ResolveSelectNames(Parse parse, Select p, NameContext outerNC)
         {
-            Walker w = new Walker();
-
             Debug.Assert(p != null);
-            w.xExprCallback = resolveExprStep;
-            w.xSelectCallback = resolveSelectStep;
-            w.pParse = pParse;
-            w.u.pNC = pOuterNC;
-            sqlite3WalkSelect(w, p);
+            Walker w = new Walker();
+            w.ExprCallback = ResolveExprStep;
+            w.SelectCallback = ResolveSelectStep;
+            w.Parse = parse;
+            w.u.NC = outerNC;
+            w.WalkSelect(p);
         }
     }
 }

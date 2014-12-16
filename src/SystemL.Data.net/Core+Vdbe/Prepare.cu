@@ -10,7 +10,7 @@ namespace Core
 			if (!obj) obj = "?";
 			sqlite3SetString(data->ErrMsg, ctx, "malformed database schema (%s)", obj);
 			if (extra)
-				*data->ErrMsg = sqlite3MAppendf(ctx, *data->ErrMsg, "%s - %s", *data->ErrMsg, extra);
+				*data->ErrMsg = _mtagappendf(ctx, *data->ErrMsg, "%s - %s", *data->ErrMsg, extra);
 		}
 		data->RC = (ctx->MallocFailed ? RC_NOMEM : SysEx_CORRUPT_BKPT);
 	}
@@ -44,9 +44,9 @@ namespace Core
 			ctx->Init.OrphanTrigger = false;
 			Vdbe *stmt;
 #if DEBUG
-			int rcp = sqlite3_prepare(ctx, argv[2], -1, &stmt, 0);
+			int rcp = Prepare(ctx, argv[2], -1, &stmt, 0);
 #else
-			sqlite3_prepare(ctx, argv[2], -1, &stmt, 0);
+			Prepare(ctx, argv[2], -1, &stmt, 0);
 #endif
 			RC rc = ctx->ErrCode;
 			_assert((rc&0xFF) == (rcp&0xFF));
@@ -64,7 +64,7 @@ namespace Core
 						CorruptSchema(data, argv[0], sqlite3_errmsg(ctx));
 				}
 			}
-			sqlite3_finalize(stmt);
+			stmt->Finalize();
 		}
 		else if (argv[0] == 0)
 			CorruptSchema(data, nullptr, nullptr);
@@ -183,19 +183,19 @@ namespace Core
 		int meta[5];
 		for (i = 0; i < _lengthof(meta); i++)
 			dbAsObj->Bt->GetMeta((Btree::META)i+1, (uint32 *)&meta[i]);
-		dbAsObj->Schema->SchemaCookie = meta[BTREE_SCHEMA_VERSION-1];
+		dbAsObj->Schema->SchemaCookie = meta[Btree::META_SCHEMA_VERSION-1];
 
 		int i;
 		// If opening a non-empty database, check the text encoding. For the main database, set sqlite3.enc to the encoding of the main database.
 		// For an attached ctx, it is an error if the encoding is not the same as sqlite3.enc.
-		if (meta[BTREE_TEXT_ENCODING-1]) // text encoding
+		if (meta[Btree::META_TEXT_ENCODING-1]) // text encoding
 		{  
 			if (db == 0)
 			{
 #ifndef OMIT_UTF16
 				uint8 encoding;
 				// If opening the main database, set ENC(ctx).
-				encoding = (uint8)meta[BTREE_TEXT_ENCODING-1] & 3;
+				encoding = (uint8)meta[Btree::META_TEXT_ENCODING-1] & 3;
 				if (encoding == 0) encoding = TEXTENCODE_UTF8;
 				CTXENCODE(ctx) = encoding;
 #else
@@ -205,7 +205,7 @@ namespace Core
 			else
 			{
 				// If opening an attached database, the encoding much match CTXENCODE(ctx)
-				if (meta[BTREE_TEXT_ENCODING-1] != CTXENCODE(ctx))
+				if (meta[Btree::META_TEXT_ENCODING-1] != CTXENCODE(ctx))
 				{
 					SysEx::TagStrSet(errMsg, ctx, "attached databases must use the same text encoding as main database");
 					rc = RC_ERROR;
@@ -227,7 +227,7 @@ namespace Core
 		// file_format==2    Version 3.1.3.  // ALTER TABLE ADD COLUMN
 		// file_format==3    Version 3.1.4.  // ditto but with non-NULL defaults
 		// file_format==4    Version 3.3.0.  // DESC indices.  Boolean constants
-		dbAsObj->Schema->FileFormat = (uint8)meta[BTREE_FILE_FORMAT-1];
+		dbAsObj->Schema->FileFormat = (uint8)meta[Btree::META_FILE_FORMAT-1];
 		if (dbAsObj->Schema->FileFormat == 0)
 			dbAsObj->Schema->FileFormat = 1;
 		if (dbAsObj->Schema->FileFormat > MAX_FILE_FORMAT)
@@ -239,13 +239,13 @@ namespace Core
 
 		// Ticket #2804:  When we open a database in the newer file format, clear the legacy_file_format pragma flag so that a VACUUM will
 		// not downgrade the database and thus invalidate any descending indices that the user might have created.
-		if (db == 0 && meta[BTREE_FILE_FORMAT-1] >= 4)
+		if (db == 0 && meta[Btree::META_FILE_FORMAT-1] >= 4)
 			ctx->Flags &= ~Context::FLAG_LegacyFileFmt;
 
 		// Read the schema information out of the schema tables
 		_assert(ctx->Init.Busy);
 		{
-			char *sql = sqlite3MPrintf(ctx,  "SELECT name, rootpage, sql FROM '%q'.%s ORDER BY rowid", ctx->DBs[db].zName, masterName);
+			char *sql = _mtagprintf(ctx,  "SELECT name, rootpage, sql FROM '%q'.%s ORDER BY rowid", ctx->DBs[db].Name, masterName);
 #ifndef OMIT_AUTHORIZATION
 			{
 				int (*auth)(void*,int,const char*,const char*,const char*,const char*);
@@ -267,7 +267,7 @@ namespace Core
 		if (ctx->MallocFailed)
 		{
 			rc = RC_NOMEM;
-			sqlite3ResetAllSchemasOfConnection(ctx);
+			Main::ResetAllSchemasOfConnection(ctx);
 		}
 		if (rc == RC_OK || (ctx->Flags&Context::FLAG_RecoveryMode))
 		{
@@ -292,7 +292,7 @@ error_out:
 		return rc;
 	}
 
-	__device__ RC Prepare::Init(Context *ctx, char **eErrMsg)
+	__device__ RC Prepare::Init(Context *ctx, char **errMsg)
 	{
 		_assert(MutexEx::Held(ctx->Mutex));
 		RC rc = RC_OK;
@@ -338,78 +338,60 @@ error_out:
 		return rc;
 	}
 
-
-	__device__ static void schemaIsValid(Parse *parse)
+	__device__ static void SchemaIsValid(Parse *parse)
 	{
-		sqlite3 *ctx = pParse->Ctx;
-		int iDb;
-		int rc;
-		int cookie;
+		Context *ctx = parse->Ctx;
+		_assert(parse->CheckSchema);
+		_assert(MutexEx::Held(ctx->Mutex));
+		for (int db = 0; db <ctx->DBs.length; db++)
+		{
+			bool openedTransaction = false; // True if a transaction is opened
+			Btree *bt = ctx->DBs[db].Bt; // Btree database to read cookie from
+			if (!bt) continue;
 
-		assert( pParse->checkSchema );
-		assert( sqlite3_mutex_held(ctx->mutex) );
-		for(iDb=0; iDb<ctx->nDb; iDb++){
-			int openedTransaction = 0;         /* True if a transaction is opened */
-			Btree *pBt = ctx->aDb[iDb].pBt;     /* Btree database to read cookie from */
-			if( pBt==0 ) continue;
-
-			/* If there is not already a read-only (or read-write) transaction opened
-			** on the b-tree database, open one now. If a transaction is opened, it 
-			** will be closed immediately after reading the meta-value. */
-			if( !sqlite3BtreeIsInReadTrans(pBt) ){
-				rc = sqlite3BtreeBeginTrans(pBt, 0);
-				if( rc==SQLITE_NOMEM || rc==SQLITE_IOERR_NOMEM ){
-					ctx->mallocFailed = 1;
-				}
-				if( rc!=SQLITE_OK ) return;
-				openedTransaction = 1;
+			// If there is not already a read-only (or read-write) transaction opened on the b-tree database, open one now. If a transaction is opened, it 
+			// will be closed immediately after reading the meta-value.
+			if (!bt->IsInReadTrans())
+			{
+				RC rc = bt->BeginTrans(0);
+				if (rc == RC_NOMEM || rc == RC_IOERR_NOMEM)
+					ctx->MallocFailed = true;
+				if (rc != RC_OK) return;
+				openedTransaction = true;
 			}
 
-			/* Read the schema cookie from the database. If it does not match the 
-			** value stored as part of the in-memory schema representation,
-			** set Parse.rc to SQLITE_SCHEMA. */
-			sqlite3BtreeGetMeta(pBt, BTREE_SCHEMA_VERSION, (u32 *)&cookie);
-			assert( sqlite3SchemaMutexHeld(ctx, iDb, 0) );
-			if( cookie!=ctx->aDb[iDb].pSchema->schema_cookie ){
-				sqlite3ResetOneSchema(ctx, iDb);
-				pParse->rc = SQLITE_SCHEMA;
+			// Read the schema cookie from the database. If it does not match the value stored as part of the in-memory schema representation,
+			// set Parse.rc to SQLITE_SCHEMA.
+			int cookie;
+			bt->GetMeta(Btree::META_SCHEMA_VERSION, (uint32 *)&cookie);
+			_assert(Btree::SchemaMutexHeld(ctx, db, 0));
+			if (cookie != ctx->DBs[db].Schema->SchemaCookie)
+			{
+				sqlite3ResetOneSchema(ctx, db);
+				parse->RC = RC_SCHEMA;
 			}
 
-			/* Close the transaction, if one was opened. */
-			if( openedTransaction ){
-				sqlite3BtreeCommit(pBt);
-			}
+			// Close the transaction, if one was opened.
+			if (openedTransaction)
+				bt->Commit();
 		}
 	}
 
-	/*
-	** Convert a schema pointer into the iDb index that indicates
-	** which database file in ctx->aDb[] the schema refers to.
-	**
-	** If the same database is attached more than once, the first
-	** attached database is returned.
-	*/
-	int sqlite3SchemaToIndex(sqlite3 *ctx, Schema *pSchema){
+	__device__ int Prepare::SchemaToIndex(Context *ctx, Schema *schema)
+	{
+		// If pSchema is NULL, then return -1000000. This happens when code in expr.c is trying to resolve a reference to a transient table (i.e. one
+		// created by a sub-select). In this case the return value of this function should never be used.
+		//
+		// We return -1000000 instead of the more usual -1 simply because using -1000000 as the incorrect index into ctx->aDb[] is much 
+		// more likely to cause a segfault than -1 (of course there are assert() statements too, but it never hurts to play the odds).
+		_assert(MutexEx::Held(ctx->Mutex));
 		int i = -1000000;
-
-		/* If pSchema is NULL, then return -1000000. This happens when code in 
-		** expr.c is trying to resolve a reference to a transient table (i.e. one
-		** created by a sub-select). In this case the return value of this 
-		** function should never be used.
-		**
-		** We return -1000000 instead of the more usual -1 simply because using
-		** -1000000 as the incorrect index into ctx->aDb[] is much 
-		** more likely to cause a segfault than -1 (of course there are assert()
-		** statements too, but it never hurts to play the odds).
-		*/
-		assert( sqlite3_mutex_held(ctx->mutex) );
-		if( pSchema ){
-			for(i=0; ALWAYS(i<ctx->nDb); i++){
-				if( ctx->aDb[i].pSchema==pSchema ){
+		if (schema)
+		{
+			for (i = 0; _ALWAYS(i < ctx->DBs.length); i++)
+				if (ctx->DBs[i].Schema == schema)
 					break;
-				}
-			}
-			assert( i>=0 && i<ctx->nDb );
+			_assert(i >= 0 && i < ctx->DBs.length);
 		}
 		return i;
 	}

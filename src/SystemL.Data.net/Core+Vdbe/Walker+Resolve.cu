@@ -752,7 +752,7 @@ lookupname_end:
 		return Walker::ResolveOrderGroupBy(parse, select, orderBy, type);
 	}
 
-	__device__ static int ResolveSelectStep(Walker *walker, Select *p)
+	__device__ static WRC ResolveSelectStep(Walker *walker, Select *p)
 	{
 		_assert(p != nullptr);
 		if (p->SelFlags & SF_Resolved)
@@ -867,9 +867,9 @@ lookupname_end:
 			// Resolve the GROUP BY clause.  At the same time, make sure the GROUP BY clause does not contain aggregate functions.
 			if (groupBy)
 			{
-				struct ExprList_item *pItem;
 				if (ResolveOrderGroupBy(&nc, p, groupBy, "GROUP") || ctx->MallocFailed)
 					return WRC_Abort;
+				ExprList::ExprListItem *item;
 				for (i = 0, item = groupBy->Ids; i < groupBy->Exprs; i++, item++)
 					if (ExprHasProperty(item->Expr, EP_Agg))
 					{
@@ -884,19 +884,17 @@ lookupname_end:
 		}
 
 		// Resolve the ORDER BY on a compound SELECT after all terms of the compound have been resolved.
-		if (isCompound && ResolveCompoundOrderBy(parse, leftmost))
-			return WRC_Abort;
-		return WRC_Prune;
+		return (isCompound && ResolveCompoundOrderBy(parse, leftmost) ? WRC_Abort : WRC_Prune);
 	}
 
-	__device__ int Walker::ResolveExprNames(NameContext *nc, Expr *expr)
+	__device__ bool Walker::ResolveExprNames(NameContext *nc, Expr *expr)
 	{
-		if (!expr) return 0;
+		if (!expr) return false;
 #if MAX_EXPR_DEPTH > 0
 		{
 			Parse *parse = nc->Parse;
 			if (Expr::CheckHeight(parse, expr->Height + nc->Parse->Height))
-				return 1;
+				return true;
 			parse->Height += expr->Height;
 		}
 #endif
@@ -914,7 +912,7 @@ lookupname_end:
 		if (nc->Errs > 0 || w.Parse->Errs > 0)
 			ExprSetProperty(expr, EP_Error);
 		if (nc->NCFlags & NC_HasAgg)
-			ExprSetProperty(pExpr, EP_Agg);
+			ExprSetProperty(expr, EP_Agg);
 		else if (savedHasAgg)
 			nc->NCFlags |= NC_HasAgg;
 		return ExprHasProperty(expr, EP_Error);
