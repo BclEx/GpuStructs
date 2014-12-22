@@ -3,6 +3,9 @@
 
 namespace Core
 {
+
+#pragma region UTF Macros
+
 	__device__ static const unsigned char _utf8Trans1[] =
 	{
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -86,6 +89,8 @@ namespace Core
 	} \
 	if (c < 0x80 || (c&0xFFFFF800) == 0xD800 || (c&0xFFFFFFFE) == 0xFFFE) c = 0xFFFD; \
 	}
+
+#pragma endregion
 
 	__device__ uint32 SysEx::Utf8Read(const unsigned char **z)
 	{

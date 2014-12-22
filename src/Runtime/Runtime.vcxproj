@@ -34,6 +34,7 @@
     <ClInclude Include="Runtime.cu+native.h" />
     <ClInclude Include="RuntimeHost.h" />
     <ClInclude Include="Runtime.h" />
+    <ClInclude Include="RuntimeTypes.h" />
     <ClInclude Include="VisualHost.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
@@ -112,6 +113,9 @@
     <PostBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)FallocHost.obj" "$(IntDir)Falloc.cu.obj" "$(IntDir)RuntimeHost.obj" "$(IntDir)Runtime.cu.obj" "$(IntDir)VisualHost.obj" -o "$(OutDir)Runtime.$(LC)$(LD)D.lib"</Command>
     </PostBuildEvent>
+    <CudaLink>
+      <UseHostLibraryDependencies Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">false</UseHostLibraryDependencies>
+    </CudaLink>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <ClCompile>

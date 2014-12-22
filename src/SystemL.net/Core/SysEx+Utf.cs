@@ -68,6 +68,59 @@ namespace Core
             string z2 = Encoding.UTF32.GetString(z, 0, z.Length);
             return Encoding.UTF32.GetBytes(z2).Length;
         }
+
+        //#if defined(TEST)
+        //	__device__ void SysEx::UtfSelfTest()
+        //	{
+        //		unsigned int i, t;
+        //		unsigned char buf[20];
+        //		unsigned char *z;
+        //		int n;
+        //		unsigned int c;
+        //		for (i = 0; i < 0x00110000; i++)
+        //		{
+        //			z = buf;
+        //			WRITE_UTF8(z, i);
+        //			n = (int)(z - buf);
+        //			_assert(n > 0 && n <= 4);
+        //			z[0] = 0;
+        //			z = buf;
+        //			c = Utf8Read((const uint8 **)&z);
+        //			t = i;
+        //			if (i >= 0xD800 && i <= 0xDFFF) t = 0xFFFD;
+        //			if ((i&0xFFFFFFFE) == 0xFFFE) t = 0xFFFD;
+        //			_assert(c == t);
+        //			_assert((z - buf) == n);
+        //		}
+        //		for (i = 0; i < 0x00110000; i++)
+        //		{
+        //			if (i >= 0xD800 && i < 0xE000) continue;
+        //			z = buf;
+        //			WRITE_UTF16LE(z, i);
+        //			n = (int)(z - buf);
+        //			_assert(n > 0 && n <= 4);
+        //			z[0] = 0;
+        //			z = buf;
+        //			READ_UTF16LE(z, 1, c);
+        //			_assert(c == i);
+        //			_assert((z - buf) == n);
+        //		}
+        //		for (i = 0; i < 0x00110000; i++)
+        //		{
+        //			if (i >= 0xD800 && i < 0xE000) continue;
+        //			z = buf;
+        //			WRITE_UTF16BE(z, i);
+        //			n = (int)(z-buf);
+        //			_assert(n > 0 && n <= 4);
+        //			z[0] = 0;
+        //			z = buf;
+        //			READ_UTF16BE(z, 1, c);
+        //			_assert(c == i);
+        //			_assert((z - buf) == n);
+        //		}
+        //	}
+        //#endif
+
 #endif
     }
 }

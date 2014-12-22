@@ -24,7 +24,7 @@ namespace Core { namespace Command
 		Vdbe *v = parse->GetVdbe();
 		if (!v) return;
 		_assert(Btree::HoldsAllMutexes(ctx));
-		_assert(v->VdbeCtx() == ctx);
+		_assert(v->Ctx == ctx);
 		Context::DB *dbObj = &ctx->DBs[db];
 
 		// Create new statistic tables if they do not exist, or clear them if they do already exist.
@@ -32,24 +32,22 @@ namespace Core { namespace Command
 		{
 			const char *table = _tables[i].Name;
 			Table *stat;
-			if ((stat = sqlite3FindTable(db, table, dbObj->Name)) == nullptr)
+			if ((stat = Parse::FindTable(ctx, table, dbObj->Name)) == nullptr)
 			{
 				// The sqlite_stat[12] table does not exist. Create it. Note that a side-effect of the CREATE TABLE statement is to leave the rootpage 
 				// of the new table in register pParse->regRoot. This is important because the OpenWrite opcode below will be needing it.
-				void *args[] = { dbObj->Name, (void *)table, (void *)_tables[i].Cols }; parse->NestedParse("CREATE TABLE %Q.%s(%s)", args);
+				parse->NestedParse("CREATE TABLE %Q.%s(%s)", dbObj->Name, table, _tables[i].Cols);
 				roots[i] = parse->RegRoot;
-				createTbls[i] = OPFLAG_P2ISREG;
+				createTbls[i] = Vdbe::OPFLAG_P2ISREG;
 			}
 			else
 			{
 				// The table already exists. If zWhere is not NULL, delete all entries associated with the table zWhere. If zWhere is NULL, delete the
 				// entire contents of the table.
 				roots[i] = stat->Id;
-				sqlite3TableLock(parse, db, roots[i], 1, table);
+				parse->TableLock(db, roots[i], 1, table);
 				if (where_)
-				{
-					void *args[] = { dbObj->Name, (void *)table, (void *)whereType, (void *)where_ }; parse->NestedParse("DELETE FROM %Q.%s WHERE %s=%Q", args);
-				}
+					parse->NestedParse("DELETE FROM %Q.%s WHERE %s=%Q", dbObj->Name, table, whereType, where_);
 				else
 					v->AddOp2(OP_Clear, roots[i], db); // The sqlite_stat[12] table already exists.  Delete all rows.
 			}
@@ -104,7 +102,7 @@ namespace Core { namespace Command
 		p->Rows = rows;
 		p->MaxSamples = maxSamples;
 		p->PSamples = rows/(maxSamples/3+1) + 1;
-		SysEx::Randomness(sizeof(p->Prn), &p->Prn);
+		SysEx::PutRandom(sizeof(p->Prn), &p->Prn);
 		Vdbe::Result_Blob(fctx, p, sizeof(p), _free);
 	}
 	__device__ static const FuncDef Stat3InitFuncdef =
@@ -258,7 +256,7 @@ namespace Core { namespace Command
 		if (table->Id == 0 || !_strncmp(table->Name, "sqlite_", 7)) // Do not gather statistics on views or virtual tables + Do not gather statistics on system tables
 			return;
 		_assert(Btree::HoldsAllMutexes(ctx));
-		int db = sqlite3SchemaToIndex(ctx, table->Schema); // Index of database containing table
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Index of database containing table
 		_assert(db >= 0);
 		_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 #ifndef OMIT_AUTHORIZATION
@@ -267,7 +265,7 @@ namespace Core { namespace Command
 #endif
 
 		// Establish a read-lock on the table at the shared-cache level.
-		sqlite3TableLock(parse, db, table->Id, 0, table->Name);
+		parse->TableLock(db, table->Id, 0, table->Name);
 
 		int zeroRows = -1;          // Jump from here if number of rows is zero
 		int idxCurId = parse->Tabs++; // Cursor open on index being analyzed
@@ -275,7 +273,7 @@ namespace Core { namespace Command
 		for (Index *idx = table->Index; idx; idx = idx->Next) // An index to being analyzed
 		{
 			if (onlyIdx && onlyIdx != idx) continue;
-			v->VdbeNoopComment("Begin analysis of %s", idx->Name);
+			v->NoopComment("Begin analysis of %s", idx->Name);
 			int cols = idx->Columns.length;
 			int *chngAddrs = (int *)_tagalloc(ctx, sizeof(int)*cols); // Array of jump instruction addresses
 			if (!chngAddrs) continue;
@@ -286,7 +284,7 @@ namespace Core { namespace Command
 			// Open a cursor to the index to be analyzed.
 			_assert(db == sqlite3SchemaToIndex(ctx, idx->Schema));
 			v->AddOp4(OP_OpenRead, idxCurId, idx->Id, db, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
-			v->VdbeComment("%s", idx->Name);
+			v->Comment("%s", idx->Name);
 
 			// Populate the register containing the index name.
 			v->AddOp4(OP_String8, 0, regIdxname, 0, idx->Name, 0);
@@ -299,7 +297,7 @@ namespace Core { namespace Command
 				sqlite3OpenTable(parse, tabCurId, db, table, OP_OpenRead);
 			}
 			v->AddOp2(OP_Count, idxCurId, regCount);
-			v->AddOp2(OP_Integer, SQLITE_STAT3_SAMPLES, regTemp1);
+			v->AddOp2(OP_Integer, STAT3_SAMPLES, regTemp1);
 			v->AddOp2(OP_Integer, 0, regNumEq);
 			v->AddOp2(OP_Integer, 0, regNumLt);
 			v->AddOp2(OP_Integer, -1, regNumDLt);
@@ -339,7 +337,7 @@ namespace Core { namespace Command
 				if (i == 0) // Always record the very first row
 					addrIfNot = v->AddOp1(OP_IfNot, memId+1);
 				_assert(idx->CollNames && idx->CollNames[i]);
-				CollSeq *coll = sqlite3LocateCollSeq(parse, idx->CollNames[i]);
+				CollSeq *coll = parse->LocateCollSeq(idx->CollNames[i]);
 				chngAddrs[i] = v->AddOp4(OP_Ne, regCol, 0, memId+cols+i+1, (char *)coll, Vdbe::P4T_COLLSEQ);
 				v->ChangeP5(SQLITE_NULLEQ);
 				v->VdbeComment("jump if column %d changed", i);
@@ -347,7 +345,7 @@ namespace Core { namespace Command
 				if (i == 0)
 				{
 					v->AddOp2(OP_AddImm, regNumEq, 1);
-					v->VdbeComment("incr repeat count");
+					v->Comment("incr repeat count");
 				}
 #endif
 			}
@@ -434,7 +432,7 @@ namespace Core { namespace Command
 		if (!table->Index)
 		{
 			v->AddOp3(OP_OpenRead, idxCurId, table->Id, db);
-			v->VdbeComment("%s", table->Name);
+			v->Comment("%s", table->Name);
 			v->AddOp2(OP_Count, idxCurId, regStat1);
 			v->AddOp1(OP_Close, idxCurId);
 			zeroRows = v->AddOp1(OP_IfNot, regStat1);
@@ -481,7 +479,7 @@ namespace Core { namespace Command
 	__device__ static void AnalyzeTable(Parse *parse, Table *table, Index *onlyIdx)
 	{
 		_assert(table && Btree::HoldsAllMutexes(parse->Ctx));
-		int db = Btree::SchemaToIndex(parse->Ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(parse->Ctx, table->Schema);
 		parse->BeginWriteOperation(0, db);
 		int statCurId = parse->Tabs;
 		parse->Tabs += 3;
@@ -499,7 +497,7 @@ namespace Core { namespace Command
 		Context *ctx = parse->Ctx;
 		// Read the database schema. If an error occurs, leave an error message and code in pParse and return NULL.
 		_assert(Btree::HoldsAllMutexes(ctx));
-		if (sqlite3ReadSchema(parse) != RC_OK)
+		if (Prepare::ReadSchema(parse) != RC_OK)
 			return;
 
 		_assert(name2 || name1);
@@ -516,19 +514,19 @@ namespace Core { namespace Command
 		else if (name2->length == 0)
 		{
 			// Form 2:  Analyze the database or table named
-			int db = sqlite3FindDb(ctx, name1);
+			int db = Parse::FindDb(ctx, name1);
 			if (db >= 0)
 				AnalyzeDatabase(parse, db);
 			else
 			{
-				char *z = sqlite3NameFromToken(ctx, name1);
+				char *z = Parse::NameFromToken(ctx, name1);
 				if (z)
 				{
 					Table *table;
 					Index *idx;
-					if ((idx = sqlite3FindIndex(ctx, z, nullptr)) != nullptr)
+					if ((idx = Parse::FindIndex(ctx, z, nullptr)) != nullptr)
 						AnalyzeTable(parse, idx->Table, idx);
-					else if ((table = sqlite3LocateTable(parse, 0, z, nullptr)) != nullptr)
+					else if ((table = parse->LocateTable(false, z, nullptr)) != nullptr)
 						AnalyzeTable(parse, table, nullptr);
 					_tagfree(ctx, z);
 				}
@@ -538,18 +536,18 @@ namespace Core { namespace Command
 		{
 			// Form 3: Analyze the fully qualified table name
 			Token *tableName;
-			int db = sqlite3TwoPartName(parse, name1, name2, &tableName);
+			int db = parse->TwoPartName(name1, name2, &tableName);
 			if (db >= 0)
 			{
 				char *dbName = ctx->DBs[db].Name;
-				char *z = sqlite3NameFromToken(ctx, tableName);
+				char *z = Parse::NameFromToken(ctx, tableName);
 				if (z)
 				{
 					Table *table;
 					Index *idx;
-					if ((idx = sqlite3FindIndex(ctx, z, dbName)) != nullptr)
+					if ((idx = Parse::FindIndex(ctx, z, dbName)) != nullptr)
 						AnalyzeTable(parse, idx->Table, idx);
-					else if ((table = sqlite3LocateTable(parse, 0, z, dbName)) != nullptr)
+					else if ((table = parse->LocateTable(false, z, dbName)) != nullptr)
 						AnalyzeTable(parse, table, nullptr);
 					_tagfree(ctx, z);
 				}
@@ -569,10 +567,10 @@ namespace Core { namespace Command
 		_assert(argc == 3);
 		if (argv == 0 || argv[0] == 0 || argv[2] == 0)
 			return 0;
-		Table *table = sqlite3FindTable(info->Ctx, argv[0], info->Database);
+		Table *table = Parse::FindTable(info->Ctx, argv[0], info->Database);
 		if (!table)
 			return 0;
-		Index *index = (argv[1] ? sqlite3FindIndex(info->Ctx, argv[1], info->Database) : nullptr);
+		Index *index = (argv[1] ? Parse::FindIndex(info->Ctx, argv[1], info->Database) : nullptr);
 		int n = (index ? index->Columns.length : 0);
 		const char *z = argv[2];
 		for (int i = 0; *z && i <= n; i++)
@@ -622,14 +620,14 @@ namespace Core { namespace Command
 	__device__ static RC LoadStat3(Context *ctx, const char *dbName)
 	{
 		_assert(!ctx->Lookaside.Enabled);
-		if (!sqlite3FindTable(ctx, "sqlite_stat3", dbName))
+		if (!Parse::FindTable(ctx, "sqlite_stat3", dbName))
 			return RC_OK;
 
 		char *sql = _mtagprintf(ctx, "SELECT idx,count(*) FROM %Q.sqlite_stat3 GROUP BY idx", dbName); // Text of the SQL statement
 		if (!sql)
 			return RC_NOMEM;
 		Vdbe *stmt = nullptr; // An SQL statement being run
-		RC rc = Vdbe::Prepare(ctx, sql, -1, &stmt, 0); // Result codes from subroutines
+		RC rc = Prepare::Prepare_(ctx, sql, -1, &stmt, nullptr); // Result codes from subroutines
 		_tagfree(ctx, sql);
 		if (rc) return rc;
 
@@ -638,7 +636,7 @@ namespace Core { namespace Command
 			char *indexName = (char *)Vdbe::Column_Text(stmt, 0); // Index name
 			if (!indexName) continue;
 			int samplesLength = Vdbe::Column_Int(stmt, 1); // Number of samples
-			Index *idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
+			Index *idx = Parse::FindIndex(ctx, indexName, dbName); // Pointer to the index object
 			if (!idx) continue;
 			_assert(idx->Samples.length == 0);
 			idx->Samples.length = samplesLength;
@@ -657,7 +655,7 @@ namespace Core { namespace Command
 		sql = _mtagprintf(ctx, "SELECT idx,neq,nlt,ndlt,sample FROM %Q.sqlite_stat3", dbName);
 		if (!sql)
 			return RC_NOMEM;
-		rc = Vdbe::Prepare(ctx, sql, -1, &stmt, 0);
+		rc = Prepare::Prepare_(ctx, sql, -1, &stmt, nullptr);
 		_tagfree(ctx, sql);
 		if (rc) return rc;
 
@@ -667,7 +665,7 @@ namespace Core { namespace Command
 		{
 			char *indexName = (char *)Vdbe::Column_Text(stmt, 0); // Index name
 			if (!indexName) continue;
-			Index *idx = sqlite3FindIndex(ctx, indexName, dbName); // Pointer to the index object
+			Index *idx = Parse::FindIndex(ctx, indexName, dbName); // Pointer to the index object
 			if (!idx) continue;
 			if (idx == prevIdx)
 				idxId++;
@@ -678,16 +676,16 @@ namespace Core { namespace Command
 			}
 			_assert(idxId < idx->Samples.length);
 			IndexSample *sample = &idx->Samples[idxId]; // A slot in pIdx->aSample[]
-			sample->Eq = (tRowcnt)Vdbe::Column_Int64(stmt, 1);
-			sample->Lt = (tRowcnt)Vdbe::Column_Int64(stmt, 2);
-			sample->DLt = (tRowcnt)Vdbe::Column_Int64(stmt, 3);
+			sample->Eqs = (tRowcnt)Vdbe::Column_Int64(stmt, 1);
+			sample->Lts = (tRowcnt)Vdbe::Column_Int64(stmt, 2);
+			sample->DLts = (tRowcnt)Vdbe::Column_Int64(stmt, 3);
 			if (idxId == idx->Samples.length-1)
 			{
-				if (sample->DLt > 0)
+				if (sample->DLts > 0)
 				{
 					tRowcnt sumEq;  // Sum of the nEq values
-					for (int i = 0, sumEq = 0; i <= idxId-1; i++) sumEq += idx->Samples[i].Eq;
-					idx->AvgEq = (sample->Lt - sumEq) / sample->DLt;
+					for (int i = 0, sumEq = 0; i <= idxId-1; i++) sumEq += idx->Samples[i].Eqs;
+					idx->AvgEq = (sample->Lts - sumEq) / sample->DLts;
 				}
 				if (idx->AvgEq <= 0) idx->AvgEq = 1;
 			}
@@ -747,7 +745,7 @@ namespace Core { namespace Command
 		AnalysisInfo sInfo;
 		sInfo.Ctx = ctx;
 		sInfo.Database = ctx->DBs[db].Name;
-		if (sqlite3FindTable(ctx, "sqlite_stat1", sInfo.Database) == 0)
+		if (Parse::FindTable(ctx, "sqlite_stat1", sInfo.Database) == 0)
 			return RC_ERROR;
 
 		// Load new statistics out of the sqlite_stat1 table

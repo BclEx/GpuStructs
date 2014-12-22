@@ -178,7 +178,7 @@ namespace Core
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
 		__device__ virtual RC Close();
-		__device__ virtual RC Sync(int flags);
+		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 
 		__device__ virtual RC Lock(LOCK lock);
@@ -1707,7 +1707,7 @@ namespace Core
 	int fullsync_count = 0;
 #endif
 
-	RC WinVFile::Sync(int flags)
+	RC WinVFile::Sync(SYNC flags)
 	{
 		// Check that one of SQLITE_SYNC_NORMAL or FULL was passed
 		_assert((flags&0x0F) == SYNC_NORMAL || (flags&0x0F) == SYNC_FULL);
@@ -2889,7 +2889,7 @@ shmpage_out:
 			return TRUE;
 		// If the path name starts with a letter and a colon it is either a volume relative path or an absolute path.  Callers of this function must not
 		// attempt to treat it as a relative path name (i.e. they should simply use it verbatim).
-		if (ConvertEx::IsAlpha(pathname[0]) && pathname[1] == ':')
+		if (_isalpha2(pathname[0]) && pathname[1] == ':')
 			return TRUE;
 		// If we get to this point, the path name should almost certainly be a purely relative one (i.e. not a UNC name, not absolute, and not volume relative).
 		return FALSE;
@@ -2928,7 +2928,7 @@ shmpage_out:
 #endif
 #if !OS_WINCE && !OS_WINRT && !defined(__CYGWIN__)
 		// If this path name begins with "/X:", where "X" is any alphabetic character, discard the initial "/" from the pathname.
-		if (relative[0] == '/' && ConvertEx::IsAlpha(relative[1]) && relative[2] == ':')
+		if (relative[0] == '/' && _isalpha2(relative[1]) && relative[2] == ':')
 			relative++;
 		// It's odd to simulate an io-error here, but really this is just using the io-error infrastructure to test that SQLite handles this
 		// function failing. This function could fail if, for example, the current working directory has been unlinked.

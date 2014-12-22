@@ -42,7 +42,6 @@
     <Compile Include="Core\MutexEx.cs" />
     <Compile Include="Core\ConvertEx.cs" />
     <Compile Include="Core\StatusEx.cs" />
-    <Compile Include="Core\SysEx+Utf.cs" />
     <Compile Include="Core\VAlloc.cs" />
     <Compile Include="Core\MathEx.cs" />
     <Compile Include="Core\Hash.cs" />
@@ -67,7 +66,6 @@
     <Content Include="Core\SysEx.cu.h" />
     <Content Include="Core\MathEx.cu.h" />
     <Content Include="Core\Hash.cu.h" />
-    <Content Include="Core\Core+Types.cu.h" />
     <Content Include="Core\Core.cu.h" />
     <Content Include="Core\StatusEx.cu.h" />
     <Content Include="Core\GpuVSystem.cu" />
@@ -80,7 +78,6 @@
     <Content Include="Core\IO\IO.JournalVFile.cu" />
     <Content Include="Core\IO\IO.MemoryVFile.cu" />
     <Content Include="Core\IO\IO.VFile.cu" />
-    <None Include="Core\SysEx+Utf.cu" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Runtime.net\Runtime.net.csproj">

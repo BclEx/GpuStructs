@@ -297,7 +297,8 @@ namespace Core { namespace Command
 		// Begin a transaction and code the VerifyCookie for database iDb. Then modify the schema cookie (since the ALTER TABLE modifies the
 		// schema). Open a statement transaction if the table is a virtual table.
 		Vdbe *v = parse->GetVdbe();
-		if (!v) goto exit_rename_table;
+		if (!v)
+			goto exit_rename_table;
 		parse->BeginWriteOperation(vtable != nullptr, db);
 		parse->ChangeCookie(db);
 

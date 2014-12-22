@@ -1722,7 +1722,7 @@ namespace Core
             int indexIdx = Tabs++; // Btree cursor used for pIndex
             KeyInfo key = IndexKeyinfo(index); // KeyInfo for index
             v.AddOp4(OP.OpenWrite, indexIdx, tid, db, key, Vdbe.P4T.KEYINFO_HANDOFF);
-            v.ChangeP5(OPFLAG_BULKCSR | (memRootPage >= 0 ? OPFLAG_P2ISREG : 0));
+            v.ChangeP5(Vdbe.OPFLAG.BULKCSR | (memRootPage >= 0 ? Vdbe.OPFLAG.P2ISREG : 0));
             sqlite3OpenTable(pParse, tableIdx, db, table, OP_OpenRead);
 
             // Open the sorter cursor if we are to use one.

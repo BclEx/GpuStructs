@@ -810,12 +810,32 @@ namespace Core
 
 #pragma region Prepare
 
-	typedef struct {
+	typedef struct
+	{
 		Context *Ctx; // The database being initialized
 		char **ErrMsg; // Error message stored here
 		int Db; // 0 for main database.  1 for TEMP, 2.. for ATTACHed
 		RC RC; // Result code stored here
 	} InitData;
+
+	struct Prepare
+	{
+		__device__ static bool InitCallback(void *init, int argc, char **argv, char **notUsed1);
+		__device__ static RC InitOne(Context *ctx, int db, char **errMsg);
+		__device__ static RC Init(Context *ctx, char **errMsg);
+		__device__ static RC ReadSchema(Parse *parse);
+		__device__ static int SchemaToIndex(Context *ctx, Schema *schema);
+		__device__ static RC Prepare_(Context *ctx, const char *sql, int bytes, bool isPrepareV2, Vdbe *reprepare, Vdbe **stmtOut, const char **tailOut);
+		__device__ static RC LockAndPrepare(Context *ctx, const char *sql, int bytes, bool isPrepareV2, Vdbe *reprepare, Vdbe **stmtOut, const char **tailOut);
+		__device__ static RC Reprepare(Vdbe *p);
+		__device__ static RC Prepare_(Context *ctx, const char *sql, int bytes, Vdbe **stmtOut, const char **tailOut);
+		__device__ static RC Prepare_v2(Context *ctx, const char *sql, int bytes, Vdbe **stmtOut, const char **tailOut);
+#ifndef OMIT_UTF16
+		__device__ static RC Prepare16(Context *ctx, const void *sql, int bytes, bool isPrepareV2, Vdbe **stmtOut, const void **tailOut);
+		__device__ static RC Prepare16(Context *ctx, const void *sql, int bytes, Vdbe **stmtOut, const void **tailOut);
+		__device__ static RC Prepare16_v2(Context *ctx, const void *sql, int bytes, Vdbe **stmtOut, const void **tailOut);
+#endif
+	};
 
 #pragma endregion 
 
@@ -953,26 +973,28 @@ namespace Core
 		Table *ZombieTab;			// List of Table objects to delete after code gen
 		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
 
-		//#pragma region From: Select_c
-		//		__device__ Vdbe *GetVdbe();
-		//#pragma endregion
-		//#pragma region From: Insert_c
-		//		__device__ void AutoincrementBegin();
-		//		__device__ void AutoincrementEnd();
-		//#pragma endregion
-		//#pragma region From: Tokenize_c
-		//		__device__ int GetToken(const unsigned char *z, int *tokenType);
-		//		__device__ int RunParser(const char *sql, char **errMsg);
-		//#pragma endregion
-		//#pragma region From: Prepair_c
-		//		__device__ Core::RC ReadSchema();
-		//		__device__ static int SchemaToIndex(Context *ctx, Schema *schema);
-		//#pragma endregion
-		//#pragma region From: Analyze_c
-		//#ifndef OMIT_ANALYZE
-		//		__device__ static void DeleteIndexSamples(Context *ctx, Index *index);
-		//#endif
-		//#pragma endregion
+#pragma region From: Main_c
+		__device__ void ErrorMsg(const char *fmt, va_list args);
+#if __CUDACC__
+		__device__ inline void ErrorMsg(const char *fmt) { va_list args; va_start(args, nullptr); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1> __device__ inline void ErrorMsg(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); ErrorMsg(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); ErrorMsg(fmt, args); va_end(args); }
+#else
+		__device__ inline void ErrorMsg(const char *fmt, ...) { va_list args; va_start(args, fmt); ErrorMsg(fmt, args); va_end(args); }
+#endif
+#pragma endregion
+
+#pragma region From: Command/Select_c
+		__device__ Vdbe *GetVdbe();
+#pragma endregion
 
 #pragma region From: Parse+Build_cu
 		__device__ void BeginParse(bool explainFlag);
@@ -980,7 +1002,16 @@ namespace Core
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
 #endif
 		__device__ void FinishCoding();
-		__device__ void NestedParse(const char *format, void **args);
+		__device__ void NestedParse(const char *fmt, va_list args);
+#if __CUDACC__
+		__device__ inline void NestedParse(const char *fmt) { va_list args; va_start(args, nullptr); NestedParse(fmt, args); va_end(args); }
+		template <typename T1> __device__ inline void NestedParse(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); NestedParse(fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline void NestedParse(const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); NestedParse(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline void NestedParse(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); NestedParse(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline void NestedParse(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); NestedParse(fmt, args); va_end(args); }
+#else
+		__device__ inline void NestedParse(const char *fmt, ...) { va_list args; va_start(args, fmt); NestedParse(fmt, args); va_end(args); }
+#endif
 		__device__ static Table *FindTable(Context *ctx, const char *name, const char *database);
 		__device__ Table *LocateTable(bool isView, const char *name, const char *database);
 		__device__ Table *LocateTableItem(bool isView,  SrcList::SrcListItem *item);
@@ -1083,7 +1114,6 @@ namespace Core
 		__device__ int RunParser(const char *sql, char **errMsg);
 		__device__ static int Dequote(char *z);
 #pragma endregion
-
 	};
 
 	struct AuthContext
@@ -1519,7 +1549,70 @@ namespace Core
 			__device__ static int IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc);
 			__device__ static void RegisterGlobalFunctions();
 		};
+
+		struct Insert
+		{
+			__device__ static void OpenTable(Parse *p, int cur, int db, Table *table, OP opcode);
+			__device__ static const char *IndexAffinityStr(Vdbe *v, Index *index);
+			__device__ static void TableAffinityStr(Vdbe *v, Table *table);
+		};
+
+		struct Pragma
+		{
+		};
+
+		struct Select
+		{
+		};
+
+		struct Update
+		{
+		};
+
+		struct Vacuum
+		{
+		};
+
 	}
+#pragma endregion
+
+#pragma region Main
+
+	class Main
+	{
+	public:
+		__device__ inline static RC ApiExit(TagBase *tag, RC rc)
+		{
+			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
+			// is unsafe, as is the call to sqlite3Error().
+			_assert(!tag || MutexEx::Held(tag->Mutex));
+			if (tag && (tag->MallocFailed || rc == RC_IOERR_NOMEM))
+			{
+				Error(tag, RC_NOMEM, nullptr);
+				tag->MallocFailed = false;
+				rc = RC_NOMEM;
+			}
+			return (RC)(rc & (tag ? tag->ErrMask : 0xff));
+		}
+
+		__device__ void Error(Context *ctx, RC errCode, const char *fmt, va_list args);
+#if __CUDACC__
+		__device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt) { va_list args; va_start(args, nullptr); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Error(ctx, errCode, fmt, args); va_end(args); }
+#else
+		__device__ inline void Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args; va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
+#endif
+	};
+
 #pragma endregion
 
 }

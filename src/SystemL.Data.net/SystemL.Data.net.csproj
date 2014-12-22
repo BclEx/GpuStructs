@@ -72,7 +72,7 @@
     <Compile Include="Core+Vdbe\Backup.cs" />
     <Compile Include="CompileTime.cs" />
     <Compile Include="KeywordHash_h.cs" />
-    <Compile Include="Main.cs" />
+    <Compile Include="Core+Vdbe\Main.cs" />
     <Compile Include="Opcodes_h.cs" />
     <None Include="Core+Vdbe\Command\Date.cu" />
     <Content Include="Core+Vdbe\Context.cu.h" />
@@ -139,7 +139,7 @@
     <None Include="Core+Vdbe\Parse+Complete.cu" />
     <None Include="Core+Vdbe\Auth.cu" />
     <Compile Include="Shell.cs" />
-    <None Include="Main.cu" />
+    <None Include="Core+Vdbe\Main.cu" />
     <None Include="Shell.cu" />
     <Compile Include="Program.cs" />
     <Compile Include="Parse_h.cs" />

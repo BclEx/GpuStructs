@@ -208,7 +208,7 @@ namespace Core
 		__device__ static void LeaveAll(BContext *ctx) { }
 		//#ifndef _DEBUG
 		// These routines are used inside assert() statements only.
-		__device__ inline static bool HoldsMutex() { return true; }
+		__device__ inline bool HoldsMutex() { return true; }
 		__device__ inline static bool HoldsAllMutexes(BContext *ctx) { return true; }
 		__device__ inline static bool SchemaMutexHeld(BContext *ctx, int db, Core::Schema *schema) { return true; }
 		//#endif

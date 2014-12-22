@@ -58,44 +58,16 @@ namespace Core
 #endif
 		// random
 		__device__ static void PutRandom(int length, void *buffer);
-		// utf
-		__device__ static uint32 Utf8Read(const unsigned char **z);
-		__device__ static int Utf8CharLen(const char *z, int bytes);
-#if defined(TEST) && defined(_DEBUG)
-		__device__ static int Utf8To8(unsigned char *z);
-#endif
-		__device__ static int Utf16ByteLen(const void *z, int chars);
-#if defined(TEST)
-		__device__ static void UtfSelfTest();
-#endif
-
-		__device__ inline static RC ApiExit(TagBase *tag, RC rc)
-		{
-			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
-			// is unsafe, as is the call to sqlite3Error().
-			_assert(!tag || MutexEx::Held(tag->Mutex));
-			if (tag && (tag->MallocFailed || rc == RC_IOERR_NOMEM))
-			{
-				Error(tag, RC_NOMEM, nullptr);
-				tag->MallocFailed = false;
-				rc = RC_NOMEM;
-			}
-			return (RC)(rc & (tag ? tag->ErrMask : 0xff));
-		}
-
-		//////////////////////
-		// ERROR
-#pragma region ERROR
-
-		inline __device__ static void Error(void *tag, RC errorCode, const char *fmt) { }
-		template <typename T1> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1) { }
-		template <typename T1, typename T2> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2) { }
-		template <typename T1, typename T2, typename T3> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
-		template <typename T1, typename T2, typename T3, typename T4> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5> inline __device__ static void Error(void *tag, RC errorCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { }
-
-#pragma endregion
-
+		//		// utf
+		//		__device__ static uint32 Utf8Read(const unsigned char **z);
+		//		__device__ static int Utf8CharLen(const char *z, int bytes);
+		//#if defined(TEST) && defined(_DEBUG)
+		//		__device__ static int Utf8To8(unsigned char *z);
+		//#endif
+		//		__device__ static int Utf16ByteLen(const void *z, int chars);
+		//#if defined(TEST)
+		//		__device__ static void UtfSelfTest();
+		//#endif
 	};
 
 #if _DEBUG

@@ -11,7 +11,7 @@ namespace Core.Command
         {
             RC rc = sqlite3VdbeFinalize(ref stmt);
             if (rc != RC.OK)
-                sqlite3SetString(ref errMsg, ctx, sqlite3_errmsg(ctx));
+                C._setstring(ref errMsg, ctx, sqlite3_errmsg(ctx));
             return rc;
         }
 
@@ -21,7 +21,7 @@ namespace Core.Command
             Vdbe stmt = null;
             if (sqlite3_prepare(ctx, sql, -1, ref stmt, 0) != RC.OK)
             {
-                sqlite3SetString(ref errMsg, ctx, sqlite3_errmsg(ctx));
+                C._setstring(ref errMsg, ctx, sqlite3_errmsg(ctx));
                 return sqlite3_errcode(ctx);
             }
 #if !NDEBUG
@@ -69,12 +69,12 @@ namespace Core.Command
 
             if (ctx.AutoCommit == 0)
             {
-                sqlite3SetString(ref errMsg, ctx, "cannot VACUUM from within a transaction");
+                C._setstring(ref errMsg, ctx, "cannot VACUUM from within a transaction");
                 return RC.ERROR;
             }
             if (ctx.ActiveVdbeCnt > 1)
             {
-                sqlite3SetString(ref errMsg, ctx, "cannot VACUUM - SQL statements in progress");
+                C._setstring(ref errMsg, ctx, "cannot VACUUM - SQL statements in progress");
                 return RC.ERROR;
             }
 

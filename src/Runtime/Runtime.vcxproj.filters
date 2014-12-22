@@ -20,5 +20,6 @@
     <ClInclude Include="VisualHost.h" />
     <ClInclude Include="Runtime.h" />
     <ClInclude Include="FallocHost.h" />
+    <ClInclude Include="RuntimeTypes.h" />
   </ItemGroup>
 </Project>

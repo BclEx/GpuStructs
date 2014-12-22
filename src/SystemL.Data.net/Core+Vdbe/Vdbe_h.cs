@@ -62,6 +62,21 @@ namespace Core
             KEYINFO_STATIC = -17,
         }
 
+        public enum OPFLAG : byte
+        {
+            NCHANGE = 0x01,	// Set to update db->nChange
+            LASTROWID = 0x02,	// Set to update db->lastRowid
+            ISUPDATE = 0x04,	// This OP_Insert is an sql UPDATE
+            APPEND = 0x08,	// This is likely to be an append
+            USESEEKRESULT = 0x10,	// Try to avoid a seek in BtreeInsert()
+            CLEARCACHE = 0x20,	// Clear pseudo-table cache in OP_Column
+            LENGTHARG = 0x40,	// OP_Column only used for length()
+            TYPEOFARG = 0x80,	// OP_Column only used for typeof()
+            BULKCSR = 0x01,	// OP_Open** used to open bulk cursor
+            P2ISREG = 0x02,	// P2 to OP_Open** is a register number
+            PERMUTE = 0x01,	// OP_Compare: use the permutation
+        }
+
         public class VdbeOp
         {
             public delegate RC AdvanceDelegate_t(Btree.BtCursor cur, ref int res);

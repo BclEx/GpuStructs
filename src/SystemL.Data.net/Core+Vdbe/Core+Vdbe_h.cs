@@ -778,6 +778,10 @@ namespace Core
         public RC RC; // Result code stored here
     }
 
+    public partial class Prepare
+    {
+    }
+
     #endregion
 
     #region Parse

@@ -533,4 +533,5 @@ do_atof_calc:
 	}
 
 #pragma endregion
+
 }

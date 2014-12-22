@@ -39,7 +39,6 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
-    <ClCompile Include="..\SystemL.Data.net\Main.cu" />
     <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
     <ClCompile Include="..\SystemL.Data.net\Shell.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
@@ -64,6 +63,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Backup.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Callback.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Expr.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Build.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />
@@ -86,7 +86,6 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Where.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
-    <CudaCompile Include="..\SystemL.Data.net\Main.cu" />
     <CudaCompile Include="..\SystemL.Data.net\CompileTime.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Shell.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
@@ -109,6 +108,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Backup.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Callback.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Expr.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Main.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Build.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />

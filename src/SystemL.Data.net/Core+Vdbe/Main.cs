@@ -1,58 +1,33 @@
 using System;
 using System.Diagnostics;
 using System.Text;
+using Pid = System.UInt32;
 
-using sqlite_int64 = System.Int64;
-using unsigned = System.Int32;
-
-using i16 = System.Int16;
-using u8 = System.Byte;
-using u16 = System.UInt16;
-using u32 = System.UInt32;
-using u64 = System.UInt64;
-
-using Pgno = System.UInt32;
-using sqlite3_int64 = System.Int64;
-
-namespace Community.CsharpSqlite
+namespace Core
 {
-  using sqlite3_value = Sqlite3.Mem;
+    public partial class Parse
+    {
+        // from util.c
+        public void ErrorMsg(string fmt, params object[] args)
+        {
+            Context ctx = Ctx;
+            string msg = C._vmtagprintf(ctx, fmt, args);
+            if (ctx.SuppressErr != 0)
+                C._tagfree(ctx, ref msg);
+            else
+            {
+                Errs++;
+                C._tagfree(ctx, ref ErrMsg);
+                ErrMsg = msg;
+                RC = RC.ERROR;
+            }
+        }
+    }
 
-  public partial class Sqlite3
-  {
-    /*
-    ** 2001 September 15
-    **
-    ** The author disclaims copyright to this source code.  In place of
-    ** a legal notice, here is a blessing:
-    **
-    **    May you do good and not evil.
-    **    May you find forgiveness for yourself and forgive others.
-    **    May you share freely, never taking more than you give.
-    **
-    *************************************************************************
-    ** Main file for the SQLite library.  The routines in this file
-    ** implement the programmer interface to the library.  Routines in
-    ** other files are for internal use by SQLite and should not be
-    ** accessed by users of the library.
-    *************************************************************************
-    **  Included in SQLite3 port to C#-SQLite;  2008 Noah B Hart
-    **  C#-SQLite is an independent reimplementation of the SQLite software library
-    **
-    **  SQLITE_SOURCE_ID: 2011-06-23 19:49:22 4374b7e83ea0a3fbc3691f9c0c936272862f32f2
-    **
-    *************************************************************************
-    */
-    //#include "sqliteInt.h"
-#if  SQLITE_ENABLE_FTS3
-//# include "fts3.h"
-#endif
-#if SQLITE_ENABLE_RTREE
-//# include "rtree.h"
-#endif
-#if SQLITE_ENABLE_ICU
-//# include "sqliteicu.h"
-#endif
+    public partial class Main
+    {
+#if false
+
 
 #if !SQLITE_AMALGAMATION
     /* IMPLEMENTATION-OF: R-46656-45156 The sqlite3_version[] string constant
@@ -3427,4 +3402,7 @@ static string sqlite3_uri_parameter(string zFilename, string zParam){
 }
 
 }
+
+#endif
+    }
 }

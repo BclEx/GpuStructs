@@ -123,7 +123,6 @@
     <ClInclude Include="..\SystemL.net\Core\SysEx.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\VSystem.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\MathEx.cu.h" />
-    <ClInclude Include="..\SystemL.net\Core\Core+Types.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Core.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h" />
   </ItemGroup>
@@ -135,7 +134,6 @@
     <ClCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
-    <ClCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
     <ClCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />
@@ -152,7 +150,6 @@
     <CudaCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
-    <CudaCompile Include="..\SystemL.net\Core\SysEx+Utf.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.JournalVFile.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.MemoryVFile.cu" />
     <CudaCompile Include="..\SystemL.net\Core\IO\IO.VFile.cu" />

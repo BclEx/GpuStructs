@@ -1,5 +1,5 @@
-#ifndef __CORE_TYPES_H__
-#define __CORE_TYPES_H__
+#ifndef __RUNTIMETYPES_H__
+#define __RUNTIMETYPES_H__
 
 typedef unsigned char		byte;		// 8 bits
 typedef unsigned short		word;		// 16 bits
@@ -36,20 +36,26 @@ typedef unsigned long long	uint64;
 #undef MIXED_ENDIAN_64BIT_FLOAT
 #undef HAVE_ISNAN
 #else
+#ifdef __CUDACC__
+#define double64 double
+#else
 #define double64 long double
+#endif
 #define BIG_DOUBLE (1e99)
 #endif
 
-// Macros to determine whether the machine is big or little endian, evaluated at runtime.
-#if defined(i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__)
-#define TYPE_BIGENDIAN 0
-#define TYPE_LITTLEENDIAN 1
-#define TEXTENCODE_UTF16NATIVE TEXTENCODE_UTF16LE
-#else
-__device__ static byte __one;
-#define TYPE_BIGENDIAN (*(char *)(&__one) == 0)
-#define TYPE_LITTLEENDIAN (*(char *)(&__one) == 1)
-#define TEXTENCODE_UTF16NATIVE (TYPE_BIGENDIAN ? TEXTENCODE_UTF16BE : TEXTENCODE_UTF16LE)
+#if defined(__PTRDIFF_TYPE__)  // This case should work for GCC
+# define INT_TO_PTR(X)  ((void*)(__PTRDIFF_TYPE__)(X))
+# define PTR_TO_INT(X)  ((int)(__PTRDIFF_TYPE__)(X))
+#elif !defined(__GNUC__)       // Works for compilers other than LLVM
+# define INT_TO_PTR(X)  ((void*)&((char*)0)[X])
+# define PTR_TO_INT(X)  ((int)(((char*)X)-(char*)0))
+#elif defined(HAVE_STDINT_H)   // Use this case if we have ANSI headers
+# define INT_TO_PTR(X)  ((void*)(intptr_t)(X))
+# define PTR_TO_INT(X)  ((int)(intptr_t)(X))
+#else                          // Generates a warning - but it always works
+# define INT_TO_PTR(X)  ((void*)(X))
+# define PTR_TO_INT(X)  ((int)(X))
 #endif
 
-#endif // __CORE_TYPES_H__
+#endif // __RUNTIMETYPES_H__

@@ -261,6 +261,7 @@ translate_out:
 		return rc;
 	}
 
+
 	__device__ char *Vdbe::Utf16to8(Context *ctx, const void *z, int bytes, TEXTENCODE encode)
 	{
 		Mem m;

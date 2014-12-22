@@ -143,7 +143,7 @@ namespace Core
 		CookieGoto = 0;
 	}
 
-	__device__ void Parse::NestedParse(const char *format, void **args)
+	__device__ void Parse::NestedParse(const char *format, va_list args)
 	{
 		if (Errs)
 			return;
@@ -1687,7 +1687,7 @@ fk_end:
 		int indexIdx = Tabs++; // Btree cursor used for pIndex
 		KeyInfo *key = IndexKeyinfo(index); // KeyInfo for index
 		v->AddOp4(OP_OpenWrite, indexIdx, tid, db, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
-		v->ChangeP5(OPFLAG_BULKCSR | (memRootPage >= 0 ? OPFLAG_P2ISREG : 0));
+		v->ChangeP5(Vdbe::OPFLAG_BULKCSR | (memRootPage >= 0 ? Vdbe::OPFLAG_P2ISREG : 0));
 
 		// Open the sorter cursor if we are to use one.
 		int sorterIdx = Tabs++; // Cursor opened by OpenSorter (if in use)

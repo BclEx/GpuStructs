@@ -173,7 +173,7 @@ namespace Core
 #endif
 
 #if !OMIT_UTF16
-        static string Utf16to8(Context ctx, string z, int bytes, TEXTENCODE encode)
+        public static string Utf16to8(Context ctx, string z, int bytes, TEXTENCODE encode)
         {
             Debugger.Break(); // TODO -
             Mem m = null; // Pool.Allocate_Mem();

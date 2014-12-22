@@ -68,6 +68,38 @@ namespace Core
         public static void FileSuffix3(string baseFilename, ref string z) { }
 #endif
 
+        public static RC ApiExit(TagBase tag, RC rc)
+        {
+            // If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
+            // is unsafe, as is the call to sqlite3Error().
+            Debug.Assert(tag == null || MutexEx.Held(tag.Mutex));
+            if (tag != null && (tag.MallocFailed || rc == RC.IOERR_NOMEM))
+            {
+                Error(tag, RC.NOMEM, null);
+                tag.MallocFailed = false;
+                rc = RC.NOMEM;
+            }
+            return (RC)((int)rc & (tag != null ? tag.ErrMask : 0xff));
+        }
+
+        void sqlite3Error(sqlite3 *db, int err_code, const char *zFormat, ...){
+  if( db && (db->pErr || (db->pErr = sqlite3ValueNew(db))!=0) ){
+    db->errCode = err_code;
+    if( zFormat ){
+      char *z;
+      va_list ap;
+      va_start(ap, zFormat);
+      z = sqlite3VMPrintf(db, zFormat, ap);
+      va_end(ap);
+      sqlite3ValueSetStr(db->pErr, -1, z, SQLITE_UTF8, SQLITE_DYNAMIC);
+    }else{
+      sqlite3ValueSetStr(db->pErr, 0, 0, SQLITE_UTF8, SQLITE_STATIC);
+    }
+  }
+}
+
+
+
         //internal static RC OSError(RC rc, string func, string path)
         //{
         //    var sf = new StackTrace(new StackFrame(true)).GetFrame(0);

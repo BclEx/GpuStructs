@@ -1,3 +1,5 @@
+//#ifndef __RUNTIME_H__
+//#define __RUNTIME_H__
 #if __CUDACC__
 #include "Runtime.cu.h"
 #else
@@ -12,15 +14,20 @@
 #define CORE_MAX_LENGTH 1000000000 // The hard limit is the ability of a 32-bit signed integer to count the size: 2^31-1 or 2147483647.
 #endif
 
+// Macros to determine whether the machine is big or little endian, evaluated at runtime.
+#if defined(i386) || defined(__i386__) || defined(_M_IX86) || defined(__x86_64) || defined(__x86_64__)
+#define TYPE_BIGENDIAN 0
+#define TYPE_LITTLEENDIAN 1
+#define TEXTENCODE_UTF16NATIVE TEXTENCODE_UTF16LE
+#else
+__device__ extern unsigned char __one;
+#define TYPE_BIGENDIAN (*(char *)(&__one) == 0)
+#define TYPE_LITTLEENDIAN (*(char *)(&__one) == 1)
+#define TEXTENCODE_UTF16NATIVE (TYPE_BIGENDIAN ? TEXTENCODE_UTF16BE : TEXTENCODE_UTF16LE)
+#endif
+
 #pragma endregion
 
-#define _ROUND8(x)     (((x)+7)&~7)
-#define _ROUNDDOWN8(x) ((x)&~7)
-#ifdef BYTEALIGNED4
-#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&3) == 0)
-#else
-#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&7) == 0)
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // RUNTIME
@@ -46,6 +53,29 @@
 //}
 
 //////////////////////
+// UTF
+#pragma region UTF
+
+//#define _strskiputf8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
+template <typename T> __device__ inline void _strskiputf8(const T *z)
+{
+	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
+}
+__device__ unsigned int _utf8read(const unsigned char **z);
+__device__ int _utf8charlength(const char *z, int bytes);
+#if _DEBUG
+__device__ int _utf8to8(unsigned char *z);
+#endif
+#ifndef OMIT_UTF16
+__device__ int _utf16bytelength(const void *z, int chars);
+#ifdef TEST
+__device__ void _runtime_utfselftest();
+#endif
+#endif
+
+#pragma endregion
+
+//////////////////////
 // FUNC
 #pragma region FUNC
 
@@ -59,19 +89,13 @@
 #define _isxdigit(x) (__curtCtypeMap[(unsigned char)(x)]&0x08)
 #define _isidchar(x) (__curtCtypeMap[(unsigned char)(x)]&0x46)
 #define _tolower(x) (__curtUpperToLower[(unsigned char)(x)])
+__device__ inline static bool _isalpha2(unsigned char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
 
 // array
 template <typename T> struct array_t { int length; T *data; __device__ inline array_t() { data = nullptr; length = 0; } __device__ inline array_t(T *a) { data = a; length = 0; } __device__ inline array_t(T *a, int b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 template <typename TLength, typename T> struct array_t2 { TLength length; T *data; __device__ inline array_t2() { data = nullptr; length = 0; } __device__ inline array_t2(T *a) { data = a; length = 0; } __device__ inline array_t2(T *a, size_t b) { data = a; length = b; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 template <typename TLength, typename T, size_t size> struct array_t3 { TLength length; T data[size]; inline array_t3() { length = 0; } __device__ inline void operator=(T *a) { data = a; } __device__ inline operator T *() { return data; } };
 #define _lengthof(symbol) (sizeof(symbol) / sizeof(symbol[0]))
-
-// strskiputf8
-//#define _strskiputf8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
-template <typename T> __device__ inline void _strskiputf8(const T *z)
-{
-	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
-}
 
 // strcmp
 template <typename T> __device__ inline int _strcmp(const T *left, const T *right)
@@ -194,6 +218,14 @@ __device__ inline bool _isnan(double x)
 // MEMORY ALLOCATION
 #pragma region MEMORY ALLOCATION
 
+#define _ROUND8(x)     (((x)+7)&~7)
+#define _ROUNDDOWN8(x) ((x)&~7)
+#ifdef BYTEALIGNED4
+#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&3) == 0)
+#else
+#define _HASALIGNMENT8(X) ((((char *)(X) - (char *)0)&7) == 0)
+#endif
+
 enum MEMTYPE : unsigned char
 {
 	MEMTYPE_HEAP = 0x01,         // General heap allocations
@@ -202,6 +234,7 @@ enum MEMTYPE : unsigned char
 	MEMTYPE_PCACHE = 0x08,       // Page cache allocations
 	MEMTYPE_DB = 0x10,           // Uses sqlite3DbMalloc, not sqlite_malloc
 };
+
 #if MEMDEBUG
 #else
 __device__ inline static void _memdbg_settype(void *p, MEMTYPE memType) { }
@@ -257,6 +290,7 @@ __device__ inline static char *_tagstrdup(void *tag, const char *z)
 		_memcpy(newZ, z, n);
 	return newZ;
 }
+
 __device__ inline static char *_tagstrndup(void *tag, const char *z, int n)
 {
 	if (z == nullptr) return nullptr;
@@ -444,4 +478,31 @@ __device__ inline static void _mtagassignf(void *tag, char **src, const char *fm
 	*src = z;
 }
 #endif
+
+#if __CUDACC__
+	__device__ inline void _setstring(char **z, void *tag, const char *fmt) { va_list args; va_start(args, nullptr); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void _setstring(char **z, void *tag, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); char *z2 = _vmtagprintf(tag, fmt, args); va_end(args); _tagfree(tag, *z); *z = z2; }
+#else
+__device__ inline void _setstring(char **z, void *tag, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	char *z2 = _vmtagprintf(tag, fmt, args);
+	va_end(args);
+	_tagfree(tag, *z);
+	*z = z2;
+}
+#endif
+
 #pragma endregion
+
+//#endif // __RUNTIME_H__

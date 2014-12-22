@@ -789,7 +789,7 @@ __device__ RC Vdbe::List()
 	{
 		RC_ = RC_INTERRUPT;
 		rc = RC_ERROR;
-		sqlite3SetString(&ErrMsg, ctx, "%s", sqlite3ErrStr(RC_));
+		_setstring(&ErrMsg, ctx, "%s", sqlite3ErrStr(RC_));
 	}
 	else
 	{
@@ -1478,7 +1478,7 @@ __device__ RC Vdbe::CheckFk(bool deferred)
 	{
 		RC_ = RC_CONSTRAINT_FOREIGNKEY;
 		ErrorAction = OE_Abort;
-		sqlite3SetString(&ErrMsg, ctx, "foreign key constraint failed");
+		_setstring(&ErrMsg, ctx, "foreign key constraint failed");
 		return RC_ERROR;
 	}
 	return RC_OK;

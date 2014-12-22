@@ -37,7 +37,7 @@ namespace Core
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
 		__device__ virtual RC Close();
-		__device__ virtual RC Sync(int flags);
+		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 
 		__device__ virtual RC Lock(LOCK lock);
@@ -186,7 +186,7 @@ namespace Core
 		//return rc;
 	}
 
-	__device__ RC GpuVFile::Sync(int flags)
+	__device__ RC GpuVFile::Sync(SYNC flags)
 	{
 		// Check that one of SQLITE_SYNC_NORMAL or FULL was passed
 		_assert((flags&0x0F) == SYNC_NORMAL || (flags&0x0F) == SYNC_FULL);

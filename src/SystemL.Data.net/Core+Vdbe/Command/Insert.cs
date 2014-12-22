@@ -7,119 +7,90 @@ namespace Core.Command
 {
     public partial class Insert
     {
-        static void sqlite3OpenTable(Parse p,int iCur,int iDb, Table pTab, int opcode)
+        static void OpenTable(Parse p, int cur, int db, Table table, OP opcode)
         {
-            Vdbe v;
-            if (IsVirtual(pTab))
-                return;
-            v = sqlite3GetVdbe(p);
-            Debug.Assert(opcode == OP_OpenWrite || opcode == OP_OpenRead);
-            sqlite3TableLock(p, iDb, pTab.tnum, (opcode == OP_OpenWrite) ? (byte)1 : (byte)0, pTab.zName);
-            sqlite3VdbeAddOp3(v, opcode, iCur, pTab.tnum, iDb);
-            sqlite3VdbeChangeP4(v, -1, (pTab.nCol), P4_INT32);//SQLITE_INT_TO_PTR( pTab.nCol ), P4_INT32 );
-            VdbeComment(v, "%s", pTab.zName);
+            Debug.Assert(!E.IsVirtual(table));
+            Vdbe v = p.GetVdbe();
+            Debug.Assert(opcode == OP.OpenWrite || opcode == OP.OpenRead);
+            sqlite3TableLock(p, db, table.Id, (byte)(opcode == OP.OpenWrite ? 1 : 0), table.Name);
+            v.AddOp3(opcode, cur, table.Id, db);
+            v.ChangeP4(-1, table.Cols.length, Vdbe.P4T.INT32);
+            v.Comment("%s", table.Name);
         }
 
-        static string sqlite3IndexAffinityStr(Vdbe v, Index pIdx)
+        public static string IndexAffinityStr(Vdbe v, Index index)
         {
-            if (pIdx.zColAff == null || pIdx.zColAff[0] == '\0')
+            if (index.ColAff == null || index.ColAff[0] == '\0')
             {
-                /* The first time a column affinity string for a particular index is
-                ** required, it is allocated and populated here. It is then stored as
-                ** a member of the Index structure for subsequent use.
-                **
-                ** The column affinity string will eventually be deleted by
-                ** sqliteDeleteIndex() when the Index structure itself is cleaned
-                ** up.
-                */
-                int n;
-                Table pTab = pIdx.pTable;
-                sqlite3 db = sqlite3VdbeDb(v);
-                StringBuilder pIdx_zColAff = new StringBuilder(pIdx.nColumn + 2);// (char )sqlite3DbMallocRaw(0, pIdx->nColumn+2);
-                //      if ( pIdx_zColAff == null )
-                //      {
-                //        db.mallocFailed = 1;
-                //        return null;
-                //      }
-                for (n = 0; n < pIdx.nColumn; n++)
+                // The first time a column affinity string for a particular index is required, it is allocated and populated here. It is then stored as
+                // a member of the Index structure for subsequent use.
+                //
+                // The column affinity string will eventually be deleted by sqliteDeleteIndex() when the Index structure itself is cleaned up.
+                Table table = index.Table;
+                Context ctx = v.Ctx;
+                StringBuilder b = new StringBuilder(index.Columns.length + 2); //: _tagalloc(nullptr, index->Columns.length+2);
+                if (b == null)
                 {
-                    pIdx_zColAff.Append(pTab.aCol[pIdx.aiColumn[n]].affinity);
+                    ctx.MallocFailed = true;
+                    return null;
                 }
-                pIdx_zColAff.Append(SQLITE_AFF_NONE);
-                pIdx_zColAff.Append('\0');
-                pIdx.zColAff = pIdx_zColAff.ToString();
+                for (int n = 0; n < index.Columns.length; n++)
+                    b.Append(table.Cols[index.Columns[n]].Affinity);
+                b.Append(AFF.NONE);
+                b.Append('\0');
+                index.ColAff = b.ToString();
             }
-            return pIdx.zColAff;
+            return index.ColAff;
         }
 
-        static void sqlite3TableAffinityStr(Vdbe v, Table pTab)
+        public static void TableAffinityStr(Vdbe v, Table table)
         {
-            /* The first time a column affinity string for a particular table
-            ** is required, it is allocated and populated here. It is then
-            ** stored as a member of the Table structure for subsequent use.
-            **
-            ** The column affinity string will eventually be deleted by
-            ** sqlite3DeleteTable() when the Table structure itself is cleaned up.
-            */
-            if (pTab.zColAff == null)
+		    // The first time a column affinity string for a particular table is required, it is allocated and populated here. It is then 
+		    // stored as a member of the Table structure for subsequent use.
+		    //
+		    // The column affinity string will eventually be deleted by sqlite3DeleteTable() when the Table structure itself is cleaned up.
+            if (table.ColAff == null)
             {
-                StringBuilder zColAff;
-                int i;
-                sqlite3 db = sqlite3VdbeDb(v);
-
-                zColAff = new StringBuilder(pTab.nCol + 1);// (char)sqlite3DbMallocRaw(0, pTab->nCol+1);
-                if (zColAff == null)
+                Context ctx = v.Ctx;
+                StringBuilder b = new StringBuilder(table.Cols.length + 1);// (char)sqlite3DbMallocRaw(0, pTab->nCol+1);
+                if (b == null)
                 {
-                    ////        db.mallocFailed = 1;
+                    ctx.MallocFailed = true;
                     return;
                 }
-
-                for (i = 0; i < pTab.nCol; i++)
-                {
-                    zColAff.Append(pTab.aCol[i].affinity);
-                }
-                //zColAff.Append( '\0' );
-
-                pTab.zColAff = zColAff.ToString();
+                for (int i = 0; i < table.Cols.; i++)
+                    b.Append(table.Cols[i].Affinity);
+                //b.Append('\0');
+                table.ColAff = b.ToString();
             }
-
-            sqlite3VdbeChangeP4(v, -1, pTab.zColAff, P4_TRANSIENT);
+            v.ChangeP4(-1, table.ColAff, Vdbe.P4T.TRANSIENT);
         }
 
-        static bool ReadsTable(Parse p, int iStartAddr, int iDb, Table pTab)
+        static bool ReadsTable(Parse p, int startAddr, int db, Table table)
         {
-            Vdbe v = sqlite3GetVdbe(p);
-            int i;
-            int iEnd = sqlite3VdbeCurrentAddr(v);
+            Vdbe v = p.GetVdbe();
+            int end = v.CurrentAddr();
 #if !OMIT_VIRTUALTABLE
-            VTable pVTab = IsVirtual(pTab) ? sqlite3GetVTable(p.db, pTab) : null;
+            VTable vtable = (E.IsVirtual(table) ? VTable.GetVTable(p.Ctx, table) : null);
 #endif
-
-            for (i = iStartAddr; i < iEnd; i++)
+            for (int i = startAddr; i < end; i++)
             {
-                VdbeOp pOp = sqlite3VdbeGetOp(v, i);
-                Debug.Assert(pOp != null);
-                if (pOp.opcode == OP_OpenRead && pOp.p3 == iDb)
+                Vdbe.VdbeOp op = v.GetOp(i);
+                Debug.Assert(op != null);
+                if (op.Opcode == OP.OpenRead && op.P3 == db)
                 {
-                    Index pIndex;
-                    int tnum = pOp.p2;
-                    if (tnum == pTab.tnum)
-                    {
+                    int id = op.P2;
+                    if (id == table.Id)
                         return true;
-                    }
-                    for (pIndex = pTab.pIndex; pIndex != null; pIndex = pIndex.pNext)
-                    {
-                        if (tnum == pIndex.tnum)
-                        {
+                    for (Index index = table.Index; index != null; index = index.Next)
+                        if (id == index.Id)
                             return true;
-                        }
-                    }
                 }
 #if !OMIT_VIRTUALTABLE
-                if (pOp.opcode == OP_VOpen && pOp.p4.pVtab == pVTab)
+                if (op.Opcode == OP.VOpen && op.P4.VTable == vtable)
                 {
-                    Debug.Assert(pOp.p4.pVtab != null);
-                    Debug.Assert(pOp.p4type == P4_VTAB);
+                    Debug.Assert(op.P4.VTable != null);
+                    Debug.Assert(op.P4Type == Vdbe.P4T.VTAB);
                     return true;
                 }
 #endif
@@ -128,201 +99,178 @@ namespace Core.Command
         }
 
 #if !OMIT_AUTOINCREMENT
-        
-        static int AutoIncBegin(Parse pParse,int iDb, Table pTab)
+        static int AutoIncBegin(Parse parse, int db, Table table)
         {
-            int memId = 0;      /* Register holding maximum rowid */
-            if ((pTab.tabFlags & TF_Autoincrement) != 0)
+            int memId = 0;      // Register holding maximum rowid
+            if ((table.TabFlags & TF.Autoincrement) != 0)
             {
-                Parse pToplevel = sqlite3ParseToplevel(pParse);
-                AutoincInfo pInfo;
-
-                pInfo = pToplevel.pAinc;
-                while (pInfo != null && pInfo.pTab != pTab)
+                Parse toplevel = Parse.Toplevel(parse);
+                AutoincInfo info = toplevel.Ainc;
+                while (info != null && info.Table != table) info = info.Next;
+                if (info == null)
                 {
-                    pInfo = pInfo.pNext;
+                    info = new AutoincInfo();
+                    if (info == null) return 0;
+                    info.Next = toplevel.Ainc;
+                    toplevel.Ainc = info;
+                    info.Table = table;
+                    info.DB = db;
+                    toplevel.Mems++;                // Register to hold name of table
+                    info.RegCtr = ++toplevel.Mems;  // Max rowid register
+                    toplevel.Mems++;                // Rowid in sqlite_sequence
                 }
-                if (pInfo == null)
-                {
-                    pInfo = new AutoincInfo();//sqlite3DbMallocRaw(pParse.db, sizeof(*pInfo));
-                    //if( pInfo==0 ) return 0;
-                    pInfo.pNext = pToplevel.pAinc;
-                    pToplevel.pAinc = pInfo;
-                    pInfo.pTab = pTab;
-                    pInfo.iDb = iDb;
-                    pToplevel.nMem++;                  /* Register to hold name of table */
-                    pInfo.regCtr = ++pToplevel.nMem;  /* Max rowid register */
-                    pToplevel.nMem++;                  /* Rowid in sqlite_sequence */
-                }
-                memId = pInfo.regCtr;
+                memId = info.RegCtr;
             }
             return memId;
         }
 
-        static void sqlite3AutoincrementBegin(Parse pParse)
+        public static void AutoincrementBegin(Parse parse)
         {
-            AutoincInfo p;            /* Information about an AUTOINCREMENT */
-            sqlite3 db = pParse.db;  /* The database connection */
-            Db pDb;                   /* Database only autoinc table */
-            int memId;                 /* Register holding max rowid */
-            int addr;                  /* A VDBE address */
-            Vdbe v = pParse.pVdbe;   /* VDBE under construction */
+            Context ctx = parse.Ctx; // The database connection
+            Vdbe v = parse.V; // VDBE under construction
 
-            /* This routine is never called during trigger-generation.  It is
-            ** only called from the top-level */
-            Debug.Assert(pParse.pTriggerTab == null);
-            Debug.Assert(pParse == sqlite3ParseToplevel(pParse));
+            // This routine is never called during trigger-generation.  It is only called from the top-level
+            Debug.Assert(parse.TriggerTab == null);
+            Debug.Assert(parse == Parse.Toplevel(parse));
 
-            Debug.Assert(v != null);   /* We failed long ago if this is not so */
-            for (p = pParse.pAinc; p != null; p = p.pNext)
+            Debug.Assert(v != null); // We failed long ago if this is not so
+            for (AutoincInfo p = parse.Ainc; p != null; p = p.Next) // Information about an AUTOINCREMENT
             {
-                pDb = db.aDb[p.iDb];
-                memId = p.regCtr;
-                Debug.Assert(sqlite3SchemaMutexHeld(db, 0, pDb.pSchema));
-                sqlite3OpenTable(pParse, 0, p.iDb, pDb.pSchema.pSeqTab, OP_OpenRead);
-                addr = sqlite3VdbeCurrentAddr(v);
-                sqlite3VdbeAddOp4(v, OP_String8, 0, memId - 1, 0, p.pTab.zName, 0);
-                sqlite3VdbeAddOp2(v, OP_Rewind, 0, addr + 9);
-                sqlite3VdbeAddOp3(v, OP_Column, 0, 0, memId);
-                sqlite3VdbeAddOp3(v, OP_Ne, memId - 1, addr + 7, memId);
-                sqlite3VdbeChangeP5(v, SQLITE_JUMPIFNULL);
-                sqlite3VdbeAddOp2(v, OP_Rowid, 0, memId + 1);
-                sqlite3VdbeAddOp3(v, OP_Column, 0, 1, memId);
-                sqlite3VdbeAddOp2(v, OP_Goto, 0, addr + 9);
-                sqlite3VdbeAddOp2(v, OP_Next, 0, addr + 2);
-                sqlite3VdbeAddOp2(v, OP_Integer, 0, memId);
-                sqlite3VdbeAddOp0(v, OP_Close);
+                Context.DB dbAsObj = ctx.DBs[p.DB]; // Database only autoinc table
+                int memId = p.RegCtr; // Register holding max rowid
+                Debug.Assert(Btree.SchemaMutexHeld(ctx, 0, dbAsObj.Schema));
+                OpenTable(parse, 0, p.DB, dbAsObj.Schema.SeqTable, OP.OpenRead);
+                int addr = v.CurrentAddr(); // A VDBE address
+                v.AddOp4(OP.String8, 0, memId - 1, 0, p.Table.Name, 0);
+                v.AddOp2(OP.Rewind, 0, addr + 9);
+                v.AddOp3(OP.Column, 0, 0, memId);
+                v.AddOp3(OP.Ne, memId - 1, addr + 7, memId);
+                v.ChangeP5(SQLITE_JUMPIFNULL);
+                v.AddOp2(OP.Rowid, 0, memId + 1);
+                v.AddOp3(OP.Column, 0, 1, memId);
+                v.AddOp2(OP.Goto, 0, addr + 9);
+                v.AddOp2(OP.Next, 0, addr + 2);
+                v.AddOp2(OP.Integer, 0, memId);
+                v.AddOp0(OP.Close);
             }
         }
 
-        static void AutoIncStep(Parse pParse, int memId, int regRowid)
+        static void AutoIncStep(Parse parse, int memId, int regRowid)
         {
             if (memId > 0)
-                sqlite3VdbeAddOp2(pParse.pVdbe, OP_MemMax, memId, regRowid);
+                parse.V.AddOp2(OP.MemMax, memId, regRowid);
         }
 
-        static void sqlite3AutoincrementEnd(Parse pParse)
+        public static void AutoincrementEnd(Parse parse)
         {
-            AutoincInfo p;
-            Vdbe v = pParse.pVdbe;
-            sqlite3 db = pParse.db;
+            Vdbe v = parse.V;
+            Context ctx = parse.Ctx;
 
             Debug.Assert(v != null);
-            for (p = pParse.pAinc; p != null; p = p.pNext)
+            for (AutoincInfo p = parse.Ainc; p != null; p = p.Next)
             {
-                Db pDb = db.aDb[p.iDb];
-                int j1, j2, j3, j4, j5;
-                int iRec;
-                int memId = p.regCtr;
+                Context.DB dbAsObj = ctx.DBs[p.DB];
+                int memId = p.RegCtr;
 
-                iRec = sqlite3GetTempReg(pParse);
-                Debug.Assert(sqlite3SchemaMutexHeld(db, 0, pDb.pSchema));
-                sqlite3OpenTable(pParse, 0, p.iDb, pDb.pSchema.pSeqTab, OP_OpenWrite);
-                j1 = sqlite3VdbeAddOp1(v, OP_NotNull, memId + 1);
-                j2 = sqlite3VdbeAddOp0(v, OP_Rewind);
-                j3 = sqlite3VdbeAddOp3(v, OP_Column, 0, 0, iRec);
-                j4 = sqlite3VdbeAddOp3(v, OP_Eq, memId - 1, 0, iRec);
-                sqlite3VdbeAddOp2(v, OP_Next, 0, j3);
-                sqlite3VdbeJumpHere(v, j2);
-                sqlite3VdbeAddOp2(v, OP_NewRowid, 0, memId + 1);
-                j5 = sqlite3VdbeAddOp0(v, OP_Goto);
-                sqlite3VdbeJumpHere(v, j4);
-                sqlite3VdbeAddOp2(v, OP_Rowid, 0, memId + 1);
-                sqlite3VdbeJumpHere(v, j1);
-                sqlite3VdbeJumpHere(v, j5);
-                sqlite3VdbeAddOp3(v, OP_MakeRecord, memId - 1, 2, iRec);
-                sqlite3VdbeAddOp3(v, OP_Insert, 0, iRec, memId + 1);
-                sqlite3VdbeChangeP5(v, OPFLAG_APPEND);
-                sqlite3VdbeAddOp0(v, OP_Close);
-                sqlite3ReleaseTempReg(pParse, iRec);
+                int rec = Expr.GetTempReg(parse);
+                Debug.Assert(Btree.SchemaMutexHeld(ctx, 0, dbAsObj.Schema));
+                OpenTable(parse, 0, p.DB, dbAsObj.Schema.SeqTable, OP.OpenWrite);
+                int j1 = v.AddOp1(OP.NotNull, memId + 1);
+                int j2 = v.AddOp0(OP.Rewind);
+                int j3 = v.AddOp3(OP.Column, 0, 0, rec);
+                int j4 = v.AddOp3(OP.Eq, memId - 1, 0, rec);
+                v.AddOp2(OP.Next, 0, j3);
+                v.JumpHere(j2);
+                v.AddOp2(OP.NewRowid, 0, memId + 1);
+                int j5 = v.AddOp0(OP.Goto);
+                v.JumpHere(j4);
+                v.AddOp2(OP.Rowid, 0, memId + 1);
+                v.JumpHere(j1);
+                v.JumpHere(j5);
+                v.AddOp3(OP.MakeRecord, memId - 1, 2, rec);
+                v.AddOp3(OP.Insert, 0, rec, memId + 1);
+                v.ChangeP5(Vdbe.OPFLAG.APPEND);
+                v.AddOp0(OP.Close);
+                Expr.ReleaseTempReg(parse, rec);
             }
         }
-#else
-#define AutoIncBegin(A,B,C) (0)
-#define AutoIncStep(A,B,C)
+        //#else
+        //#define AutoIncBegin(A,B,C) (0)
+        //#define AutoIncStep(A,B,C)
 #endif
 
+#if false
+
         // OVERLOADS, so I don't need to rewrite parse.c
-        static void sqlite3Insert(Parse pParse, SrcList pTabList, int null_3, int null_4, IdList pColumn, int onError) { sqlite3Insert(pParse, pTabList, null, null, pColumn, onError); }
-        static void sqlite3Insert(Parse pParse, SrcList pTabList, int null_3, Select pSelect, IdList pColumn, int onError) { sqlite3Insert(pParse, pTabList, null, pSelect, pColumn, onError); }
-        static void sqlite3Insert(Parse pParse, SrcList pTabList, ExprList pList, int null_4, IdList pColumn, int onError) { sqlite3Insert(pParse, pTabList, pList, null, pColumn, onError); }
-        static void sqlite3Insert(Parse pParse, SrcList pTabList, ExprList pList, Select pSelect, IdList pColumn, int onError)
+        static void Insert_(Parse parse, SrcList tabList, int dummy1, int dummy2, IdList column, int onError) { Insert_(parse, tabList, null, null, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, int dummy1, Select select, IdList column, int onError) { Insert_(parse, tabList, null, select, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, ExprList list, int dummy1, IdList column, int onError) { Insert_(parse, tabList, list, null, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, ExprList list, Select select, IdList column, int onError)
         {
-            sqlite3 db;           /* The main database structure */
-            Table pTab;           /* The table to insert into.  aka TABLE */
-            string zTab;          /* Name of the table into which we are inserting */
+            
             int i = 0;
             int j = 0;
-            int idx = 0;            /* Loop counters */
-            Vdbe v;               /* Generate code into this virtual machine */
-            Index pIdx;           /* For looping over indices of the table */
-            int nColumn;          /* Number of columns in the data */
-            int nHidden = 0;      /* Number of hidden columns if TABLE is virtual */
-            int baseCur = 0;      /* VDBE VdbeCursor number for pTab */
-            int keyColumn = -1;   /* Column that is the INTEGER PRIMARY KEY */
+            int idx = 0;            // Loop counters
+            Index pIdx;           // For looping over indices of the table
+            int nColumn;          // Number of columns in the data
+            int nHidden = 0;      // Number of hidden columns if TABLE is virtual
+            int baseCur = 0;      // VDBE VdbeCursor number for pTab
+            int keyColumn = -1;   // Column that is the INTEGER PRIMARY KEY
             int endOfLoop = 0;      /* Label for the end of the insertion loop */
             bool useTempTable = false; /* Store SELECT results in intermediate table */
             int srcTab = 0;       /* Data comes from this temporary cursor if >=0 */
             int addrInsTop = 0;   /* Jump to label "D" */
             int addrCont = 0;     /* Top of insert loop. Label "C" in templates 3 and 4 */
             int addrSelect = 0;   /* Address of coroutine that implements the SELECT */
-            SelectDest dest;      /* Destination for SELECT on rhs of INSERT */
+            
             int iDb;              /* Index of database holding TABLE */
             Db pDb;               /* The database containing table being inserted into */
             bool appendFlag = false;   /* True if the insert is likely to be an append */
 
-            /* Register allocations */
-            int regFromSelect = 0;  /* Base register for data coming from SELECT */
-            int regAutoinc = 0;   /* Register holding the AUTOINCREMENT counter */
-            int regRowCount = 0;  /* Memory cell used for the row counter */
-            int regIns;           /* Block of regs holding rowid+data being inserted */
-            int regRowid;         /* registers holding insert rowid */
-            int regData;          /* register holding first column to insert */
-            int regEof = 0;       /* Register recording end of SELECT data */
-            int[] aRegIdx = null; /* One register allocated to each index */
+            // Register allocations
+            int regFromSelect = 0;  // Base register for data coming from SELECT
+            int regAutoinc = 0;   // Register holding the AUTOINCREMENT counter
+            int regRowCount = 0;  // Memory cell used for the row counter
+            int regIns;           // Block of regs holding rowid+data being inserted
+            int regRowid;         // registers holding insert rowid
+            int regData;          // register holding first column to insert
+            int regEof = 0;       // Register recording end of SELECT data
+            int[] aRegIdx = null; // One register allocated to each index
 
 #if !OMIT_TRIGGER
-            bool isView = false;        /* True if attempting to insert into a view */
-            Trigger pTrigger;           /* List of triggers on pTab, if required */
-            int tmask = 0;              /* Mask of trigger times */
+            bool isView = false;        // True if attempting to insert into a view
+            Trigger pTrigger;           // List of triggers on pTab, if required
+            int tmask = 0;              // Mask of trigger times
 #endif
 
-            db = pParse.db;
-            dest = new SelectDest();// memset( &dest, 0, sizeof( dest ) );
+            Context ctx = parse.Ctx; // The main database structure
+            SelectDest dest = new SelectDest(); // Destination for SELECT on rhs of INSERT //: _memset(&dest, 0, sizeof(dest));
+            if (parse.Errs != 0 || ctx.MallocFailed)
+                goto insert_cleanup;
 
-            if (pParse.nErr != 0 /*|| db.mallocFailed != 0 */ )
-            {
+            // Locate the table into which we will be inserting new information.
+            Debug.Assert(tabList.Srcs == 1);
+            string tableName = tabList.Ids[0].Name; // Name of the table into which we are inserting
+            if (C._NEVER(tableName == null))
                 goto insert_cleanup;
-            }
-
-            /* Locate the table into which we will be inserting new information.
-            */
-            Debug.Assert(pTabList.nSrc == 1);
-            zTab = pTabList.a[0].zName;
-            if (NEVER(zTab == null))
+            Table table = sqlite3SrcListLookup(parse, tabList); // The table to insert into.  aka TABLE
+            if (table == null)
                 goto insert_cleanup;
-            pTab = sqlite3SrcListLookup(pParse, pTabList);
-            if (pTab == null)
-            {
-                goto insert_cleanup;
-            }
-            iDb = sqlite3SchemaToIndex(db, pTab.pSchema);
-            Debug.Assert(iDb < db.nDb);
-            pDb = db.aDb[iDb];
+            iDb = sqlite3SchemaToIndex(ctx, table.pSchema);
+            Debug.Assert(iDb < ctx.nDb);
+            pDb = ctx.aDb[iDb];
 #if !OMIT_AUTHORIZATION
             string zDb;           /* Name of the database holding this table */
             zDb = pDb.zName;
-            if (sqlite3AuthCheck(pParse, SQLITE_INSERT, pTab.zName, 0, zDb))
+            if (sqlite3AuthCheck(parse, SQLITE_INSERT, table.zName, 0, zDb))
             {
                 goto insert_cleanup;
             }
 #endif
-            /* Figure out if we have any triggers and if the table being
-** inserted into is a view
-*/
+            // Figure out if we have any triggers and if the table being inserted into is a view
 #if !OMIT_TRIGGER
-            pTrigger = sqlite3TriggersExist(pParse, pTab, TK_INSERT, null, out tmask);
-            isView = pTab.pSelect != null;
+            pTrigger = sqlite3TriggersExist(parse, table, TK_INSERT, null, out tmask);
+            isView = table.pSelect != null;
 #else
       Trigger pTrigger = null;  //# define pTrigger 0
       int tmask = 0;            //# define tmask 0
@@ -337,33 +285,22 @@ isView = false;
 #endif
 
 #if !OMIT_VIEW
-            /* If pTab is really a view, make sure it has been initialized.
-      ** ViewGetColumnNames() is a no-op if pTab is not a view (or virtual
-      ** module table).
-      */
-            if (sqlite3ViewGetColumnNames(pParse, pTab) != -0)
-            {
+            // If pTab is really a view, make sure it has been initialized. ViewGetColumnNames() is a no-op if pTab is not a view (or virtual module table).
+            if (sqlite3ViewGetColumnNames(parse, table) != -0)
                 goto insert_cleanup;
-            }
 #endif
 
-            /* Ensure that:
-      *  (a) the table is not read-only, 
-      *  (b) that if it is a view then ON INSERT triggers exist
-      */
-            if (sqlite3IsReadOnly(pParse, pTab, tmask))
-            {
+            // Ensure that: (a) the table is not read-only,  (b) that if it is a view then ON INSERT triggers exist
+            if (sqlite3IsReadOnly(parse, table, tmask))
                 goto insert_cleanup;
-            }
 
-            /* Allocate a VDBE
-            */
-            v = sqlite3GetVdbe(pParse);
+            // Allocate a VDBE
+            Vdbe v = parse.GetVdbe(); // Generate code into this virtual machine
             if (v == null)
                 goto insert_cleanup;
-            if (pParse.nested == 0)
+            if (parse.nested == 0)
                 sqlite3VdbeCountChanges(v);
-            sqlite3BeginWriteOperation(pParse, (pSelect != null || pTrigger != null) ? 1 : 0, iDb);
+            sqlite3BeginWriteOperation(parse, (select != null || pTrigger != null) ? 1 : 0, iDb);
 
 #if !OMIT_XFER_OPT
             /* If the statement is of the form
@@ -375,10 +312,10 @@ isView = false;
 **
 ** This is the 2nd template.
 */
-            if (pColumn == null && xferOptimization(pParse, pTab, pSelect, onError, iDb) != 0)
+            if (column == null && xferOptimization(parse, table, select, onError, iDb) != 0)
             {
                 Debug.Assert(null == pTrigger);
-                Debug.Assert(pList == null);
+                Debug.Assert(list == null);
                 goto insert_end;
             }
 #endif
@@ -386,14 +323,14 @@ isView = false;
             /* If this is an AUTOINCREMENT table, look up the sequence number in the
 ** sqlite_sequence table and store it in memory cell regAutoinc.
 */
-            regAutoinc = AutoIncBegin(pParse, iDb, pTab);
+            regAutoinc = AutoIncBegin(parse, iDb, table);
 
             /* Figure out how many columns of data are supplied.  If the data
             ** is coming from a SELECT statement, then generate a co-routine that
             ** produces a single row of the SELECT on each invocation.  The
             ** co-routine is the common header to the 3rd and 4th templates.
             */
-            if (pSelect != null)
+            if (select != null)
             {
                 /* Data is coming from a SELECT.  Generate code to implement that SELECT
                 ** as a co-routine.  The code is common to both the 3rd and 4th
@@ -419,30 +356,30 @@ isView = false;
                 */
                 int rc = 0, j1;
 
-                regEof = ++pParse.nMem;
+                regEof = ++parse.nMem;
                 sqlite3VdbeAddOp2(v, OP_Integer, 0, regEof);      /* EOF <- 0 */
-        VdbeComment( v, "SELECT eof flag" );
-                sqlite3SelectDestInit(dest, SRT_Coroutine, ++pParse.nMem);
+                VdbeComment(v, "SELECT eof flag");
+                sqlite3SelectDestInit(dest, SRT_Coroutine, ++parse.nMem);
                 addrSelect = sqlite3VdbeCurrentAddr(v) + 2;
                 sqlite3VdbeAddOp2(v, OP_Integer, addrSelect - 1, dest.iParm);
                 j1 = sqlite3VdbeAddOp2(v, OP_Goto, 0, 0);
-        VdbeComment( v, "Jump over SELECT coroutine" );
+                VdbeComment(v, "Jump over SELECT coroutine");
                 /* Resolve the expressions in the SELECT statement and execute it. */
-                rc = sqlite3Select(pParse, pSelect, ref dest);
-                Debug.Assert(pParse.nErr == 0 || rc != 0);
-                if (rc != 0 || NEVER(pParse.nErr != 0) /*|| db.mallocFailed != 0 */ )
+                rc = sqlite3Select(parse, select, ref dest);
+                Debug.Assert(parse.nErr == 0 || rc != 0);
+                if (rc != 0 || NEVER(parse.nErr != 0) /*|| db.mallocFailed != 0 */ )
                 {
                     goto insert_cleanup;
                 }
                 sqlite3VdbeAddOp2(v, OP_Integer, 1, regEof);         /* EOF <- 1 */
                 sqlite3VdbeAddOp1(v, OP_Yield, dest.iParm);   /* yield X */
                 sqlite3VdbeAddOp2(v, OP_Halt, SQLITE_INTERNAL, OE_Abort);
-        VdbeComment( v, "End of SELECT coroutine" );
+                VdbeComment(v, "End of SELECT coroutine");
                 sqlite3VdbeJumpHere(v, j1);                          /* label B: */
 
                 regFromSelect = dest.iMem;
-                Debug.Assert(pSelect.pEList != null);
-                nColumn = pSelect.pEList.nExpr;
+                Debug.Assert(select.pEList != null);
+                nColumn = select.pEList.nExpr;
                 Debug.Assert(dest.nMem == nColumn);
 
                 /* Set useTempTable to TRUE if the result of the SELECT statement
@@ -454,7 +391,7 @@ isView = false;
                 ** of the tables being read by the SELECT statement.  Also use a
                 ** temp table in the case of row triggers.
                 */
-                if (pTrigger != null || ReadsTable(pParse, addrSelect, iDb, pTab))
+                if (pTrigger != null || ReadsTable(parse, addrSelect, iDb, table))
                 {
                     useTempTable = true;
                 }
@@ -477,9 +414,9 @@ isView = false;
                     int addrTop;     /* Label "L" */
                     int addrIf;      /* Address of jump to M */
 
-                    srcTab = pParse.nTab++;
-                    regRec = sqlite3GetTempReg(pParse);
-                    regTempRowid = sqlite3GetTempReg(pParse);
+                    srcTab = parse.nTab++;
+                    regRec = sqlite3GetTempReg(parse);
+                    regTempRowid = sqlite3GetTempReg(parse);
                     sqlite3VdbeAddOp2(v, OP_OpenEphemeral, srcTab, nColumn);
                     addrTop = sqlite3VdbeAddOp1(v, OP_Yield, dest.iParm);
                     addrIf = sqlite3VdbeAddOp1(v, OP_If, regEof);
@@ -488,8 +425,8 @@ isView = false;
                     sqlite3VdbeAddOp3(v, OP_Insert, srcTab, regRec, regTempRowid);
                     sqlite3VdbeAddOp2(v, OP_Goto, 0, addrTop);
                     sqlite3VdbeJumpHere(v, addrIf);
-                    sqlite3ReleaseTempReg(pParse, regRec);
-                    sqlite3ReleaseTempReg(pParse, regTempRowid);
+                    sqlite3ReleaseTempReg(parse, regRec);
+                    sqlite3ReleaseTempReg(parse, regTempRowid);
                 }
             }
             else
@@ -499,13 +436,13 @@ isView = false;
                 */
                 NameContext sNC;
                 sNC = new NameContext();// memset( &sNC, 0, sNC ).Length;
-                sNC.pParse = pParse;
+                sNC.pParse = parse;
                 srcTab = -1;
                 Debug.Assert(!useTempTable);
-                nColumn = pList != null ? pList.nExpr : 0;
+                nColumn = list != null ? list.nExpr : 0;
                 for (i = 0; i < nColumn; i++)
                 {
-                    if (sqlite3ResolveExprNames(sNC, ref pList.a[i].pExpr) != 0)
+                    if (sqlite3ResolveExprNames(sNC, ref list.a[i].pExpr) != 0)
                     {
                         goto insert_cleanup;
                     }
@@ -515,23 +452,23 @@ isView = false;
             /* Make sure the number of columns in the source data matches the number
             ** of columns to be inserted into the table.
             */
-            if (IsVirtual(pTab))
+            if (IsVirtual(table))
             {
-                for (i = 0; i < pTab.nCol; i++)
+                for (i = 0; i < table.nCol; i++)
                 {
-                    nHidden += (IsHiddenColumn(pTab.aCol[i]) ? 1 : 0);
+                    nHidden += (IsHiddenColumn(table.aCol[i]) ? 1 : 0);
                 }
             }
-            if (pColumn == null && nColumn != 0 && nColumn != (pTab.nCol - nHidden))
+            if (column == null && nColumn != 0 && nColumn != (table.nCol - nHidden))
             {
-                sqlite3ErrorMsg(pParse,
+                sqlite3ErrorMsg(parse,
                 "table %S has %d columns but %d values were supplied",
-                pTabList, 0, pTab.nCol - nHidden, nColumn);
+                tabList, 0, table.nCol - nHidden, nColumn);
                 goto insert_cleanup;
             }
-            if (pColumn != null && nColumn != pColumn.nId)
+            if (column != null && nColumn != column.nId)
             {
-                sqlite3ErrorMsg(pParse, "%d values for %d columns", nColumn, pColumn.nId);
+                sqlite3ErrorMsg(parse, "%d values for %d columns", nColumn, column.nId);
                 goto insert_cleanup;
             }
 
@@ -546,37 +483,37 @@ isView = false;
             ** is appears in the original table.  (The index of the primary
             ** key in the original table is pTab.iPKey.)
             */
-            if (pColumn != null)
+            if (column != null)
             {
-                for (i = 0; i < pColumn.nId; i++)
+                for (i = 0; i < column.nId; i++)
                 {
-                    pColumn.a[i].idx = -1;
+                    column.a[i].idx = -1;
                 }
-                for (i = 0; i < pColumn.nId; i++)
+                for (i = 0; i < column.nId; i++)
                 {
-                    for (j = 0; j < pTab.nCol; j++)
+                    for (j = 0; j < table.nCol; j++)
                     {
-                        if (pColumn.a[i].zName.Equals(pTab.aCol[j].zName, StringComparison.OrdinalIgnoreCase))
+                        if (column.a[i].zName.Equals(table.aCol[j].zName, StringComparison.OrdinalIgnoreCase))
                         {
-                            pColumn.a[i].idx = j;
-                            if (j == pTab.iPKey)
+                            column.a[i].idx = j;
+                            if (j == table.iPKey)
                             {
                                 keyColumn = i;
                             }
                             break;
                         }
                     }
-                    if (j >= pTab.nCol)
+                    if (j >= table.nCol)
                     {
-                        if (sqlite3IsRowid(pColumn.a[i].zName))
+                        if (sqlite3IsRowid(column.a[i].zName))
                         {
                             keyColumn = i;
                         }
                         else
                         {
-                            sqlite3ErrorMsg(pParse, "table %S has no column named %s",
-                            pTabList, 0, pColumn.a[i].zName);
-                            pParse.checkSchema = 1;
+                            sqlite3ErrorMsg(parse, "table %S has no column named %s",
+                            tabList, 0, column.a[i].zName);
+                            parse.checkSchema = 1;
                             goto insert_cleanup;
                         }
                     }
@@ -587,16 +524,16 @@ isView = false;
             ** key, the set the keyColumn variable to the primary key column index
             ** in the original table definition.
             */
-            if (pColumn == null && nColumn > 0)
+            if (column == null && nColumn > 0)
             {
-                keyColumn = pTab.iPKey;
+                keyColumn = table.iPKey;
             }
 
             /* Initialize the count of rows to be inserted
             */
-            if ((db.flags & SQLITE_CountRows) != 0)
+            if ((ctx.flags & SQLITE_CountRows) != 0)
             {
-                regRowCount = ++pParse.nMem;
+                regRowCount = ++parse.nMem;
                 sqlite3VdbeAddOp2(v, OP_Integer, 0, regRowCount);
             }
 
@@ -605,8 +542,8 @@ isView = false;
             {
                 int nIdx;
 
-                baseCur = pParse.nTab;
-                nIdx = sqlite3OpenTableAndIndices(pParse, pTab, baseCur, OP_OpenWrite);
+                baseCur = parse.nTab;
+                nIdx = sqlite3OpenTableAndIndices(parse, table, baseCur, OP_OpenWrite);
                 aRegIdx = new int[nIdx + 1];// sqlite3DbMallocRaw( db, sizeof( int ) * ( nIdx + 1 ) );
                 if (aRegIdx == null)
                 {
@@ -614,7 +551,7 @@ isView = false;
                 }
                 for (i = 0; i < nIdx; i++)
                 {
-                    aRegIdx[i] = ++pParse.nMem;
+                    aRegIdx[i] = ++parse.nMem;
                 }
             }
 
@@ -633,7 +570,7 @@ isView = false;
                 addrInsTop = sqlite3VdbeAddOp1(v, OP_Rewind, srcTab);
                 addrCont = sqlite3VdbeCurrentAddr(v);
             }
-            else if (pSelect != null)
+            else if (select != null)
             {
                 /* This block codes the top of loop only.  The complete loop is the
                 ** following pseudocode (template 3):
@@ -651,12 +588,12 @@ isView = false;
             /* Allocate registers for holding the rowid of the new row,
             ** the content of the new row, and the assemblied row record.
             */
-            regRowid = regIns = pParse.nMem + 1;
-            pParse.nMem += pTab.nCol + 1;
-            if (IsVirtual(pTab))
+            regRowid = regIns = parse.nMem + 1;
+            parse.nMem += table.nCol + 1;
+            if (IsVirtual(table))
             {
                 regRowid++;
-                pParse.nMem++;
+                parse.nMem++;
             }
             regData = regRowid + 1;
 
@@ -666,7 +603,7 @@ isView = false;
 #if !OMIT_TRIGGER
             if ((tmask & TRIGGER_BEFORE) != 0)
             {
-                int regCols = sqlite3GetTempRange(pParse, pTab.nCol + 1);
+                int regCols = sqlite3GetTempRange(parse, table.nCol + 1);
 
                 /* build the NEW.* reference row.  Note that if there is an INTEGER
                 ** PRIMARY KEY into which a NULL is being inserted, that NULL will be
@@ -687,8 +624,8 @@ isView = false;
                     }
                     else
                     {
-                        Debug.Assert(pSelect == null);  /* Otherwise useTempTable is true */
-                        sqlite3ExprCode(pParse, pList.a[keyColumn].pExpr, regCols);
+                        Debug.Assert(select == null);  /* Otherwise useTempTable is true */
+                        sqlite3ExprCode(parse, list.a[keyColumn].pExpr, regCols);
                     }
                     j1 = sqlite3VdbeAddOp1(v, OP_NotNull, regCols);
                     sqlite3VdbeAddOp2(v, OP_Integer, -1, regCols);
@@ -698,26 +635,26 @@ isView = false;
                 /* Cannot have triggers on a virtual table. If it were possible,
                 ** this block would have to account for hidden column.
                 */
-                Debug.Assert(!IsVirtual(pTab));
+                Debug.Assert(!IsVirtual(table));
                 /* Create the new column data
                 */
-                for (i = 0; i < pTab.nCol; i++)
+                for (i = 0; i < table.nCol; i++)
                 {
-                    if (pColumn == null)
+                    if (column == null)
                     {
                         j = i;
                     }
                     else
                     {
-                        for (j = 0; j < pColumn.nId; j++)
+                        for (j = 0; j < column.nId; j++)
                         {
-                            if (pColumn.a[j].idx == i)
+                            if (column.a[j].idx == i)
                                 break;
                         }
                     }
-                    if ((!useTempTable && null == pList) || (pColumn != null && j >= pColumn.nId))
+                    if ((!useTempTable && null == list) || (column != null && j >= column.nId))
                     {
-                        sqlite3ExprCode(pParse, pTab.aCol[i].pDflt, regCols + i + 1);
+                        sqlite3ExprCode(parse, table.aCol[i].pDflt, regCols + i + 1);
                     }
                     else if (useTempTable)
                     {
@@ -725,8 +662,8 @@ isView = false;
                     }
                     else
                     {
-                        Debug.Assert(pSelect == null); /* Otherwise useTempTable is true */
-                        sqlite3ExprCodeAndCache(pParse, pList.a[j].pExpr, regCols + i + 1);
+                        Debug.Assert(select == null); /* Otherwise useTempTable is true */
+                        sqlite3ExprCodeAndCache(parse, list.a[j].pExpr, regCols + i + 1);
                     }
                 }
 
@@ -737,15 +674,15 @@ isView = false;
                 */
                 if (!isView)
                 {
-                    sqlite3VdbeAddOp2(v, OP_Affinity, regCols + 1, pTab.nCol);
-                    sqlite3TableAffinityStr(v, pTab);
+                    sqlite3VdbeAddOp2(v, OP_Affinity, regCols + 1, table.nCol);
+                    TableAffinityStr(v, table);
                 }
 
                 /* Fire BEFORE or INSTEAD OF triggers */
-                sqlite3CodeRowTrigger(pParse, pTrigger, TK_INSERT, null, TRIGGER_BEFORE,
-                    pTab, regCols - pTab.nCol - 1, onError, endOfLoop);
+                sqlite3CodeRowTrigger(parse, pTrigger, TK_INSERT, null, TRIGGER_BEFORE,
+                    table, regCols - table.nCol - 1, onError, endOfLoop);
 
-                sqlite3ReleaseTempRange(pParse, regCols, pTab.nCol + 1);
+                sqlite3ReleaseTempRange(parse, regCols, table.nCol + 1);
             }
 #endif
 
@@ -756,7 +693,7 @@ isView = false;
 */
             if (!isView)
             {
-                if (IsVirtual(pTab))
+                if (IsVirtual(table))
                 {
                     /* The row that the VUpdate opcode will delete: none */
                     sqlite3VdbeAddOp2(v, OP_Null, 0, regIns);
@@ -767,16 +704,16 @@ isView = false;
                     {
                         sqlite3VdbeAddOp3(v, OP_Column, srcTab, keyColumn, regRowid);
                     }
-                    else if (pSelect != null)
+                    else if (select != null)
                     {
                         sqlite3VdbeAddOp2(v, OP_SCopy, regFromSelect + keyColumn, regRowid);
                     }
                     else
                     {
                         VdbeOp pOp;
-                        sqlite3ExprCode(pParse, pList.a[keyColumn].pExpr, regRowid);
+                        sqlite3ExprCode(parse, list.a[keyColumn].pExpr, regRowid);
                         pOp = sqlite3VdbeGetOp(v, -1);
-                        if (ALWAYS(pOp != null) && pOp.opcode == OP_Null && !IsVirtual(pTab))
+                        if (ALWAYS(pOp != null) && pOp.opcode == OP_Null && !IsVirtual(table))
                         {
                             appendFlag = true;
                             pOp.opcode = OP_NewRowid;
@@ -791,7 +728,7 @@ isView = false;
                     if (!appendFlag)
                     {
                         int j1;
-                        if (!IsVirtual(pTab))
+                        if (!IsVirtual(table))
                         {
                             j1 = sqlite3VdbeAddOp1(v, OP_NotNull, regRowid);
                             sqlite3VdbeAddOp3(v, OP_NewRowid, baseCur, regRowid, regAutoinc);
@@ -805,7 +742,7 @@ isView = false;
                         sqlite3VdbeAddOp1(v, OP_MustBeInt, regRowid);
                     }
                 }
-                else if (IsVirtual(pTab))
+                else if (IsVirtual(table))
                 {
                     sqlite3VdbeAddOp2(v, OP_Null, 0, regRowid);
                 }
@@ -814,16 +751,16 @@ isView = false;
                     sqlite3VdbeAddOp3(v, OP_NewRowid, baseCur, regRowid, regAutoinc);
                     appendFlag = true;
                 }
-                AutoIncStep(pParse, regAutoinc, regRowid);
+                AutoIncStep(parse, regAutoinc, regRowid);
 
                 /* Push onto the stack, data for all columns of the new entry, beginning
                 ** with the first column.
                 */
                 nHidden = 0;
-                for (i = 0; i < pTab.nCol; i++)
+                for (i = 0; i < table.nCol; i++)
                 {
                     int iRegStore = regRowid + 1 + i;
-                    if (i == pTab.iPKey)
+                    if (i == table.iPKey)
                     {
                         /* The value of the INTEGER PRIMARY KEY column is always a NULL.
                         ** Whenever this column is read, the record number will be substituted
@@ -832,11 +769,11 @@ isView = false;
                         sqlite3VdbeAddOp2(v, OP_Null, 0, iRegStore);
                         continue;
                     }
-                    if (pColumn == null)
+                    if (column == null)
                     {
-                        if (IsHiddenColumn(pTab.aCol[i]))
+                        if (IsHiddenColumn(table.aCol[i]))
                         {
-                            Debug.Assert(IsVirtual(pTab));
+                            Debug.Assert(IsVirtual(table));
                             j = -1;
                             nHidden++;
                         }
@@ -847,27 +784,27 @@ isView = false;
                     }
                     else
                     {
-                        for (j = 0; j < pColumn.nId; j++)
+                        for (j = 0; j < column.nId; j++)
                         {
-                            if (pColumn.a[j].idx == i)
+                            if (column.a[j].idx == i)
                                 break;
                         }
                     }
-                    if (j < 0 || nColumn == 0 || (pColumn != null && j >= pColumn.nId))
+                    if (j < 0 || nColumn == 0 || (column != null && j >= column.nId))
                     {
-                        sqlite3ExprCode(pParse, pTab.aCol[i].pDflt, iRegStore);
+                        sqlite3ExprCode(parse, table.aCol[i].pDflt, iRegStore);
                     }
                     else if (useTempTable)
                     {
                         sqlite3VdbeAddOp3(v, OP_Column, srcTab, j, iRegStore);
                     }
-                    else if (pSelect != null)
+                    else if (select != null)
                     {
                         sqlite3VdbeAddOp2(v, OP_SCopy, regFromSelect + j, iRegStore);
                     }
                     else
                     {
-                        sqlite3ExprCode(pParse, pList.a[j].pExpr, iRegStore);
+                        sqlite3ExprCode(parse, list.a[j].pExpr, iRegStore);
                     }
                 }
 
@@ -875,31 +812,31 @@ isView = false;
                 ** do the insertion.
                 */
 #if !OMIT_VIRTUALTABLE
-                if (IsVirtual(pTab))
+                if (IsVirtual(table))
                 {
-                    VTable pVTab = sqlite3GetVTable(db, pTab);
-                    sqlite3VtabMakeWritable(pParse, pTab);
-                    sqlite3VdbeAddOp4(v, OP_VUpdate, 1, pTab.nCol + 2, regIns, pVTab, P4_VTAB);
+                    VTable pVTab = sqlite3GetVTable(ctx, table);
+                    sqlite3VtabMakeWritable(parse, table);
+                    sqlite3VdbeAddOp4(v, OP_VUpdate, 1, table.nCol + 2, regIns, pVTab, P4_VTAB);
                     sqlite3VdbeChangeP5(v, (byte)(onError == OE_Default ? OE_Abort : onError));
-                    sqlite3MayAbort(pParse);
+                    sqlite3MayAbort(parse);
                 }
                 else
 #endif
                 {
                     int isReplace = 0;    /* Set to true if constraints may cause a replace */
-                    sqlite3GenerateConstraintChecks(pParse, pTab, baseCur, regIns, aRegIdx,
+                    sqlite3GenerateConstraintChecks(parse, table, baseCur, regIns, aRegIdx,
                       keyColumn >= 0 ? 1 : 0, false, onError, endOfLoop, out isReplace
                     );
-                    sqlite3FkCheck(pParse, pTab, 0, regIns);
+                    sqlite3FkCheck(parse, table, 0, regIns);
                     sqlite3CompleteInsertion(
-                   pParse, pTab, baseCur, regIns, aRegIdx, false, appendFlag, isReplace == 0
+                   parse, table, baseCur, regIns, aRegIdx, false, appendFlag, isReplace == 0
                     );
                 }
             }
 
             /* Update the count of rows that are inserted
             */
-            if ((db.flags & SQLITE_CountRows) != 0)
+            if ((ctx.flags & SQLITE_CountRows) != 0)
             {
                 sqlite3VdbeAddOp2(v, OP_AddImm, regRowCount, 1);
             }
@@ -908,8 +845,8 @@ isView = false;
             if (pTrigger != null)
             {
                 /* Code AFTER triggers */
-                sqlite3CodeRowTrigger(pParse, pTrigger, TK_INSERT, null, TRIGGER_AFTER,
-                    pTab, regData - 2 - pTab.nCol, onError, endOfLoop);
+                sqlite3CodeRowTrigger(parse, pTrigger, TK_INSERT, null, TRIGGER_AFTER,
+                    table, regData - 2 - table.nCol, onError, endOfLoop);
             }
 #endif
 
@@ -923,17 +860,17 @@ isView = false;
                 sqlite3VdbeJumpHere(v, addrInsTop);
                 sqlite3VdbeAddOp1(v, OP_Close, srcTab);
             }
-            else if (pSelect != null)
+            else if (select != null)
             {
                 sqlite3VdbeAddOp2(v, OP_Goto, 0, addrCont);
                 sqlite3VdbeJumpHere(v, addrInsTop);
             }
 
-            if (!IsVirtual(pTab) && !isView)
+            if (!IsVirtual(table) && !isView)
             {
                 /* Close all tables opened */
                 sqlite3VdbeAddOp1(v, OP_Close, baseCur);
-                for (idx = 1, pIdx = pTab.pIndex; pIdx != null; pIdx = pIdx.pNext, idx++)
+                for (idx = 1, pIdx = table.pIndex; pIdx != null; pIdx = pIdx.pNext, idx++)
                 {
                     sqlite3VdbeAddOp1(v, OP_Close, idx + baseCur);
                 }
@@ -944,9 +881,9 @@ isView = false;
             ** maximum rowid counter values recorded while inserting into
             ** autoincrement tables.
             */
-            if (pParse.nested == 0 && pParse.pTriggerTab == null)
+            if (parse.nested == 0 && parse.pTriggerTab == null)
             {
-                sqlite3AutoincrementEnd(pParse);
+                sqlite3AutoincrementEnd(parse);
             }
 
             /*
@@ -954,7 +891,7 @@ isView = false;
             ** generating code because of a call to sqlite3NestedParse(), do not
             ** invoke the callback function.
             */
-            if ((db.flags & SQLITE_CountRows) != 0 && 0 == pParse.nested && null == pParse.pTriggerTab)
+            if ((ctx.flags & SQLITE_CountRows) != 0 && 0 == parse.nested && null == parse.pTriggerTab)
             {
                 sqlite3VdbeAddOp2(v, OP_ResultRow, regRowCount, 1);
                 sqlite3VdbeSetNumCols(v, 1);
@@ -962,12 +899,13 @@ isView = false;
             }
 
         insert_cleanup:
-            sqlite3SrcListDelete(db, ref pTabList);
-            sqlite3ExprListDelete(db, ref pList);
-            sqlite3SelectDelete(db, ref pSelect);
-            sqlite3IdListDelete(db, ref pColumn);
-            sqlite3DbFree(db, ref aRegIdx);
+            sqlite3SrcListDelete(ctx, ref tabList);
+            sqlite3ExprListDelete(ctx, ref list);
+            sqlite3SelectDelete(ctx, ref select);
+            sqlite3IdListDelete(ctx, ref column);
+            sqlite3DbFree(ctx, ref aRegIdx);
         }
+
 
         static void sqlite3GenerateConstraintChecks(Parse pParse,Table pTab,int baseCur, int regRowid,       int[] aRegIdx,     int rowidChng,bool isUpdate,int overrideError,int ignoreDest,   out int pbMayReplace)
         {
@@ -1198,7 +1136,7 @@ isView = false;
                 }
                 sqlite3VdbeAddOp2(v, OP_SCopy, regRowid, regIdx + i);
                 sqlite3VdbeAddOp3(v, OP_MakeRecord, regIdx, pIdx.nColumn + 1, aRegIdx[iCur]);
-                sqlite3VdbeChangeP4(v, -1, sqlite3IndexAffinityStr(v, pIdx), P4_TRANSIENT);
+                sqlite3VdbeChangeP4(v, -1, IndexAffinityStr(v, pIdx), P4_TRANSIENT);
                 sqlite3ExprCacheAffinityChange(pParse, regIdx, pIdx.nColumn + 1);
 
                 /* Find out what action to take in case there is an indexing conflict */
@@ -1296,419 +1234,253 @@ isView = false;
                 pbMayReplace = seenReplace ? 1 : 0;
             }
         }
+#endif
 
-        static void sqlite3CompleteInsertion(Parse pParse, Table pTab, int baseCur, int regRowid, int[] aRegIdx,       bool isUpdate, bool appendBias, bool useSeekResult)
+        public static void CompleteInsertion(Parse parse, Table table, int baseCur, int regRowid, int[] regIdxs, bool isUpdate, bool appendBias, bool useSeekResult)
         {
-            int i;
-            Vdbe v;
-            int nIdx;
-            Index pIdx;
-            u8 pik_flags;
-            int regData;
-            int regRec;
-
-            v = sqlite3GetVdbe(pParse);
+            Vdbe v = parse.GetVdbe();
             Debug.Assert(v != null);
-            Debug.Assert(pTab.pSelect == null);  /* This table is not a VIEW */
-            for (nIdx = 0, pIdx = pTab.pIndex; pIdx != null; pIdx = pIdx.pNext, nIdx++)
+            Debug.Assert(table.Select == null); // This table is not a VIEW
+            int indexsLength;
+            Index index;
+            for (indexsLength = 0, index = table.Index; index != null; index = index.Next, indexsLength++) { }
+            for (int i = indexsLength - 1; i >= 0; i--)
             {
-            }
-            for (i = nIdx - 1; i >= 0; i--)
-            {
-                if (aRegIdx[i] == 0)
-                    continue;
-                sqlite3VdbeAddOp2(v, OP_IdxInsert, baseCur + i + 1, aRegIdx[i]);
+                if (regIdxs[i] == 0) continue;
+                v.AddOp2(OP.IdxInsert, baseCur + i + 1, regIdxs[i]);
                 if (useSeekResult)
-                {
-                    sqlite3VdbeChangeP5(v, OPFLAG_USESEEKRESULT);
-                }
+                    v.ChangeP5(Vdbe.OPFLAG.USESEEKRESULT);
             }
-            regData = regRowid + 1;
-            regRec = sqlite3GetTempReg(pParse);
-            sqlite3VdbeAddOp3(v, OP_MakeRecord, regData, pTab.nCol, regRec);
-            sqlite3TableAffinityStr(v, pTab);
-            sqlite3ExprCacheAffinityChange(pParse, regData, pTab.nCol);
-            if (pParse.nested != 0)
-            {
+            int regData = regRowid + 1;
+            int regRec = Expr.GetTempReg(parse);
+            v.AddOp3(OP.MakeRecord, regData, table.Cols.length, regRec);
+            TableAffinityStr(v, table);
+            Expr.CacheAffinityChange(parse, regData, table.Cols.length);
+            Vdbe.OPFLAG pik_flags;
+            if (parse.Nested != 0)
                 pik_flags = 0;
-            }
             else
             {
-                pik_flags = OPFLAG_NCHANGE;
-                pik_flags |= (isUpdate ? OPFLAG_ISUPDATE : OPFLAG_LASTROWID);
+                pik_flags = Vdbe.OPFLAG.NCHANGE;
+                pik_flags |= (isUpdate ? Vdbe.OPFLAG.ISUPDATE : Vdbe.OPFLAG.LASTROWID);
             }
-            if (appendBias)
-            {
-                pik_flags |= OPFLAG_APPEND;
-            }
-            if (useSeekResult)
-            {
-                pik_flags |= OPFLAG_USESEEKRESULT;
-            }
-            sqlite3VdbeAddOp3(v, OP_Insert, baseCur, regRec, regRowid);
-            if (pParse.nested == 0)
-            {
-                sqlite3VdbeChangeP4(v, -1, pTab.zName, P4_TRANSIENT);
-            }
-            sqlite3VdbeChangeP5(v, pik_flags);
+            if (appendBias) pik_flags |= Vdbe.OPFLAG.APPEND;
+            if (useSeekResult) pik_flags |= Vdbe.OPFLAG.USESEEKRESULT;
+            v.AddOp3(OP.Insert, baseCur, regRec, regRowid);
+            if (parse.Nested == 0)
+                v.ChangeP4(-1, table.Name, Vdbe.P4T.TRANSIENT);
+            v.ChangeP5(pik_flags);
         }
 
-        static int sqlite3OpenTableAndIndices(Parse pParse,   Table pTab,     int baseCur,int op)
+        public static int OpenTableAndIndices(Parse parse, Table table, int baseCur, OP op)
         {
-            int i;
-            int iDb;
-            Index pIdx;
-            Vdbe v;
-
-            if (IsVirtual(pTab))
-                return 0;
-            iDb = sqlite3SchemaToIndex(pParse.db, pTab.pSchema);
-            v = sqlite3GetVdbe(pParse);
+            if (E.IsVirtual(table)) return 0;
+            int db = Prepare.SchemaToIndex(parse.Ctx, table.Schema);
+            Vdbe v = parse.GetVdbe();
             Debug.Assert(v != null);
-            sqlite3OpenTable(pParse, baseCur, iDb, pTab, op);
-            for (i = 1, pIdx = pTab.pIndex; pIdx != null; pIdx = pIdx.pNext, i++)
+            OpenTable(parse, baseCur, db, table, op);
+            int i;
+            Index index;
+            for (i = 1, index = table.Index; index != null; index = index.Next, i++)
             {
-                KeyInfo pKey = sqlite3IndexKeyinfo(pParse, pIdx);
-                Debug.Assert(pIdx.pSchema == pTab.pSchema);
-                sqlite3VdbeAddOp4(v, op, i + baseCur, pIdx.tnum, iDb,
-                pKey, P4_KEYINFO_HANDOFF);
-        VdbeComment( v, "%s", pIdx.zName );
+                KeyInfo pKey = parse.IndexKeyinfo(index);
+                Debug.Assert(index.Schema == table.Schema);
+                v.AddOp4(op, i + baseCur, index.Id, db, key, Vdbe.P4T.KEYINFO_HANDOFF);
+                v.Comment("%s", index.Name);
             }
-            if (pParse.nTab < baseCur + i)
-            {
-                pParse.nTab = baseCur + i;
-            }
+            if (parse.Tabs < baseCur + i)
+                parse.Tabs = baseCur + i;
             return i - 1;
         }
 
 #if TEST
-    static int sqlite3_xferopt_count = 0;
+        static int _xferopt_count = 0;
 #endif
-
-
 #if !OMIT_XFER_OPT
-        static bool xferCompatibleCollation(string z1, string z2)
+        static bool XferCompatibleCollation(string z1, string z2)
         {
-            if (z1 == null)
-            {
-                return z2 == null;
-            }
-            if (z2 == null)
-            {
-                return false;
-            }
-            return z1.Equals(z2, StringComparison.OrdinalIgnoreCase);
+            if (z1 == null) return (z2 == null);
+            if (z2 == null) return false;
+            return string.Equals(z1, z2, StringComparison.OrdinalIgnoreCase);
         }
 
-        static bool xferCompatibleIndex(Index pDest, Index pSrc)
+        static bool XferCompatibleIndex(Index dest, Index src)
         {
-            int i;
-            Debug.Assert(pDest != null && pSrc != null);
-            Debug.Assert(pDest.pTable != pSrc.pTable);
-            if (pDest.nColumn != pSrc.nColumn)
+            Debug.Assert(dest != null && src != null);
+            Debug.Assert(dest.Table != src.Table);
+            if (dest.Columns.length != src.Columns.length) return false;    // Different number of columns
+            if (dest.OnError != src.OnError) return false;                  // Different conflict resolution strategies
+            for (int i = 0; i < src.Columns.length; i++)
             {
-                return false;   /* Different number of columns */
+                if (src.Columns[i] != dest.Columns[i]) return false;      // Different columns indexed
+                if (src.SortOrders[i] != dest.SortOrders[i]) return false;  // Different sort orders
+                if (!XferCompatibleCollation(src.CollNames[i], dest.CollNames[i])) return false; // Different collating sequences
             }
-            if (pDest.onError != pSrc.onError)
-            {
-                return false;   /* Different conflict resolution strategies */
-            }
-            for (i = 0; i < pSrc.nColumn; i++)
-            {
-                if (pSrc.aiColumn[i] != pDest.aiColumn[i])
-                {
-                    return false;   /* Different columns indexed */
-                }
-                if (pSrc.aSortOrder[i] != pDest.aSortOrder[i])
-                {
-                    return false;   /* Different sort orders */
-                }
-                if (!xferCompatibleCollation(pSrc.azColl[i], pDest.azColl[i]))
-                {
-                    return false;   /* Different collating sequences */
-                }
-            }
-
-            /* If no test above fails then the indices must be compatible */
+            // If no test above fails then the indices must be compatible
             return true;
         }
 
-        static int xferOptimization(Parse pParse,Table pDest, Select pSelect, int onError,  int iDbDest)
+        static bool XferOptimization(Parse parse, Table dest, Select select, OE onError, int dbDestId)
         {
-            ExprList pEList;                 /* The result set of the SELECT */
-            Table pSrc;                      /* The table in the FROM clause of SELECT */
-            Index pSrcIdx, pDestIdx;         /* Source and destination indices */
-            SrcList_item pItem;              /* An element of pSelect.pSrc */
-            int i;                           /* Loop counter */
-            int iDbSrc;                      /* The database of pSrc */
-            int iSrc, iDest;                 /* Cursors from source and destination */
-            int addr1, addr2;                /* Loop addresses */
-            int emptyDestTest;               /* Address of test for empty pDest */
-            int emptySrcTest;                /* Address of test for empty pSrc */
-            Vdbe v;                          /* The VDBE we are building */
-            KeyInfo pKey;                    /* Key information for an index */
-            int regAutoinc;                  /* Memory register used by AUTOINC */
-            bool destHasUniqueIdx = false;   /* True if pDest has a UNIQUE index */
-            int regData, regRowid;           /* Registers holding data and rowid */
-
-            if (pSelect == null)
-            {
-                return 0;   /* Must be of the form  INSERT INTO ... SELECT ... */
-            }
-#if !OMIT_TRIGGER
-            if (sqlite3TriggerList(pParse, pDest) != null)
-            {
-                return 0;   /* tab1 must not have triggers */
-            }
+            if (select == null) return false;                                   // Must be of the form  INSERT INTO ... SELECT ...
+            if (sqlite3TriggerList(parse, dest) != null) return false;          // tab1 must not have triggers
+#if !OMIT_VIRTUALTABLE
+            if ((dest.TabFlags & TF.Virtual) != 0) return false;				// tab1 must not be a virtual table
 #endif
+            if (onError == OE.Default)
+            {
+                if (dest.PKey >= 0) onError = dest.KeyConf;
+                if (onError == OE.Default) onError = OE.Abort;
+            }
+            Debug.Assert(select.Src != null);                                   // allocated even if there is no FROM clause
+            if (select.Src.Srcs != 1) return false;                             // FROM clause must have exactly one term
+            if (select.Src.Ids[0].Select != null) return false;                 // FROM clause cannot contain a subquery
+            if (select.Where != null) return false;                             // SELECT may not have a WHERE clause
+            if (select.OrderBy != null) return false;                           // SELECT may not have an ORDER BY clause
+            // Do not need to test for a HAVING clause.  If HAVING is present but there is no ORDER BY, we will get an error.
+            if (select.GroupBy != null) return false;                           // SELECT may not have a GROUP BY clause
+            if (select.Limit != null) return false;                             // SELECT may not have a LIMIT clause
+            Debug.Assert(select.Offset == null);                                // Must be so if pLimit==0
+            if (select.Prior != null) return false;                             // SELECT may not be a compound query
+            if ((select.SelFlags & SF.Distinct) != 0) return false;             // SELECT may not be DISTINCT
+            ExprList list = select.EList;                                      // The result set of the SELECT
+            Debug.Assert(list != null);
+            if (list.Exprs != 1) return false;                                 // The result set must have exactly one column
+            Debug.Assert(list.Ids[0].Expr != null);
+            if (list.Ids[0].Expr.OP != TK.ALL) return false;                   // The result set must be the special operator "*"
 
-            if ((pDest.tabFlags & TF_Virtual) != 0)
+            // At this point we have established that the statement is of the correct syntactic form to participate in this optimization.  Now
+            // we have to check the semantics.
+            SrcList.SrcListItem item = select.Src.Ids[0];                       // An element of pSelect.pSrc
+            Table src = parse.LocateTableItem(false, item);                     // The table in the FROM clause of SELECT
+            if (src == null) return false;                                      // FROM clause does not contain a real table
+            if (src == dest) return false;                                      // tab1 and tab2 may not be the same table
+#if !OMIT_VIRTUALTABLE
+            if ((src.TabFlags & TF.Virtual) != 0) return false;                 // tab2 must not be a virtual table
+#endif
+            if (src.Select != null) return false;                               // tab2 may not be a view
+            if (dest.Cols.length != src.Cols.length) return false;              // Number of columns must be the same in tab1 and tab2
+            if (dest.PKey != src.PKey) return false;                            // Both tables must have the same INTEGER PRIMARY KEY
+            for (int i = 0; i < dest.Cols.length; i++)
             {
-                return 0;   /* tab1 must not be a virtual table */
+                if (dest.Cols[i].Affinity != src.Cols[i].Affinity) return false; // Affinity must be the same on all columns
+                if (!XferCompatibleCollation(dest.Cols[i].Coll, src.Cols[i].Coll)) return false; // Collating sequence must be the same on all columns
+                if (dest.Cols[i].NotNull != 0 && src.Cols[i].NotNull == 0) return false; // tab2 must be NOT NULL if tab1 is
             }
-            if (onError == OE_Default)
+            bool destHasUniqueIdx = false;   // True if pDest has a UNIQUE index
+            Index srcIdx, destIdx; // Source and destination indices
+            for (destIdx = dest.Index; destIdx != null; destIdx = destIdx.Next)
             {
-                onError = OE_Abort;
-            }
-            if (onError != OE_Abort && onError != OE_Rollback)
-            {
-                return 0;   /* Cannot do OR REPLACE or OR IGNORE or OR FAIL */
-            }
-            Debug.Assert(pSelect.pSrc != null);   /* allocated even if there is no FROM clause */
-            if (pSelect.pSrc.nSrc != 1)
-            {
-                return 0;   /* FROM clause must have exactly one term */
-            }
-            if (pSelect.pSrc.a[0].pSelect != null)
-            {
-                return 0;   /* FROM clause cannot contain a subquery */
-            }
-            if (pSelect.pWhere != null)
-            {
-                return 0;   /* SELECT may not have a WHERE clause */
-            }
-            if (pSelect.pOrderBy != null)
-            {
-                return 0;   /* SELECT may not have an ORDER BY clause */
-            }
-            /* Do not need to test for a HAVING clause.  If HAVING is present but
-            ** there is no ORDER BY, we will get an error. */
-            if (pSelect.pGroupBy != null)
-            {
-                return 0;   /* SELECT may not have a GROUP BY clause */
-            }
-            if (pSelect.pLimit != null)
-            {
-                return 0;   /* SELECT may not have a LIMIT clause */
-            }
-            Debug.Assert(pSelect.pOffset == null);  /* Must be so if pLimit==0 */
-            if (pSelect.pPrior != null)
-            {
-                return 0;   /* SELECT may not be a compound query */
-            }
-            if ((pSelect.selFlags & SF_Distinct) != 0)
-            {
-                return 0;   /* SELECT may not be DISTINCT */
-            }
-            pEList = pSelect.pEList;
-            Debug.Assert(pEList != null);
-            if (pEList.nExpr != 1)
-            {
-                return 0;   /* The result set must have exactly one column */
-            }
-            Debug.Assert(pEList.a[0].pExpr != null);
-            if (pEList.a[0].pExpr.op != TK_ALL)
-            {
-                return 0;   /* The result set must be the special operator "*" */
-            }
-
-            /* At this point we have established that the statement is of the
-            ** correct syntactic form to participate in this optimization.  Now
-            ** we have to check the semantics.
-            */
-            pItem = pSelect.pSrc.a[0];
-            pSrc = sqlite3LocateTable(pParse, 0, pItem.zName, pItem.zDatabase);
-            if (pSrc == null)
-            {
-                return 0;   /* FROM clause does not contain a real table */
-            }
-            if (pSrc == pDest)
-            {
-                return 0;   /* tab1 and tab2 may not be the same table */
-            }
-            if ((pSrc.tabFlags & TF_Virtual) != 0)
-            {
-                return 0;   /* tab2 must not be a virtual table */
-            }
-            if (pSrc.pSelect != null)
-            {
-                return 0;   /* tab2 may not be a view */
-            }
-            if (pDest.nCol != pSrc.nCol)
-            {
-                return 0;   /* Number of columns must be the same in tab1 and tab2 */
-            }
-            if (pDest.iPKey != pSrc.iPKey)
-            {
-                return 0;   /* Both tables must have the same INTEGER PRIMARY KEY */
-            }
-            for (i = 0; i < pDest.nCol; i++)
-            {
-                if (pDest.aCol[i].affinity != pSrc.aCol[i].affinity)
-                {
-                    return 0;    /* Affinity must be the same on all columns */
-                }
-                if (!xferCompatibleCollation(pDest.aCol[i].zColl, pSrc.aCol[i].zColl))
-                {
-                    return 0;    /* Collating sequence must be the same on all columns */
-                }
-                if (pDest.aCol[i].notNull != 0 && pSrc.aCol[i].notNull == 0)
-                {
-                    return 0;    /* tab2 must be NOT NULL if tab1 is */
-                }
-            }
-            for (pDestIdx = pDest.pIndex; pDestIdx != null; pDestIdx = pDestIdx.pNext)
-            {
-                if (pDestIdx.onError != OE_None)
-                {
-                    destHasUniqueIdx = true;
-                }
-                for (pSrcIdx = pSrc.pIndex; pSrcIdx != null; pSrcIdx = pSrcIdx.pNext)
-                {
-                    if (xferCompatibleIndex(pDestIdx, pSrcIdx))
-                        break;
-                }
-                if (pSrcIdx == null)
-                {
-                    return 0;    /* pDestIdx has no corresponding index in pSrc */
-                }
+                if (destIdx.OnError != OE.None) destHasUniqueIdx = true;
+                for (srcIdx = src.Index; srcIdx != null; srcIdx = srcIdx.Next)
+                    if (XferCompatibleIndex(destIdx, srcIdx)) break;
+                if (srcIdx == null) return false;                               // pDestIdx has no corresponding index in pSrc
             }
 #if !OMIT_CHECK
-            if (pDest.pCheck != null && 0 != sqlite3ExprCompare(pSrc.pCheck, pDest.pCheck))
-            {
-                return 0;   /* Tables have different CHECK constraints.  Ticket #2252 */
-            }
+            if (dest.Check != null && Expr.ListCompare(src.Check, dest.Check) != 0) return false; // Tables have different CHECK constraints.  Ticket #2252
 #endif
 #if !OMIT_FOREIGN_KEY
-            /* Disallow the transfer optimization if the destination table constains
-  ** any foreign key constraints.  This is more restrictive than necessary.
-  ** But the main beneficiary of the transfer optimization is the VACUUM 
-  ** command, and the VACUUM command disables foreign key constraints.  So
-  ** the extra complication to make this rule less restrictive is probably
-  ** not worth the effort.  Ticket [6284df89debdfa61db8073e062908af0c9b6118e]
-  */
-            if ((pParse.db.flags & SQLITE_ForeignKeys) != 0 && pDest.pFKey != null)
-            {
-                return 0;
-            }
+            // Disallow the transfer optimization if the destination table constains any foreign key constraints.  This is more restrictive than necessary.
+            // But the main beneficiary of the transfer optimization is the VACUUM command, and the VACUUM command disables foreign key constraints.  So
+            // the extra complication to make this rule less restrictive is probably not worth the effort.  Ticket [6284df89debdfa61db8073e062908af0c9b6118e]
+            if ((parse.Ctx.Flags & Context.FLAG.ForeignKeys) != 0 && dest.FKeys != null) return false;
 #endif
+            if ((parse.Ctx.Flags & Context.FLAG.CountRows) != 0) return false;  // xfer opt does not play well with PRAGMA count_changes
 
-            /* If we get this far, it means either:
-      **
-      **    *   We can always do the transfer if the table contains an
-      **        an integer primary key
-      **
-      **    *   We can conditionally do the transfer if the destination
-      **        table is empty.
-      */
+            // If we get this far, it means that the xfer optimization is at least a possibility, though it might only work if the destination
+            // table (tab1) is initially empty.
 #if TEST
-      sqlite3_xferopt_count++;
+            _xferopt_count++;
 #endif
-            iDbSrc = sqlite3SchemaToIndex(pParse.db, pSrc.pSchema);
-            v = sqlite3GetVdbe(pParse);
-            sqlite3CodeVerifySchema(pParse, iDbSrc);
-            iSrc = pParse.nTab++;
-            iDest = pParse.nTab++;
-            regAutoinc = AutoIncBegin(pParse, iDbDest, pDest);
-            sqlite3OpenTable(pParse, iDest, iDbDest, pDest, OP_OpenWrite);
-            if ((pDest.iPKey < 0 && pDest.pIndex != null) || destHasUniqueIdx)
+            int dbSrcId = Prepare.SchemaToIndex(parse.Ctx, src.Schema); // The database of pSrc
+            Vdbe v = parse.GetVdbe(); // The VDBE we are building
+            parse.CodeVerifySchema(dbSrcId);
+            int srcId = parse.Tabs++; // Cursors from source and destination 
+            int destId = parse.Tabs++; // Cursors from source and destination 
+            int regAutoinc = AutoIncBegin(parse, dbDestId, dest); // Memory register used by AUTOINC
+            OpenTable(parse, destId, dbDestId, dest, OP.OpenWrite);
+            int addr1; // Loop addresses
+            int emptyDestTest; // Address of test for empty pDest
+            if ((dest.PKey < 0 && dest.Index != null) ||		        // (1)
+                destHasUniqueIdx ||									// (2)
+                (onError != OE.Abort && onError != OE.Rollback))	    // (3)
             {
-                /* If tables do not have an INTEGER PRIMARY KEY and there
-                ** are indices to be copied and the destination is not empty,
-                ** we have to disallow the transfer optimization because the
-                ** the rowids might change which will mess up indexing.
-                **
-                ** Or if the destination has a UNIQUE index and is not empty,
-                ** we also disallow the transfer optimization because we cannot
-                ** insure that all entries in the union of DEST and SRC will be
-                ** unique.
-                */
-                addr1 = sqlite3VdbeAddOp2(v, OP_Rewind, iDest, 0);
-                emptyDestTest = sqlite3VdbeAddOp2(v, OP_Goto, 0, 0);
-                sqlite3VdbeJumpHere(v, addr1);
+                // In some circumstances, we are able to run the xfer optimization only if the destination table is initially empty.  This code makes
+                // that determination.  Conditions under which the destination must be empty:
+                //
+                // (1) There is no INTEGER PRIMARY KEY but there are indices. (If the destination is not initially empty, the rowid fields
+                //     of index entries might need to change.)
+                //
+                // (2) The destination has a unique index.  (The xfer optimization is unable to test uniqueness.)
+                //
+                // (3) onError is something other than OE_Abort and OE_Rollback.
+                addr1 = v.AddOp2(OP.Rewind, destId, 0);
+                emptyDestTest = v.AddOp2(OP.Goto, 0, 0);
+                v.JumpHere(addr1);
             }
             else
-            {
                 emptyDestTest = 0;
-            }
-            sqlite3OpenTable(pParse, iSrc, iDbSrc, pSrc, OP_OpenRead);
-            emptySrcTest = sqlite3VdbeAddOp2(v, OP_Rewind, iSrc, 0);
-            regData = sqlite3GetTempReg(pParse);
-            regRowid = sqlite3GetTempReg(pParse);
-            if (pDest.iPKey >= 0)
+            OpenTable(parse, srcId, dbSrcId, src, OP.OpenRead);
+            int emptySrcTest = v.AddOp2(OP.Rewind, srcId, 0); // Address of test for empty pSrc
+            int regData = Expr.GetTempReg(parse); // Registers holding data and rowid
+            int regRowid = Expr.GetTempReg(parse);// Registers holding data and rowid
+            if (dest.PKey >= 0)
             {
-                addr1 = sqlite3VdbeAddOp2(v, OP_Rowid, iSrc, regRowid);
-                addr2 = sqlite3VdbeAddOp3(v, OP_NotExists, iDest, 0, regRowid);
-                sqlite3HaltConstraint(
-                    pParse, onError, "PRIMARY KEY must be unique", P4_STATIC);
-                sqlite3VdbeJumpHere(v, addr2);
-                AutoIncStep(pParse, regAutoinc, regRowid);
+                addr1 = v.AddOp2(OP.Rowid, srcId, regRowid);
+                int addr2 = v.AddOp3(OP.NotExists, destId, 0, regRowid); // Loop addresses
+                sqlite3HaltConstraint(parse, onError, "PRIMARY KEY must be unique", Vdbe.P4T.STATIC);
+                v.JumpHere(addr2);
+                AutoIncStep(parse, regAutoinc, regRowid);
             }
-            else if (pDest.pIndex == null)
-            {
-                addr1 = sqlite3VdbeAddOp2(v, OP_NewRowid, iDest, regRowid);
-            }
+            else if (dest.Index == null)
+                addr1 = v.AddOp2(OP.NewRowid, destId, regRowid);
             else
             {
-                addr1 = sqlite3VdbeAddOp2(v, OP_Rowid, iSrc, regRowid);
-                Debug.Assert((pDest.tabFlags & TF_Autoincrement) == 0);
+                addr1 = v.AddOp2(OP.Rowid, srcId, regRowid);
+                Debug.Assert((dest.TabFlags & TF.Autoincrement) == 0);
             }
-            sqlite3VdbeAddOp2(v, OP_RowData, iSrc, regData);
-            sqlite3VdbeAddOp3(v, OP_Insert, iDest, regData, regRowid);
-            sqlite3VdbeChangeP5(v, OPFLAG_NCHANGE | OPFLAG_LASTROWID | OPFLAG_APPEND);
-            sqlite3VdbeChangeP4(v, -1, pDest.zName, 0);
-            sqlite3VdbeAddOp2(v, OP_Next, iSrc, addr1);
-            for (pDestIdx = pDest.pIndex; pDestIdx != null; pDestIdx = pDestIdx.pNext)
+            v.AddOp2(OP.RowData, srcId, regData);
+            v.AddOp3(OP.Insert, destId, regData, regRowid);
+            v.ChangeP5(Vdbe.OPFLAG.NCHANGE | Vdbe.OPFLAG.LASTROWID | Vdbe.OPFLAG.APPEND);
+            v.ChangeP4(-1, dest.Name, 0);
+            v.AddOp2(OP.Next, srcId, addr1);
+            KeyInfo key; // Key information for an index
+            for (destIdx = dest.Index; destIdx != null; destIdx = destIdx.Next)
             {
-                for (pSrcIdx = pSrc.pIndex; pSrcIdx != null; pSrcIdx = pSrcIdx.pNext)
-                {
-                    if (xferCompatibleIndex(pDestIdx, pSrcIdx))
+                for (srcIdx = src.Index; srcIdx != null; srcIdx = srcIdx.Next)
+                    if (XferCompatibleIndex(destIdx, srcIdx))
                         break;
-                }
-                Debug.Assert(pSrcIdx != null);
-                sqlite3VdbeAddOp2(v, OP_Close, iSrc, 0);
-                sqlite3VdbeAddOp2(v, OP_Close, iDest, 0);
-                pKey = sqlite3IndexKeyinfo(pParse, pSrcIdx);
-                sqlite3VdbeAddOp4(v, OP_OpenRead, iSrc, pSrcIdx.tnum, iDbSrc,
-                pKey, P4_KEYINFO_HANDOFF);
-        VdbeComment( v, "%s", pSrcIdx.zName );
-                pKey = sqlite3IndexKeyinfo(pParse, pDestIdx);
-                sqlite3VdbeAddOp4(v, OP_OpenWrite, iDest, pDestIdx.tnum, iDbDest,
-                pKey, P4_KEYINFO_HANDOFF);
-        VdbeComment( v, "%s", pDestIdx.zName );
-                addr1 = sqlite3VdbeAddOp2(v, OP_Rewind, iSrc, 0);
-                sqlite3VdbeAddOp2(v, OP_RowKey, iSrc, regData);
-                sqlite3VdbeAddOp3(v, OP_IdxInsert, iDest, regData, 1);
-                sqlite3VdbeAddOp2(v, OP_Next, iSrc, addr1 + 1);
-                sqlite3VdbeJumpHere(v, addr1);
+                Debug.Assert(srcIdx != null);
+                v.AddOp2(OP.Close, srcId, 0);
+                v.AddOp2(OP.Close, destId, 0);
+                key = parse.IndexKeyinfo(srcIdx);
+                v.AddOp4(OP.OpenRead, srcId, srcIdx.Id, dbSrcId, key, Vdbe.P4T.KEYINFO_HANDOFF);
+                v.Comment("%s", srcIdx.Name);
+                key = parse.IndexKeyinfo(destIdx);
+                v.AddOp4(OP.OpenWrite, destId, destIdx.Id, dbDestId, key, Vdbe.P4T.KEYINFO_HANDOFF);
+                v.Comment("%s", destIdx.Name);
+                addr1 = v.AddOp2(OP.Rewind, srcId, 0);
+                v.AddOp2(OP.RowKey, srcId, regData);
+                v.AddOp3(OP.IdxInsert, destId, regData, 1);
+                v.AddOp2(OP.Next, srcId, addr1 + 1);
+                v.JumpHere(addr1);
             }
-            sqlite3VdbeJumpHere(v, emptySrcTest);
-            sqlite3ReleaseTempReg(pParse, regRowid);
-            sqlite3ReleaseTempReg(pParse, regData);
-            sqlite3VdbeAddOp2(v, OP_Close, iSrc, 0);
-            sqlite3VdbeAddOp2(v, OP_Close, iDest, 0);
+            v.JumpHere(emptySrcTest);
+            Expr.ReleaseTempReg(parse, regRowid);
+            Expr.ReleaseTempReg(parse, regData);
+            v.AddOp2(OP.Close, srcId, 0);
+            v.AddOp2(OP.Close, destId, 0);
             if (emptyDestTest != 0)
             {
-                sqlite3VdbeAddOp2(v, OP_Halt, SQLITE_OK, 0);
-                sqlite3VdbeJumpHere(v, emptyDestTest);
-                sqlite3VdbeAddOp2(v, OP_Close, iDest, 0);
-                return 0;
+                v.AddOp2(OP.Halt, RC.OK, 0);
+                v.JumpHere(emptyDestTest);
+                v.AddOp2(OP.Close, destId, 0);
+                return false;
             }
-            else
-            {
-                return 1;
-            }
+            return true;
         }
+
 #endif
     }
 }
+

@@ -55,6 +55,21 @@ namespace Core
 			P4T_KEYINFO_STATIC = -17,
 		};
 
+		enum OPFLAG : uint8
+		{
+			OPFLAG_NCHANGE       = 0x01,	// Set to update db->nChange
+			OPFLAG_LASTROWID     = 0x02,	// Set to update db->lastRowid
+			OPFLAG_ISUPDATE      = 0x04,	// This OP_Insert is an sql UPDATE
+			OPFLAG_APPEND        = 0x08,	// This is likely to be an append
+			OPFLAG_USESEEKRESULT = 0x10,	// Try to avoid a seek in BtreeInsert()
+			OPFLAG_CLEARCACHE    = 0x20,	// Clear pseudo-table cache in OP_Column
+			OPFLAG_LENGTHARG     = 0x40,	// OP_Column only used for length()
+			OPFLAG_TYPEOFARG     = 0x80,	// OP_Column only used for typeof()
+			OPFLAG_BULKCSR       = 0x01,	// OP_Open** used to open bulk cursor
+			OPFLAG_P2ISREG       = 0x02,	// P2 to OP_Open** is a register number
+			OPFLAG_PERMUTE       = 0x01,	// OP_Compare: use the permutation
+		};
+
 		struct SubProgram;
 		struct VdbeOp
 		{
@@ -337,11 +352,11 @@ namespace Core
 		__device__ void ChangeToNoop(int addr);
 		__device__ void ChangeP4(int addr, const char *p4, int n);
 #ifndef NDEBUG
-		__device__ static void Comment(Vdbe *p, const char *format, va_list args);
-		__device__ static void NoopComment(Vdbe *p, const char *format, va_list args);
+		__device__ void Comment(const char *fmt, va_list args);
+		__device__ void NoopComment(const char *fmt, va_list args);
 #else
-		__device__ inline static void Comment(Vdbe *p, const char *format, va_list args) { }
-		__device__ inline static void NoopComment(Vdbe *p, const char *format, va_list args) { }
+		__device__ inline void Comment(const char *fmt, va_list args) { }
+		__device__ inline void NoopComment(const char *fmt, va_list args) { }
 #endif
 		__device__ VdbeOp *GetOp(int addr);
 		__device__ void Vdbe::UsesBtree(int i);

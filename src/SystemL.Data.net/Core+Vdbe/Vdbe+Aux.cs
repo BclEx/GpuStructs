@@ -640,32 +640,30 @@ namespace Core
         }
 
 #if !NDEBUG
-        public static void Comment(Vdbe p, string format, params object[] args)
+        public void Comment(string fmt, params object[] args)
         {
-            if (p == null) return;
-            Debug.Assert(p.Ops.length > 0 || p.Ops.data == null);
-            Debug.Assert(p.Ops.data == null || p.Ops[p.Ops.length - 1].Comment == null || p.Ctx.MallocFailed);
-            if (p.Ops.length != 0)
+            Debug.Assert(Ops.length > 0 || Ops.data == null);
+            Debug.Assert(Ops.data == null || Ops[Ops.length - 1].Comment == null || Ctx.MallocFailed);
+            if (Ops.length != 0)
             {
-                string z = C._vmtagprintf(p.Ctx, format, args);
-                p.Ops[p.Ops.length - 1].Comment = z;
+                string z = C._vmtagprintf(Ctx, fmt, args);
+                Ops[Ops.length - 1].Comment = z;
             }
         }
-        public static void NoopComment(Vdbe p, string format, params object[] args)
+        public void NoopComment(string fmt, params object[] args)
         {
-            if (p == null) return;
-            p.AddOp0(OP.Noop);
-            Debug.Assert(p.Ops.length > 0 || p.Ops.data == null);
-            Debug.Assert(p.Ops.data == null || p.Ops[p.Ops.length - 1].Comment == null || p.Ctx.MallocFailed);
-            if (p.Ops.length != 0)
+            AddOp0(OP.Noop);
+            Debug.Assert(Ops.length > 0 || Ops.data == null);
+            Debug.Assert(Ops.data == null || Ops[Ops.length - 1].Comment == null || Ctx.MallocFailed);
+            if (Ops.length != 0)
             {
-                string z = C._vmtagprintf(p.Ctx, format, args);
-                p.Ops[p.Ops.length - 1].Comment = z;
+                string z = C._vmtagprintf(Ctx, fmt, args);
+                Ops[p.Ops.length - 1].Comment = z;
             }
         }
 #else
-        public static void VdbeComment(Vdbe p, string fmt, params object[] args) { }
-        public static void VdbeNoopComment(Vdbe p, string fmt, params object[] args) { }
+        public void Comment(string fmt, params object[] args) { }
+        public void NoopComment(string fmt, params object[] args) { }
 #endif
 
         const VdbeOp _dummy = new VdbeOp();  // Ignore the MSVC warning about no initializer
@@ -975,7 +973,7 @@ namespace Core
             {
                 RC_ = RC.INTERRUPT;
                 rc = RC.ERROR;
-                sqlite3SetString(ref ErrMsg, ctx, sqlite3ErrStr(RC_));
+                C._setstring(ref ErrMsg, ctx, sqlite3ErrStr(RC_));
             }
             else
             {
@@ -1676,7 +1674,7 @@ namespace Core
             {
                 RC_ = RC.CONSTRAINT;
                 ErrorAction = OE.Abort;
-                sqlite3SetString(ref ErrMsg, ctx, "foreign key constraint failed");
+                C._setstring(ref ErrMsg, ctx, "foreign key constraint failed");
                 return RC.ERROR;
             }
             return RC.OK;

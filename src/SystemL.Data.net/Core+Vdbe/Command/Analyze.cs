@@ -16,8 +16,8 @@ namespace Core.Command
             public string Cols;
             public Table_t(string name, string cols)
             {
-                this.Name = name;
-                this.Cols = cols;
+                Name = name;
+                Cols = cols;
             }
         }
         static Table_t[] _tables = new Table_t[]
@@ -37,20 +37,20 @@ namespace Core.Command
             Vdbe v = parse.GetVdbe();
             if (v == null) return;
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
-            Debug.Assert(v->VdbeCtx() == ctx);
+            Debug.Assert(v.Ctx == ctx);
             Context.DB dbObj = ctx.DBs[db];
 
             for (int i = 0; i < _tables.Length; i++)
             {
                 string tableName = _tables[i].Name;
                 Table stat;
-                if ((stat = sqlite3FindTable(ctx, tableName, dbObj.Name)) == null)
+                if ((stat = Parse.FindTable(ctx, tableName, dbObj.Name)) == null)
                 {
                     // The sqlite_stat[12] table does not exist. Create it. Note that a side-effect of the CREATE TABLE statement is to leave the rootpage 
                     // of the new table in register pParse.regRoot. This is important because the OpenWrite opcode below will be needing it.
                     parse.NestedParse("CREATE TABLE %Q.%s(%s)", dbObj.Name, tableName, _tables[i].Cols);
                     roots[i] = parse.RegRoot;
-                    createTbls[i] = OPFLAG_P2ISREG;
+                    createTbls[i] = Vdbe::OPFLAG_P2ISREG;
                 }
                 else
                 {
@@ -58,7 +58,7 @@ namespace Core.Command
                     // entire contents of the table.
                     roots[i] = stat.Id;
                     sqlite3TableLock(parse, db, roots[i], 1, tableName);
-                    if (!string.IsNullOrEmpty(where_))
+                    if (where_ == null)
                         parse.NestedParse("DELETE FROM %Q.%s WHERE %s=%Q", dbObj.Name, tableName, whereType, where_);
                     else
                         v.AddOp2(OP.Clear, roots[i], db); // The sqlite_stat[12] table already exists.  Delete all rows.

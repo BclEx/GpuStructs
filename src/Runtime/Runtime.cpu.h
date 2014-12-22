@@ -3,6 +3,7 @@
 #include <stdarg.h> // Needed for the definition of va_list
 #include <stdio.h>
 #include <process.h>
+
 //#ifndef __device__
 //#define __device__
 //#endif
@@ -12,6 +13,7 @@
 //#ifndef __shared__
 //#define __shared__
 //#endif
+
 #include <assert.h>
 //#include <string.h>
 #ifdef HAVE_ISNAN

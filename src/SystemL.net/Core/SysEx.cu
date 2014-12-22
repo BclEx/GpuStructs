@@ -40,5 +40,4 @@ namespace Core
 		if (z[i] == '.' && _ALWAYS(sz > i+4)) _memmove(&z[i+1], &z[sz-3], 4);
 	}
 #endif
-
 }

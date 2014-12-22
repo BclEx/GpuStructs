@@ -599,7 +599,7 @@ namespace Core
 				p->pc = pc;
 				if( pOp->p4.z ){
 					assert( p->rc!=SQLITE_OK );
-					sqlite3SetString(&p->zErrMsg, db, "%s", pOp->p4.z);
+					_setstring(&p->zErrMsg, db, "%s", pOp->p4.z);
 					testcase( sqlite3GlobalConfig.xLog!=0 );
 					sqlite3_log(pOp->p1, "abort at %d in [%s]: %s", pc, p->zSql, pOp->p4.z);
 				}else if( p->rc ){
@@ -1211,7 +1211,7 @@ arithmetic_result_is_null:
 
 				/* If the function returned an error, throw an exception */
 				if( ctx.isError ){
-					sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+					_setstring(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
 					rc = ctx.isError;
 				}
 
@@ -2435,7 +2435,7 @@ op_column_out:
 						/* A new savepoint cannot be created if there are active write 
 						** statements (i.e. open read/write incremental blob handles).
 						*/
-						sqlite3SetString(&p->zErrMsg, db, "cannot open savepoint - "
+						_setstring(&p->zErrMsg, db, "cannot open savepoint - "
 							"SQL statements in progress");
 						rc = SQLITE_BUSY;
 					}else{
@@ -2486,13 +2486,13 @@ op_column_out:
 							iSavepoint++;
 					}
 					if( !pSavepoint ){
-						sqlite3SetString(&p->zErrMsg, db, "no such savepoint: %s", zName);
+						_setstring(&p->zErrMsg, db, "no such savepoint: %s", zName);
 						rc = SQLITE_ERROR;
 					}else if( db->writeVdbeCnt>0 && p1==SAVEPOINT_RELEASE ){
 						/* It is not possible to release (commit) a savepoint if there are 
 						** active write statements.
 						*/
-						sqlite3SetString(&p->zErrMsg, db, 
+						_setstring(&p->zErrMsg, db, 
 							"cannot release savepoint - SQL statements in progress"
 							);
 						rc = SQLITE_BUSY;
@@ -2597,7 +2597,7 @@ op_column_out:
 					** still running, and a transaction is active, return an error indicating
 					** that the other VMs must complete first. 
 					*/
-					sqlite3SetString(&p->zErrMsg, db, "cannot rollback transaction - "
+					_setstring(&p->zErrMsg, db, "cannot rollback transaction - "
 						"SQL statements in progress");
 					rc = SQLITE_BUSY;
 				}else
@@ -2606,7 +2606,7 @@ op_column_out:
 						/* If this instruction implements a COMMIT and other VMs are writing
 						** return an error indicating that the other VMs must complete first. 
 						*/
-						sqlite3SetString(&p->zErrMsg, db, "cannot commit transaction - "
+						_setstring(&p->zErrMsg, db, "cannot commit transaction - "
 							"SQL statements in progress");
 						rc = SQLITE_BUSY;
 					}else if( desiredAutoCommit!=db->autoCommit ){
@@ -2634,7 +2634,7 @@ op_column_out:
 						}
 						goto vdbe_return;
 					}else{
-						sqlite3SetString(&p->zErrMsg, db,
+						_setstring(&p->zErrMsg, db,
 							(!desiredAutoCommit)?"cannot start a transaction within a transaction":(
 							(iRollback)?"cannot rollback - no transaction is active":
 							"cannot commit - no transaction is active"));
@@ -4906,7 +4906,7 @@ op_column_out:
 
 				if( p->nFrame>=db->aLimit[SQLITE_LIMIT_TRIGGER_DEPTH] ){
 					rc = SQLITE_ERROR;
-					sqlite3SetString(&p->zErrMsg, db, "too many levels of trigger recursion");
+					_setstring(&p->zErrMsg, db, "too many levels of trigger recursion");
 					break;
 				}
 
@@ -5170,7 +5170,7 @@ op_column_out:
 				}
 				(ctx.pFunc->xStep)(&ctx, n, apVal); /* IMP: R-24505-23230 */
 				if( ctx.isError ){
-					sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+					_setstring(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
 					rc = ctx.isError;
 				}
 				if( ctx.skipFlag ){
@@ -5203,7 +5203,7 @@ op_column_out:
 				assert( (pMem->flags & ~(MEM_Null|MEM_Agg))==0 );
 				rc = sqlite3VdbeMemFinalize(pMem, pOp->p4.pFunc);
 				if( rc ){
-					sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(pMem));
+					_setstring(&p->zErrMsg, db, "%s", sqlite3_value_text(pMem));
 				}
 				sqlite3VdbeChangeEncoding(pMem, encoding);
 				UPDATE_MAX_BLOBSIZE(pMem);
@@ -5304,7 +5304,7 @@ op_column_out:
 					){
 						if( !db->autoCommit || db->activeVdbeCnt>1 ){
 							rc = SQLITE_ERROR;
-							sqlite3SetString(&p->zErrMsg, db, 
+							_setstring(&p->zErrMsg, db, 
 								"cannot change %s wal mode from within a transaction",
 								(eNew==PAGER_JOURNALMODE_WAL ? "into" : "out of")
 								);
@@ -5431,7 +5431,7 @@ op_column_out:
 					rc = sqlite3BtreeLockTable(db->aDb[p1].pBt, pOp->p2, isWriteLock);
 					if( (rc&0xFF)==SQLITE_LOCKED ){
 						const char *z = pOp->p4.z;
-						sqlite3SetString(&p->zErrMsg, db, "database table is locked: %s", z);
+						_setstring(&p->zErrMsg, db, "database table is locked: %s", z);
 					}
 				}
 				break;
@@ -5953,7 +5953,7 @@ vdbe_return:
 		** is encountered.
 		*/
 too_big:
-		sqlite3SetString(&p->zErrMsg, db, "string or blob too big");
+		_setstring(&p->zErrMsg, db, "string or blob too big");
 		rc = SQLITE_TOOBIG;
 		goto vdbe_error_halt;
 
@@ -5961,7 +5961,7 @@ too_big:
 		*/
 no_mem:
 		db->mallocFailed = 1;
-		sqlite3SetString(&p->zErrMsg, db, "out of memory");
+		_setstring(&p->zErrMsg, db, "out of memory");
 		rc = SQLITE_NOMEM;
 		goto vdbe_error_halt;
 
@@ -5972,7 +5972,7 @@ abort_due_to_error:
 		assert( p->zErrMsg==0 );
 		if( db->mallocFailed ) rc = SQLITE_NOMEM;
 		if( rc!=SQLITE_IOERR_NOMEM ){
-			sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3ErrStr(rc));
+			_setstring(&p->zErrMsg, db, "%s", sqlite3ErrStr(rc));
 		}
 		goto vdbe_error_halt;
 
@@ -5983,7 +5983,7 @@ abort_due_to_interrupt:
 		assert( db->u1.isInterrupted );
 		rc = SQLITE_INTERRUPT;
 		p->rc = rc;
-		sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3ErrStr(rc));
+		_setstring(&p->zErrMsg, db, "%s", sqlite3ErrStr(rc));
 		goto vdbe_error_halt;
 	}
 

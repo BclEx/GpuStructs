@@ -4,6 +4,7 @@ namespace Core
     public partial class E
     {
         public static TEXTENCODE CTXENCODE(BContext ctx) { return ctx.DBs[0].Schema.Encode; }
+        public static void CTXENCODE(BContext ctx, TEXTENCODE encode) { ctx.DBs[0].Schema.Encode = encode; }
     }
 
     public class BContext : TagBase

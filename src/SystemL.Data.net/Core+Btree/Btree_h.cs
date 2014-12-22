@@ -112,7 +112,7 @@ namespace Core
         public static void LeaveAll(BContext ctx) { }
         //#if !DEBUG
         // These routines are used inside Debug.Assert() statements only.
-        public static bool HoldsMutex() { return true; }
+        public bool HoldsMutex() { return true; }
         public static bool HoldsAllMutexes(BContext ctx) { return true; }
         public static bool SchemaMutexHeld(BContext ctx, int db, Schema schema) { return true; }
         //#endif
