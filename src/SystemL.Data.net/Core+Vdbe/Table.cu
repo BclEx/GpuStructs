@@ -17,7 +17,7 @@ namespace Core
 		RC RC;					// Return code from sqlite3_exec()
 	};
 
-	__device__ static bool sqlite3_get_table_cb(void *arg, int columns, char **argv, char **colv)
+	__device__ bool Table::GetTableCallback(void *arg, int columns, char **argv, char **colv)
 	{
 		TabResult *p = (TabResult *)arg;  // Result accumulator
 		// Make sure there is enough space in p->azResult to hold everything we need to remember from this invocation of the callback.
@@ -75,8 +75,7 @@ malloc_failed:
 		return true;
 	}
 
-	__device__ void sqlite3_free_table(char **results);
-	__device__ RC sqlite3_get_table(Context *db, const char *sql, char ***results, int *rows, int *columns, char **errMsg)
+	__device__ RC Table::GetTable(Context *db, const char *sql, char ***results, int *rows, int *columns, char **errMsg)
 	{
 		*results = nullptr;
 		if (columns) *columns = 0;
@@ -93,12 +92,12 @@ malloc_failed:
 		if (!r.Results)
 			return (db->ErrCode = RC_NOMEM);
 		r.Results[0] = nullptr;
-		RC rc = sqlite3_exec(db, sql, sqlite3_get_table_cb, (char **)&r, errMsg);
+		RC rc = Main::Exec(db, sql, GetTableCallback, (char **)&r, errMsg);
 		_assert(sizeof(r.Results[0]) >= sizeof(r.Results.length));
 		r.Results[0] = (char *)INT_TO_PTR(r.Results.length);
 		if ((rc & 0xff) == RC_ABORT)
 		{
-			sqlite3_free_table(&r.Results[1]);
+			FreeTable(&r.Results[1]);
 			if (r.ErrMsg)
 			{
 				if (errMsg)
@@ -113,7 +112,7 @@ malloc_failed:
 		_free(r.ErrMsg);
 		if (rc != RC_OK)
 		{
-			sqlite3_free_table(&r.Results[1]);
+			FreeTable(&r.Results[1]);
 			return rc;
 		}
 		if (r.ResultsAlloc > r.Results.length)
@@ -121,7 +120,7 @@ malloc_failed:
 			char **newResults = (char **)_realloc(r.Results, sizeof(char*) * r.Results.length);
 			if (!newResults)
 			{
-				sqlite3_free_table(&r.Results[1]);
+				FreeTable(&r.Results[1]);
 				db->ErrCode = RC_NOMEM;
 				return RC_NOMEM;
 			}
@@ -133,7 +132,7 @@ malloc_failed:
 		return rc;
 	}
 
-	__device__ void sqlite3_free_table(char **results)
+	__device__ void Table::FreeTable(char **results)
 	{
 		if (results)
 		{

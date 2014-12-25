@@ -57,7 +57,7 @@ namespace Core
 	{
 		// If this database is not shareable, or if the client is reading and has the read-uncommitted flag set, then no lock is required. 
 		// Return true immediately.
-		if (!btree->Sharable || (lockType == LOCK_READ && (btree->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted)))
+		if (!btree->Sharable_ || (lockType == LOCK_READ && (btree->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted)))
 			return true;
 
 		// If the client is reading  or writing an index and the schema is not loaded, then it is too difficult to actually check to see if
@@ -117,7 +117,7 @@ namespace Core
 		_assert(lock == LOCK_READ || bt->InTransaction == TRANS_WRITE);
 
 		// This routine is a no-op if the shared-cache is not enabled
-		if (!p->Sharable)
+		if (!p->Sharable_)
 			return RC_OK;
 
 		// If some other connection is holding an exclusive lock, the requested lock may not be obtained.
@@ -162,7 +162,7 @@ namespace Core
 		_assert((p->Ctx->Flags & BContext::FLAG::FLAG_ReadUncommitted) == 0 || lock == LOCK_WRITE);
 
 		// This function should only be called on a sharable b-tree after it has been determined that no other b-tree holds a conflicting lock.
-		_assert(p->Sharable);
+		_assert(p->Sharable_);
 		_assert(querySharedCacheTableLock(p, table, lock) == RC_OK);
 
 		// First search the list for an existing lock on this table.
@@ -204,7 +204,7 @@ namespace Core
 		BtLock **iter = &bt->Lock;
 
 		_assert(p->HoldsMutex());
-		_assert(p->Sharable || iter == nullptr);
+		_assert(p->Sharable_ || iter == nullptr);
 		_assert((int)p->InTrans > 0);
 
 		while (*iter)
@@ -918,7 +918,7 @@ ptrmap_exit:
 	{
 		_assert(page->HdrOffset == (page->ID == 1 ? 100 : 0));
 		_assert(MutexEx::Held(page->Bt->Mutex));
-		page->Leaf = (bool)(flagByte >> 3); _assert(PTF_LEAF == 1 << 3);
+		page->Leaf = (flagByte >> 3 ? true : false); _assert(PTF_LEAF == 1 << 3);
 		flagByte &= ~PTF_LEAF;
 		page->ChildPtrSize = 4 - 4 * page->Leaf;
 		BtShared *bt = page->Bt; // A copy of pPage->pBt
@@ -1211,7 +1211,7 @@ ptrmap_exit:
 			{
 				int fullPathnameLength = vfs->MaxPathname + 1;
 				char *fullPathname = (char *)_alloc(fullPathnameLength);
-				p->Sharable = true;
+				p->Sharable_ = true;
 				if (!fullPathname)
 				{
 					_free(p);
@@ -1265,7 +1265,7 @@ ptrmap_exit:
 			else
 				// In debug mode, we mark all persistent databases as sharable even when they are not.  This exercises the locking code and
 				// gives more opportunity for asserts(sqlite3_mutex_held()) statements to find locking problems.
-				p->Sharable = true;
+				p->Sharable_ = true;
 #endif
 #endif
 
@@ -1324,8 +1324,8 @@ ptrmap_exit:
 				reserves = dbHeader[20];
 				bt->BtsFlags |= BTS_PAGESIZE_FIXED;
 #ifndef OMIT_AUTOVACUUM
-				bt->AutoVacuum = ConvertEx::Get4(&dbHeader[36 + 4 * 4]);
-				bt->IncrVacuum = ConvertEx::Get4(&dbHeader[36 + 7 * 4]);
+				bt->AutoVacuum = (ConvertEx::Get4(&dbHeader[36 + 4 * 4]) ? true : false);
+				bt->IncrVacuum = (ConvertEx::Get4(&dbHeader[36 + 7 * 4]) ? true : false);
 #endif
 			}
 			rc = bt->Pager->SetPageSize(&bt->PageSize, reserves);
@@ -1335,7 +1335,7 @@ ptrmap_exit:
 
 #if !defined(OMIT_SHARED_CACHE) && !defined(OMIT_DISKIO)
 			// Add the new BtShared object to the linked list sharable BtShareds.
-			if (p->Sharable)
+			if (p->Sharable_)
 			{
 				bt->Refs = 1;
 				MutexEx mutexShared;
@@ -1354,11 +1354,11 @@ ptrmap_exit:
 #if !defined(OMIT_SHARED_CACHE) && !defined(OMIT_DISKIO)
 		// If the new Btree uses a sharable pBtShared, then link the new Btree into the list of all sharable Btrees for the same connection.
 		// The list is kept in ascending order by pBt address.
-		if (p->Sharable)
+		if (p->Sharable_)
 		{
 			Btree *sib;
 			for (int i = 0; i < ctx->DBs.length; i++)
-				if ((sib = ctx->DBs[i].Bt) != nullptr && sib->Sharable)
+				if ((sib = ctx->DBs[i].Bt) != nullptr && sib->Sharable_)
 				{
 					while (sib->Prev) { sib = sib->Prev; }
 					if (p->Bt < sib->Bt)
@@ -1472,7 +1472,7 @@ btree_open_out:
 
 		// If there are still other outstanding references to the shared-btree structure, return now. The remainder of this procedure cleans up the shared-btree.
 		_assert(WantToLock == 0 && Locked == 0);
-		if (!Sharable || removeFromSharingList(bt))
+		if (!Sharable_ || removeFromSharingList(bt))
 		{
 			// The pBt is no longer on the sharing list, so we can access it without having to hold the mutex.
 			//
@@ -1724,8 +1724,8 @@ btree_open_out:
 			bt->PageSize = pageSize;
 			bt->UsableSize = usableSize;
 #ifndef OMIT_AUTOVACUUM
-			bt->AutoVacuum = (ConvertEx::Get4(&page1Data[36 + 4 * 4]));
-			bt->IncrVacuum = (ConvertEx::Get4(&page1Data[36 + 7 * 4]));
+			bt->AutoVacuum = (ConvertEx::Get4(&page1Data[36 + 4 * 4]) ? true : false);
+			bt->IncrVacuum = (ConvertEx::Get4(&page1Data[36 + 7 * 4]) ? true : false);
 #endif
 		}
 
@@ -1906,7 +1906,7 @@ page1_init_failed:
 			{
 				bt->Transactions++;
 #ifndef OMIT_SHARED_CACHE
-				if (Sharable)
+				if (Sharable_)
 				{
 					_assert(Lock.Btree == this && Lock.Table == 1);
 					Lock.Lock = LOCK_READ;
@@ -4474,7 +4474,7 @@ freepage_out:
 			+ bt->PageSize // aSpace1
 			+ k * oldPagesUsed; // Page copies (apCopy)
 		cells = 0; // Number of cells in apCell[]
-		cell = (uint8 **)_stackalloc(sizeScratch); // All cells begin balanced
+		cell = (uint8 **)_stackalloc(nullptr, sizeScratch, false); // All cells begin balanced
 		if (cell == nullptr)
 		{
 			rc = RC_NOMEM;
@@ -4903,7 +4903,7 @@ freepage_out:
 
 		// Cleanup before returning.
 balance_cleanup:
-		_stackfree(cell);
+		_stackfree(nullptr, cell);
 		for (i = 0; i < oldPagesUsed; i++)
 			releasePage(oldPages[i]);
 		for (i = 0; i < newPagesUsed; i++)
@@ -5029,7 +5029,7 @@ balance_cleanup:
 						// has completed, it is safe to release the pSpace buffer used by the previous call, as the overflow cell data will have been 
 						// copied either into the body of a database page or into the new pSpace buffer passed to the latter call to balance_nonroot().
 						uint8 *space = (uint8 *)PCache::PageAlloc(cur->Bt->PageSize);
-						rc = balance_nonroot(parent, idx, space, pageID == 1, cur->Hints);
+						rc = balance_nonroot(parent, idx, space, pageID == 1, (cur->Hints ? true : false));
 						if (free)
 						{
 							// If pFree is not NULL, it points to the pSpace buffer used  by a previous call to balance_nonroot(). Its contents are
@@ -5677,7 +5677,7 @@ cleardatabasepage_out:
 	__device__ static bool getPageReferenced(IntegrityCk *check, Pid pageID)
 	{
 		_assert(pageID <= check->Pages && sizeof(check->PgRefs[0]) == 1);
-		return (check->PgRefs[pageID / 8] & (1 << (pageID & 0x07)));
+		return (check->PgRefs[pageID / 8] & (1 << (pageID & 0x07)) ? true : false);
 	}
 
 	__device__ static void setPageReferenced(IntegrityCk *check, Pid pageID)
@@ -6115,7 +6115,7 @@ cleardatabasepage_out:
 	{
 		_assert(InTrans != TRANS_NONE);
 		RC rc = RC_OK;
-		if (Sharable)
+		if (Sharable_)
 		{
 			LOCK lockType = (isWriteLock ? LOCK_READ : LOCK_WRITE);
 			Enter();

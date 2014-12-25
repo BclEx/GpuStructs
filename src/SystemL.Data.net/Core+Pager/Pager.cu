@@ -187,10 +187,10 @@ namespace Core
 		return true;
 	}
 
-	__device__ static char *print_pager_state(Pager *p)
+	__device__ static const char *print_pager_state(Pager *p)
 	{
-		__shared__ static char r[1024];
-		int len = __snprintf(r, 1024,
+		__shared__ static const char r[1024];
+		__snprintf(r, 1024,
 			"Filename:      %s\n"
 			"State:         %s errCode=%d\n"
 			"Lock:          %s\n"
@@ -199,31 +199,30 @@ namespace Core
 			"Backing store: tempFile=%d memDb=%d useJournal=%d\n"
 			"Journal:       journalOff=%lld journalHdr=%lld\n"
 			"Size:          dbsize=%d dbOrigSize=%d dbFileSize=%d\n"
+			"Journal:       journalOff=%lld journalHdr=%lld\n"
+			"Size:          dbsize=%d dbOrigSize=%d dbFileSize=%d\n"
 			, p->Filename
-			, p->State == Pager::PAGER_OPEN ? "OPEN" :
+			, (p->State == Pager::PAGER_OPEN ? "OPEN" :
 			p->State == Pager::PAGER_READER ? "READER" :
 			p->State == Pager::PAGER_WRITER_LOCKED ? "WRITER_LOCKED" :
 			p->State == Pager::PAGER_WRITER_CACHEMOD ? "WRITER_CACHEMOD" :
 			p->State == Pager::PAGER_WRITER_DBMOD ? "WRITER_DBMOD" :
 			p->State == Pager::PAGER_WRITER_FINISHED ? "WRITER_FINISHED" :
-			p->State == Pager::PAGER_ERROR ? "ERROR" : "?error?"
+			p->State == Pager::PAGER_ERROR ? "ERROR" : "?error?")
 			, (int)p->ErrorCode
-			, p->Lock == VFile::LOCK_NO ? "NO_LOCK" :
+			, (p->Lock == VFile::LOCK_NO ? "NO_LOCK" :
 			p->Lock == VFile::LOCK_RESERVED ? "RESERVED" :
 			p->Lock == VFile::LOCK_EXCLUSIVE ? "EXCLUSIVE" :
 			p->Lock == VFile::LOCK_SHARED ? "SHARED" :
-			p->Lock == VFile::LOCK_UNKNOWN ? "UNKNOWN" : "?error?"
-			, p->ExclusiveMode ? "exclusive" : "normal"
-			, p->JournalMode == IPager::JOURNALMODE_JMEMORY ? "memory" :
+			p->Lock == VFile::LOCK_UNKNOWN ? "UNKNOWN" : "?error?")
+			, (p->ExclusiveMode ? "exclusive" : "normal")
+			, (p->JournalMode == IPager::JOURNALMODE_JMEMORY ? "memory" :
 			p->JournalMode == IPager::JOURNALMODE_OFF ? "off" :
 			p->JournalMode == IPager::JOURNALMODE_DELETE ? "delete" :
 			p->JournalMode == IPager::JOURNALMODE_PERSIST ? "persist" :
 			p->JournalMode == IPager::JOURNALMODE_TRUNCATE ? "truncate" :
-			p->JournalMode == IPager::JOURNALMODE_WAL ? "wal" : "?error?"
-			, (int)p->TempFile, (int)p->MemoryDB, (int)p->UseJournal);
-		__snprintf(r + len, 1024,
-			"Journal:       journalOff=%lld journalHdr=%lld\n"
-			"Size:          dbsize=%d dbOrigSize=%d dbFileSize=%d\n"
+			p->JournalMode == IPager::JOURNALMODE_WAL ? "wal" : "?error?")
+			, (int)p->TempFile, (int)p->MemoryDB, (int)p->UseJournal
 			, p->JournalOffset, p->JournalHeader
 			, (int)p->DBSize, (int)p->DBOrigSize, (int)p->DBFileSize);
 		return r;
@@ -1975,7 +1974,7 @@ end_playback:
 				{
 					PAGERTRACE("SYNC journal of %d\n", PAGERID(pager));
 					SysEx_IOTRACE("JSYNC %p\n", pager);
-					rc = pager->JournalFile->Sync(pager->SyncFlags | (pager->SyncFlags == VFile::SYNC_FULL ? VFile::SYNC_DATAONLY : 0));
+					rc = pager->JournalFile->Sync(pager->SyncFlags | (pager->SyncFlags == VFile::SYNC_FULL ? VFile::SYNC_DATAONLY : (VFile::SYNC)0));
 					if (rc != RC_OK) return rc;
 				}
 
@@ -3807,10 +3806,10 @@ commit_phase_one_exit:
 		return JournalSizeLimit;
 	}
 
-	__device__ IBackup **Pager::BackupPtr()
-	{
-		return &Backup;
-	}
+	//__device__ IBackup **Pager::BackupPtr()
+	//{
+	//	return &Backup;
+	//}
 
 #ifndef OMIT_VACUUM
 	__device__ void Pager::ClearCache()

@@ -925,7 +925,7 @@ __device__ void TextBuilder::Init(TextBuilder *b, char *text, int capacity, int 
 	b->MallocFailed = false;
 }
 
-__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args)
+__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *length)
 {
 	//if (!RuntimeInitialize()) return nullptr;
 	_assert(tag != nullptr);
@@ -934,12 +934,13 @@ __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args)
 	TextBuilder::Init(&b, base, sizeof(base), 0); //? tag->Limit[LIMIT_LENGTH]);
 	b.Tag = tag;
 	b.AppendFormat(true, fmt, args);
+	if (length) *length = b.Index;
 	char *z = b.ToString();
 	//? if (b.MallocFailed) _tagallocfailed(tag);
 	return z;
 }
 
-__device__ char *_vmprintf(const char *fmt, va_list args)
+__device__ char *_vmprintf(const char *fmt, va_list args, int *length)
 {
 	//if (!RuntimeInitialize()) return nullptr;
 	char base[PRINT_BUF_SIZE];
@@ -947,16 +948,18 @@ __device__ char *_vmprintf(const char *fmt, va_list args)
 	TextBuilder::Init(&b, base, sizeof(base), CORE_MAX_LENGTH);
 	b.AllocType = 2;
 	b.AppendFormat(false, fmt, args);
+	if (length) *length = b.Index;
 	return b.ToString();
 }
 
-__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list args)
+__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list args, int *length)
 {
 	if (bufLen <= 0) return (char *)buf;
 	TextBuilder b;
 	TextBuilder::Init(&b, (char *)buf, (int)bufLen, 0);
 	b.AllocType = 0;
 	b.AppendFormat(false, fmt, args);
+	if (length) *length = b.Index;
 	return b.ToString();
 }
 

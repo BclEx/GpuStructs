@@ -103,7 +103,7 @@ namespace Core
         VFile SubJournalFile;        // File descriptor for sub-journal 
         long JournalOffset;          // Current write offset in the journal file 
         long JournalHeader;          // Byte offset to previous journal header 
-        IBackup Backup;              // Pointer to list of ongoing backup processes 
+        public IBackup Backup;          // Pointer to list of ongoing backup processes 
         PagerSavepoint[] Savepoints; // Array of active savepoints 
         byte[] DBFileVersion = new byte[16];    // Changes whenever database file changes
         // End of the routinely-changing class members

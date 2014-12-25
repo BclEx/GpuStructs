@@ -26,6 +26,13 @@ namespace Core
 
     public partial class Main
     {
+
+        internal static void Error(object tag, RC rc, string format, params object[] args)
+        {
+            throw new NotImplementedException();
+        }
+
+
 #if false
 
 

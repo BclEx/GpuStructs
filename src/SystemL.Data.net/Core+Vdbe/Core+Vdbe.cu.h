@@ -1,6 +1,6 @@
-﻿#include "../Parse.h"
+﻿#include "../Core+Btree/Core+Btree.cu.h"
+#include "../Parse.h"
 #include "../Opcodes.h"
-#include "../Core+Btree/Core+Btree.cu.h"
 namespace Core
 {
 #pragma region Limit Types
@@ -575,6 +575,7 @@ namespace Core
 		EP_TokenOnly = 0x4000,		// Expr struct is EXPR_TOKENONLYSIZE bytes only
 		EP_Static = 0x8000,			// Held in memory not obtained from malloc()
 	};
+	__device__ EP inline operator|(EP a, EP b) { return (EP)((int)a | (int)b); }
 	__device__ EP inline operator|=(EP a, int b) { return (EP)(a | b); }
 	__device__ EP inline operator&=(EP a, int b) { return (EP)(a & b); }
 
@@ -728,7 +729,6 @@ namespace Core
 #define EXPR_FULLSIZE           sizeof(Expr)				// Full size
 #define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)	// Common features
 #define EXPR_TOKENONLYSIZE      offsetof(Expr, Left)		// Fewer features
-
 #define EXPRDUP_REDUCE         0x0001  // Used reduced-size Expr nodes
 
 	struct ExprList
@@ -855,14 +855,13 @@ namespace Core
 		int RegCtr;				// Memory register holding the rowid counter
 	};
 
-	struct SubProgram;
 	struct Trigger;
 	struct TriggerPrg
 	{
 		Trigger *Trigger;		// Trigger this program was coded from
 		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
-		SubProgram *Program;	// Program implementing pTrigger/orconf
-		int Orconf;             // Default ON CONFLICT policy
+		Vdbe::SubProgram *Program;	// Program implementing pTrigger/orconf
+		OE Orconf;             // Default ON CONFLICT policy
 		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
 	};
 
@@ -940,7 +939,7 @@ namespace Core
 		uint32 Oldmask;				// Mask of old.* columns referenced
 		uint32 Newmask;				// Mask of new.* columns referenced
 		TK TriggerOP;				// TK_UPDATE, TK_INSERT or TK_DELETE
-		uint8 Orconf;				// Default ON CONFLICT policy for trigger steps
+		OE Orconf;				// Default ON CONFLICT policy for trigger steps
 		bool DisableTriggers;		// True to disable triggers
 
 		// Above is constant between recursions.  Below is reset before and after each recursion
@@ -1083,7 +1082,7 @@ namespace Core
 		__device__ void BeginWriteOperation(int setStatement, int db);
 		__device__ void MultiWrite();
 		__device__ void MayAbort();
-		__device__ void HaltConstraint(int errCode, int onError, char *p4, int p4type);
+		__device__ void HaltConstraint(Core::RC errCode, int onError, char *p4, int p4type);
 		__device__ void Reindex(Token *name1, Token *name2);
 		__device__ KeyInfo *IndexKeyinfo(Index *index);
 #pragma endregion
@@ -1124,6 +1123,10 @@ namespace Core
 
 #pragma endregion
 
+}
+#include "Context.cu.h"
+namespace Core {
+
 #pragma region Table
 
 	struct TableModule
@@ -1148,7 +1151,7 @@ namespace Core
 		char *DfltName;					// Original text of the default value
 		char *Type;						// Data type for this column
 		char *Coll;						// Collating sequence.  If NULL, use the default
-		uint8 NotNull;					// An OE_ code for handling a NOT NULL constraint
+		OE NotNull;						// An OE_ code for handling a NOT NULL constraint
 		AFF Affinity;					// One of the SQLITE_AFF_... values
 		COLFLAG ColFlags;				// Boolean properties.  See COLFLAG_ defines below
 	};
@@ -1249,6 +1252,10 @@ namespace Core
 		Trigger *Triggers;			// List of triggers stored in pSchema
 		Schema *Schema;				// Schema that contains this table
 		Table *NextZombie;			// Next on the Parse.pZombieTab list
+
+		__device__ static bool GetTableCallback(void *arg, int columns, char **argv, char **colv);
+		__device__ static RC GetTable(Context *db, const char *sql, char ***results, int *rows, int *columns, char **errMsg);
+		__device__ static void FreeTable(char **results);
 	};
 
 #ifndef OMIT_VIRTUALTABLE
@@ -1345,65 +1352,30 @@ namespace Core
 
 	struct Backup
 	{
-	};
+		Context *DestCtx;        // Destination database handle
+		Btree *Dest;            // Destination b-tree file
+		uint32 DestSchema;      // Original schema cookie in destination
+		bool DestLocked;         // True once a write-transaction is open on pDest
+		Pid NextId;				// Page number of the next source page to copy
+		Context * SrcCtx;        // Source database handle
+		Btree *Src;             // Source b-tree file
+		RC RC_;                  // Backup process error code
 
-#pragma endregion
+		// These two variables are set by every call to backup_step(). They are read by calls to backup_remaining() and backup_pagecount().
+		Pid Remaining;			// Number of pages left to copy
+		Pid Pagecount;			// Total number of pages to copy
 
-#pragma region Authorization
+		bool IsAttached;		// True once backup has been registered with pager
+		Backup *Next;	// Next backup associated with source pager
 
-	enum ARC : uint8
-	{
-		ARC_OK = 0,			// Successful result
-		ARC_DENY = 1,		// Abort the SQL statement with an error
-		ARC_IGNORE = 2,		// Don't allow access, but don't generate an error
-	};
-
-	enum AUTH : uint8
-	{
-		AUTH_CREATE_INDEX        =  1,   // Index Name      Table Name
-		AUTH_CREATE_TABLE        =  2,   // Table Name      NULL
-		AUTH_CREATE_TEMP_INDEX   =  3,   // Index Name      Table Name
-		AUTH_CREATE_TEMP_TABLE   =  4,   // Table Name      NULL
-		AUTH_CREATE_TEMP_TRIGGER =  5,   // Trigger Name    Table Name
-		AUTH_CREATE_TEMP_VIEW    =  6,   // View Name       NULL
-		AUTH_CREATE_TRIGGER      =  7,   // Trigger Name    Table Name
-		AUTH_CREATE_VIEW         =  8,   // View Name       NULL
-		AUTH_DELETE              =  9,   // Table Name      NULL
-		AUTH_DROP_INDEX          = 10,   // Index Name      Table Name
-		AUTH_DROP_TABLE          = 11,   // Table Name      NULL
-		AUTH_DROP_TEMP_INDEX     = 12,   // Index Name      Table Name
-		AUTH_DROP_TEMP_TABLE     = 13,   // Table Name      NULL
-		AUTH_DROP_TEMP_TRIGGER   = 14,   // Trigger Name    Table Name
-		AUTH_DROP_TEMP_VIEW      = 15,   // View Name       NULL
-		AUTH_DROP_TRIGGER        = 16,   // Trigger Name    Table Name
-		AUTH_DROP_VIEW           = 17,   // View Name       NULL
-		AUTH_INSERT              = 18,   // Table Name      NULL
-		AUTH_PRAGMA              = 19,   // Pragma Name     1st arg or NULL
-		AUTH_READ                = 20,   // Table Name      Column Name
-		AUTH_SELECT              = 21,   // NULL            NULL
-		AUTH_TRANSACTION         = 22,   // Operation       NULL
-		AUTH_UPDATE              = 23,   // Table Name      Column Name
-		AUTH_ATTACH              = 24,   // Filename        NULL
-		AUTH_DETACH              = 25,   // Database Name   NULL
-		AUTH_ALTER_TABLE         = 26,   // Database Name   Table Name
-		AUTH_REINDEX             = 27,   // Index Name      NULL
-		AUTH_ANALYZE             = 28,   // Table Name      NULL
-		AUTH_CREATE_VTABLE       = 29,   // Table Name      Module Name
-		AUTH_DROP_VTABLE         = 30,   // Table Name      Module Name
-		AUTH_FUNCTION            = 31,   // NULL            Function Name
-		AUTH_SAVEPOINT           = 32,   // Operation       Savepoint Name 
-		AUTH_COPY                =  0,   // No longer used
-	};
-
-	struct Auth
-	{
-		__device__ static RC SetAuthorizer(Context *ctx, ARC (*auth)(void*,int,const char*,const char*,const char*,const char*), void *args);
-		__device__ static void BadReturnCode(Parse *parse);
-		__device__ static ARC ReadColumn(Parse *parse, const char *table, const char *column, int db);
-		__device__ static void Read(Parse *parse, Expr *expr, Schema *schema, SrcList *tableList);
-		__device__ static ARC Check(Parse *parse, int code, const char *arg1, const char *arg2, const char *arg3);
-		__device__ static void ContextPush(Parse *parse, AuthContext *actx, const char *context);
-		__device__ static void Auth::ContextPop(AuthContext *actx);
+		__device__ static Backup *Init(Context *destCtx, const char *destDbName, Context *srcCtx, const char *srcDbName);
+		__device__ RC Step(int pages);
+		__device__ static RC Finish(Backup *p);
+		__device__ void Update(Pid page, const uint8 *data);
+		__device__ void Restart();
+#ifndef OMIT_VACUUM
+		__device__ static RC BtreeCopyFile(Btree *to, Btree *from);
+#endif
 	};
 
 #pragma endregion
@@ -1441,7 +1413,7 @@ namespace Core
 	{
 		char *Name;				// The name of the trigger
 		char *Table;            // The table or view to which the trigger applies
-		uint8 OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT
+		TK OP;					// One of TK_DELETE, TK_UPDATE, TK_INSERT
 		TRIGGER TRtm;           // One of TRIGGER_BEFORE, TRIGGER_AFTER
 		Expr *When;				// The WHEN clause of the expression (may be NULL)
 		IdList *Columns;		// If this is an UPDATE OF <column-list> trigger, the <column-list> is stored here
@@ -1449,12 +1421,29 @@ namespace Core
 		Core::Schema *TabSchema; // Schema containing the table
 		TriggerStep *StepList;	// Link list of trigger program steps
 		Trigger *Next;			// Next trigger associated with the table
+
+		__device__ static void DeleteTriggerStep(Context *ctx, TriggerStep *triggerStep);
+		__device__ static Trigger *List(Parse *parse, Core::Table *table);
+		__device__ static void BeginTrigger(Parse *parse,Token *name1, Token *name2, int trTm, int op, IdList *columns, SrcList *tableName, Expr *when, bool isTemp, int noErr);
+		__device__ static void FinishTrigger(Parse *parse, TriggerStep *stepList, Token *all);
+		__device__ static TriggerStep *SelectStep(Context *ctx, Select *select);
+		__device__ static TriggerStep *InsertStep(Context *ctx, Token *tableName, IdList *column, ExprList *list, Select *select, OE orconf);
+		__device__ static TriggerStep *UpdateStep(Context *ctx, Token *tableName, ExprList *list, Expr *where, OE orconf);
+		__device__ static TriggerStep *DeleteStep(Context *ctx, Token *tableName, Expr *where_);
+		__device__ static void DeleteTrigger(Context *ctx, Trigger *trigger);
+		__device__ static void DropTrigger(Parse *parse, SrcList *name, int noErr);
+		__device__ static void DropTriggerPtr(Parse *parse, Trigger *trigger);
+		__device__ static void UnlinkAndDeleteTrigger(Context *ctx, int db, const char *name);
+		__device__ static Trigger *TriggersExist(Parse *parse, Core::Table *table, int op, ExprList *changes, TRIGGER *maskOut);
+		__device__ void CodeRowTriggerDirect(Parse *parse, Core::Table *table, int reg, OE orconf, int ignoreJump);
+		__device__ void CodeRowTrigger(Parse *parse, TK op, ExprList *changes, TRIGGER trtm, Core::Table *table, int reg, OE orconf, int ignoreJump);
+		__device__ uint32 Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, Core::Table *table, int orconf);
 	};
 
 	struct TriggerStep
 	{
-		uint8 OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
-		uint8 Orconf;           // OE_Rollback etc.
+		TK OP;					// One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
+		OE Orconf;				// OE_Rollback etc.
 		Trigger *Trig;			// The trigger that this step is a part of
 		Select *Select;			// SELECT statment or RHS of INSERT INTO .. SELECT ...
 		Token Target;			// Target table for DELETE, UPDATE, INSERT
@@ -1492,52 +1481,50 @@ namespace Core
 
 #pragma endregion
 
-	__device__ RC sqlite3_exec(Context *, const char *sql, bool (*callback)(void*,int,char**,char**), void *, char **errmsg);
-
 #pragma region Command
 	namespace Command {
 
 		struct Alter
 		{
-			__device__ void Functions();
-			__device__ void RenameTable(Parse *parse, SrcList *src, Token *name);
-			__device__ void MinimumFileFormat(Parse *parse, int db, int minFormat);
-			__device__ void FinishAddColumn(Parse *parse, Token *colDef);
-			__device__ void BeginAddColumn(Parse *parse, SrcList *src);
+			__device__ static void Functions();
+			__device__ static void RenameTable(Parse *parse, SrcList *src, Token *name);
+			__device__ static void MinimumFileFormat(Parse *parse, int db, int minFormat);
+			__device__ static void FinishAddColumn(Parse *parse, Token *colDef);
+			__device__ static void BeginAddColumn(Parse *parse, SrcList *src);
 		};
 
 		struct Analyze
 		{
-			__device__ void Analyze_(Parse *parse, Token *name1, Token *name2);
-			__device__ void DeleteIndexSamples(Context *ctx, Index *idx);
-			__device__ RC AnalysisLoad(Context *ctx, int db);
+			__device__ static void Analyze_(Parse *parse, Token *name1, Token *name2);
+			__device__ static void DeleteIndexSamples(Context *ctx, Index *idx);
+			__device__ static RC AnalysisLoad(Context *ctx, int db);
 		};
 
 		struct Attach
 		{
-			__device__ void Detach(Parse *parse, Expr *dbName);
-			__device__ void Attach_(Parse *parse, Expr *p, Expr *dbName, Expr *key);
+			__device__ static void Detach(Parse *parse, Expr *dbName);
+			__device__ static void Attach_(Parse *parse, Expr *p, Expr *dbName, Expr *key);
 		};
 
 		struct Date_
 		{
-			__device__ void RegisterDateTimeFunctions();
+			__device__ static void RegisterDateTimeFunctions();
 		};
 
 		struct Delete
 		{
-			__device__ Table *SrcListLookup(Parse *parse, SrcList *src);
-			__device__ bool IsReadOnly(Parse *parse, Table *table, bool viewOk);
+			__device__ static Table *SrcListLookup(Parse *parse, SrcList *src);
+			__device__ static bool IsReadOnly(Parse *parse, Table *table, bool viewOk);
 #if !defined(OMIT_VIEW) && !defined(OMIT_TRIGGER)
-			__device__ void MaterializeView(Parse *parse, Table *view, Expr *where_, int curId);
+			__device__ static void MaterializeView(Parse *parse, Table *view, Expr *where_, int curId);
 #endif
 #if 1 || defined(ENABLE_UPDATE_DELETE_LIMIT) && !defined(OMIT_SUBQUERY)
-			__device__ Expr *LimitWhere(Parse *parse, SrcList *src, Expr *where_, ExprList *orderBy, Expr *limit, Expr *offset, char *stmtType);
+			__device__ static Expr *LimitWhere(Parse *parse, SrcList *src, Expr *where_, ExprList *orderBy, Expr *limit, Expr *offset, char *stmtType);
 #endif
-			__device__ void DeleteFrom(Parse *parse, SrcList *tabList, Expr *where_);
-			__device__ void GenerateRowDelete(Parse *parse, Table *table, int curId, int rowid, int count, Trigger *trigger, OE onconf);
-			__device__ void GenerateRowIndexDelete(Parse *parse, Table *table, int curId, int *regIdxs);
-			__device__ int GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec);
+			__device__ static void DeleteFrom(Parse *parse, SrcList *tabList, Expr *where_);
+			__device__ static void GenerateRowDelete(Parse *parse, Table *table, int curId, int rowid, int count, Trigger *trigger, OE onconf);
+			__device__ static void GenerateRowIndexDelete(Parse *parse, Table *table, int curId, int *regIdxs);
+			__device__ static int GenerateIndexKey(Parse *parse, Index *idx, int curId, int regOut, bool doMakeRec);
 		};
 
 		struct Func
@@ -1546,7 +1533,7 @@ namespace Core
 			__device__ static void SkipAccumulatorLoad(FuncContext *fctx);
 			__device__ static void RegisterBuiltinFunctions(Context *ctx);
 			__device__ static void RegisterLikeFunctions(Context *ctx, int caseSensitive);
-			__device__ static int IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc);
+			__device__ static bool IsLikeFunction(Context *ctx, Expr *expr, bool *isNocase, char *wc);
 			__device__ static void RegisterGlobalFunctions();
 		};
 
@@ -1555,6 +1542,13 @@ namespace Core
 			__device__ static void OpenTable(Parse *p, int cur, int db, Table *table, OP opcode);
 			__device__ static const char *IndexAffinityStr(Vdbe *v, Index *index);
 			__device__ static void TableAffinityStr(Vdbe *v, Table *table);
+			__device__ static void AutoincrementBegin(Parse *parse);
+			__device__ static void AutoincrementEnd(Parse *parse);
+			__device__ static RC CodeCoroutine(Parse *parse, Select *select, SelectDest *dest);
+			__device__ static void Insert_(Parse *parse, SrcList *tabList, ExprList *list, Select *select, IdList *column, OE onError);
+			__device__ static void GenerateConstraintChecks(Parse *parse, Table *table, int baseCur, int regRowid, int *regIdxs, int rowidChng, int isUpdate, OE overrideError, int ignoreDest, bool *mayReplaceOut);
+			__device__ static void CompleteInsertion(Parse *parse, Table *table, int baseCur, int regRowid, int *regIdxs, bool isUpdate, bool appendBias, bool useSeekResult);
+			__device__ static int OpenTableAndIndices(Parse *parse, Table *table, int baseCur, OP op);
 		};
 
 		struct Pragma
@@ -1576,46 +1570,52 @@ namespace Core
 	}
 #pragma endregion
 
+}
+#include "Vdbe.cu.h"
+namespace Core {
+
 #pragma region Main
 
 	class Main
 	{
 	public:
-		__device__ inline static RC ApiExit(TagBase *tag, RC rc)
+		__device__ inline static RC ApiExit(Context *ctx, RC rc)
 		{
 			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
 			// is unsafe, as is the call to sqlite3Error().
-			_assert(!tag || MutexEx::Held(tag->Mutex));
-			if (tag && (tag->MallocFailed || rc == RC_IOERR_NOMEM))
+			_assert(!ctx || MutexEx::Held(ctx->Mutex));
+			if (ctx && (ctx->MallocFailed || rc == RC_IOERR_NOMEM))
 			{
-				Error(tag, RC_NOMEM, nullptr);
-				tag->MallocFailed = false;
+				Error(ctx, RC_NOMEM, nullptr);
+				ctx->MallocFailed = false;
 				rc = RC_NOMEM;
 			}
-			return (RC)(rc & (tag ? tag->ErrMask : 0xff));
+			return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
 		}
 
-		__device__ void Error(Context *ctx, RC errCode, const char *fmt, va_list args);
+		__device__ static void Error(Context *ctx, RC errCode, const char *fmt, va_list args);
 #if __CUDACC__
-		__device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt) { va_list args; va_start(args, nullptr); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Error(ctx, errCode, fmt, args); va_end(args); }
-		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void ErrorMsg(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Error(ctx, errCode, fmt, args); va_end(args); }
+		__device__ inline static void Error(Context *ctx, RC errCode, const char *fmt) { va_list args; va_start(args, nullptr); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Error(ctx, errCode, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Error(ctx, errCode, fmt, args); va_end(args); }
 #else
-		__device__ inline void Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args; va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
+		__device__ inline void static Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args;  va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
 #endif
+
+		__device__ static RC Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
+		//typedef bool (*ExecCallback_t)(void *, int, char **, char **);
+		//__device__ static RC Exec(Context *ctx, const char *sql, ExecCallback_t callback, void *arg, char **errMsg);
 	};
 
 #pragma endregion
 
 }
-#include "Vdbe.cu.h"
-#include "Context.cu.h"
-
+using namespace Core::Command;

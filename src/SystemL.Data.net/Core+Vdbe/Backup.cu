@@ -7,47 +7,28 @@
 
 namespace Core
 {
-	struct Backup
-	{
-		Context *DestCtx;        // Destination database handle
-		Btree *Dest;            // Destination b-tree file
-		uint32 DestSchema;      // Original schema cookie in destination
-		bool DestLocked;         // True once a write-transaction is open on pDest
-		Pid NextId;				// Page number of the next source page to copy
-		Context * SrcCtx;        // Source database handle
-		Btree *Src;             // Source b-tree file
-		RC RC;                  // Backup process error code
-
-		// These two variables are set by every call to backup_step(). They are read by calls to backup_remaining() and backup_pagecount().
-		Pid Remaining;			// Number of pages left to copy
-		Pid Pagecount;			// Total number of pages to copy
-
-		bool IsAttached;		// True once backup has been registered with pager
-		Backup *Next;	// Next backup associated with source pager
-	};
-
 	__device__ static Btree *FindBtree(Context *errorCtx, Context *ctx, const char *dbName)
 	{
-		int i = sqlite3FindDbName(ctx, dbName);
+		int i = Parse::FindDbName(ctx, dbName);
 		if (i == 1)
 		{
 			RC rc = (RC)0;
-			Parse *parse = sqlite3StackAllocZero(errorCtx, sizeof(*parse));
+			Parse *parse = (Parse *)_stackalloc(errorCtx, sizeof(*parse), true);
 			if (!parse)
 			{
-				Context::Error(errorCtx, RC_NOMEM, "out of memory");
+				Main::Error(errorCtx, RC_NOMEM, "out of memory");
 				rc = RC_NOMEM;
 			}
 			else
 			{
 				parse->Ctx = ctx;
-				if (sqlite3OpenTempDatabase(parse))
+				if (parse->OpenTempDatabase())
 				{
-					Context::Error(errorCtx, parse->RC, "%s", parse->ErrMsg);
+					Main::Error(errorCtx, parse->RC, "%s", parse->ErrMsg);
 					rc = RC_ERROR;
 				}
 				_tagfree(errorCtx, parse->ErrMsg);
-				sqlite3StackFree(errorCtx, parse);
+				_stackfree(errorCtx, parse);
 			}
 			if (rc)
 				return nullptr;
@@ -55,7 +36,7 @@ namespace Core
 
 		if (i < 0)
 		{
-			Context::Error(errorCtx, RC_ERROR, "unknown database %s", dbName);
+			Main::Error(errorCtx, RC_ERROR, "unknown database %s", dbName);
 			return nullptr;
 		}
 		return ctx->DBs[i].Bt;
@@ -80,16 +61,16 @@ namespace Core
 		Backup *p;
 		if (srcCtx == destCtx)
 		{
-			Context::Error(destCtx, RC_ERROR, "source and destination must be distinct");
+			Main::Error(destCtx, RC_ERROR, "source and destination must be distinct");
 			p = nullptr;
 		}
 		else
 		{
 			// Allocate space for a new sqlite3_backup object... EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a
 			// call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
-			p = (Backup *)_alloc(sizeof(Backup), true);
+			p = (Backup *)_alloc2(sizeof(Backup), true);
 			if (!p)
-				Context::Error(destCtx, RC_NOMEM, nullptr);
+				Main::Error(destCtx, RC_NOMEM, nullptr);
 		}
 
 		// If the allocation succeeded, populate the new object.
@@ -134,7 +115,7 @@ namespace Core
 
 		_assert(p->Src->GetReserveNoMutex() >= 0);
 		_assert(p->DestLocked);
-		_assert(!IsFatalError(p->RC));
+		_assert(!IsFatalError(p->RC_));
 		_assert(srcPg != PENDING_BYTE_PAGE(p->Src->Bt));
 		_assert(srcData);
 
@@ -197,79 +178,79 @@ namespace Core
 
 	__device__ static void AttachBackupObject(Backup *p)
 	{
-		_assert(Btree::HoldsMutex(p->Src));
-		Backup **pp = p->Src->get_Pager()->BackupPtr();
+		_assert(p->Src->HoldsMutex());
+		Backup **pp = (Backup **)&p->Src->get_Pager()->Backup;
 		p->Next = *pp;
 		*pp = p;
 		p->IsAttached = true;
 	}
 
-	__device__ int Backup::Step(Backup *p, int pages)
+	__device__ RC Backup::Step(int pages)
 	{
-		MutexEx::Enter(p->SrcCtx->Mutex);
-		p->Src->Enter();
-		if (p->DestCtx)
-			MutexEx::Enter(p->DestCtx->Mutex);
+		MutexEx::Enter(SrcCtx->Mutex);
+		Src->Enter();
+		if (DestCtx)
+			MutexEx::Enter(DestCtx->Mutex);
 
-		RC rc = p->RC;
+		RC rc = RC_;
 		if (!IsFatalError(rc))
 		{
-			Pager *const srcPager = p->Src->get_Pager(); // Source pager
-			Pager *const destPager = p->Dest->get_Pager(); // Dest pager
+			Pager *const srcPager = Src->get_Pager(); // Source pager
+			Pager *const destPager = Dest->get_Pager(); // Dest pager
 			Pid srcPage = 0; // Size of source db in pages
 			bool closeTrans = false; // True if src db requires unlocking
 
 			// If the source pager is currently in a write-transaction, return SQLITE_BUSY immediately.
-			rc = (p->DestCtx && p->Src->Bt->InTransaction == TRANS_WRITE ? RC_BUSY : RC_OK);
+			rc = (DestCtx && Src->Bt->InTransaction == TRANS_WRITE ? RC_BUSY : RC_OK);
 
 			// Lock the destination database, if it is not locked already.
-			if (rc == RC_OK && !p->DestLocked && (rc = p->Dest->BeginTrans(2)) == RC_OK) 
+			if (rc == RC_OK && !DestLocked && (rc = Dest->BeginTrans(2)) == RC_OK) 
 			{
-				p->DestLocked = true;
-				p->Dest->GetMeta(Btree::META_SCHEMA_VERSION, &p->DestSchema);
+				DestLocked = true;
+				Dest->GetMeta(Btree::META_SCHEMA_VERSION, &DestSchema);
 			}
 
 			// If there is no open read-transaction on the source database, open one now. If a transaction is opened here, then it will be closed
 			// before this function exits.
-			if (rc == RC_OK && !p->Src->IsInReadTrans())
+			if (rc == RC_OK && !Src->IsInReadTrans())
 			{
-				rc = p->Src->BeginTrans(0);
+				rc = Src->BeginTrans(0);
 				closeTrans = true;
 			}
 
 			// Do not allow backup if the destination database is in WAL mode and the page sizes are different between source and destination
-			int pgszSrc = p->Src->GetPageSize(); // Source page size
-			int pgszDest = p->Dest->GetPageSize(); // Destination page size
-			IPager::JOURNALMODE destMode = p->Dest->get_Pager()->GetJournalMode(); // Destination journal mode
+			int pgszSrc = Src->GetPageSize(); // Source page size
+			int pgszDest = Dest->GetPageSize(); // Destination page size
+			IPager::JOURNALMODE destMode = Dest->get_Pager()->GetJournalMode(); // Destination journal mode
 			if (rc == RC_OK && destMode == IPager::JOURNALMODE_WAL && pgszSrc != pgszDest)
 				rc = RC_READONLY;
 
 			// Now that there is a read-lock on the source database, query the source pager for the number of pages in the database.
-			srcPage = (int)p->Src->LastPage();
+			srcPage = (int)Src->LastPage();
 			_assert(srcPage >= 0);
-			for (int ii = 0; (pages < 0 || ii < pages) && p->NextId <= (Pid)srcPage && !rc; ii++)
+			for (int ii = 0; (pages < 0 || ii < pages) && NextId <= (Pid)srcPage && !rc; ii++)
 			{
-				const Pid srcPg = p->NextId; // Source page number
-				if (srcPg != PENDING_BYTE_PAGE(p->Src->Bt))
+				const Pid srcPg = NextId; // Source page number
+				if (srcPg != PENDING_BYTE_PAGE(Src->Bt))
 				{
 					IPage *srcPgAsObj; // Source page object
 					rc = srcPager->Acquire(srcPg, &srcPgAsObj, false);
 					if (rc == RC_OK)
 					{
-						rc = BackupOnePage(p, srcPg, (const uint8 *)Pager::GetData(srcPgAsObj), false);
+						rc = BackupOnePage(this, srcPg, (const uint8 *)Pager::GetData(srcPgAsObj), false);
 						Pager::Unref(srcPgAsObj);
 					}
 				}
-				p->Next++;
+				Next++;
 			}
 			if (rc == RC_OK)
 			{
-				p->Pagecount = srcPage;
-				p->Remaining = srcPage+1 - p->NextId;
-				if (p->NextId > (Pid)srcPage)
+				Pagecount = srcPage;
+				Remaining = srcPage+1 - NextId;
+				if (NextId > (Pid)srcPage)
 					rc = RC_DONE;
-				else if (!p->IsAttached)
-					AttachBackupObject(p);
+				else if (!IsAttached)
+					AttachBackupObject(this);
 			}
 
 			// Update the schema version field in the destination database. This is to make sure that the schema-version really does change in
@@ -278,17 +259,17 @@ namespace Core
 			{
 				if (!srcPage)
 				{
-					rc = p->Dest->NewDb();
+					rc = Dest->NewDb();
 					srcPage = 1;
 				}
 				if (rc == RC_OK || rc == RC_DONE)
-					rc = p->Dest->UpdateMeta(Btree::META_SCHEMA_VERSION, p->DestSchema + 1);
+					rc = Dest->UpdateMeta(Btree::META_SCHEMA_VERSION, DestSchema + 1);
 				if (rc == RC_OK)
 				{
-					if (p->DestCtx)
-						sqlite3ResetAllSchemasOfConnection(p->DestCtx);
+					if (DestCtx)
+						Main::ResetAllSchemasOfConnection(DestCtx);
 					if (destMode == IPager::JOURNALMODE_WAL)
-						rc = p->Dest->SetVersion(2);
+						rc = Dest->SetVersion(2);
 				}
 				if (rc == RC_OK)
 				{
@@ -299,14 +280,14 @@ namespace Core
 					// fix the size of the file. However it is important to call sqlite3PagerTruncateImage() here so that any pages in the 
 					// destination file that lie beyond the nDestTruncate page mark are journalled by PagerCommitPhaseOne() before they are destroyed
 					// by the file truncation.
-					_assert(pgszSrc == p->Src->GetPageSize());
-					_assert(pgszDest == p->Dest->GetPageSize());
+					_assert(pgszSrc == Src->GetPageSize());
+					_assert(pgszDest == Dest->GetPageSize());
 					Pid destTruncate;
 					if (pgszSrc < pgszDest)
 					{
 						int ratio = pgszDest/pgszSrc;
 						destTruncate = (srcPage+ratio-1)/ratio;
-						if (destTruncate == PENDING_BYTE_PAGE(p->Dest->Bt))
+						if (destTruncate == PENDING_BYTE_PAGE(Dest->Bt))
 							destTruncate--;
 					}
 					else
@@ -324,7 +305,7 @@ namespace Core
 						const int64 size = (int64)pgszSrc * (int64)srcPage;
 						VFile *const file = destPager->get_File();
 						_assert(file);
-						_assert(destTruncate == 0 || (int64)destTruncate*(int64)pgszDest >= size || (destTruncate == (int)(PENDING_BYTE_PAGE(p->Dest->Bt)-1) && size >= PENDING_BYTE && size <= PENDING_BYTE+pgszDest));
+						_assert(destTruncate == 0 || (int64)destTruncate*(int64)pgszDest >= size || (destTruncate == (int)(PENDING_BYTE_PAGE(Dest->Bt)-1) && size >= PENDING_BYTE && size <= PENDING_BYTE+pgszDest));
 
 						// This block ensures that all data required to recreate the original database has been stored in the journal for pDestPager and the
 						// journal synced to disk. So at this point we may safely modify the database file in any way, knowing that if a power failure
@@ -333,7 +314,7 @@ namespace Core
 						destPager->Pages(&dstPage);
 						for (Pid pg = destTruncate; rc == RC_OK && pg <= (Pid)dstPage; pg++)
 						{
-							if (pg != PENDING_BYTE_PAGE(p->Dest->Bt))
+							if (pg != PENDING_BYTE_PAGE(Dest->Bt))
 							{
 								IPage *pgAsObj;
 								rc = destPager->Acquire(pg, &pgAsObj, false);
@@ -353,7 +334,7 @@ namespace Core
 						{
 							const Pid srcPg = (Pid)((off/pgszSrc)+1);
 							PgHdr *srcPgAsObj = nullptr;
-							rc = srcPager->Acquire(srcPg, &srcPgAsObj);
+							rc = srcPager->Acquire(srcPg, &srcPgAsObj, false);
 							if (rc == RC_OK)
 							{
 								uint8 *data = (uint8 *)Pager::GetData(srcPgAsObj);
@@ -371,11 +352,11 @@ namespace Core
 					else
 					{
 						destPager->TruncateImage(destTruncate);
-						rc = destPager->CommitPhaseOne((nullptr, false);
+						rc = destPager->CommitPhaseOne(nullptr, false);
 					}
 
 					// Finish committing the transaction to the destination database.
-					if (rc == RC_OK && (rc = p->Dest->CommitPhaseTwo(false)) == RC_OK)
+					if (rc == RC_OK && (rc = Dest->CommitPhaseTwo(false)) == RC_OK)
 						rc = RC_DONE;
 				}
 			}
@@ -384,20 +365,20 @@ namespace Core
 			// no need to check the return values of the btree methods here, as "committing" a read-only transaction cannot fail.
 			if (closeTrans)
 			{
-				ASSERTCOVERAGE(RC rc2);
-				ASSERTCOVERAGE(rc2 = )p->Src->CommitPhaseOne(nullptr);
-				ASSERTCOVERAGE(rc2 |= )p->Src->CommitPhaseTwo(nullptr);
+				ASSERTONLY(RC rc2);
+				ASSERTONLY(rc2 = )Src->CommitPhaseOne(nullptr);
+				ASSERTONLY(rc2 |= )Src->CommitPhaseTwo(nullptr);
 				_assert(rc2 == RC_OK);
 			}
 
 			if (rc == RC_IOERR_NOMEM)
 				rc = RC_NOMEM;
-			p->RC = rc;
+			RC_ = rc;
 		}
-		if (p->DestCtx)
-			MutexEx::Leave(p->DestCtx->Mutex);
-		p->Src->Leave();
-		MutexEx::Leave(p->SrcCtx->Mutex);
+		if (DestCtx)
+			MutexEx::Leave(DestCtx->Mutex);
+		Src->Leave();
+		MutexEx::Leave(SrcCtx->Mutex);
 		return rc;
 	}
 
@@ -416,7 +397,7 @@ namespace Core
 			p->Src->Backups--;
 		if (p->IsAttached)
 		{
-			Backup **pp = p->Src->get_Pager()->BackupPtr(); // Ptr to head of pagers backup list
+			Backup **pp = (Backup **)&p->Src->get_Pager()->Backup; // Ptr to head of pagers backup list
 			while (*pp != p)
 				pp = &(*pp)->Next;
 			*pp = p->Next;
@@ -426,36 +407,36 @@ namespace Core
 		p->Dest->Rollback(RC_OK);
 
 		// Set the error code of the destination database handle.
-		RC rc = (p->RC == RC_DONE ? RC_OK : p->RC);
-		Context::Error(p->DestCtx, rc, nullptr);
+		RC rc = (p->RC_ == RC_DONE ? RC_OK : p->RC_);
+		Main::Error(p->DestCtx, rc, nullptr);
 
 		// Exit the mutexes and free the backup context structure.
 		if (p->DestCtx)
-			sqlite3LeaveMutexAndCloseZombie(p->DestCtx);
+			Main::LeaveMutexAndCloseZombie(p->DestCtx);
 		p->Src->Leave();
 		// EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
 		if (p->DestCtx)
 			_free(p);
-		sqlite3LeaveMutexAndCloseZombie(srcCtx);
+		Main::LeaveMutexAndCloseZombie(srcCtx);
 		return rc;
 	}
 
-	__device__ int Backup::Remaining(Backup *p)
-	{
-		return p->Remaining;
-	}
+	//__device__ int Backup::Remaining()
+	//{
+	//	return p->Remaining;
+	//}
 
-	__device__ int Backup::Pagecount(Backup *p)
-	{
-		return p->Pagecount;
-	}
+	//__device__ int Backup::Pagecount()
+	//{
+	//	return p->Pagecount;
+	//}
 
-	__device__ void Backup::Update(Backup *backup, Pid page, const uint8 *data)
+	__device__ void Backup::Update(Pid page, const uint8 *data)
 	{
-		for (Backup *p = backup; p; p = p->Next)
+		for (Backup *p = this; p; p = p->Next)
 		{
-			_assert(MmutexEx::Held(p->Src->Bt->Mutex));
-			if (!IsFatalError(p->RC) && page < p->NextId)
+			_assert(MutexEx::Held(p->Src->Bt->Mutex));
+			if (!IsFatalError(p->RC_) && page < p->NextId)
 			{
 				// The backup process p has already copied page iPage. But now it has been modified by a transaction on the source pager. Copy
 				// the new data into the backup.
@@ -465,15 +446,15 @@ namespace Core
 				MutexEx::Leave(p->DestCtx->Mutex);
 				_assert(rc != RC_BUSY && rc != RC_LOCKED);
 				if (rc != RC_OK ){
-					p->RC = rc;
+					p->RC_ = rc;
 				}
 			}
 		}
 	}
 
-	__device__ void Backup::Restart(Backup *backup)
+	__device__ void Backup::Restart()
 	{
-		for (Backup *p = backup; p; p = p->Next)
+		for (Backup *p = this; p; p = p->Next)
 		{
 			_assert(MutexEx::Held(p->Src->Bt->Mutex));
 			p->NextId = 1;
@@ -481,7 +462,7 @@ namespace Core
 	}
 
 #ifndef OMIT_VACUUM
-	__device__ int Backup::BtreeCopyFile(Btree *to, Btree *from)
+	__device__ RC Backup::BtreeCopyFile(Btree *to, Btree *from)
 	{
 		to->Enter();
 		from->Enter();
@@ -489,7 +470,7 @@ namespace Core
 		_assert(to->IsInTrans());
 		RC rc;
 		VFile *fd = to->get_Pager()->get_File(); // File descriptor for database pTo
-		if (fd->Methods)
+		if (fd->Type)
 		{
 			int64 bytes = from->GetPageSize()*(int64)from->LastPage();
 			rc = fd->FileControl(VFile::FCNTL_OVERWRITE, &bytes);
@@ -501,7 +482,7 @@ namespace Core
 		// and sqlite3_backup_finish() to detect that they are being called from this function, not directly by the user.
 		Backup b;
 		_memset(&b, 0, sizeof(b));
-		b.SrcCtx = from->Ctx;
+		b.SrcCtx = (Context *)from->Ctx;
 		b.Src = from;
 		b.Dest = to;
 		b.NextId = 1;
@@ -509,8 +490,8 @@ namespace Core
 		// 0x7FFFFFFF is the hard limit for the number of pages in a database file. By passing this as the number of pages to copy to
 		// sqlite3_backup_step(), we can guarantee that the copy finishes within a single call (unless an error occurs). The assert() statement
 		// checks this assumption - (p->rc) should be set to either SQLITE_DONE or an error code.
-		Step(&b, 0x7FFFFFFF);
-		_assert(b.RC != RC_OK);
+		b.Step(0x7FFFFFFF);
+		_assert(b.RC_ != RC_OK);
 		rc = Finish(&b);
 		if (rc == RC_OK)
 			to->Bt->BtsFlags &= ~BTS_PAGESIZE_FIXED;

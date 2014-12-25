@@ -12,7 +12,7 @@ namespace Core.Command
             Debug.Assert(!E.IsVirtual(table));
             Vdbe v = p.GetVdbe();
             Debug.Assert(opcode == OP.OpenWrite || opcode == OP.OpenRead);
-            sqlite3TableLock(p, db, table.Id, (byte)(opcode == OP.OpenWrite ? 1 : 0), table.Name);
+            p.TableLock(db, table.Id, (opcode == OP.OpenWrite), table.Name);
             v.AddOp3(opcode, cur, table.Id, db);
             v.ChangeP4(-1, table.Cols.length, Vdbe.P4T.INT32);
             v.Comment("%s", table.Name);
@@ -104,7 +104,7 @@ namespace Core.Command
             int memId = 0;      // Register holding maximum rowid
             if ((table.TabFlags & TF.Autoincrement) != 0)
             {
-                Parse toplevel = Parse.Toplevel(parse);
+                Parse toplevel = E.Parse_Toplevel(parse);
                 AutoincInfo info = toplevel.Ainc;
                 while (info != null && info.Table != table) info = info.Next;
                 if (info == null)
@@ -131,7 +131,7 @@ namespace Core.Command
 
             // This routine is never called during trigger-generation.  It is only called from the top-level
             Debug.Assert(parse.TriggerTab == null);
-            Debug.Assert(parse == Parse.Toplevel(parse));
+            Debug.Assert(parse == E.Parse_Toplevel(parse));
 
             Debug.Assert(v != null); // We failed long ago if this is not so
             for (AutoincInfo p = parse.Ainc; p != null; p = p.Next) // Information about an AUTOINCREMENT
@@ -145,7 +145,7 @@ namespace Core.Command
                 v.AddOp2(OP.Rewind, 0, addr + 9);
                 v.AddOp3(OP.Column, 0, 0, memId);
                 v.AddOp3(OP.Ne, memId - 1, addr + 7, memId);
-                v.ChangeP5(SQLITE_JUMPIFNULL);
+                v.ChangeP5(AFF.BIT_JUMPIFNULL);
                 v.AddOp2(OP.Rowid, 0, memId + 1);
                 v.AddOp3(OP.Column, 0, 1, memId);
                 v.AddOp2(OP.Goto, 0, addr + 9);
@@ -199,49 +199,40 @@ namespace Core.Command
         //#define AutoIncStep(A,B,C)
 #endif
 
-#if false
+        public static RC CodeCoroutine(Parse parse, Select select, SelectDest dest)
+        {
+            int regYield = ++parse.Mems; // Register holding co-routine entry-point
+            int regEof = ++parse.Mems; // Register holding co-routine completion flag
+            Vdbe v = parse.GetVdbe(); // VDBE under construction
+            int addrTop = v.CurrentAddr(); // Top of the co-routine
+            v.AddOp2(OP.Integer, addrTop + 2, regYield);              // X <- A
+            v.Comment("Co-routine entry point");
+            v.AddOp2(OP.Integer, 0, regEof);                        // EOF <- 0
+            v.Comment("Co-routine completion flag");
+            Select.DestInit(dest, SRT.Coroutine, regYield);
+            int j1 = v.AddOp2(OP.Goto, 0, 0);                       // Jump instruction
+            RC rc = Select.Select_(parse, select, dest);
+            Debug.Assert(parse.Errs == 0 || rc != 0);
+            if (parse.Ctx.MallocFailed && rc == RC.OK) rc = RC.NOMEM;
+            if (rc != 0) return rc;
+            v.AddOp2(OP.Integer, 1, regEof);                        // EOF <- 1
+            v.AddOp1(OP.Yield, regYield);                           // yield X
+            v.AddOp2(OP.Halt, RC.INTERNAL, OE.Abort);
+            v.Comment("End of coroutine");
+            v.JumpHere(j1);                                         // label B:
+            return rc;
+        }
 
         // OVERLOADS, so I don't need to rewrite parse.c
-        static void Insert_(Parse parse, SrcList tabList, int dummy1, int dummy2, IdList column, int onError) { Insert_(parse, tabList, null, null, column, onError); }
-        static void Insert_(Parse parse, SrcList tabList, int dummy1, Select select, IdList column, int onError) { Insert_(parse, tabList, null, select, column, onError); }
-        static void Insert_(Parse parse, SrcList tabList, ExprList list, int dummy1, IdList column, int onError) { Insert_(parse, tabList, list, null, column, onError); }
-        static void Insert_(Parse parse, SrcList tabList, ExprList list, Select select, IdList column, int onError)
+        static void Insert_(Parse parse, SrcList tabList, int dummy1, int dummy2, IdList column, OE onError) { Insert_(parse, tabList, null, null, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, int dummy1, Select select, IdList column, OE onError) { Insert_(parse, tabList, null, select, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, ExprList list, int dummy1, IdList column, OE onError) { Insert_(parse, tabList, list, null, column, onError); }
+        static void Insert_(Parse parse, SrcList tabList, ExprList list, Select select, IdList column, OE onError)
         {
-            
-            int i = 0;
-            int j = 0;
+            int i = 0, j = 0;
             int idx = 0;            // Loop counters
-            Index pIdx;           // For looping over indices of the table
-            int nColumn;          // Number of columns in the data
-            int nHidden = 0;      // Number of hidden columns if TABLE is virtual
             int baseCur = 0;      // VDBE VdbeCursor number for pTab
             int keyColumn = -1;   // Column that is the INTEGER PRIMARY KEY
-            int endOfLoop = 0;      /* Label for the end of the insertion loop */
-            bool useTempTable = false; /* Store SELECT results in intermediate table */
-            int srcTab = 0;       /* Data comes from this temporary cursor if >=0 */
-            int addrInsTop = 0;   /* Jump to label "D" */
-            int addrCont = 0;     /* Top of insert loop. Label "C" in templates 3 and 4 */
-            int addrSelect = 0;   /* Address of coroutine that implements the SELECT */
-            
-            int iDb;              /* Index of database holding TABLE */
-            Db pDb;               /* The database containing table being inserted into */
-            bool appendFlag = false;   /* True if the insert is likely to be an append */
-
-            // Register allocations
-            int regFromSelect = 0;  // Base register for data coming from SELECT
-            int regAutoinc = 0;   // Register holding the AUTOINCREMENT counter
-            int regRowCount = 0;  // Memory cell used for the row counter
-            int regIns;           // Block of regs holding rowid+data being inserted
-            int regRowid;         // registers holding insert rowid
-            int regData;          // register holding first column to insert
-            int regEof = 0;       // Register recording end of SELECT data
-            int[] aRegIdx = null; // One register allocated to each index
-
-#if !OMIT_TRIGGER
-            bool isView = false;        // True if attempting to insert into a view
-            Trigger pTrigger;           // List of triggers on pTab, if required
-            int tmask = 0;              // Mask of trigger times
-#endif
 
             Context ctx = parse.Ctx; // The main database structure
             SelectDest dest = new SelectDest(); // Destination for SELECT on rhs of INSERT //: _memset(&dest, 0, sizeof(dest));
@@ -253,988 +244,732 @@ namespace Core.Command
             string tableName = tabList.Ids[0].Name; // Name of the table into which we are inserting
             if (C._NEVER(tableName == null))
                 goto insert_cleanup;
-            Table table = sqlite3SrcListLookup(parse, tabList); // The table to insert into.  aka TABLE
+            Table table = Delete.SrcListLookup(parse, tabList); // The table to insert into.  aka TABLE
             if (table == null)
                 goto insert_cleanup;
-            iDb = sqlite3SchemaToIndex(ctx, table.pSchema);
-            Debug.Assert(iDb < ctx.nDb);
-            pDb = ctx.aDb[iDb];
+            int db = Prepare.SchemaToIndex(ctx, table.Schema); // Index of database holding TABLE
+            Debug.Assert(db < ctx.DBs.length);
+            Context.DB dbAsObj = ctx.DBs[db]; // The database containing table being inserted into
 #if !OMIT_AUTHORIZATION
-            string zDb;           /* Name of the database holding this table */
-            zDb = pDb.zName;
-            if (sqlite3AuthCheck(parse, SQLITE_INSERT, table.zName, 0, zDb))
-            {
+            string dbName = dbAsObj.Name; // Name of the database holding this table
+            if (Auth.Check(parse, AUTH.INSERT, table.Name, null, dbName) != 0)
                 goto insert_cleanup;
-            }
 #endif
+
+#if !OMIT_TRIGGER
             // Figure out if we have any triggers and if the table being inserted into is a view
-#if !OMIT_TRIGGER
-            pTrigger = sqlite3TriggersExist(parse, table, TK_INSERT, null, out tmask);
-            isView = table.pSelect != null;
+            TRIGGER tmask; // Mask of trigger times
+            Trigger trigger = Trigger.TriggersExist(parse, table, TK.INSERT, null, out tmask); // List of triggers on pTab, if required
+            Debug.Assert((trigger != null && tmask != 0) || (trigger == null && tmask == 0));
+#if !OMIT_VIEW
+            bool isView = (table.Select != null); // True if attempting to insert into a view
 #else
-      Trigger pTrigger = null;  //# define pTrigger 0
-      int tmask = 0;            //# define tmask 0
-      bool isView = false;
+            bool isView = false;
 #endif
-#if OMIT_VIEW
-//# undef isView
-isView = false;
-#endif
-#if !OMIT_TRIGGER
-            Debug.Assert((pTrigger != null && tmask != 0) || (pTrigger == null && tmask == 0));
+#else
+            Trigger trigger = null;
+            int tmask = 0;
+            bool isView = false;
 #endif
 
 #if !OMIT_VIEW
             // If pTab is really a view, make sure it has been initialized. ViewGetColumnNames() is a no-op if pTab is not a view (or virtual module table).
-            if (sqlite3ViewGetColumnNames(parse, table) != -0)
+            if (parse.ViewGetColumnNames(table) != -0)
                 goto insert_cleanup;
 #endif
 
             // Ensure that: (a) the table is not read-only,  (b) that if it is a view then ON INSERT triggers exist
-            if (sqlite3IsReadOnly(parse, table, tmask))
+            if (Delete.IsReadOnly(parse, table, (tmask != 0)))
                 goto insert_cleanup;
 
             // Allocate a VDBE
             Vdbe v = parse.GetVdbe(); // Generate code into this virtual machine
-            if (v == null)
-                goto insert_cleanup;
-            if (parse.nested == 0)
-                sqlite3VdbeCountChanges(v);
-            sqlite3BeginWriteOperation(parse, (select != null || pTrigger != null) ? 1 : 0, iDb);
+            if (v == null) goto insert_cleanup;
+            if (parse.Nested == 0) v.CountChanges();
+            parse.BeginWriteOperation((select != null || trigger != null ? 1 : 0), db);
 
 #if !OMIT_XFER_OPT
-            /* If the statement is of the form
-**
-**       INSERT INTO <table1> SELECT * FROM <table2>;
-**
-** Then special optimizations can be applied that make the transfer
-** very fast and which reduce fragmentation of indices.
-**
-** This is the 2nd template.
-*/
-            if (column == null && xferOptimization(parse, table, select, onError, iDb) != 0)
+            // If the statement is of the form
+            //
+            //       INSERT INTO <table1> SELECT * FROM <table2>;
+            //
+            // Then special optimizations can be applied that make the transfer very fast and which reduce fragmentation of indices.
+            //
+            // This is the 2nd template.
+            if (column == null && XferOptimization(parse, table, select, onError, db))
             {
-                Debug.Assert(null == pTrigger);
+                Debug.Assert(trigger == null);
                 Debug.Assert(list == null);
                 goto insert_end;
             }
 #endif
 
-            /* If this is an AUTOINCREMENT table, look up the sequence number in the
-** sqlite_sequence table and store it in memory cell regAutoinc.
-*/
-            regAutoinc = AutoIncBegin(parse, iDb, table);
+            // Register allocations
+            int regFromSelect = 0;  // Base register for data coming from SELECT
+            int regAutoinc = 0;   // Register holding the AUTOINCREMENT counter
+            int regRowCount = 0;  // Memory cell used for the row counter
+            int regIns;           // Block of regs holding rowid+data being inserted
+            int regRowid;         // registers holding insert rowid
+            int regData;          // register holding first column to insert
+            int regEof = 0;       // Register recording end of SELECT data
+            int[] regIdxs = null; // One register allocated to each index
 
-            /* Figure out how many columns of data are supplied.  If the data
-            ** is coming from a SELECT statement, then generate a co-routine that
-            ** produces a single row of the SELECT on each invocation.  The
-            ** co-routine is the common header to the 3rd and 4th templates.
-            */
+            // If this is an AUTOINCREMENT table, look up the sequence number in the sqlite_sequence table and store it in memory cell regAutoinc.
+            regAutoinc = AutoIncBegin(parse, db, table);
+
+            // Figure out how many columns of data are supplied.  If the data is coming from a SELECT statement, then generate a co-routine that
+            // produces a single row of the SELECT on each invocation.  The co-routine is the common header to the 3rd and 4th templates.
+            int columns; // Number of columns in the data
+            bool useTempTable = false; // Store SELECT results in intermediate table
+            int srcTab = 0; // Data comes from this temporary cursor if >=0
+            int addrSelect = 0; // Address of coroutine that implements the SELECT
             if (select != null)
             {
-                /* Data is coming from a SELECT.  Generate code to implement that SELECT
-                ** as a co-routine.  The code is common to both the 3rd and 4th
-                ** templates:
-                **
-                **         EOF <- 0
-                **         X <- A
-                **         goto B
-                **      A: setup for the SELECT
-                **         loop over the tables in the SELECT
-                **           load value into register R..R+n
-                **           yield X
-                **         end loop
-                **         cleanup after the SELECT
-                **         EOF <- 1
-                **         yield X
-                **         halt-error
-                **
-                ** On each invocation of the co-routine, it puts a single row of the
-                ** SELECT result into registers dest.iMem...dest.iMem+dest.nMem-1.
-                ** (These output registers are allocated by sqlite3Select().)  When
-                ** the SELECT completes, it sets the EOF flag stored in regEof.
-                */
-                int rc = 0, j1;
+                // Data is coming from a SELECT.  Generate a co-routine to run that SELECT.
+                RC rc = CodeCoroutine(parse, select, dest);
+                if (rc != 0) goto insert_cleanup;
 
-                regEof = ++parse.nMem;
-                sqlite3VdbeAddOp2(v, OP_Integer, 0, regEof);      /* EOF <- 0 */
-                VdbeComment(v, "SELECT eof flag");
-                sqlite3SelectDestInit(dest, SRT_Coroutine, ++parse.nMem);
-                addrSelect = sqlite3VdbeCurrentAddr(v) + 2;
-                sqlite3VdbeAddOp2(v, OP_Integer, addrSelect - 1, dest.iParm);
-                j1 = sqlite3VdbeAddOp2(v, OP_Goto, 0, 0);
-                VdbeComment(v, "Jump over SELECT coroutine");
-                /* Resolve the expressions in the SELECT statement and execute it. */
-                rc = sqlite3Select(parse, select, ref dest);
-                Debug.Assert(parse.nErr == 0 || rc != 0);
-                if (rc != 0 || NEVER(parse.nErr != 0) /*|| db.mallocFailed != 0 */ )
-                {
-                    goto insert_cleanup;
-                }
-                sqlite3VdbeAddOp2(v, OP_Integer, 1, regEof);         /* EOF <- 1 */
-                sqlite3VdbeAddOp1(v, OP_Yield, dest.iParm);   /* yield X */
-                sqlite3VdbeAddOp2(v, OP_Halt, SQLITE_INTERNAL, OE_Abort);
-                VdbeComment(v, "End of SELECT coroutine");
-                sqlite3VdbeJumpHere(v, j1);                          /* label B: */
+                regEof = dest.SDParmId + 1;
+                regFromSelect = dest.SdstId;
+                Debug.Assert(select.EList != null);
+                columns = select.EList.Exprs;
+                Debug.Assert(dest.SdstId == columns);
 
-                regFromSelect = dest.iMem;
-                Debug.Assert(select.pEList != null);
-                nColumn = select.pEList.nExpr;
-                Debug.Assert(dest.nMem == nColumn);
-
-                /* Set useTempTable to TRUE if the result of the SELECT statement
-                ** should be written into a temporary table (template 4).  Set to
-                ** FALSE if each* row of the SELECT can be written directly into
-                ** the destination table (template 3).
-                **
-                ** A temp table must be used if the table being updated is also one
-                ** of the tables being read by the SELECT statement.  Also use a
-                ** temp table in the case of row triggers.
-                */
-                if (pTrigger != null || ReadsTable(parse, addrSelect, iDb, table))
-                {
+                // Set useTempTable to TRUE if the result of the SELECT statement should be written into a temporary table (template 4).  Set to
+                // FALSE if each* row of the SELECT can be written directly into the destination table (template 3).
+                //
+                // A temp table must be used if the table being updated is also one of the tables being read by the SELECT statement.  Also use a 
+                // temp table in the case of row triggers.
+                if (trigger != null || ReadsTable(parse, addrSelect, db, table))
                     useTempTable = true;
-                }
 
                 if (useTempTable)
                 {
-                    /* Invoke the coroutine to extract information from the SELECT
-                    ** and add it to a transient table srcTab.  The code generated
-                    ** here is from the 4th template:
-                    **
-                    **      B: open temp table
-                    **      L: yield X
-                    **         if EOF goto M
-                    **         insert row from R..R+n into temp table
-                    **         goto L
-                    **      M: ...
-                    */
-                    int regRec;      /* Register to hold packed record */
-                    int regTempRowid;    /* Register to hold temp table ROWID */
-                    int addrTop;     /* Label "L" */
-                    int addrIf;      /* Address of jump to M */
-
-                    srcTab = parse.nTab++;
-                    regRec = sqlite3GetTempReg(parse);
-                    regTempRowid = sqlite3GetTempReg(parse);
-                    sqlite3VdbeAddOp2(v, OP_OpenEphemeral, srcTab, nColumn);
-                    addrTop = sqlite3VdbeAddOp1(v, OP_Yield, dest.iParm);
-                    addrIf = sqlite3VdbeAddOp1(v, OP_If, regEof);
-                    sqlite3VdbeAddOp3(v, OP_MakeRecord, regFromSelect, nColumn, regRec);
-                    sqlite3VdbeAddOp2(v, OP_NewRowid, srcTab, regTempRowid);
-                    sqlite3VdbeAddOp3(v, OP_Insert, srcTab, regRec, regTempRowid);
-                    sqlite3VdbeAddOp2(v, OP_Goto, 0, addrTop);
-                    sqlite3VdbeJumpHere(v, addrIf);
-                    sqlite3ReleaseTempReg(parse, regRec);
-                    sqlite3ReleaseTempReg(parse, regTempRowid);
+                    // Invoke the coroutine to extract information from the SELECT and add it to a transient table srcTab.  The code generated
+                    // here is from the 4th template:
+                    //
+                    //      B: open temp table
+                    //      L: yield X
+                    //         if EOF goto M
+                    //         insert row from R..R+n into temp table
+                    //         goto L
+                    //      M: ...
+                    srcTab = parse.Tabs++;
+                    int regRec = Expr.GetTempReg(parse);                // Register to hold packed record
+                    int regTempRowid = Expr.GetTempReg(parse);          // Register to hold temp table ROWID
+                    v.AddOp2(OP.OpenEphemeral, srcTab, columns);
+                    int addrTop = v.AddOp1(OP.Yield, dest.SDParmId);    // Label "L"
+                    int addrIf = v.AddOp1(OP.If, regEof);               // Address of jump to M
+                    v.AddOp3(OP.MakeRecord, regFromSelect, columns, regRec);
+                    v.AddOp2(OP.NewRowid, srcTab, regTempRowid);
+                    v.AddOp3(OP.Insert, srcTab, regRec, regTempRowid);
+                    v.AddOp2(OP.Goto, 0, addrTop);
+                    v.JumpHere(addrIf);
+                    Expr.ReleaseTempReg(parse, regRec);
+                    Expr.ReleaseTempReg(parse, regTempRowid);
                 }
             }
             else
             {
-                /* This is the case if the data for the INSERT is coming from a VALUES
-                ** clause
-                */
-                NameContext sNC;
-                sNC = new NameContext();// memset( &sNC, 0, sNC ).Length;
-                sNC.pParse = parse;
+                // This is the case if the data for the INSERT is coming from a VALUES clause
+                NameContext sNC = new NameContext();
+                sNC.Parse = parse;
                 srcTab = -1;
                 Debug.Assert(!useTempTable);
-                nColumn = list != null ? list.nExpr : 0;
-                for (i = 0; i < nColumn; i++)
-                {
-                    if (sqlite3ResolveExprNames(sNC, ref list.a[i].pExpr) != 0)
-                    {
+                columns = (list != null ? list.Exprs : 0);
+                for (i = 0; i < columns; i++)
+                    if (Resolve.ExprNames(sNC, ref list.Ids[i].Expr))
                         goto insert_cleanup;
-                    }
-                }
             }
 
-            /* Make sure the number of columns in the source data matches the number
-            ** of columns to be inserted into the table.
-            */
-            if (IsVirtual(table))
+            // Make sure the number of columns in the source data matches the number of columns to be inserted into the table.
+            int hidden = 0; // Number of hidden columns if TABLE is virtual
+            if (E.IsVirtual(table))
+                for (i = 0; i < table.Cols.length; i++)
+                    hidden += (E.IsHiddenColumn(table.Cols[i]) ? 1 : 0);
+            if (column == null && columns != 0 && columns != (table.Cols.length - hidden))
             {
-                for (i = 0; i < table.nCol; i++)
-                {
-                    nHidden += (IsHiddenColumn(table.aCol[i]) ? 1 : 0);
-                }
-            }
-            if (column == null && nColumn != 0 && nColumn != (table.nCol - nHidden))
-            {
-                sqlite3ErrorMsg(parse,
-                "table %S has %d columns but %d values were supplied",
-                tabList, 0, table.nCol - nHidden, nColumn);
+                parse.ErrorMsg("table %S has %d columns but %d values were supplied", tabList, 0, table.Cols.length - hidden, columns);
                 goto insert_cleanup;
             }
-            if (column != null && nColumn != column.nId)
+            if (column != null && columns != column.Ids.length)
             {
-                sqlite3ErrorMsg(parse, "%d values for %d columns", nColumn, column.nId);
+                parse.ErrorMsg("%d values for %d columns", columns, column.Ids.length);
                 goto insert_cleanup;
             }
 
-            /* If the INSERT statement included an IDLIST term, then make sure
-            ** all elements of the IDLIST really are columns of the table and
-            ** remember the column indices.
-            **
-            ** If the table has an INTEGER PRIMARY KEY column and that column
-            ** is named in the IDLIST, then record in the keyColumn variable
-            ** the index into IDLIST of the primary key column.  keyColumn is
-            ** the index of the primary key as it appears in IDLIST, not as
-            ** is appears in the original table.  (The index of the primary
-            ** key in the original table is pTab.iPKey.)
-            */
+            // If the INSERT statement included an IDLIST term, then make sure all elements of the IDLIST really are columns of the table and 
+            // remember the column indices.
+            //
+            // If the table has an INTEGER PRIMARY KEY column and that column is named in the IDLIST, then record in the keyColumn variable
+            // the index into IDLIST of the primary key column.  keyColumn is the index of the primary key as it appears in IDLIST, not as
+            // is appears in the original table.  (The index of the primary key in the original table is table->iPKey.)
             if (column != null)
             {
-                for (i = 0; i < column.nId; i++)
+                for (i = 0; i < column.Ids.length; i++)
+                    column.Ids[i].Idx = -1;
+                for (i = 0; i < column.Ids.length; i++)
                 {
-                    column.a[i].idx = -1;
-                }
-                for (i = 0; i < column.nId; i++)
-                {
-                    for (j = 0; j < table.nCol; j++)
+                    for (j = 0; j < table.Cols.length; j++)
                     {
-                        if (column.a[i].zName.Equals(table.aCol[j].zName, StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(column.Ids[i].Name, table.Cols[j].Name, StringComparison.OrdinalIgnoreCase))
                         {
-                            column.a[i].idx = j;
-                            if (j == table.iPKey)
-                            {
+                            column.Ids[i].Idx = j;
+                            if (j == table.PKey)
                                 keyColumn = i;
-                            }
                             break;
                         }
                     }
-                    if (j >= table.nCol)
+                    if (j >= table.Cols.length)
                     {
-                        if (sqlite3IsRowid(column.a[i].zName))
-                        {
+                        if (Expr.IsRowid(column.Ids[i].Name))
                             keyColumn = i;
-                        }
                         else
                         {
-                            sqlite3ErrorMsg(parse, "table %S has no column named %s",
-                            tabList, 0, column.a[i].zName);
-                            parse.checkSchema = 1;
+                            parse.ErrorMsg("table %S has no column named %s", tabList, 0, column.Ids[i].Name);
+                            parse.CheckSchema = 1;
                             goto insert_cleanup;
                         }
                     }
                 }
             }
 
-            /* If there is no IDLIST term but the table has an integer primary
-            ** key, the set the keyColumn variable to the primary key column index
-            ** in the original table definition.
-            */
-            if (column == null && nColumn > 0)
+            // If there is no IDLIST term but the table has an integer primary key, the set the keyColumn variable to the primary key column index
+            // in the original table definition.
+            if (column == null && columns > 0)
+                keyColumn = table.PKey;
+
+            // Initialize the count of rows to be inserted
+            if ((ctx.Flags & Context.FLAG.CountRows) != 0)
             {
-                keyColumn = table.iPKey;
+                regRowCount = ++parse.Mems;
+                v.AddOp2(OP.Integer, 0, regRowCount);
             }
 
-            /* Initialize the count of rows to be inserted
-            */
-            if ((ctx.flags & SQLITE_CountRows) != 0)
-            {
-                regRowCount = ++parse.nMem;
-                sqlite3VdbeAddOp2(v, OP_Integer, 0, regRowCount);
-            }
-
-            /* If this is not a view, open the table and and all indices */
+            // If this is not a view, open the table and and all indices
             if (!isView)
             {
-                int nIdx;
-
-                baseCur = parse.nTab;
-                nIdx = sqlite3OpenTableAndIndices(parse, table, baseCur, OP_OpenWrite);
-                aRegIdx = new int[nIdx + 1];// sqlite3DbMallocRaw( db, sizeof( int ) * ( nIdx + 1 ) );
-                if (aRegIdx == null)
-                {
+                baseCur = parse.Tabs;
+                int idxs = OpenTableAndIndices(parse, table, baseCur, OP.OpenWrite);
+                regIdxs = new int[idxs + 1]; //: _tagalloc(ctx, sizeof(int)*(idxs+1));
+                if (regIdxs == null)
                     goto insert_cleanup;
-                }
-                for (i = 0; i < nIdx; i++)
-                {
-                    aRegIdx[i] = ++parse.nMem;
-                }
+                for (i = 0; i < idxs; i++)
+                    regIdxs[i] = ++parse.Mems;
             }
 
-            /* This is the top of the main insertion loop */
+            // This is the top of the main insertion loop
+            int addrInsTop = 0; // Jump to label "D"
+            int addrCont = 0; // Top of insert loop. Label "C" in templates 3 and 4
             if (useTempTable)
             {
-                /* This block codes the top of loop only.  The complete loop is the
-                ** following pseudocode (template 4):
-                **
-                **         rewind temp table
-                **      C: loop over rows of intermediate table
-                **           transfer values form intermediate table into <table>
-                **         end loop
-                **      D: ...
-                */
-                addrInsTop = sqlite3VdbeAddOp1(v, OP_Rewind, srcTab);
-                addrCont = sqlite3VdbeCurrentAddr(v);
+                // This block codes the top of loop only.  The complete loop is the following pseudocode (template 4):
+                //
+                //         rewind temp table
+                //      C: loop over rows of intermediate table
+                //           transfer values form intermediate table into <table>
+                //         end loop
+                //      D: ...
+                addrInsTop = v.AddOp1(OP.Rewind, srcTab);
+                addrCont = v.CurrentAddr();
             }
             else if (select != null)
             {
-                /* This block codes the top of loop only.  The complete loop is the
-                ** following pseudocode (template 3):
-                **
-                **      C: yield X
-                **         if EOF goto D
-                **         insert the select result into <table> from R..R+n
-                **         goto C
-                **      D: ...
-                */
-                addrCont = sqlite3VdbeAddOp1(v, OP_Yield, dest.iParm);
-                addrInsTop = sqlite3VdbeAddOp1(v, OP_If, regEof);
+                // This block codes the top of loop only.  The complete loop is the following pseudocode (template 3):
+                //
+                //      C: yield X
+                //         if EOF goto D
+                //         insert the select result into <table> from R..R+n
+                //         goto C
+                //      D: ...
+                addrCont = v.AddOp1(OP.Yield, dest.SDParmId);
+                addrInsTop = v.AddOp1(OP.If, regEof);
             }
 
-            /* Allocate registers for holding the rowid of the new row,
-            ** the content of the new row, and the assemblied row record.
-            */
-            regRowid = regIns = parse.nMem + 1;
-            parse.nMem += table.nCol + 1;
-            if (IsVirtual(table))
+            // Allocate registers for holding the rowid of the new row, the content of the new row, and the assemblied row record.
+            regRowid = regIns = parse.Mems + 1;
+            parse.Mems += table.Cols.length + 1;
+            if (E.IsVirtual(table))
             {
                 regRowid++;
-                parse.nMem++;
+                parse.Mems++;
             }
             regData = regRowid + 1;
 
-            /* Run the BEFORE and INSTEAD OF triggers, if there are any
-            */
-            endOfLoop = sqlite3VdbeMakeLabel(v);
+            // Run the BEFORE and INSTEAD OF triggers, if there are any
+            int endOfLoop = v.MakeLabel(); // Label for the end of the insertion loop
 #if !OMIT_TRIGGER
-            if ((tmask & TRIGGER_BEFORE) != 0)
+            if ((tmask & TRIGGER.BEFORE) != 0)
             {
-                int regCols = sqlite3GetTempRange(parse, table.nCol + 1);
+                int regCols = Expr.GetTempRange(parse, table.Cols.length + 1);
 
-                /* build the NEW.* reference row.  Note that if there is an INTEGER
-                ** PRIMARY KEY into which a NULL is being inserted, that NULL will be
-                ** translated into a unique ID for the row.  But on a BEFORE trigger,
-                ** we do not know what the unique ID will be (because the insert has
-                ** not happened yet) so we substitute a rowid of -1
-                */
+                // build the NEW.* reference row.  Note that if there is an INTEGER PRIMARY KEY into which a NULL is being inserted, that NULL will be
+                // translated into a unique ID for the row.  But on a BEFORE trigger, we do not know what the unique ID will be (because the insert has
+                // not happened yet) so we substitute a rowid of -1
                 if (keyColumn < 0)
-                {
-                    sqlite3VdbeAddOp2(v, OP_Integer, -1, regCols);
-                }
+                    v.AddOp2(OP.Integer, -1, regCols);
                 else
                 {
-                    int j1;
                     if (useTempTable)
-                    {
-                        sqlite3VdbeAddOp3(v, OP_Column, srcTab, keyColumn, regCols);
-                    }
+                        v.AddOp3(OP.Column, srcTab, keyColumn, regCols);
                     else
                     {
-                        Debug.Assert(select == null);  /* Otherwise useTempTable is true */
-                        sqlite3ExprCode(parse, list.a[keyColumn].pExpr, regCols);
+                        Debug.Assert(select == null); // Otherwise useTempTable is true
+                        Expr.Code(parse, list.Ids[keyColumn].Expr, regCols);
                     }
-                    j1 = sqlite3VdbeAddOp1(v, OP_NotNull, regCols);
-                    sqlite3VdbeAddOp2(v, OP_Integer, -1, regCols);
-                    sqlite3VdbeJumpHere(v, j1);
-                    sqlite3VdbeAddOp1(v, OP_MustBeInt, regCols);
+                    int j1 = v.AddOp1(OP.NotNull, regCols);
+                    v.AddOp2(OP.Integer, -1, regCols);
+                    v.JumpHere(j1);
+                    v.AddOp1(OP.MustBeInt, regCols);
                 }
-                /* Cannot have triggers on a virtual table. If it were possible,
-                ** this block would have to account for hidden column.
-                */
-                Debug.Assert(!IsVirtual(table));
-                /* Create the new column data
-                */
-                for (i = 0; i < table.nCol; i++)
+
+                // Cannot have triggers on a virtual table. If it were possible, this block would have to account for hidden column.
+                Debug.Assert(!E.IsVirtual(table));
+
+                // Create the new column data
+                for (i = 0; i < table.Cols.length; i++)
                 {
                     if (column == null)
-                    {
                         j = i;
-                    }
                     else
                     {
-                        for (j = 0; j < column.nId; j++)
-                        {
-                            if (column.a[j].idx == i)
+                        for (j = 0; j < column.Ids.length; j++)
+                            if (column.Ids[j].Idx == i)
                                 break;
-                        }
                     }
-                    if ((!useTempTable && null == list) || (column != null && j >= column.nId))
-                    {
-                        sqlite3ExprCode(parse, table.aCol[i].pDflt, regCols + i + 1);
-                    }
+                    if ((!useTempTable && null == list) || (column != null && j >= column.Ids.length))
+                        Expr.Code(parse, table.Cols[i].Dflt, regCols + i + 1);
                     else if (useTempTable)
-                    {
-                        sqlite3VdbeAddOp3(v, OP_Column, srcTab, j, regCols + i + 1);
-                    }
+                        v.AddOp3(OP.Column, srcTab, j, regCols + i + 1);
                     else
                     {
-                        Debug.Assert(select == null); /* Otherwise useTempTable is true */
-                        sqlite3ExprCodeAndCache(parse, list.a[j].pExpr, regCols + i + 1);
+                        Debug.Assert(select == null); // Otherwise useTempTable is true
+                        Expr.CodeAndCache(parse, list.Ids[j].Expr, regCols + i + 1);
                     }
                 }
 
-                /* If this is an INSERT on a view with an INSTEAD OF INSERT trigger,
-                ** do not attempt any conversions before assembling the record.
-                ** If this is a real table, attempt conversions as required by the
-                ** table column affinities.
-                */
+                // If this is an INSERT on a view with an INSTEAD OF INSERT trigger, do not attempt any conversions before assembling the record.
+                // If this is a real table, attempt conversions as required by the table column affinities.
                 if (!isView)
                 {
-                    sqlite3VdbeAddOp2(v, OP_Affinity, regCols + 1, table.nCol);
+                    v.AddOp2(OP.Affinity, regCols + 1, table.Cols.length);
                     TableAffinityStr(v, table);
                 }
 
-                /* Fire BEFORE or INSTEAD OF triggers */
-                sqlite3CodeRowTrigger(parse, pTrigger, TK_INSERT, null, TRIGGER_BEFORE,
-                    table, regCols - table.nCol - 1, onError, endOfLoop);
+                // Fire BEFORE or INSTEAD OF triggers
+                trigger.CodeRowTrigger(parse, TK.INSERT, null, TRIGGER.BEFORE, table, regCols - table.Cols.length - 1, onError, endOfLoop);
 
-                sqlite3ReleaseTempRange(parse, regCols, table.nCol + 1);
+                Expr.ReleaseTempRange(parse, regCols, table.Cols.length + 1);
             }
 #endif
 
-            /* Push the record number for the new entry onto the stack.  The
-** record number is a randomly generate integer created by NewRowid
-** except when the table has an INTEGER PRIMARY KEY column, in which
-** case the record number is the same as that column.
-*/
+            // Push the record number for the new entry onto the stack.  The record number is a randomly generate integer created by NewRowid
+            // except when the table has an INTEGER PRIMARY KEY column, in which case the record number is the same as that column.
+            bool appendFlag = false; // True if the insert is likely to be an append
             if (!isView)
             {
-                if (IsVirtual(table))
-                {
-                    /* The row that the VUpdate opcode will delete: none */
-                    sqlite3VdbeAddOp2(v, OP_Null, 0, regIns);
-                }
+                if (E.IsVirtual(table))
+                    v.AddOp2(OP.Null, 0, regIns); // The row that the VUpdate opcode will delete: none
                 if (keyColumn >= 0)
                 {
                     if (useTempTable)
-                    {
-                        sqlite3VdbeAddOp3(v, OP_Column, srcTab, keyColumn, regRowid);
-                    }
+                        v.AddOp3(OP.Column, srcTab, keyColumn, regRowid);
                     else if (select != null)
-                    {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, regFromSelect + keyColumn, regRowid);
-                    }
+                        v.AddOp2(OP.SCopy, regFromSelect + keyColumn, regRowid);
                     else
                     {
-                        VdbeOp pOp;
-                        sqlite3ExprCode(parse, list.a[keyColumn].pExpr, regRowid);
-                        pOp = sqlite3VdbeGetOp(v, -1);
-                        if (ALWAYS(pOp != null) && pOp.opcode == OP_Null && !IsVirtual(table))
+                        Expr.Code(parse, list.Ids[keyColumn].Expr, regRowid);
+                        Vdbe.VdbeOp op = v.GetOp(-1);
+                        if (C._ALWAYS(op != null) && op.Opcode == OP.Null && !E.IsVirtual(table))
                         {
                             appendFlag = true;
-                            pOp.opcode = OP_NewRowid;
-                            pOp.p1 = baseCur;
-                            pOp.p2 = regRowid;
-                            pOp.p3 = regAutoinc;
+                            op.Opcode = OP.NewRowid;
+                            op.P1 = baseCur;
+                            op.P2 = regRowid;
+                            op.P3 = regAutoinc;
                         }
                     }
-                    /* If the PRIMARY KEY expression is NULL, then use OP_NewRowid
-                    ** to generate a unique primary key value.
-                    */
+                    // If the PRIMARY KEY expression is NULL, then use OP_NewRowid to generate a unique primary key value.
                     if (!appendFlag)
                     {
                         int j1;
-                        if (!IsVirtual(table))
+                        if (!E.IsVirtual(table))
                         {
-                            j1 = sqlite3VdbeAddOp1(v, OP_NotNull, regRowid);
-                            sqlite3VdbeAddOp3(v, OP_NewRowid, baseCur, regRowid, regAutoinc);
-                            sqlite3VdbeJumpHere(v, j1);
+                            j1 = v.AddOp1(OP.NotNull, regRowid);
+                            v.AddOp3(OP.NewRowid, baseCur, regRowid, regAutoinc);
+                            v.JumpHere(j1);
                         }
                         else
                         {
-                            j1 = sqlite3VdbeCurrentAddr(v);
-                            sqlite3VdbeAddOp2(v, OP_IsNull, regRowid, j1 + 2);
+                            j1 = v.CurrentAddr();
+                            v.AddOp2(OP.IsNull, regRowid, j1 + 2);
                         }
-                        sqlite3VdbeAddOp1(v, OP_MustBeInt, regRowid);
+                        v.AddOp1(OP.MustBeInt, regRowid);
                     }
                 }
-                else if (IsVirtual(table))
-                {
-                    sqlite3VdbeAddOp2(v, OP_Null, 0, regRowid);
-                }
+                else if (E.IsVirtual(table))
+                    v.AddOp2(OP.Null, 0, regRowid);
                 else
                 {
-                    sqlite3VdbeAddOp3(v, OP_NewRowid, baseCur, regRowid, regAutoinc);
+                    v.AddOp3(OP.NewRowid, baseCur, regRowid, regAutoinc);
                     appendFlag = true;
                 }
                 AutoIncStep(parse, regAutoinc, regRowid);
 
-                /* Push onto the stack, data for all columns of the new entry, beginning
-                ** with the first column.
-                */
-                nHidden = 0;
-                for (i = 0; i < table.nCol; i++)
+                // Push onto the stack, data for all columns of the new entry, beginning with the first column.
+                hidden = 0;
+                for (i = 0; i < table.Cols.length; i++)
                 {
-                    int iRegStore = regRowid + 1 + i;
-                    if (i == table.iPKey)
+                    int regStoreId = regRowid + 1 + i;
+                    if (i == table.PKey)
                     {
-                        /* The value of the INTEGER PRIMARY KEY column is always a NULL.
-                        ** Whenever this column is read, the record number will be substituted
-                        ** in its place.  So will fill this column with a NULL to avoid
-                        ** taking up data space with information that will never be used. */
-                        sqlite3VdbeAddOp2(v, OP_Null, 0, iRegStore);
+                        // The value of the INTEGER PRIMARY KEY column is always a NULL. Whenever this column is read, the record number will be substituted
+                        // in its place.  So will fill this column with a NULL to avoid taking up data space with information that will never be used.
+                        v.AddOp2(OP.Null, 0, regStoreId);
                         continue;
                     }
                     if (column == null)
                     {
-                        if (IsHiddenColumn(table.aCol[i]))
+                        if (E.IsHiddenColumn(table.Cols[i]))
                         {
-                            Debug.Assert(IsVirtual(table));
+                            Debug.Assert(E.IsVirtual(table));
                             j = -1;
-                            nHidden++;
+                            hidden++;
                         }
                         else
-                        {
-                            j = i - nHidden;
-                        }
+                            j = i - hidden;
                     }
                     else
                     {
-                        for (j = 0; j < column.nId; j++)
-                        {
-                            if (column.a[j].idx == i)
-                                break;
-                        }
+                        for (j = 0; j < column.Ids.length; j++)
+                            if (column.Ids[j].Idx == i) break;
                     }
-                    if (j < 0 || nColumn == 0 || (column != null && j >= column.nId))
-                    {
-                        sqlite3ExprCode(parse, table.aCol[i].pDflt, iRegStore);
-                    }
+                    if (j < 0 || columns == 0 || (column != null && j >= column.Ids.length))
+                        Expr.Code(parse, table.Cols[i].pDflt, regStoreId);
                     else if (useTempTable)
-                    {
-                        sqlite3VdbeAddOp3(v, OP_Column, srcTab, j, iRegStore);
-                    }
+                        v.AddOp3(OP.Column, srcTab, j, regStoreId);
                     else if (select != null)
-                    {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, regFromSelect + j, iRegStore);
-                    }
+                        v.AddOp2(OP.SCopy, regFromSelect + j, regStoreId);
                     else
-                    {
-                        sqlite3ExprCode(parse, list.a[j].pExpr, iRegStore);
-                    }
+                        Expr.Code(parse, list.Ids[j].Expr, regStoreId);
                 }
 
-                /* Generate code to check constraints and generate index keys and
-                ** do the insertion.
-                */
+                // Generate code to check constraints and generate index keys and do the insertion.
 #if !OMIT_VIRTUALTABLE
-                if (IsVirtual(table))
+                if (E.IsVirtual(table))
                 {
-                    VTable pVTab = sqlite3GetVTable(ctx, table);
-                    sqlite3VtabMakeWritable(parse, table);
-                    sqlite3VdbeAddOp4(v, OP_VUpdate, 1, table.nCol + 2, regIns, pVTab, P4_VTAB);
-                    sqlite3VdbeChangeP5(v, (byte)(onError == OE_Default ? OE_Abort : onError));
-                    sqlite3MayAbort(parse);
+                    VTable vtable = VTable.GetVTable(ctx, table);
+                    VTable.MakeWritable(parse, table);
+                    v.AddOp4(OP.VUpdate, 1, table.Cols.length + 2, regIns, vtable, Vdbe.P4T.VTAB);
+                    v.ChangeP5((byte)(onError == OE.Default ? OE.Abort : onError));
+                    parse.MayAbort();
                 }
                 else
 #endif
                 {
-                    int isReplace = 0;    /* Set to true if constraints may cause a replace */
-                    sqlite3GenerateConstraintChecks(parse, table, baseCur, regIns, aRegIdx,
-                      keyColumn >= 0 ? 1 : 0, false, onError, endOfLoop, out isReplace
-                    );
-                    sqlite3FkCheck(parse, table, 0, regIns);
-                    sqlite3CompleteInsertion(
-                   parse, table, baseCur, regIns, aRegIdx, false, appendFlag, isReplace == 0
-                    );
+                    bool isReplace; // Set to true if constraints may cause a replace
+                    GenerateConstraintChecks(parse, table, baseCur, regIns, regIdxs, keyColumn >= 0 ? 1 : 0, false, onError, endOfLoop, out isReplace);
+                    parse.FKCheck(table, 0, regIns);
+                    CompleteInsertion(parse, table, baseCur, regIns, regIdxs, false, appendFlag, !isReplace);
                 }
             }
 
-            /* Update the count of rows that are inserted
-            */
-            if ((ctx.flags & SQLITE_CountRows) != 0)
-            {
-                sqlite3VdbeAddOp2(v, OP_AddImm, regRowCount, 1);
-            }
+            // Update the count of rows that are inserted
+            if ((ctx.Flags & Context.FLAG.CountRows) != 0)
+                v.AddOp2(OP.AddImm, regRowCount, 1);
 
 #if !OMIT_TRIGGER
-            if (pTrigger != null)
-            {
-                /* Code AFTER triggers */
-                sqlite3CodeRowTrigger(parse, pTrigger, TK_INSERT, null, TRIGGER_AFTER,
-                    table, regData - 2 - table.nCol, onError, endOfLoop);
-            }
+            if (trigger != null)  // Code AFTER triggers
+                trigger.CodeRowTrigger(parse, TK.INSERT, null, TRIGGER.AFTER, table, regData - 2 - table.Cols.length, onError, endOfLoop);
 #endif
 
-            /* The bottom of the main insertion loop, if the data source
-** is a SELECT statement.
-*/
-            sqlite3VdbeResolveLabel(v, endOfLoop);
+            // The bottom of the main insertion loop, if the data source is a SELECT statement.
+            v.ResolveLabel(endOfLoop);
             if (useTempTable)
             {
-                sqlite3VdbeAddOp2(v, OP_Next, srcTab, addrCont);
-                sqlite3VdbeJumpHere(v, addrInsTop);
-                sqlite3VdbeAddOp1(v, OP_Close, srcTab);
+                v.AddOp2(OP.Next, srcTab, addrCont);
+                v.JumpHere(addrInsTop);
+                v.AddOp1(OP.Close, srcTab);
             }
             else if (select != null)
             {
-                sqlite3VdbeAddOp2(v, OP_Goto, 0, addrCont);
-                sqlite3VdbeJumpHere(v, addrInsTop);
+                v.AddOp2(OP.Goto, 0, addrCont);
+                v.JumpHere(addrInsTop);
             }
 
-            if (!IsVirtual(table) && !isView)
+            if (!E.IsVirtual(table) && !isView)
             {
-                /* Close all tables opened */
-                sqlite3VdbeAddOp1(v, OP_Close, baseCur);
-                for (idx = 1, pIdx = table.pIndex; pIdx != null; pIdx = pIdx.pNext, idx++)
-                {
-                    sqlite3VdbeAddOp1(v, OP_Close, idx + baseCur);
-                }
+                // Close all tables opened
+                v.AddOp1(OP.Close, baseCur);
+                Index index; // For looping over indices of the table
+                for (idx = 1, index = table.Index; index != null; index = index.Next, idx++)
+                    v.AddOp1(OP.Close, idx + baseCur);
             }
 
         insert_end:
-            /* Update the sqlite_sequence table by storing the content of the
-            ** maximum rowid counter values recorded while inserting into
-            ** autoincrement tables.
-            */
-            if (parse.nested == 0 && parse.pTriggerTab == null)
-            {
-                sqlite3AutoincrementEnd(parse);
-            }
+            // Update the sqlite_sequence table by storing the content of the maximum rowid counter values recorded while inserting into autoincrement tables.
+            if (parse.Nested == 0 && parse.TriggerTab == null)
+                AutoincrementEnd(parse);
 
-            /*
-            ** Return the number of rows inserted. If this routine is
-            ** generating code because of a call to sqlite3NestedParse(), do not
-            ** invoke the callback function.
-            */
-            if ((ctx.flags & SQLITE_CountRows) != 0 && 0 == parse.nested && null == parse.pTriggerTab)
+            // Return the number of rows inserted. If this routine is generating code because of a call to sqlite3NestedParse(), do not invoke the callback function.
+            if ((ctx.Flags & Context.FLAG.CountRows) != 0 && parse.Nested == 0 && parse.TriggerTab == null)
             {
-                sqlite3VdbeAddOp2(v, OP_ResultRow, regRowCount, 1);
-                sqlite3VdbeSetNumCols(v, 1);
-                sqlite3VdbeSetColName(v, 0, COLNAME_NAME, "rows inserted", SQLITE_STATIC);
+                v.AddOp2(OP.ResultRow, regRowCount, 1);
+                v.SetNumCols(1);
+                v.SetColName(0, COLNAME_NAME, "rows inserted", C.DESTRUCTOR_STATIC);
             }
 
         insert_cleanup:
-            sqlite3SrcListDelete(ctx, ref tabList);
-            sqlite3ExprListDelete(ctx, ref list);
-            sqlite3SelectDelete(ctx, ref select);
-            sqlite3IdListDelete(ctx, ref column);
-            sqlite3DbFree(ctx, ref aRegIdx);
+            Expr.SrcListDelete(ctx, ref tabList);
+            Expr.ListDelete(ctx, ref list);
+            Select.Delete(ctx, ref select);
+            Expr.IdListDelete(ctx, ref column);
+            C._tagfree(ctx, ref regIdxs);
         }
 
-
-        static void sqlite3GenerateConstraintChecks(Parse pParse,Table pTab,int baseCur, int regRowid,       int[] aRegIdx,     int rowidChng,bool isUpdate,int overrideError,int ignoreDest,   out int pbMayReplace)
+        public static void GenerateConstraintChecks(Parse parse, Table table, int baseCur, int regRowid, int[] regIdxs, int rowidChng, bool isUpdate, OE overrideError, int ignoreDest, out bool mayReplaceOut)
         {
-
-            int i;               /* loop counter */
-            Vdbe v;              /* VDBE under constrution */
-            int nCol;            /* Number of columns */
-            int onError;         /* Conflict resolution strategy */
-            int j1;              /* Addresss of jump instruction */
-            int j2 = 0, j3;      /* Addresses of jump instructions */
-            int regData;         /* Register containing first data column */
-            int iCur;            /* Table cursor number */
-            Index pIdx;         /* Pointer to one of the indices */
-            bool seenReplace = false; /* True if REPLACE is used to resolve INT PK conflict */
-            int regOldRowid = (rowidChng != 0 && isUpdate) ? rowidChng : regRowid;
-
-            v = sqlite3GetVdbe(pParse);
+            Context ctx = parse.Ctx; // Database connection
+            Vdbe v = parse.GetVdbe(); // VDBE under constrution
             Debug.Assert(v != null);
-            Debug.Assert(pTab.pSelect == null);  /* This table is not a VIEW */
-            nCol = pTab.nCol;
-            regData = regRowid + 1;
+            Debug.Assert(table.Select == null); // This table is not a VIEW
+            int colsLength = table.Cols.length; // Number of columns
+            int regData = regRowid + 1; // Register containing first data column
+            OE onError; // Conflict resolution strategy
 
-
-            /* Test all NOT NULL constraints.
-            */
-            for (i = 0; i < nCol; i++)
+            // Test all NOT NULL constraints.
+            int i;
+            for (i = 0; i < colsLength; i++)
             {
-                if (i == pTab.iPKey)
-                {
+                if (i == table.PKey)
                     continue;
-                }
-                onError = pTab.aCol[i].notNull;
-                if (onError == OE_None)
-                    continue;
-                if (overrideError != OE_Default)
-                {
-                    onError = overrideError;
-                }
-                else if (onError == OE_Default)
-                {
-                    onError = OE_Abort;
-                }
-                if (onError == OE_Replace && pTab.aCol[i].pDflt == null)
-                {
-                    onError = OE_Abort;
-                }
-                Debug.Assert(onError == OE_Rollback || onError == OE_Abort || onError == OE_Fail
-                || onError == OE_Ignore || onError == OE_Replace);
+                onError = table.Cols[i].NotNull;
+                if (onError == OE.None) continue;
+                if (overrideError != OE.Default) onError = overrideError;
+                else if (onError == OE.Default) onError = OE.Abort;
+                if (onError == OE.Replace && table.Cols[i].Dflt == null) onError = OE.Abort;
+                Debug.Assert(onError == OE.Rollback || onError == OE.Abort || onError == OE.Fail || onError == OE.Ignore || onError == OE.Replace);
                 switch (onError)
                 {
-                    case OE_Abort:
+                    case OE.Abort:
                         {
-                            sqlite3MayAbort(pParse);
-                            goto case OE_Fail;
+                            parse.MayAbort();
+                            goto case OE.Fail;
                         }
-                    case OE_Rollback:
-                    case OE_Fail:
+                    case OE.Rollback:
+                    case OE.Fail:
                         {
-                            string zMsg;
-                            sqlite3VdbeAddOp3(v, OP_HaltIfNull,
-                                        SQLITE_CONSTRAINT, onError, regData + i);
-                            zMsg = sqlite3MPrintf(pParse.db, "%s.%s may not be NULL",
-                            pTab.zName, pTab.aCol[i].zName);
-                            sqlite3VdbeChangeP4(v, -1, zMsg, P4_DYNAMIC);
+                            v.AddOp3(OP.HaltIfNull, RC.RC_CONSTRAINT_NOTNULL, onError, regData + i);
+                            string msg = C._mtagprintf(parse.Ctx, "%s.%s may not be NULL", table.Name, table.Cols[i].Name);
+                            v.ChangeP4(-1, msg, Vdbe.P4T.DYNAMIC);
                             break;
                         }
-                    case OE_Ignore:
+                    case OE.Ignore:
                         {
-                            sqlite3VdbeAddOp2(v, OP_IsNull, regData + i, ignoreDest);
+                            v.AddOp2(OP.IsNull, regData + i, ignoreDest);
                             break;
                         }
                     default:
                         {
-                            Debug.Assert(onError == OE_Replace);
-                            j1 = sqlite3VdbeAddOp1(v, OP_NotNull, regData + i);
-                            sqlite3ExprCode(pParse, pTab.aCol[i].pDflt, regData + i);
-                            sqlite3VdbeJumpHere(v, j1);
+                            Debug.Assert(onError == OE.Replace);
+                            int j1 = v.AddOp1(OP.NotNull, regData + i); // Addresss of jump instruction
+                            Expr.Code(parse, table.Cols[i].Dflt, regData + i);
+                            v.JumpHere(j1);
                             break;
                         }
                 }
             }
 
-            /* Test all CHECK constraints
-            */
 #if !OMIT_CHECK
-            if (pTab.pCheck != null && (pParse.db.flags & SQLITE_IgnoreChecks) == 0)
+            // Test all CHECK constraints
+            if (table.Check != null && (ctx.Flags & Context.FLAG.IgnoreChecks) == 0)
             {
-                int allOk = sqlite3VdbeMakeLabel(v);
-                pParse.ckBase = regData;
-                sqlite3ExprIfTrue(pParse, pTab.pCheck, allOk, SQLITE_JUMPIFNULL);
-                onError = overrideError != OE_Default ? overrideError : OE_Abort;
-                if (onError == OE_Ignore)
+                ExprList check = table.Check;
+                parse.CkBase = regData;
+                onError = (overrideError != OE.Default ? overrideError : OE.Abort);
+                for (i = 0; i < check.Exprs; i++)
                 {
-                    sqlite3VdbeAddOp2(v, OP_Goto, 0, ignoreDest);
-                }
-                else
-                {
-                    if (onError == OE_Replace)
-                        onError = OE_Abort; /* IMP: R-15569-63625 */
-                    sqlite3HaltConstraint(pParse, onError, (string)null, 0);
-                }
-                sqlite3VdbeResolveLabel(v, allOk);
-            }
-#endif
-
-            /* If we have an INTEGER PRIMARY KEY, make sure the primary key
-** of the new record does not previously exist.  Except, if this
-** is an UPDATE and the primary key is not changing, that is OK.
-*/
-            if (rowidChng != 0)
-            {
-                onError = pTab.keyConf;
-                if (overrideError != OE_Default)
-                {
-                    onError = overrideError;
-                }
-                else if (onError == OE_Default)
-                {
-                    onError = OE_Abort;
-                }
-
-                if (isUpdate)
-                {
-                    j2 = sqlite3VdbeAddOp3(v, OP_Eq, regRowid, 0, rowidChng);
-                }
-                j3 = sqlite3VdbeAddOp3(v, OP_NotExists, baseCur, 0, regRowid);
-                switch (onError)
-                {
-                    default:
-                        {
-                            onError = OE_Abort;
-                            /* Fall thru into the next case */
-                        }
-                        goto case OE_Rollback;
-                    case OE_Rollback:
-                    case OE_Abort:
-                    case OE_Fail:
-                        {
-                            sqlite3HaltConstraint(
-                              pParse, onError, "PRIMARY KEY must be unique", P4_STATIC);
-                            break;
-                        }
-                    case OE_Replace:
-                        {
-                            /* If there are DELETE triggers on this table and the
-                            ** recursive-triggers flag is set, call GenerateRowDelete() to
-                            ** remove the conflicting row from the the table. This will fire
-                            ** the triggers and remove both the table and index b-tree entries.
-                            **
-                            ** Otherwise, if there are no triggers or the recursive-triggers
-                            ** flag is not set, but the table has one or more indexes, call 
-                            ** GenerateRowIndexDelete(). This removes the index b-tree entries 
-                            ** only. The table b-tree entry will be replaced by the new entry 
-                            ** when it is inserted.  
-                            **
-                            ** If either GenerateRowDelete() or GenerateRowIndexDelete() is called,
-                            ** also invoke MultiWrite() to indicate that this VDBE may require
-                            ** statement rollback (if the statement is aborted after the delete
-                            ** takes place). Earlier versions called sqlite3MultiWrite() regardless,
-                            ** but being more selective here allows statements like:
-                            **
-                            **   REPLACE INTO t(rowid) VALUES($newrowid)
-                            **
-                            ** to run without a statement journal if there are no indexes on the
-                            ** table.
-                            */
-                            Trigger pTrigger = null;
-                            if ((pParse.db.flags & SQLITE_RecTriggers) != 0)
-                            {
-                                int iDummy;
-                                pTrigger = sqlite3TriggersExist(pParse, pTab, TK_DELETE, null, out iDummy);
-                            }
-                            if (pTrigger != null || sqlite3FkRequired(pParse, pTab, null, 0) != 0)
-                            {
-                                sqlite3MultiWrite(pParse);
-                                sqlite3GenerateRowDelete(
-                                    pParse, pTab, baseCur, regRowid, 0, pTrigger, OE_Replace
-                                );
-                            }
-                            else
-                                if (pTab.pIndex != null)
-                                {
-                                    sqlite3MultiWrite(pParse);
-                                    sqlite3GenerateRowIndexDelete(pParse, pTab, baseCur, 0);
-                                }
-                            seenReplace = true;
-                            break;
-                        }
-                    case OE_Ignore:
-                        {
-                            Debug.Assert(!seenReplace);
-                            sqlite3VdbeAddOp2(v, OP_Goto, 0, ignoreDest);
-                            break;
-                        }
-                }
-                sqlite3VdbeJumpHere(v, j3);
-                if (isUpdate)
-                {
-                    sqlite3VdbeJumpHere(v, j2);
-                }
-            }
-
-            /* Test all UNIQUE constraints by creating entries for each UNIQUE
-            ** index and making sure that duplicate entries do not already exist.
-            ** Add the new records to the indices as we go.
-            */
-            for (iCur = 0, pIdx = pTab.pIndex; pIdx != null; pIdx = pIdx.pNext, iCur++)
-            {
-                int regIdx;
-                int regR;
-
-                if (aRegIdx[iCur] == 0)
-                    continue;  /* Skip unused indices */
-
-                /* Create a key for accessing the index entry */
-                regIdx = sqlite3GetTempRange(pParse, pIdx.nColumn + 1);
-                for (i = 0; i < pIdx.nColumn; i++)
-                {
-                    int idx = pIdx.aiColumn[i];
-                    if (idx == pTab.iPKey)
-                    {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, regRowid, regIdx + i);
-                    }
+                    int allOk = v.MakeLabel();
+                    check.Ids[i].Expr.IfTrue(parse, allOk, AFF.BIT_JUMPIFNULL);
+                    if (onError == OE.Ignore)
+                        v.AddOp2(OP.Goto, 0, ignoreDest);
                     else
                     {
-                        sqlite3VdbeAddOp2(v, OP_SCopy, regData + idx, regIdx + i);
+                        if (onError == OE.Replace) onError = OE.Abort; // IMP: R-15569-63625
+                        string consName = check.Ids[i].Name;
+                        consName = (consName != null ? C._mtagprintf(ctx, "constraint %s failed", consName) : null);
+                        parse.HaltConstraint(RC.CONSTRAINT_CHECK, onError, consName, 0);
                     }
+                    v.ResolveLabel(allOk);
                 }
-                sqlite3VdbeAddOp2(v, OP_SCopy, regRowid, regIdx + i);
-                sqlite3VdbeAddOp3(v, OP_MakeRecord, regIdx, pIdx.nColumn + 1, aRegIdx[iCur]);
-                sqlite3VdbeChangeP4(v, -1, IndexAffinityStr(v, pIdx), P4_TRANSIENT);
-                sqlite3ExprCacheAffinityChange(pParse, regIdx, pIdx.nColumn + 1);
+            }
+#endif
 
-                /* Find out what action to take in case there is an indexing conflict */
-                onError = pIdx.onError;
-                if (onError == OE_None)
-                {
-                    sqlite3ReleaseTempRange(pParse, regIdx, pIdx.nColumn + 1);
-                    continue;  /* pIdx is not a UNIQUE index */
-                }
-
-                if (overrideError != OE_Default)
-                {
-                    onError = overrideError;
-                }
-                else if (onError == OE_Default)
-                {
-                    onError = OE_Abort;
-                }
-                if (seenReplace)
-                {
-                    if (onError == OE_Ignore)
-                        onError = OE_Replace;
-                    else if (onError == OE_Fail)
-                        onError = OE_Abort;
-                }
-
-
-                /* Check to see if the new index entry will be unique */
-                regR = sqlite3GetTempReg(pParse);
-                sqlite3VdbeAddOp2(v, OP_SCopy, regOldRowid, regR);
-                j3 = sqlite3VdbeAddOp4(v, OP_IsUnique, baseCur + iCur + 1, 0,
-                regR, regIdx,//regR, SQLITE_INT_TO_PTR(regIdx),
-                P4_INT32);
-                sqlite3ReleaseTempRange(pParse, regIdx, pIdx.nColumn + 1);
-
-                /* Generate code that executes if the new index entry is not unique */
-                Debug.Assert(onError == OE_Rollback || onError == OE_Abort || onError == OE_Fail
-                || onError == OE_Ignore || onError == OE_Replace);
+            // If we have an INTEGER PRIMARY KEY, make sure the primary key of the new record does not previously exist.  Except, if this
+            // is an UPDATE and the primary key is not changing, that is OK.
+            bool seenReplace = false; // True if REPLACE is used to resolve INT PK conflict
+            int j2 = 0, j3; // Addresses of jump instructions
+            if (rowidChng != 0)
+            {
+                onError = table.KeyConf;
+                if (overrideError != OE.Default) onError = overrideError;
+                else if (onError == OE.Default) onError = OE.Abort;
+                if (isUpdate)
+                    j2 = v.AddOp3(OP.Eq, regRowid, 0, rowidChng);
+                j3 = v.AddOp3(OP.NotExists, baseCur, 0, regRowid);
                 switch (onError)
                 {
-                    case OE_Rollback:
-                    case OE_Abort:
-                    case OE_Fail:
+                    default:
                         {
-                            int j;
-                            StrAccum errMsg = new StrAccum(200);
-                            string zSep;
-                            string zErr;
-
-                            sqlite3StrAccumInit(errMsg, null, 0, 200);
-                            errMsg.db = pParse.db;
-                            zSep = pIdx.nColumn > 1 ? "columns " : "column ";
-                            for (j = 0; j < pIdx.nColumn; j++)
-                            {
-                                string zCol = pTab.aCol[pIdx.aiColumn[j]].zName;
-                                sqlite3StrAccumAppend(errMsg, zSep, -1);
-                                zSep = ", ";
-                                sqlite3StrAccumAppend(errMsg, zCol, -1);
-                            }
-                            sqlite3StrAccumAppend(errMsg,
-                            pIdx.nColumn > 1 ? " are not unique" : " is not unique", -1);
-                            zErr = sqlite3StrAccumFinish(errMsg);
-                            sqlite3HaltConstraint(pParse, onError, zErr, 0);
-                            sqlite3DbFree(errMsg.db, ref zErr);
+                            onError = OE.Abort;
+                        }
+                        goto case OE.Rollback; // Fall thru into the next case
+                    case OE.Rollback:
+                    case OE.Abort:
+                    case OE.Fail:
+                        {
+                            parse.HaltConstraint(RC.CONSTRAINT_PRIMARYKEY, onError, "PRIMARY KEY must be unique", Vdbe.P4T.STATIC);
                             break;
                         }
-                    case OE_Ignore:
+                    case OE.Replace:
+                        {
+                            // If there are DELETE triggers on this table and the recursive-triggers flag is set, call GenerateRowDelete() to
+                            // remove the conflicting row from the table. This will fire the triggers and remove both the table and index b-tree entries.
+                            //
+                            // Otherwise, if there are no triggers or the recursive-triggers flag is not set, but the table has one or more indexes, call 
+                            // GenerateRowIndexDelete(). This removes the index b-tree entries only. The table b-tree entry will be replaced by the new entry 
+                            // when it is inserted.  
+                            //
+                            // If either GenerateRowDelete() or GenerateRowIndexDelete() is called, also invoke MultiWrite() to indicate that this VDBE may require
+                            // statement rollback (if the statement is aborted after the delete takes place). Earlier versions called sqlite3MultiWrite() regardless,
+                            // but being more selective here allows statements like:
+                            //
+                            //   REPLACE INTO t(rowid) VALUES($newrowid)
+                            //
+                            // to run without a statement journal if there are no indexes on the table.
+                            Trigger trigger = null;
+                            int dummy1;
+                            if ((ctx.Flags & Context.FLAG.RecTriggers) != 0)
+                                trigger = sqlite3TriggersExist(parse, table, TK.DELETE, null, out dummy1);
+                            if (trigger != null || parse.FKRequired(table, null, 0))
+                            {
+                                parse.MultiWrite();
+                                sqlite3GenerateRowDelete(parse, table, baseCur, regRowid, 0, trigger, OE.Replace);
+                            }
+                            else if (table.Index != null)
+                            {
+                                parse.MultiWrite();
+                                sqlite3GenerateRowIndexDelete(parse, table, baseCur, 0);
+                            }
+                            seenReplace = true;
+                            break;
+                        }
+                    case OE.Ignore:
                         {
                             Debug.Assert(!seenReplace);
-                            sqlite3VdbeAddOp2(v, OP_Goto, 0, ignoreDest);
+                            v.AddOp2(OP.Goto, 0, ignoreDest);
+                            break;
+                        }
+                }
+                v.JumpHere(j3);
+                if (isUpdate)
+                    v.JumpHere(j2);
+            }
+
+            // Test all UNIQUE constraints by creating entries for each UNIQUE index and making sure that duplicate entries do not already exist.
+            // Add the new records to the indices as we go.
+            int curId; // Table cursor number
+            Index index; // Pointer to one of the indices
+            int regOldRowid = (rowidChng != 0 && isUpdate ? rowidChng : regRowid);
+            for (curId = 0, index = table.Index; index != null; index = index.Next, curId++)
+            {
+                if (regIdxs[curId] == 0) continue;  // Skip unused indices
+
+                // Create a key for accessing the index entry
+                int regIdx = Expr.GetTempRange(parse, index.Columns.length + 1);
+                for (i = 0; i < index.Columns.length; i++)
+                {
+                    int idx = index.Columns[i];
+                    if (idx == table.PKey)
+                        v.AddOp2(OP.SCopy, regRowid, regIdx + i);
+                    else
+                        v.AddOp2(OP.SCopy, regData + idx, regIdx + i);
+                }
+                v.AddOp2(OP.SCopy, regRowid, regIdx + i);
+                v.AddOp3(OP.MakeRecord, regIdx, index.Columns.length + 1, regIdxs[curId]);
+                v.ChangeP4(-1, IndexAffinityStr(v, index), Vdbe.P4T.TRANSIENT);
+                Expr.CacheAffinityChange(parse, regIdx, index.Columns.length + 1);
+
+                // Find out what action to take in case there is an indexing conflict
+                onError = index.OnError;
+                if (onError == OE.None)
+                {
+                    Expr.ReleaseTempRange(parse, regIdx, index.Columns.length + 1);
+                    continue;  // pIdx is not a UNIQUE index
+                }
+                if (overrideError != OE.Default) onError = overrideError;
+                else if (onError == OE.Default) onError = OE.Abort;
+                if (seenReplace)
+                {
+                    if (onError == OE.Ignore) onError = OE.Replace;
+                    else if (onError == OE.Fail) onError = OE.Abort;
+                }
+
+                // Check to see if the new index entry will be unique
+                int regR = Expr.GetTempReg(parse);
+                v.AddOp2(OP.SCopy, regOldRowid, regR);
+                j3 = v.AddOp4(OP.IsUnique, baseCur + curId + 1, 0, regR, regIdx, Vdbe.P4T.INT32);
+                Expr.ReleaseTempRange(parse, regIdx, index.Columns.length + 1);
+
+                // Generate code that executes if the new index entry is not unique
+                Debug.Assert(onError == OE.Rollback || onError == OE.Abort || onError == OE.Fail || onError == OE.Ignore || onError == OE.Replace);
+                switch (onError)
+                {
+                    case OE.Rollback:
+                    case OE.Abort:
+                    case OE.Fail:
+                        {
+                            TextBuilder b = new TextBuilder(200);
+                            TextBuilder.Init(b, 0, 200);
+                            b.Tag = parse.Ctx;
+                            string sepText = (index.Columns.length > 1 ? "columns " : "column ");
+                            for (int j = 0; j < index.Columns.length; j++)
+                            {
+                                string colName = table.Cols[index.Columns[j]].Name;
+                                b.Append(sepText, -1);
+                                sepText = ", ";
+                                b.Append(colName, -1);
+                            }
+                            b.Append((index.Columns.length > 1 ? " are not unique" : " is not unique"), -1);
+                            string err = b.ToString();
+                            parse.HaltConstraint(RC.CONSTRAINT_UNIQUE, onError, err, 0);
+                            C._tagfree(ctx, ref err);
+                            break;
+                        }
+                    case OE.Ignore:
+                        {
+                            Debug.Assert(!seenReplace);
+                            v.AddOp2(OP.Goto, 0, ignoreDest);
                             break;
                         }
                     default:
                         {
-                            Trigger pTrigger = null;
-                            Debug.Assert(onError == OE_Replace);
-                            sqlite3MultiWrite(pParse);
-                            if ((pParse.db.flags & SQLITE_RecTriggers) != 0)
-                            {
-                                int iDummy;
-                                pTrigger = sqlite3TriggersExist(pParse, pTab, TK_DELETE, null, out iDummy);
-                            }
-                            sqlite3GenerateRowDelete(
-                                pParse, pTab, baseCur, regR, 0, pTrigger, OE_Replace
-                            );
+                            Trigger trigger = null;
+                            Debug.Assert(onError == OE.Replace);
+                            parse.MultiWrite();
+                            int dummy1;
+                            if ((ctx.Flags & Context.FLAG.RecTriggers) != 0)
+                                trigger = Trigger.TriggersExist(parse, table, TK.DELETE, null, out dummy1);
+                            Delete.GenerateRowDelete(parse, table, baseCur, regR, 0, trigger, OE.Replace);
                             seenReplace = true;
                             break;
                         }
                 }
-                sqlite3VdbeJumpHere(v, j3);
-                sqlite3ReleaseTempReg(pParse, regR);
+                v.JumpHere(j3);
+                Expr.ReleaseTempReg(parse, regR);
             }
-            //if ( pbMayReplace )
-            {
-                pbMayReplace = seenReplace ? 1 : 0;
-            }
+            mayReplaceOut = seenReplace;
         }
-#endif
 
         public static void CompleteInsertion(Parse parse, Table table, int baseCur, int regRowid, int[] regIdxs, bool isUpdate, bool appendBias, bool useSeekResult)
         {

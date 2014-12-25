@@ -3,17 +3,16 @@
 
 namespace Core { namespace Command
 {
-
 	__device__ Table *Delete::SrcListLookup(Parse *parse, SrcList *src)
 	{
 		SrcList::SrcListItem *item = src->Ids;
 		_assert(item && src->Srcs == 1);
-		Table *table = sqlite3LocateTableItem(parse, 0, item);
-		sqlite3DeleteTable(parse->Ctx, item->Table);
+		Table *table = parse->LocateTableItem(false, item);
+		Parse::DeleteTable(parse->Ctx, item->Table);
 		item->Table = table;
 		if (table)
 			table->Refs++;
-		if (sqlite3IndexedByLookup(parse, item))
+		if (Select::IndexedByLookup(parse, item))
 			table = nullptr;
 		return table;
 	}
@@ -25,7 +24,7 @@ namespace Core { namespace Command
 		//   2) It is a system table (i.e. sqlite_master), this call is not part of a nested parse and writable_schema pragma has not 
 		//      been specified.
 		// In either case leave an error message in pParse and return non-zero.
-		if ((IsVirtual(table) && sqlite3GetVTable(parse->Ctx, table)->Mod->Module->Update == nullptr) ||
+		if ((IsVirtual(table) && VTable::GetVTable(parse->Ctx, table)->Module->IModule->Update == nullptr) ||
 			((table->TabFlags & TF_Readonly) != 0 && (parse->Ctx->Flags & Context::FLAG_WriteSchema) == 0 && parse->Nested == 0))
 		{
 			parse->ErrorMsg("table %s may not be modified", table->Name);
@@ -42,20 +41,19 @@ namespace Core { namespace Command
 		return false;
 	}
 
-
 #if !defined(OMIT_VIEW) && !defined(OMIT_TRIGGER)
 	__device__ void Delete::MaterializeView(Parse *parse, Table *view, Expr *where_, int curId)
 	{
 		Context *ctx = parse->Ctx;
-		int db = sqlite3SchemaToIndex(ctx, view->Schema);
+		int db = Prepare::SchemaToIndex(ctx, view->Schema);
 
 		where_ = Expr::Dup(ctx, where_, 0);
-		SrcList *from = SrcList::Append(ctx, 0, 0, 0);
+		SrcList *from = Parse::SrcListAppend(ctx, nullptr, nullptr, nullptr);
 
 		if (from)
 		{
 			_assert(from->Srcs == 1);
-			from->Ids[0].Name = _tagstrdup(vtx, view->Name);
+			from->Ids[0].Name = _tagstrdup(ctx, view->Name);
 			from->Ids[0].Database = _tagstrdup(ctx, ctx->DBs[db].Name);
 			_assert(!from->Ids[0].On);
 			_assert(!from->Ids[0].Using);
@@ -94,27 +92,27 @@ namespace Core { namespace Command
 		//   DELETE FROM table_a WHERE rowid IN ( 
 		//     SELECT rowid FROM table_a WHERE col1=1 ORDER BY col2 LIMIT 1 OFFSET 1
 		//   );
-		Expr *selectRowid = Expr::PExpr(parse, TK_ROW, 0, 0, 0); // SELECT rowid ...
+		Expr *selectRowid = Expr::PExpr_(parse, TK_ROW, 0, 0, 0); // SELECT rowid ...
 		if (!selectRowid) goto limit_where_cleanup_2;
-		ExprList *elist = ExprList::Append(parse, 0, selectRowid);
-		if (!elist) goto limit_where_cleanup_2; // Expression list contaning only pSelectRowid
+		ExprList *list = ExprList::Append(parse, 0, selectRowid);
+		if (!list) goto limit_where_cleanup_2; // Expression list contaning only pSelectRowid
 
 		// duplicate the FROM clause as it is needed by both the DELETE/UPDATE tree and the SELECT subtree.
 		SrcList *selectSrc = SrcList::Dup(parse->Ctx, src, 0); // SELECT rowid FROM x ... (dup of pSrc)
 		if (!selectSrc)
 		{
-			ExprList::Delete(parse->Ctx, elist);
+			ExprList::Delete(parse->Ctx, list);
 			goto limit_where_cleanup_2;
 		}
 
 		// generate the SELECT expression tree.
-		Select *select = Select::New(parse, elist, selectSrc, where_, 0, 0, orderBy, 0, limit, offset); // Complete SELECT tree
+		Select *select = Select::New(parse, list, selectSrc, where_, 0, 0, orderBy, 0, limit, offset); // Complete SELECT tree
 		if (!select) return nullptr;
 
 		// now generate the new WHERE rowid IN clause for the DELETE/UDPATE
-		Expr *whereRowid = Expr::PExpr(parse, TK_ROW, 0, 0, 0); // WHERE rowid ..
+		Expr *whereRowid = Expr::PExpr_(parse, TK_ROW, 0, 0, 0); // WHERE rowid ..
 		if (!whereRowid) goto limit_where_cleanup_1;
-		Expr *inClause = Expr::PExpr(parse, TK_IN, whereRowid, 0, 0); // WHERE rowid IN ( select )
+		Expr *inClause = Expr::PExpr_(parse, TK_IN, whereRowid, 0, 0); // WHERE rowid IN ( select )
 		if (!inClause) goto limit_where_cleanup_1;
 
 		inClause->x.Select = select;
@@ -152,7 +150,7 @@ limit_where_cleanup_2:
 
 		// Figure out if we have any triggers and if the table being deleted from is a view
 #ifndef OMIT_TRIGGER
-		Trigger *trigger = Trigger::Exist(parse, table, TK_DELETE, 0, 0); // List of table triggers, if required
+		Trigger *trigger = Trigger::TriggersExist(parse, table, TK_DELETE, 0, 0); // List of table triggers, if required
 #ifdef OMIT_VIEW
 #define isView false
 #else
@@ -166,7 +164,7 @@ limit_where_cleanup_2:
 		// If table is really a view, make sure it has been initialized.
 		if (sqlite3ViewGetColumnNames(parse, table) || IsReadOnly(parse, table, (trigger != nullptr)))
 			goto delete_from_cleanup;
-		int db = sqlite3SchemaToIndex(ctx, table->Schema); // Database number
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Database number
 		_assert(db < ctx->DBs.length);
 		const char *dbName = ctx->DBs[db].Name; // Name of database holding pTab
 		ARC rcauth = Auth::Check(parse, AUTH_DELETE, table->Name, 0, dbName); // Value returned by authorization callback
@@ -218,7 +216,7 @@ limit_where_cleanup_2:
 #ifndef OMIT_TRUNCATE_OPTIMIZATION
 		// Special case: A DELETE without a WHERE clause deletes everything. It is easier just to erase the whole table. Prior to version 3.6.5,
 		// this optimization caused the row change count (the value returned by API function sqlite3_count_changes) to be set incorrectly.
-		if (rcauth == ARC_OK && !where_ && !trigger && !IsVirtual(table) && !FKey::FkRequired(parse, table, 0, 0))
+		if (rcauth == ARC_OK && !where_ && !trigger && !IsVirtual(table) && !parse->FKRequired(table, 0, 0))
 		{
 			_assert(!isView);
 			v->AddOp4(OP_Clear, table->Id, db, memCnt, table->Name, Vdbe::P4T_STATIC);
@@ -263,7 +261,7 @@ limit_where_cleanup_2:
 				VTable::MakeWritable(parse, table);
 				v->AddOp4(OP_VUpdate, 0, 1, rowid, vtable, Vdbe::P4T_VTAB);
 				v->ChangeP5(OE_Abort);
-				sqlite3MayAbort(parse);
+				parse->MayAbort();
 			}
 			else
 #endif
@@ -288,7 +286,7 @@ limit_where_cleanup_2:
 		// Update the sqlite_sequence table by storing the content of the maximum rowid counter values recorded while inserting into
 		// autoincrement tables.
 		if (!parse->Nested && !parse->TriggerTab)
-			sqlite3AutoincrementEnd(parse);
+			Prepare::AutoincrementEnd(parse);
 
 		// Return the number of rows that were deleted. If this routine is generating code because of a call to sqlite3NestedParse(), do not
 		// invoke the callback function.
@@ -324,11 +322,11 @@ delete_from_cleanup:
 		v->AddOp3(OP_NotExists, curId, label, rowid);
 
 		// If there are any triggers to fire, allocate a range of registers to use for the old.* references in the triggers.
-		if (FKey::FkRequired(parse, table, 0, 0) || trigger)
+		if (parse->FKRequired(table, 0, 0) || trigger)
 		{
 			// TODO: Could use temporary registers here. Also could attempt to avoid copying the contents of the rowid register.
 			uint32 mask = sqlite3TriggerColmask(parse, trigger, 0, 0, TRIGGER_BEFORE|TRIGGER_AFTER, table, onconf); // Mask of OLD.* columns in use
-			mask |= sqlite3FkOldmask(pParse, table);
+			mask |= parse->FKOldmask(table);
 			int oldId = parse->Mems+1; // First register in OLD.* array
 			parse->Mems += (1 + table->Cols.length);
 
@@ -346,20 +344,20 @@ delete_from_cleanup:
 			v->AddOp3(OP_NotExists, curId, label, rowid);
 
 			// Do FK processing. This call checks that any FK constraints that refer to this table (i.e. constraints attached to other tables) are not violated by deleting this row.
-			FKey::FkCheck(parse, table, oldId, 0);
+			parse->FKCheck(table, oldId, 0);
 		}
 
 		// Delete the index and table entries. Skip this step if table is really a view (in which case the only effect of the DELETE statement is to fire the INSTEAD OF triggers).
 		if (!table->Select)
 		{
 			GenerateRowIndexDelete(parse, table, curId, nullptr);
-			v->AddOp2(OP_Delete, curId, (count ? OPFLAG_NCHANGE : 0));
+			v->AddOp2(OP_Delete, curId, (count ? Vdbe::OPFLAG_NCHANGE : 0));
 			if (count)
 				v->ChangeP4(-1, table->Name, Vdbe::P4T_TRANSIENT);
 		}
 
 		// Do any ON CASCADE, SET NULL or SET DEFAULT operations required to handle rows (possibly in other tables) that refer via a foreign key to the row just deleted.
-		FKey::FkActions(parse, table, 0, oldId);
+		parse->FKActions(table, 0, oldId);
 
 		// Invoke AFTER DELETE trigger programs.
 		sqlite3CodeRowTrigger(parse, trigger, TK_DELETE, 0, TRIGGER_AFTER, table, oldId, onconf, label);

@@ -7,47 +7,44 @@ using System.Text;
 
 namespace Core
 {
-    public partial class Sqlite3
+    public partial class Backup : IBackup
     {
-        public class Backup
-        {
-            public Context DestCtx;         // Destination database handle
-            public Btree Dest;              // Destination b-tree file
-            public uint DestSchema;         // Original schema cookie in destination
-            public bool DestLocked;          // True once a write-transaction is open on pDest
+        public Context DestCtx;         // Destination database handle
+        public Btree Dest;              // Destination b-tree file
+        public uint DestSchema;         // Original schema cookie in destination
+        public bool DestLocked;          // True once a write-transaction is open on pDest
 
-            public Pid NextId;               // Page number of the next source page to copy
-            public Context SrcCtx;          // Source database handle
-            public Btree Src;               // Source b-tree file
+        public Pid NextId;               // Page number of the next source page to copy
+        public Context SrcCtx;          // Source database handle
+        public Btree Src;               // Source b-tree file
 
-            public RC RC;                   // Backup process error code
+        public RC RC_;                   // Backup process error code
 
-            // These two variables are set by every call to backup_step(). They are read by calls to backup_remaining() and backup_pagecount().
-            public Pid Remaining;           // Number of pages left to copy */
-            public Pid Pagecount;           // Total number of pages to copy */
+        // These two variables are set by every call to backup_step(). They are read by calls to backup_remaining() and backup_pagecount().
+        public Pid Remaining;           // Number of pages left to copy */
+        public Pid Pagecount;           // Total number of pages to copy */
 
-            public bool IsAttached;         // True once backup has been registered with pager
-            public Backup Next;             // Next backup associated with source pager
-        }
+        public bool IsAttached;         // True once backup has been registered with pager
+        public Backup Next;             // Next backup associated with source pager
 
         static Btree FindBtree(Context errorCtx, Context ctx, string dbName)
         {
-            int i = sqlite3FindDbName(ctx, dbName);
+            int i = Parse.FindDbName(ctx, dbName);
             if (i == 1)
             {
                 RC rc = 0;
                 Parse parse = new Parse();
                 if (parse == null)
                 {
-                    Context.Error(errorCtx, RC.NOMEM, "out of memory");
+                    Main.Error(errorCtx, RC.NOMEM, "out of memory");
                     rc = RC.NOMEM;
                 }
                 else
                 {
                     parse.Ctx = ctx;
-                    if (sqlite3OpenTempDatabase(parse) != 0)
+                    if (parse.OpenTempDatabase() != 0)
                     {
-                        Context.Error(errorCtx, parse.RC, "%s", parse.ErrMsg);
+                        Main.Error(errorCtx, parse.RC, "%s", parse.ErrMsg);
                         rc = RC.ERROR;
                     }
                     C._tagfree(errorCtx, ref parse.ErrMsg);
@@ -58,7 +55,7 @@ namespace Core
 
             if (i < 0)
             {
-                Context.Error(errorCtx, RC.ERROR, "unknown database %s", dbName);
+                Main.Error(errorCtx, RC.ERROR, "unknown database %s", dbName);
                 return null;
             }
             return ctx.DBs[i].Bt;
@@ -82,7 +79,7 @@ namespace Core
             Backup p;
             if (srcCtx == destCtx)
             {
-                Context.Error(destCtx, RC.ERROR, "source and destination must be distinct");
+                Main.Error(destCtx, RC.ERROR, "source and destination must be distinct");
                 p = null;
             }
             else
@@ -91,7 +88,7 @@ namespace Core
                 // call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
                 p = new Backup();
                 if (p == null)
-                    Context.Error(destCtx, RC.NOMEM, null);
+                    Main.Error(destCtx, RC.NOMEM, null);
             }
 
             // If the allocation succeeded, populate the new object.
@@ -136,7 +133,7 @@ namespace Core
 
             Debug.Assert(p.Src.GetReserveNoMutex() >= 0);
             Debug.Assert(p.DestLocked);
-            Debug.Assert(!IsFatalError(p.RC));
+            Debug.Assert(!IsFatalError(p.RC_));
             Debug.Assert(srcPg != Btree.PENDING_BYTE_PAGE(p.Src.Bt));
             Debug.Assert(srcData != null);
 
@@ -199,60 +196,60 @@ namespace Core
 
         static void AttachBackupObject(Backup p)
         {
-            Debug.Assert(Btree.HoldsMutex(p.Src));
-            Backup pp = p.Src.get_Pager().BackupPtr();
+            Debug.Assert(p.Src.HoldsMutex());
+            Backup pp = (Backup)p.Src.get_Pager().Backup;
             p.Next = pp;
             p.Src.get_Pager().Backup = p;
             p.IsAttached = true;
         }
 
-        public static RC Step(Backup p, int pages)
+        public RC Step(int pages)
         {
-            MutexEx.Enter(p.SrcCtx.Mutex);
-            p.Src.Enter();
-            if (p.DestCtx != null)
-                MutexEx.Enter(p.DestCtx.Mutex);
+            MutexEx.Enter(SrcCtx.Mutex);
+            Src.Enter();
+            if (DestCtx != null)
+                MutexEx.Enter(DestCtx.Mutex);
 
-            RC rc = p.RC;
+            RC rc = RC_;
             if (!IsFatalError(rc))
             {
-                Pager srcPager = p.Src.get_Pager(); // Source pager
-                Pager destPager = p.Dest.get_Pager(); // Dest pager
+                Pager srcPager = Src.get_Pager(); // Source pager
+                Pager destPager = Dest.get_Pager(); // Dest pager
                 Pid srcPage = 0; // Size of source db in pages
                 bool closeTrans = false; // True if src db requires unlocking
 
                 // If the source pager is currently in a write-transaction, return SQLITE_BUSY immediately.
-                rc = (p.DestCtx != null && p.Src.Bt.InTransaction == TRANS.WRITE ? RC.BUSY : RC.OK);
+                rc = (DestCtx != null && Src.Bt.InTransaction == TRANS.WRITE ? RC.BUSY : RC.OK);
 
                 // Lock the destination database, if it is not locked already.
-                if (rc == RC.OK && !p.DestLocked && (rc = p.Dest.BeginTrans(2)) == RC.OK)
+                if (rc == RC.OK && !DestLocked && (rc = Dest.BeginTrans(2)) == RC.OK)
                 {
-                    p.DestLocked = true;
-                    p.Dest.GetMeta(Btree.META.SCHEMA_VERSION, ref p.DestSchema);
+                    DestLocked = true;
+                    Dest.GetMeta(Btree.META.SCHEMA_VERSION, ref DestSchema);
                 }
 
                 // If there is no open read-transaction on the source database, open one now. If a transaction is opened here, then it will be closed
                 // before this function exits.
-                if (rc == RC.OK && !p.Src.IsInReadTrans())
+                if (rc == RC.OK && !Src.IsInReadTrans())
                 {
-                    rc = p.Src.BeginTrans(0);
+                    rc = Src.BeginTrans(0);
                     closeTrans = true;
                 }
 
                 // Do not allow backup if the destination database is in WAL mode and the page sizes are different between source and destination
-                int pgszSrc = p.Src.GetPageSize(); // Source page size
-                int pgszDest = p.Dest.GetPageSize(); // Destination page size
-                IPager.JOURNALMODE destMode = p.Dest.get_Pager().GetJournalMode(); // Destination journal mode
+                int pgszSrc = Src.GetPageSize(); // Source page size
+                int pgszDest = Dest.GetPageSize(); // Destination page size
+                IPager.JOURNALMODE destMode = Dest.get_Pager().GetJournalMode(); // Destination journal mode
                 if (rc == RC.OK && destMode == IPager.JOURNALMODE.WAL && pgszSrc != pgszDest)
                     rc = RC.READONLY;
 
                 // Now that there is a read-lock on the source database, query the source pager for the number of pages in the database.
-                srcPage = p.Src.LastPage();
+                srcPage = Src.LastPage();
                 Debug.Assert(srcPage >= 0);
-                for (int ii = 0; (pages < 0 || ii < pages) && p.NextId <= (Pid)srcPage && rc == 0; ii++)
+                for (int ii = 0; (pages < 0 || ii < pages) && NextId <= (Pid)srcPage && rc == 0; ii++)
                 {
-                    Pid srcPg = p.NextId; // Source page number
-                    if (srcPg != Btree.PENDING_BYTE_PAGE(p.Src.Bt))
+                    Pid srcPg = NextId; // Source page number
+                    if (srcPg != Btree.PENDING_BYTE_PAGE(Src.Bt))
                     {
                         IPage srcPgAsObj = null; // Source page object
                         rc = srcPager.Acquire(srcPg, ref srcPgAsObj, false);
@@ -262,15 +259,15 @@ namespace Core
                             Pager.Unref(srcPgAsObj);
                         }
                     }
-                    p.NextId++;
+                    NextId++;
                 }
                 if (rc == RC.OK)
                 {
-                    p.Pagecount = srcPage;
-                    p.Remaining = (srcPage + 1 - p.NextId);
-                    if (p.NextId > srcPage)
+                    Pagecount = srcPage;
+                    Remaining = (srcPage + 1 - NextId);
+                    if (NextId > srcPage)
                         rc = RC.DONE;
-                    else if (!p.IsAttached)
+                    else if (!IsAttached)
                         AttachBackupObject(p);
                 }
 
@@ -280,17 +277,17 @@ namespace Core
                 {
                     if (srcPage == null)
                     {
-                        rc = p.Dest.NewDb();
+                        rc = Dest.NewDb();
                         srcPage = 1;
                     }
                     if (rc == RC.OK || rc == RC.DONE)
-                        rc = p.Dest.UpdateMeta(Btree.META.SCHEMA_VERSION, p.DestSchema + 1);
+                        rc = Dest.UpdateMeta(Btree.META.SCHEMA_VERSION, DestSchema + 1);
                     if (rc == RC.OK)
                     {
-                        if (p.DestCtx != null)
-                            sqlite3ResetAllSchemasOfConnection(p.DestCtx);
+                        if (DestCtx != null)
+                            Main.ResetAllSchemasOfConnection(DestCtx);
                         if (destMode == IPager.JOURNALMODE.WAL)
-                            rc = p.Dest.SetVersion(2);
+                            rc = Dest.SetVersion(2);
                     }
                     if (rc == RC.OK)
                     {
@@ -302,14 +299,14 @@ namespace Core
                         // destination file that lie beyond the nDestTruncate page mark are journalled by PagerCommitPhaseOne() before they are destroyed
                         // by the file truncation.
 
-                        Debug.Assert(pgszSrc == p.Src.GetPageSize());
-                        Debug.Assert(pgszDest == p.Dest.GetPageSize());
+                        Debug.Assert(pgszSrc == Src.GetPageSize());
+                        Debug.Assert(pgszDest == Dest.GetPageSize());
                         Pid destTruncate;
                         if (pgszSrc < pgszDest)
                         {
                             int ratio = pgszDest / pgszSrc;
                             destTruncate = (Pid)((srcPage + ratio - 1) / ratio);
-                            if (destTruncate == Btree.PENDING_BYTE_PAGE(p.Dest.Bt))
+                            if (destTruncate == Btree.PENDING_BYTE_PAGE(Dest.Bt))
                                 destTruncate--;
                         }
                         else
@@ -327,7 +324,7 @@ namespace Core
                             int size = (int)(pgszSrc * srcPage);
                             VFile file = destPager.get_File();
                             Debug.Assert(file != null);
-                            Debug.Assert((long)destTruncate * (long)pgszDest >= size || (destTruncate == (int)(Btree.PENDING_BYTE_PAGE(p.Dest.Bt) - 1) && size >= VFile.PENDING_BYTE && size <= VFile.PENDING_BYTE + pgszDest));
+                            Debug.Assert((long)destTruncate * (long)pgszDest >= size || (destTruncate == (int)(Btree.PENDING_BYTE_PAGE(Dest.Bt) - 1) && size >= VFile.PENDING_BYTE && size <= VFile.PENDING_BYTE + pgszDest));
 
                             // This block ensures that all data required to recreate the original database has been stored in the journal for pDestPager and the
                             // journal synced to disk. So at this point we may safely modify the database file in any way, knowing that if a power failure
@@ -336,7 +333,7 @@ namespace Core
                             destPager.Pages(out dstPage);
                             for (Pid pg = destTruncate; rc == RC.OK && pg <= (Pid)dstPage; pg++)
                             {
-                                if (pg != Btree.PENDING_BYTE_PAGE(p.Dest.Bt))
+                                if (pg != Btree.PENDING_BYTE_PAGE(Dest.Bt))
                                 {
                                     IPage pgAsObj;
                                     rc = destPager.Acquire(pg, ref pgAsObj, false);
@@ -378,7 +375,7 @@ namespace Core
                         }
 
                         // Finish committing the transaction to the destination database.
-                        if (rc == RC.OK && (rc = p.Dest.CommitPhaseTwo(false)) == RC.OK)
+                        if (rc == RC.OK && (rc = Dest.CommitPhaseTwo(false)) == RC.OK)
                             rc = RC.DONE;
                     }
                 }
@@ -388,23 +385,23 @@ namespace Core
                 if (closeTrans)
                 {
 #if !DEBUG || COVERAGE_TEST
-                    RC rc2 = p.Src.CommitPhaseOne(null);
-                    rc2 |= p.Src.CommitPhaseTwo(false);
+                    RC rc2 = Src.CommitPhaseOne(null);
+                    rc2 |= Src.CommitPhaseTwo(false);
                     Debug.Assert(rc2 == RC.OK);
 #else
-                    p.Src.CommitPhaseOne(null);
-                    p.Src.CommitPhaseTwo(false);
+                    Src.CommitPhaseOne(null);
+                    Src.CommitPhaseTwo(false);
 #endif
                 }
 
                 if (rc == RC.IOERR_NOMEM)
                     rc = RC.NOMEM;
-                p.RC = rc;
+                RC_ = rc;
             }
-            if (p.DestCtx != null)
-                MutexEx.Leave(p.DestCtx.Mutex);
-            p.Src.Leave();
-            MutexEx.Leave(p.SrcCtx.Mutex);
+            if (DestCtx != null)
+                MutexEx.Leave(DestCtx.Mutex);
+            Src.Leave();
+            MutexEx.Leave(SrcCtx.Mutex);
             return rc;
         }
 
@@ -423,7 +420,7 @@ namespace Core
                 p.Src.Backups--;
             if (p.IsAttached)
             {
-                IBackup pp = p.Src.get_Pager().BackupPtr();
+                Backup pp = (Backup)p.Src.get_Pager().Backup;
                 while (pp != p)
                     pp = (pp).Next;
                 p.Src.get_Pager().Backup = p.Next;
@@ -433,28 +430,28 @@ namespace Core
             p.Dest.Rollback(RC.OK);
 
             // Set the error code of the destination database handle.
-            RC rc = (p.RC == RC.DONE ? RC.OK : p.RC);
-            Context.Error(p.DestCtx, rc, null);
+            RC rc = (p.RC_ == RC.DONE ? RC.OK : p.RC_);
+            Main.Error(p.DestCtx, rc, null);
 
             // Exit the mutexes and free the backup context structure.
             if (p.DestCtx != null)
-                MutexEx.LeaveMutexAndCloseZombie(p.DestCtx.Mutex);
+                Main.LeaveMutexAndCloseZombie(p.DestCtx.Mutex);
             p.Src.Leave();
             //// EVIDENCE-OF: R-64852-21591 The sqlite3_backup object is created by a call to sqlite3_backup_init() and is destroyed by a call to sqlite3_backup_finish().
             //if (p.DestCtx != null)
             //    C._free(ref p);
-            MutexEx.LeaveMutexAndCloseZombie(mutex);
+            Main.LeaveMutexAndCloseZombie(mutex);
             return rc;
         }
 
-        public static int Remaining(Backup p)
-        {
-            return (int)p.Remaining;
-        }
+        //public static int Remaining(Backup p)
+        //{
+        //    return (int)p.Remaining;
+        //}
 
-        public static int Pagecount(Backup p)
-        {
-            return (int)p.Pagecount;
+        //public static int Pagecount(Backup p)
+        //{
+        //    return (int)p.Pagecount;
         }
 
         public static void Update(Backup backup, Pid page, byte[] data)
@@ -462,7 +459,7 @@ namespace Core
             for (Backup p = backup; p != null; p = p.Next)
             {
                 Debug.Assert(MutexEx.Held(p.Src.Bt.Mutex));
-                if (!IsFatalError(p.RC) && page < p.NextId)
+                if (!IsFatalError(p.RC_) && page < p.NextId)
                 {
                     // The backup process p has already copied page iPage. But now it has been modified by a transaction on the source pager. Copy
                     // the new data into the backup.
@@ -472,7 +469,7 @@ namespace Core
                     MutexEx.Leave(p.DestCtx.Mutex);
                     Debug.Assert(rc != RC.BUSY && rc != RC.LOCKED);
                     if (rc != RC.OK)
-                        p.RC = rc;
+                        p.RC_ = rc;
                 }
             }
         }
@@ -506,7 +503,7 @@ namespace Core
             // Set up an sqlite3_backup object. sqlite3_backup.pDestDb must be set to 0. This is used by the implementations of sqlite3_backup_step()
             // and sqlite3_backup_finish() to detect that they are being called from this function, not directly by the user.
             Backup b = new Backup();
-            b.SrcCtx = from.Ctx;
+            b.SrcCtx = (Context)from.Ctx;
             b.Src = from;
             b.Dest = to;
             b.NextId = 1;
@@ -514,15 +511,15 @@ namespace Core
             // 0x7FFFFFFF is the hard limit for the number of pages in a database file. By passing this as the number of pages to copy to
             // sqlite3_backup_step(), we can guarantee that the copy finishes within a single call (unless an error occurs). The assert() statement
             // checks this assumption - (p->rc) should be set to either SQLITE_DONE or an error code.
-            Step(b, 0x7FFFFFFF);
-            Debug.Assert(b.RC != RC._OK);
+            b.Step(0x7FFFFFFF);
+            Debug.Assert(b.RC_ != RC.OK);
             rc = Finish(b);
             if (rc == RC.OK)
                 to.Bt.BtsFlags &= ~Btree.BTS.PAGESIZE_FIXED;
             else
                 b.Dest.get_Pager().ClearCache();
 
-            _assert(!to->IsInTrans());
+            Debug.Assert(!to.IsInTrans());
         copy_finished:
             from.Leave();
             to.Leave();

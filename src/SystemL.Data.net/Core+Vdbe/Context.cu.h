@@ -1,5 +1,64 @@
 namespace Core
 {
+	#pragma region Authorization
+
+	enum ARC : uint8
+	{
+		ARC_OK = 0,			// Successful result
+		ARC_DENY = 1,		// Abort the SQL statement with an error
+		ARC_IGNORE = 2,		// Don't allow access, but don't generate an error
+	};
+
+	enum AUTH : uint8
+	{
+		AUTH_CREATE_INDEX        =  1,   // Index Name      Table Name
+		AUTH_CREATE_TABLE        =  2,   // Table Name      NULL
+		AUTH_CREATE_TEMP_INDEX   =  3,   // Index Name      Table Name
+		AUTH_CREATE_TEMP_TABLE   =  4,   // Table Name      NULL
+		AUTH_CREATE_TEMP_TRIGGER =  5,   // Trigger Name    Table Name
+		AUTH_CREATE_TEMP_VIEW    =  6,   // View Name       NULL
+		AUTH_CREATE_TRIGGER      =  7,   // Trigger Name    Table Name
+		AUTH_CREATE_VIEW         =  8,   // View Name       NULL
+		AUTH_DELETE              =  9,   // Table Name      NULL
+		AUTH_DROP_INDEX          = 10,   // Index Name      Table Name
+		AUTH_DROP_TABLE          = 11,   // Table Name      NULL
+		AUTH_DROP_TEMP_INDEX     = 12,   // Index Name      Table Name
+		AUTH_DROP_TEMP_TABLE     = 13,   // Table Name      NULL
+		AUTH_DROP_TEMP_TRIGGER   = 14,   // Trigger Name    Table Name
+		AUTH_DROP_TEMP_VIEW      = 15,   // View Name       NULL
+		AUTH_DROP_TRIGGER        = 16,   // Trigger Name    Table Name
+		AUTH_DROP_VIEW           = 17,   // View Name       NULL
+		AUTH_INSERT              = 18,   // Table Name      NULL
+		AUTH_PRAGMA              = 19,   // Pragma Name     1st arg or NULL
+		AUTH_READ                = 20,   // Table Name      Column Name
+		AUTH_SELECT              = 21,   // NULL            NULL
+		AUTH_TRANSACTION         = 22,   // Operation       NULL
+		AUTH_UPDATE              = 23,   // Table Name      Column Name
+		AUTH_ATTACH              = 24,   // Filename        NULL
+		AUTH_DETACH              = 25,   // Database Name   NULL
+		AUTH_ALTER_TABLE         = 26,   // Database Name   Table Name
+		AUTH_REINDEX             = 27,   // Index Name      NULL
+		AUTH_ANALYZE             = 28,   // Table Name      NULL
+		AUTH_CREATE_VTABLE       = 29,   // Table Name      Module Name
+		AUTH_DROP_VTABLE         = 30,   // Table Name      Module Name
+		AUTH_FUNCTION            = 31,   // NULL            Function Name
+		AUTH_SAVEPOINT           = 32,   // Operation       Savepoint Name 
+		AUTH_COPY                =  0,   // No longer used
+	};
+
+	struct Auth
+	{
+		__device__ static RC SetAuthorizer(Context *ctx, ARC (*auth)(void*,int,const char*,const char*,const char*,const char*), void *args);
+		__device__ static void BadReturnCode(Parse *parse);
+		__device__ static ARC ReadColumn(Parse *parse, const char *table, const char *column, int db);
+		__device__ static void Read(Parse *parse, Expr *expr, Schema *schema, SrcList *tableList);
+		__device__ static ARC Check(Parse *parse, AUTH code, const char *arg1, const char *arg2, const char *arg3);
+		__device__ static void ContextPush(Parse *parse, AuthContext *actx, const char *context);
+		__device__ static void Auth::ContextPop(AuthContext *actx);
+	};
+
+#pragma endregion
+
 	enum LIMIT : uint8
 	{
 		LIMIT_LENGTH = 0,

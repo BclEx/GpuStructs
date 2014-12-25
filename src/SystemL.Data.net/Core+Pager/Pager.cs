@@ -3726,10 +3726,10 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
             return JournalSizeLimit;
         }
 
-        public IBackup BackupPtr()
-        {
-            return Backup;
-        }
+        //public IBackup BackupPtr()
+        //{
+        //    return Backup;
+        //}
 
 #if !OMIT_VACUUM
         void ClearCache()

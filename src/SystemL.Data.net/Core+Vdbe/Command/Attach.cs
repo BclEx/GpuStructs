@@ -390,7 +390,7 @@ namespace Core
             return false;
         }
 
-        public int FixExprList(ExprList list)
+        public bool FixExprList(ExprList list)
         {
             if (list == null) return false;
             int i;
@@ -406,7 +406,7 @@ namespace Core
 #endif
 
 #if !OMIT_TRIGGER
-        public int FixTriggerStep(TriggerStep step)
+        public bool FixTriggerStep(TriggerStep step)
         {
             while (step != null)
             {

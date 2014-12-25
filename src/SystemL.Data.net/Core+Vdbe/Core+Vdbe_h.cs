@@ -807,8 +807,8 @@ namespace Core
     {
         public Trigger Trigger;		    // Trigger this program was coded from
         public TriggerPrg Next;		    // Next entry in Parse.pTriggerPrg list
-        public SubProgram Program;	    // Program implementing pTrigger/orconf
-        public int Orconf;              // Default ON CONFLICT policy
+        public Vdbe.SubProgram Program;	// Program implementing pTrigger/orconf
+        public OE Orconf;               // Default ON CONFLICT policy
         public uint[] Colmasks = new uint[2];     // Masks of old.*, new.* columns accessed
     }
 
@@ -887,7 +887,7 @@ namespace Core
         public uint Oldmask;				// Mask of old.* columns referenced
         public uint Newmask;				// Mask of new.* columns referenced
         public TK TriggerOp;			    // TK_UPDATE, TK_INSERT or TK_DELETE
-        public byte Orconf;				    // Default ON CONFLICT policy for trigger steps
+        public OE Orconf;				    // Default ON CONFLICT policy for trigger steps
         public bool DisableTriggers;		// True to disable triggers
 
         // Above is constant between recursions.  Below is reset before and after each recursion
@@ -957,7 +957,7 @@ namespace Core
         public string DfltName;				// Original text of the default value
         public string Type;					// Data type for this column
         public string Coll;					// Collating sequence.  If NULL, use the default
-        public byte NotNull;				// An OE_ code for handling a NOT NULL constraint
+        public OE NotNull;				    // An OE_ code for handling a NOT NULL constraint
         public AFF Affinity;				// One of the SQLITE_AFF_... values
         public COLFLAG ColFlags;			// Boolean properties.  See COLFLAG_ defines below
     }
@@ -1129,7 +1129,7 @@ namespace Core
     {
         public string Name;             // The name of the trigger
         public string Table;            // The table or view to which the trigger applies
-        public OP OP;                   // One of TK_DELETE, TK_UPDATE, TK_INSERT
+        public TK OP;                   // One of TK_DELETE, TK_UPDATE, TK_INSERT
         public TRIGGER TRtm;            // One of TRIGGER_BEFORE, TRIGGER_AFTER
         public Expr When;               // The WHEN clause of the expression (may be NULL)
         public IdList Columns;          // If this is an UPDATE OF <column-list> trigger, the <column-list> is stored here
@@ -1155,8 +1155,8 @@ namespace Core
 
     public class TriggerStep
     {
-        public OP OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
-        public byte Orconf;         // OE_Rollback etc.
+        public TK OP;               // One of TK_DELETE, TK_UPDATE, TK_INSERT, TK_SELECT
+        public OE Orconf;         // OE_Rollback etc.
         public Trigger Trig;        // The trigger that this step is a part of
         public Select Select;       // SELECT statment or RHS of INSERT INTO .. SELECT ...
         public Token Target = new Token(); // Target table for DELETE, UPDATE, INSERT
@@ -1188,12 +1188,4 @@ namespace Core
     }
 
     #endregion
-
-    public partial class Sql
-    {
-        public static RC sqlite3_exec(Context ctx, string sql, Func<object, int, string[], string[], bool> callback, object x, ref string errmsg)
-        {
-            return RC.OK;
-        }
-    }
 }

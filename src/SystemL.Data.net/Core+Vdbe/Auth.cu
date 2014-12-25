@@ -42,7 +42,7 @@ namespace Core
 	{
 		Context *ctx = parse->Ctx;
 		if (!ctx->Auth) return;
-		int db = sqlite3SchemaToIndex(ctx, schema); // The index of the database the expression refers to
+		int db = Prepare::SchemaToIndex(ctx, schema); // The index of the database the expression refers to
 		if (db < 0)
 			return; // An attempt to read a column out of a subquery or other temporary table.
 
@@ -81,7 +81,7 @@ namespace Core
 			expr->OP = TK_NULL;
 	}
 
-	__device__ ARC Auth::Check(Parse *parse, int code, const char *arg1, const char *arg2, const char *arg3)
+	__device__ ARC Auth::Check(Parse *parse, AUTH code, const char *arg1, const char *arg2, const char *arg3)
 	{
 		Context *ctx = parse->Ctx;
 		// Don't do any authorization checks if the database is initialising or if the parser is being invoked from within sqlite3_declare_vtab.

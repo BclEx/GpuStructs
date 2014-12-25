@@ -176,10 +176,5 @@ namespace Core
         public Action<object[], int> UnlockNotify;  // Unlock notify callback
         public Context NextBlocked;                 // Next in list of all blocked connections
 #endif
-
-        internal static void Error(object tag, RC rc, string format, params object[] args)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

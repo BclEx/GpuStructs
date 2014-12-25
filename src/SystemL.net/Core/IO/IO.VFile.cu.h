@@ -149,5 +149,6 @@ namespace Core { namespace IO
 		__device__ static int MemoryVFileSize() ;
 	};
 
+	__device__ VFile::SYNC inline operator|(VFile::SYNC a, VFile::SYNC b) { return (VFile::SYNC)((int)a | (int)b); }
 	__device__ VFile::SYNC inline operator|=(VFile::SYNC a, int b) { return (VFile::SYNC)(a | b); }
 }}

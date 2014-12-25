@@ -199,6 +199,37 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA);
 	STDARG_POSTAMBLE;
 }
+// extended
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA, typename TB> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA, TB argB)
+{
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA); STDARG_ARG(argB);
+	STDARG_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA, typename TB, typename TC> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA, TB argB, TC argC)
+{
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA); STDARG_ARG(argB); STDARG_ARG(argC);
+	STDARG_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA, typename TB, typename TC, typename TD> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA, TB argB, TC argC, TD argD)
+{
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA); STDARG_ARG(argB); STDARG_ARG(argC); STDARG_ARG(argD);
+	STDARG_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA, typename TB, typename TC, typename TD, typename TE> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA, TB argB, TC argC, TD argD, TE argE)
+{
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA); STDARG_ARG(argB); STDARG_ARG(argC); STDARG_ARG(argD); STDARG_ARG(argE);
+	STDARG_POSTAMBLE;
+}
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA, typename TB, typename TC, typename TD, typename TE, typename TF> __device__ static void va_start(va_list &args, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA, TB argB, TC argC, TD argD, TE argE, TF argF)
+{
+	STDARG_PREAMBLE;
+	STDARG_ARG(arg1); STDARG_ARG(arg2); STDARG_ARG(arg3); STDARG_ARG(arg4); STDARG_ARG(arg5); STDARG_ARG(arg6); STDARG_ARG(arg7); STDARG_ARG(arg8); STDARG_ARG(arg9); STDARG_ARG(argA); STDARG_ARG(argB); STDARG_ARG(argC); STDARG_ARG(argD); STDARG_ARG(argE); STDARG_ARG(argF);
+	STDARG_POSTAMBLE;
+}
 
 #undef STDARG_PREAMBLE
 #undef STDARG_ARG

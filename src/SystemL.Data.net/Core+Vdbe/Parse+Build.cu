@@ -2546,10 +2546,10 @@ append_from_error:
 		toplevel->_MayAbort = true;
 	}
 
-	__device__ void Parse::HaltConstraint(int errCode, int onError, char *p4, int p4type)
+	__device__ void Parse::HaltConstraint(Core::RC errCode, int onError, char *p4, int p4type)
 	{
 		Vdbe *v = GetVdbe();
-		_assert((errCode&0xff) == SQLITE_CONSTRAINT);
+		_assert((errCode&0xff) == RC_CONSTRAINT);
 		if (onError == OE_Abort)
 			MayAbort();
 		v->AddOp4(OP_Halt, errCode, onError, 0, p4, p4type);
@@ -2568,6 +2568,7 @@ append_from_error:
 		}
 		return false;
 	}
+
 	__device__ static void ReindexTable(Parse *parse, Table *table, char const *collName)
 	{
 		for (Index *index = table->Index; index; index = index->Next)

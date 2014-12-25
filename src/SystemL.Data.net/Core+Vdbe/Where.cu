@@ -456,7 +456,7 @@ findTerm_success:
 		Context *ctx = parse->Ctx;  // Database connection
 		Mem *val = nullptr;
 
-		if (!Func::IsLikeFunction(ctx, expr, noCase, wc))
+		if (!Command::Func::IsLikeFunction(ctx, expr, noCase, wc))
 			return 0;
 		ExprList *list = expr->x.List; // List of operands to the LIKE operator
 		Expr *left = list->Ids[1].Expr; // Right and left size of LIKE operator
@@ -501,17 +501,17 @@ findTerm_success:
 						// If the rhs of the LIKE expression is a variable, and the current value of the variable means there is no need to invoke the LIKE
 						// function, then no OP_Variable will be added to the program. This causes problems for the sqlite3_bind_parameter_name()
 						// API. To workaround them, add a dummy OP_Variable here.
-						int r1 = parse->GetTempReg();
+						int r1 = Expr::GetTempReg(parse);
 						Expr::CodeTarget(parse, right, r1);
 						v->ChangeP3(v->CurrentAddr()-1, 0);
-						parse->ReleaseTempReg(r1);
+						Expr::ReleaseTempReg(parse, r1);
 					}
 				}
 			}
 			else
 				z = nullptr;
 		}
-		Mem_Free(val);
+		Vdbe::Mem_Free(val);
 		return (z != nullptr);
 	}
 #endif

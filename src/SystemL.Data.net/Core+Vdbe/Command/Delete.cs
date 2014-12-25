@@ -6,17 +6,16 @@ namespace Core.Command
 {
     public partial class Delete
     {
-
         public static Table SrcListLookup(Parse parse, SrcList src)
         {
             SrcList.SrcListItem item = src.Ids[0];
             Debug.Assert(item != null && src.Srcs == 1);
-            Table table = sqlite3LocateTable(parse, 0, item.Name, item.Database);
-            sqlite3DeleteTable(parse.Ctx, ref item.Table);
+            Table table = parse.LocateTableItem(false, item);
+            Parse.DeleteTable(parse.Ctx, ref item.Table);
             item.Table = table;
             if (table != null)
                 table.Refs++;
-            if (sqlite3IndexedByLookup(parse, item) != 0)
+            if (Select.IndexedByLookup(parse, item) != 0)
                 table = null;
             return table;
         }
@@ -28,7 +27,7 @@ namespace Core.Command
             //   2) It is a system table (i.e. sqlite_master), this call is not part of a nested parse and writable_schema pragma has not 
             //      been specified.
             // In either case leave an error message in pParse and return non-zero.
-            if ((IsVirtual(table) && sqlite3GetVTable(parse.Ctx, table).Mod.Module.Update == null) ||
+            if ((E.IsVirtual(table) && VTable.GetVTable(parse.Ctx, table).Module.IModule.Update == null) ||
                ((table.TabFlags & TF.Readonly) != 0 && (parse.Ctx.Flags & Context.FLAG.WriteSchema) == 0 && parse.Nested == 0))
             {
                 parse.ErrorMsg("table %s may not be modified", table.Name);
@@ -45,15 +44,14 @@ namespace Core.Command
             return false;
         }
 
-
 #if !OMIT_VIEW && !OMIT_TRIGGER
         public static void MaterializeView(Parse parse, Table view, Expr where_, int curId)
         {
             Context ctx = parse.Ctx;
-            int db = sqlite3SchemaToIndex(ctx, view.Schema);
+            int db = Prepare.SchemaToIndex(ctx, view.Schema);
 
             where_ = Expr.Dup(ctx, where_, 0);
-            SrcList from = SrcList.Append(ctx, 0, 0, 0);
+            SrcList from = Parse.SrcListAppend(ctx, null, null, null);
 
             if (from != null)
             {
@@ -97,7 +95,7 @@ namespace Core.Command
             //   DELETE FROM table_a WHERE rowid IN ( 
             //     SELECT rowid FROM table_a WHERE col1=1 ORDER BY col2 LIMIT 1 OFFSET 1
             //   );
-            Expr selectRowid = Expr.PExpr(parse, TK.ROW, null, null, null); // SELECT rowid ...
+            Expr selectRowid = Expr.PExpr_(parse, TK.ROW, null, null, null); // SELECT rowid ...
             if (selectRowid == null) goto limit_where_cleanup_2;
             ExprList elist = ExprList.Append(parse, null, selectRowid); // Expression list contaning only pSelectRowid
             if (elist == null) goto limit_where_cleanup_2;
@@ -115,9 +113,9 @@ namespace Core.Command
             if (select == null) return null;
 
             // now generate the new WHERE rowid IN clause for the DELETE/UDPATE
-            Expr whereRowid = Expr.PExpr(parse, TK.ROW, null, null, null); // WHERE rowid ..
+            Expr whereRowid = Expr.PExpr_(parse, TK.ROW, null, null, null); // WHERE rowid ..
             if (whereRowid == null) goto limit_where_cleanup_1;
-            Expr inClause = Expr.PExpr(parse, TK.IN, whereRowid, null, null); // WHERE rowid IN ( select )
+            Expr inClause = Expr.PExpr_(parse, TK.IN, whereRowid, null, null); // WHERE rowid IN ( select )
             if (inClause == null) goto limit_where_cleanup_1;
 
             inClause.x.Select = select;
@@ -131,7 +129,7 @@ namespace Core.Command
             return null;
 
         limit_where_cleanup_2:
-            Expr,Delete(parse.Ctx, ref where_);
+            Expr.Delete(parse.Ctx, ref where_);
             ExprList.Delete(parse.Ctx, orderBy);
             Expr.Delete(parse.Ctx, ref limit);
             Expr.Delete(parse.Ctx, ref offset);

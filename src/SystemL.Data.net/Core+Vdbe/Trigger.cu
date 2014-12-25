@@ -14,15 +14,15 @@ namespace Core
 			Expr::Delete(ctx, tmp->Where);
 			Expr::ListDelete(ctx, tmp->ExprList);
 			Select::Delete(ctx, tmp->Select);
-			IdList::Delete(ctx, tmp->IdList);
+			Parse::IdListDelete(ctx, tmp->IdList);
 
 			_tagfree(ctx, tmp);
 		}
 	}
 
-	__device__ Trigger *Trigger::List(Parse *parse, Table *table)
+	__device__ Trigger *Trigger::List(Parse *parse, Core::Table *table)
 	{
-		Schema *const tmpSchema = parse->Ctx->DBs[1].Schema;
+		Core::Schema *const tmpSchema = parse->Ctx->DBs[1].Schema;
 		Trigger *list = nullptr; // List of triggers to return
 		if (parse->DisableTriggers)
 			return nullptr;
@@ -34,16 +34,15 @@ namespace Core
 				Trigger *trig = (Trigger *)p->Data;
 				if (trig->TabSchema == table->Schema && !_strcmp(trig->Table, table->Name))
 				{
-					trig->Next = (list ? list : table->Trigger);
+					trig->Next = (list ? list : table->Triggers);
 					list = trig;
 				}
 			}
 		}
-
-		return (list ? list : table->Trigger);
+		return (list ? list : table->Triggers);
 	}
 
-	void sqlite3BeginTrigger(Parse *parse,Token *name1, Token *name2, int trTm, int op, IdList *columns, SrcList *tableName, Expr *when, bool isTemp, int noErr)
+	__device__ void Trigger::BeginTrigger(Parse *parse, Token *name1, Token *name2, int trTm, int op, IdList *columns, SrcList *tableName, Expr *when, bool isTemp, int noErr)
 	{
 		Context *ctx = parse->Ctx; // The database connection
 		_assert(name1); // pName1->z might be NULL, but not pName1 itself
@@ -51,8 +50,6 @@ namespace Core
 		_assert(op == TK_INSERT || op == TK_UPDATE || op == TK_DELETE);
 		_assert(op > 0 && op<0xff);
 		Trigger *trigger = nullptr;  // The new trigger
-		DbFixer fix;  // State vector for the DB fixer
-		int tabDb; // Index of the database holding pTab
 
 		int db; // The database to store the trigger in
 		Token *name; // The unqualified db name
@@ -91,16 +88,17 @@ namespace Core
 
 		// If the trigger name was unqualified, and the table is a temp table, then set iDb to 1 to create the trigger in the temporary database.
 		// If sqlite3SrcListLookup() returns 0, indicating the table does not exist, the error is caught by the block below.
-		Table *table = sqlite3SrcListLookup(parse, tableName); // Table that the trigger fires off of
+		Core::Table *table = Delete::SrcListLookup(parse, tableName); // Table that the trigger fires off of
 		if (!ctx->Init.Busy && name2->length == 0 && table && table->Schema == ctx->DBs[1].Schema)
 			db = 1;
 
 		// Ensure the table name matches database name and that the table exists
 		if (ctx->MallocFailed) goto trigger_cleanup;
 		_assert(tableName->Srcs == 1);
-		if (sqlite3FixInit(&fix, parse, db, "trigger", name) && sqlite3FixSrcList(&sFix, tableName))
+		DbFixer sFix;  // State vector for the DB fixer
+		if (sFix.FixInit(parse, db, "trigger", name) && sFix.FixSrcList(tableName))
 			goto trigger_cleanup;
-		table = sqlite3SrcListLookup(parse, tableName);
+		table = Delete::SrcListLookup(parse, tableName);
 		if (!table)
 		{
 			// The table does not exist.
@@ -110,7 +108,7 @@ namespace Core
 				// Normally, whenever a table is dropped, all associated triggers are dropped too.  But if a TEMP trigger is created on a non-TEMP table
 				// and the table is dropped by a different database connection, the trigger is not visible to the database connection that does the
 				// drop so the trigger cannot be dropped.  This results in an "orphaned trigger" - a trigger whose associated table is missing.
-				ctx->Init.OrphanTrigger = 1;
+				ctx->Init.OrphanTrigger = true;
 			}
 			goto trigger_cleanup;
 		}
@@ -121,8 +119,8 @@ namespace Core
 		}
 
 		// Check that the trigger name is not reserved and that no trigger of the specified name exists
-		char *nameAsString = sqlite3NameFromToken(ctx, name); // Name of the trigger
-		if (!nameAsString || sqlite3CheckObjectName(parse, nameAsString) != RC_OK)
+		char *nameAsString = Parse::NameFromToken(ctx, name); // Name of the trigger
+		if (!nameAsString || parse->CheckObjectName(nameAsString) != RC_OK)
 			goto trigger_cleanup;
 		_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 		if (ctx->DBs[db].Schema->TriggerHash.Find(nameAsString, _strlen30(nameAsString)))
@@ -132,7 +130,7 @@ namespace Core
 			else
 			{
 				_assert(!ctx->Init.Busy);
-				sqlite3CodeVerifySchema(parse, db);
+				parse->CodeVerifySchema(db);
 			}
 			goto trigger_cleanup;
 		}
@@ -146,24 +144,24 @@ namespace Core
 		}
 
 		// INSTEAD of triggers are only for views and views only support INSTEAD of triggers.
-		if (table->Select && trRm != TK_INSTEAD)
+		if (table->Select && trTm != TK_INSTEAD)
 		{
 			parse->ErrorMsg("cannot create %s trigger on view: %S",  (trTm == TK_BEFORE ? "BEFORE" : "AFTER"), tableName, 0);
 			goto trigger_cleanup;
 		}
-		if (!table->Select && trRm == TK_INSTEAD)
+		if (!table->Select && trTm == TK_INSTEAD)
 		{
 			parse->ErrorMsg("cannot create INSTEAD OF trigger on table: %S", tableName, 0);
 			goto trigger_cleanup;
 		}
-		tabDb = sqlite3SchemaToIndex(ctx, table->Schema);
 
 #ifndef OMIT_AUTHORIZATION
 		{
-			int code = AUTH_CREATE_TRIGGER;
-			const char *dbName = ctx->DBs[tabDB].zName;
+			int tabDb = Prepare::SchemaToIndex(ctx, table->Schema); // Index of the database holding pTab
+			AUTH code = AUTH_CREATE_TRIGGER;
+			const char *dbName = ctx->DBs[tabDb].Name;
 			const char *dbTrigName = (isTemp ? ctx->DBs[1].Name : dbName);
-			if (tabDB == 1 || isTemp) code = SQLITE_CREATE_TEMP_TRIGGER;
+			if (tabDb == 1 || isTemp) code = AUTH_CREATE_TEMP_TRIGGER;
 			if (Auth::Check(parse, code, nameAsString, table->Name, dbTrigName) || Auth::Check(parse, AUTH_INSERT, SCHEMA_TABLE(tabDb), 0, dbName))
 				goto trigger_cleanup;
 		}
@@ -175,41 +173,40 @@ namespace Core
 			trTm = TK_BEFORE;
 
 		// Build the Trigger object
-		trigger = (Trigger *)_tagalloc(ctx, sizeof(Trigger), true);
+		trigger = (Trigger *)_tagalloc2(ctx, sizeof(Trigger), true);
 		if (!trigger) goto trigger_cleanup;
 		trigger->Name = name; name = nullptr;
 		trigger->Table = _tagstrdup(ctx, tableName->Ids[0].Name);
 		trigger->Schema = ctx->DBs[db].Schema;
-		trigger->TabSchema = tab->Schema;
+		trigger->TabSchema = table->Schema;
 		trigger->OP = (uint8)op;
-		trigger->TR_tm = (trTm == TK_BEFORE ? TRIGGER_BEFORE : TRIGGER_AFTER);
+		trigger->TRtm = (trTm == TK_BEFORE ? TRIGGER_BEFORE : TRIGGER_AFTER);
 		trigger->When = Expr::Dup(ctx, when, EXPRDUP_REDUCE);
-		trigger->Columns = IdListDup(ctx, columns);
+		trigger->Columns = Expr::IdListDup(ctx, columns);
 		_assert(parse->NewTrigger == 0);
 		parse->NewTrigger = trigger;
 
 trigger_cleanup:
 		_tagfree(ctx, name);
-		SrcListDelete(ctx, tableName);
-		IdListDelete(ctx, columns);
+		Expr::SrcListDelete(ctx, tableName);
+		Expr::IdListDelete(ctx, columns);
 		Expr::Delete(ctx, when);
-		if (!pParse->NewTrigger)
+		if (!parse->NewTrigger)
 			DeleteTrigger(ctx, trigger);
 		else
 			_assert(parse->NewTrigger == trigger);
 	}
 
-	void sqlite3FinishTrigger(Parse *parse, TriggerStep *stepList, Token *all)
+	__device__ void Trigger::FinishTrigger(Parse *parse, TriggerStep *stepList, Token *all)
 	{
 		Trigger *trig = parse->NewTrigger; // Trigger being finished
 		Context *ctx = parse->Ctx; // The database
-		DbFixer sFix; // Fixer object
 		Token nameToken; // Trigger name for error reporting
 
 		parse->NewTrigger = nullptr;
 		if (_NEVER(parse->Errs) || !trig) goto triggerfinish_cleanup;
 		char *name = trig->Name; // Name of trigger
-		int db = sqlite3SchemaToIndex(ctx, trig->Schema); // Database containing the trigger
+		int db = Prepare::SchemaToIndex(ctx, trig->Schema); // Database containing the trigger
 		trig->StepList = stepList;
 		while (stepList)
 		{
@@ -218,7 +215,8 @@ trigger_cleanup:
 		}
 		nameToken.data = trig->Name;
 		nameToken.length = _strlen30(nameToken.data);
-		if (sqlite3FixInit(&sFix, parse, db, "trigger", &nameToken) && sqlite3FixTriggerStep(&sFix, trig->StepList))
+		DbFixer sFix; // Fixer object
+		if (sFix.FixInit(parse, db, "trigger", &nameToken) && sFix.FixTriggerStep(trig->StepList))
 			goto triggerfinish_cleanup;
 
 		// if we are not initializing, build the sqlite_master entry
@@ -229,26 +227,26 @@ trigger_cleanup:
 			if (!v) goto triggerfinish_cleanup;
 			parse->BeginWriteOperation(0, db);
 			char *z = _tagstrndup(ctx, (char *)all->data, all->length);
-			parse->NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx->DBs[db].Name, SCHEMA_TABLE(db), name, trig->table, z);
+			parse->NestedParse("INSERT INTO %Q.%s VALUES('trigger',%Q,%Q,0,'CREATE TRIGGER %q')", ctx->DBs[db].Name, SCHEMA_TABLE(db), name, trig->Table, z);
 			_tagfree(ctx, z);
 			parse->ChangeCookie(db);
-			v->AddParseSchemaOp(db, _mprintf(ctx, "type='trigger' AND name='%q'", name));
+			v->AddParseSchemaOp(db, _mtagprintf(ctx, "type='trigger' AND name='%q'", name));
 		}
 
 		if (ctx->Init.Busy)
 		{
 			Trigger *link = trig;
-			_assert(Btree::SchemaMutexHeld(ctx, db, 0));
-			trig = (Trigger *)ctx->DBs[db].Schema->TriggerHash.Insert(name, _strlen30(zName), trig);
+			_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
+			trig = (Trigger *)ctx->DBs[db].Schema->TriggerHash.Insert(name, _strlen30(name), trig);
 			if (trig)
 				ctx->MallocFailed = true;
 			else if (link->Schema == link->TabSchema)
 			{
 				int tableLength = _strlen30(link->Table);
-				Table *table = link->TabSchema->TableHash.Find(link->table, tableLength);
+				Core::Table *table = (Core::Table *)link->TabSchema->TableHash.Find(link->Table, tableLength);
 				_assert(table);
-				link->Next = tab->Trigger;
-				tab->Trigger = link;
+				link->Next = table->Triggers;
+				table->Triggers = link;
 			}
 		}
 
@@ -258,12 +256,12 @@ triggerfinish_cleanup:
 		DeleteTriggerStep(ctx, stepList);
 	}
 
-	TriggerStep *sqlite3TriggerSelectStep(Context *ctx, Select *select)
+	__device__ TriggerStep *Trigger::SelectStep(Context *ctx, Select *select)
 	{
-		TriggerStep *triggerStep = (TriggerStep *)_tagalloc(ctx, sizeof(TriggerStep), true);
+		TriggerStep *triggerStep = (TriggerStep *)_tagalloc2(ctx, sizeof(TriggerStep), true);
 		if (!triggerStep)
 		{
-			SelectDelete(ctx, select);
+			Select::Delete(ctx, select);
 			return nullptr;
 		}
 		triggerStep->OP = TK_SELECT;
@@ -272,77 +270,77 @@ triggerfinish_cleanup:
 		return triggerStep;
 	}
 
-	static TriggerStep *TriggerStepAllocate(Context *ctx, uint8 op, Token *name)
+	__device__ static TriggerStep *TriggerStepAllocate(Context *ctx, TK op, Token *name)
 	{
-		TriggerStep *triggerStep = (TriggerStep *)_tagalloc(ctx, sizeof(TriggerStep) + name->length, true);
+		TriggerStep *triggerStep = (TriggerStep *)_tagalloc2(ctx, sizeof(TriggerStep) + name->length, true);
 		if (triggerStep)
 		{
 			char *z = (char *)&triggerStep[1];
 			_memcpy(z, name->data, name->length);
-			triggerStep->Target.data = data;
+			triggerStep->Target.data = z;
 			triggerStep->Target.length = name->length;
 			triggerStep->OP = op;
 		}
 		return triggerStep;
 	}
 
-	TriggerStep *sqlite3TriggerInsertStep(Context *ctx, Token *tableName, IdList *column, ExprList *list, Select *select, OE orconf)
+	__device__ TriggerStep *Trigger::InsertStep(Context *ctx, Token *tableName, IdList *column, ExprList *list, Select *select, OE orconf)
 	{
 		_assert(list == 0 || select == 0);
 		_assert(list != 0 || select != 0 || ctx->MallocFailed);
 		TriggerStep *triggerStep = TriggerStepAllocate(ctx, TK_INSERT, tableName);
 		if (triggerStep)
 		{
-			triggerStep->Select = SelectDup(ctx, select, EXPRDUP_REDUCE);
+			triggerStep->Select = Select::Dup(ctx, select, EXPRDUP_REDUCE);
 			triggerStep->IdList = column;
-			triggerStep->ExprList = ExprListDup(ctx, list, EXPRDUP_REDUCE);
+			triggerStep->ExprList = Expr::ListDup(ctx, list, EXPRDUP_REDUCE);
 			triggerStep->Orconf = orconf;
 		}
 		else
-			IdListDelete(ctx, column);
-		ExprListDelete(ctx, list);
-		SelectDelete(ctx, select);
+			Expr::IdListDelete(ctx, column);
+		Expr::ListDelete(ctx, list);
+		Select::Delete(ctx, select);
 		return triggerStep;
 	}
 
-	TriggerStep *sqlite3TriggerUpdateStep(Context *ctx, Token *tableName, ExprList *list, Expr *where, OE orconf)
+	__device__ TriggerStep *Trigger::UpdateStep(Context *ctx, Token *tableName, ExprList *list, Expr *where, OE orconf)
 	{
 		TriggerStep *triggerStep = TriggerStepAllocate(ctx, TK_UPDATE, tableName);
 		if (triggerStep)
 		{
-			triggerStep->ExprList = ExprList::Dup(ctx, lList, EXPRDUP_REDUCE);
+			triggerStep->ExprList = Expr::ListDup(ctx, list, EXPRDUP_REDUCE);
 			triggerStep->Where = Expr::Dup(ctx, where, EXPRDUP_REDUCE);
 			triggerStep->Orconf = orconf;
 		}
-		ExprListDelete(ctx, list);
-		ExprDelete(ctx, where);
+		Expr::ListDelete(ctx, list);
+		Expr::Delete(ctx, where);
 		return triggerStep;
 	}
 
-	TriggerStep *sqlite3TriggerDeleteStep(Context *ctx, Token *pTableName, Expr *where_)
+	__device__ TriggerStep *Trigger::DeleteStep(Context *ctx, Token *tableName, Expr *where_)
 	{
-		TriggerStep *pTriggerStep = TriggerStepAllocate(ctx, TK_DELETE, pTableName);
+		TriggerStep *triggerStep = TriggerStepAllocate(ctx, TK_DELETE, tableName);
 		if (triggerStep)
 		{
-			triggerStep->Where = Expr::Dup(ctx, where, EXPRDUP_REDUCE);
+			triggerStep->Where = Expr::Dup(ctx, where_, EXPRDUP_REDUCE);
 			triggerStep->Orconf = OE_Default;
 		}
-		ExprDelete(ctx, where);
-		return pTriggerStep;
+		Expr::Delete(ctx, where_);
+		return triggerStep;
 	}
 
-	void sqlite3DeleteTrigger(Context *ctx, Trigger *trigger)
+	__device__ void Trigger::DeleteTrigger(Context *ctx, Trigger *trigger)
 	{
 		if (!trigger) return;
 		DeleteTriggerStep(ctx, trigger->StepList);
 		_tagfree(ctx, trigger->Name);
 		_tagfree(ctx, trigger->Table);
-		ExprDelete(ctx, trigger->When);
-		IdListDelete(ctx, trigger->Columns);
+		Expr::Delete(ctx, trigger->When);
+		Expr::IdListDelete(ctx, trigger->Columns);
 		_tagfree(ctx, trigger);
 	}
 
-	void sqlite3DropTrigger(Parse *parse, SrcList *name, int noErr)
+	__device__ void Trigger::DropTrigger(Parse *parse, SrcList *name, int noErr)
 	{
 		Context *ctx = parse->Ctx;
 		if (ctx->MallocFailed || parse->ReadSchema() != RC_OK)
@@ -358,7 +356,7 @@ triggerfinish_cleanup:
 		{
 			int j = (i < 2 ? i^1 : i); // Search TEMP before MAIN
 			if (dbName && _strcmp(ctx->DBs[j].Name, dbName)) continue;
-			_assert(Btree::SchemaMutexHeld(ctx, j, 0));
+			_assert(Btree::SchemaMutexHeld(ctx, j, nullptr));
 			trigger = (Trigger *)ctx->DBs[j].Schema->TriggerHash.Find(nameAsString, nameLength);
 			if (trigger) break;
 		}
@@ -380,35 +378,35 @@ drop_trigger_cleanup:
 	static Table *TableOfTrigger(Trigger *trigger)
 	{
 		int tableLength = _strlen30(trigger->Table);
-		return trigger->TabSchema->TableHash.Find(trigger->Table, tableLength);
+		return (Table *)trigger->TabSchema->TableHash.Find(trigger->Table, tableLength);
 	}
 
-	static const VdbeOpList _dropTrigger[] = {
+	static const Vdbe::VdbeOpList _dropTrigger[] = {
 		{ OP_Rewind,     0, ADDR(9),  0},
-		{ OP_String8,    0, 1,        0}, /* 1 */
+		{ OP_String8,    0, 1,        0}, // 1
 		{ OP_Column,     0, 1,        2},
 		{ OP_Ne,         2, ADDR(8),  1},
-		{ OP_String8,    0, 1,        0}, /* 4: "trigger" */
+		{ OP_String8,    0, 1,        0}, // 4: "trigger"
 		{ OP_Column,     0, 0,        2},
 		{ OP_Ne,         2, ADDR(8),  1},
 		{ OP_Delete,     0, 0,        0},
-		{ OP_Next,       0, ADDR(1),  0}, /* 8 */
+		{ OP_Next,       0, ADDR(1),  0}, // 8
 	};
-	void sqlite3DropTriggerPtr(Parse *parse, Trigger *trigger)
+	__device__ void Trigger::DropTriggerPtr(Parse *parse, Trigger *trigger)
 	{
 		Context *ctx = parse->Ctx;
-		int db = ctx->SchemaToIndex(trigger->Schema);
-		_assert(db >= 0 && db < ctx->DB.length);
-		Table *table = TableOfTrigger(trigger);
+		int db = Prepare::SchemaToIndex(ctx, trigger->Schema);
+		_assert(db >= 0 && db < ctx->DBs.length);
+		Core::Table *table = TableOfTrigger(trigger);
 		_assert(table);
 		_assert(table->Schema == trigger->Schema || db == 1);
 #ifndef OMIT_AUTHORIZATION
 		{
-			int code = AUTH::DROP_TRIGGER;
+			AUTH code = AUTH_DROP_TRIGGER;
 			const char *dbName = ctx->DBs[db].Name;
 			const char *tableName = SCHEMA_TABLE(db);
-			if (db == 1) code = AUTH::DROP_TEMP_TRIGGER;
-			if (Auth::Check(parse, code, trigger->Name, table->Name, dbName) || Auth::Check(parse, AUTH::DELETE, tableName, 0, dbName))
+			if (db == 1) code = AUTH_DROP_TEMP_TRIGGER;
+			if (Auth::Check(parse, code, trigger->Name, table->Name, dbName) || Auth::Check(parse, AUTH_DELETE, tableName, nullptr, dbName))
 				return;
 		}
 #endif
@@ -431,68 +429,68 @@ drop_trigger_cleanup:
 		}
 	}
 
-	void sqlite3UnlinkAndDeleteTrigger(Context *ctx, int db, const char *name)
+	__device__ void Trigger::UnlinkAndDeleteTrigger(Context *ctx, int db, const char *name)
 	{
-		_assert(Btree::SchemaMutexHeld(ctx, db, 0));
-		Trigger *trigger = ctx->DBs[db].Schema->TriggerHash.Insert(name, _strlen30(name), 0);
+		_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
+		Trigger *trigger = (Trigger *)ctx->DBs[db].Schema->TriggerHash.Insert(name, _strlen30(name), 0);
 		if (_ALWAYS(trigger))
 		{
 			if (trigger->Schema == trigger->TabSchema)
 			{
-				Table *table = TableOfTrigger(trigger);
+				Core::Table *table = TableOfTrigger(trigger);
 				Trigger **pp;
-				for (pp = &table->Trigger; *pp != trigger; pp = &((*pp)->Next));
+				for (pp = &table->Triggers; *pp != trigger; pp = &((*pp)->Next));
 				*pp = (*pp)->Next;
 			}
-			sqlite3DeleteTrigger(ctx, trigger);
+			DeleteTrigger(ctx, trigger);
 			ctx->Flags |= Context::FLAG_InternChanges;
 		}
 	}
 
-	static int checkColumnOverlap(IdList *idList, ExprList *eList)
+	__device__ static bool CheckColumnOverlap(IdList *idList, ExprList *eList)
 	{
-		if (!idList || SysEx::NEVER(!eList)) return 1;
+		if (!idList || _NEVER(!eList)) return true;
 		for (int e = 0; e < eList->Exprs; e++)
-			if (IdListIndex(idList, eList->Ids[e].Name) >= 0) return 1;
-		return 0; 
+			if (Expr::IdListIndex(idList, eList->Ids[e].Name) >= 0) return true;
+		return false; 
 	}
 
-	Trigger *sqlite3TriggersExist(Parse *parse, Table *table, int op, ExprList *changes, int *maskOut)
+	__device__ Trigger *Trigger::TriggersExist(Parse *parse, Core::Table *table, int op, ExprList *changes, TRIGGER *maskOut)
 	{
 		int mask = 0;
 		Trigger *list = nullptr;
 		if ((parse->Ctx->Flags & Context::FLAG_EnableTrigger) != 0)
-			list = TriggerList(parse, table);
-		_assert(!list || !IsVirtual(pTab));
+			list = List(parse, table);
+		_assert(!list || !IsVirtual(table));
 		for (Trigger *p = list; p; p = p->Next)
 			if (p->OP == op && CheckColumnOverlap(p->Columns, changes))
-				mask |= p->tr_tm;
+				mask |= p->TRtm;
 		if (maskOut)
 			*maskOut = mask;
 		return (mask ? list : nullptr);
 	}
 
-	static SrcList *TargetSrcList(Parse *parse, TriggerStep *step)
+	__device__ static SrcList *TargetSrcList(Parse *parse, TriggerStep *step)
 	{
 		Context *ctx = parse->Ctx;
-		SrcList *src = sqlite3SrcListAppend(ctx, 0, &step->Target, 0); // SrcList to be returned
+		SrcList *src = Parse::SrcListAppend(ctx, nullptr, &step->Target, nullptr); // SrcList to be returned
 		if (src)
 		{
 			_assert(src->Srcs > 0);
-			_assert(src->Ids != 0 );
-			int db = Btree::SchemaToIndex(ctx, step->Trig->Schema); // Index of the database to use
+			_assert(src->Ids != 0);
+			int db = Prepare::SchemaToIndex(ctx, step->Trig->Schema); // Index of the database to use
 			if (db == 0 || db >= 2)
 			{
-				_assert( db < ctx->DBs.length);
+				_assert(db < ctx->DBs.length);
 				src->Ids[src->Srcs-1].Database = _tagstrdup(ctx, ctx->DBs[db].Name);
 			}
 		}
 		return src;
 	}
 
-	static int CodeTriggerProgram(Parse *parse, TriggerStep *stepList, int orconf)
+	__device__ static int CodeTriggerProgram(Parse *parse, TriggerStep *stepList, OE orconf)
 	{
-		Vdbe *v = parse->Vdbe;
+		Vdbe *v = parse->V;
 		Context *ctx = parse->Ctx;
 		_assert(parse->TriggerTab && parse->Toplevel);
 		_assert(stepList);
@@ -509,7 +507,7 @@ drop_trigger_cleanup:
 			//
 			//   INSERT INTO t1 ... ;            -- insert into t2 uses REPLACE policy
 			//   INSERT OR IGNORE INTO t1 ... ;  -- insert into t2 uses IGNORE policy
-			parse->Orconf = (orconf == OE_Default ? step->orconf : (uint8)orconf);
+			parse->Orconf = (orconf == OE_Default ? step->Orconf : (OE)orconf);
 
 			// Clear the cookieGoto flag. When coding triggers, the cookieGoto variable is used as a flag to indicate to sqlite3ExprCodeConstants()
 			// that it is not safe to refactor constants (this happens after the start of the first loop in the SQL statement is coded - at that 
@@ -521,45 +519,43 @@ drop_trigger_cleanup:
 			{
 			case TK_UPDATE:
 				Update(parse, 
-					targetSrcList(parse, step),
-					ExprListDup(ctx, step->ExprList, 0), 
-					ExprDup(ctx, step->Where, 0), 
-					parse->eOrconf);
+					TargetSrcList(parse, step),
+					Expr::ListDup(ctx, step->ExprList, 0), 
+					Expr::Dup(ctx, step->Where, 0), 
+					parse->Orconf);
 				break;
 
 			case TK_INSERT:
 				Insert(parse, 
-					targetSrcList(parse, step),
-					ExprListDup(ctx, step->ExprList, 0), 
-					SelectDup(ctx, step->Select, 0), 
-					IdListDup(ctx, step->IdList), 
-					parse->eOrconf);
+					TargetSrcList(parse, step),
+					Expr::ListDup(ctx, step->ExprList, 0), 
+					Expr::SelectDup(ctx, step->Select, 0), 
+					Expr::IdListDup(ctx, step->IdList), 
+					parse->Orconf);
 				break;
 
 			case TK_DELETE: {
 				DeleteFrom(parse, 
-					SrcList(parse, step),
-					ExprDup(ctx, step->Where, 0));
+					TargetSrcList(parse, step),
+					Expr::Dup(ctx, step->Where, 0));
 				break;
 							}
 			default: _assert(step->OP == TK_SELECT);
 				SelectDest sDest;
-				Select *select = SelectDup(ctx, step->Select, 0);
-				SelectDestInit(&sDest, SRT_Discard, 0);
-				Select(parse, select, &sDest);
-				SelectDelete(ctx, select);
+				Select *select = Expr::SelectDup(ctx, step->Select, 0);
+				Select::DestInit(&sDest, SRT_Discard, 0);
+				Select::Select_(parse, select, &sDest);
+				Select::Delete(ctx, select);
 				break;
-
 			} 
 			if (step->OP != TK_SELECT)
 				v->AddOp0(OP_ResetCount);
 		}
-
 		return 0;
 	}
 
-#ifdef DEBUG
-	static const char *OnErrorText(int onError)
+#ifdef _DEBUG
+	__device__ static const char *OnErrorText(OE onError)
 	{
 		switch (onError)
 		{
@@ -574,37 +570,37 @@ drop_trigger_cleanup:
 	}
 #endif
 
-	static void TransferParseError(Parse *pTo, Parse *pFrom)
+	static void TransferParseError(Parse *to, Parse *from)
 	{
 		_assert(from->ErrMsg == nullptr || from->Errs);
 		_assert(to->ErrMsg == nullptr || to->Errs);
 		if (to->Errs == 0)
 		{
-			to->ErrMsg = pFrom->ErrMsg;
+			to->ErrMsg = from->ErrMsg;
 			to->Errs = from->Errs;
 		}
 		else
 			_tagfree(from->Ctx, from->ErrMsg);
 	}
 
-	static TriggerPrg *CodeRowTrigger(Parse *parse, Trigger *trigger, Table *table, int orconf)
+	static TriggerPrg *CodeRowTrigger(Parse *parse, Trigger *trigger, Table *table, OE orconf)
 	{
-		Parse *top = ParseToplevel(parse);
+		Parse *top = Parse::Toplevel(parse);
 		Context *ctx = parse->Ctx; // Database handle
 
 		_assert(trigger->Name == nullptr || table == TableOfTrigger(trigger));
-		_assert(top->Vdbe);
+		_assert(top->V);
 
 		// Allocate the TriggerPrg and SubProgram objects. To ensure that they are freed if an error occurs, link them into the Parse.pTriggerPrg 
 		// list of the top-level Parse object sooner rather than later.
-		TriggerPrg *prg = (TriggerPrg *)_tagalloc(ctx, sizeof(TriggerPrg), true); // Value to return
+		TriggerPrg *prg = (TriggerPrg *)_tagalloc2(ctx, sizeof(TriggerPrg), true); // Value to return
 		if (!prg) return nullptr;
 		prg->Next = top->TriggerPrg;
 		top->TriggerPrg = prg;
-		SubProgram *program; // Sub-vdbe for trigger program
-		prg->Program = program = (SubProgram *)_tagalloc(ctx, sizeof(SubProgram), true);
+		Vdbe::SubProgram *program; // Sub-vdbe for trigger program
+		prg->Program = program = (Vdbe::SubProgram *)_tagalloc2(ctx, sizeof(Vdbe::SubProgram), true);
 		if (!program) return nullptr;
-		top->Vdbe->LinkSubProgram(program);
+		top->V->LinkSubProgram(program);
 		prg->Trigger = trigger;
 		prg->Orconf = orconf;
 		prg->Colmasks[0] = 0xffffffff;
@@ -616,11 +612,11 @@ drop_trigger_cleanup:
 		NameContext sNC; _memset(&sNC, 0, sizeof(sNC)); // Name context for sub-vdbe
 		sNC.Parse = subParse;
 		subParse->Ctx = ctx;
-		subParse->TriggerTab = tab;
+		subParse->TriggerTab = table;
 		subParse->Toplevel = top;
 		subParse->AuthContext = trigger->Name;
-		subParse->TriggerOp = trigger->OP;
-		subParse->QueryLoop = parse->QueryLoop;
+		subParse->TriggerOP = trigger->OP;
+		subParse->QueryLoops = parse->QueryLoops;
 
 		int endTrigger = 0; // Label to jump to if WHEN is false
 		Vdbe *v = subParse->GetVdbe(); // Temporary VM
@@ -628,26 +624,26 @@ drop_trigger_cleanup:
 		{
 			v->Comment("Start: %s.%s (%s %s%s%s ON %s)", 
 				trigger->Name, OnErrorText(orconf),
-				(trigger->Tr_tm == TRIGGER_BEFORE ? "BEFORE" : "AFTER"),
+				(trigger->TRtm == TRIGGER_BEFORE ? "BEFORE" : "AFTER"),
 				(trigger->OP == TK_UPDATE ? "UPDATE" : ""),
 				(trigger->OP == TK_INSERT ? "INSERT" : ""),
 				(trigger->OP == TK_DELETE ? "DELETE" : ""),
-				tab->Name);
+				table->Name);
 #ifndef OMIT_TRACE
-			v->ChangeP4(-1, _mprintf(ctx, "-- TRIGGER %s", trigger->Name), Vdbe::P4T_DYNAMIC);
+			v->ChangeP4(-1, _mtagprintf(ctx, "-- TRIGGER %s", trigger->Name), Vdbe::P4T_DYNAMIC);
 #endif
 
 			// If one was specified, code the WHEN clause. If it evaluates to false (or NULL) the sub-vdbe is immediately halted by jumping to the 
 			// OP_Halt inserted at the end of the program.
 			if (trigger->When)
 			{
-				Expr *when = ExprDup(ctx, trigger->When, 0); // Duplicate of trigger WHEN expression
+				Expr *when = Expr.Dup(ctx, trigger->When, 0); // Duplicate of trigger WHEN expression
 				if (ResolveExprNames(&sNC, when) == RC_OK && !ctx->MallocFailed)
 				{
-					endTrigger = v->MakeLabel(v);
-					ExprIfFalse(subParse, when, endTrigger, SQLITE_JUMPIFNULL);
+					endTrigger = v->MakeLabel();
+					subParse->IfFalse(when, endTrigger, RC.JUMPIFNULL);
 				}
-				ExprDelete(ctx, when);
+				Expr::Delete(ctx, when);
 			}
 
 			// Code the trigger program into the sub-vdbe.
@@ -657,11 +653,11 @@ drop_trigger_cleanup:
 			if (endTrigger)
 				v->ResolveLabel(endTrigger);
 			v->AddOp0(OP_Halt);
-			v->Comment(v, "End: %s.%s", trigger->Name, OnErrorText(orconf));
+			v->Comment("End: %s.%s", trigger->Name, OnErrorText(orconf));
 
 			TransferParseError(parse, subParse);
 			if (!ctx->MallocFailed)
-				program->OPs = v->TakeOpArray(&program->OP.length, &top->MaxArgs);
+				program->Ops.data = v->TakeOpArray(&program->Ops.length, &top->MaxArgs);
 			program->Mems = subParse->Mems;
 			program->Csrs = subParse->Tabs;
 			program->Onces = subParse->Onces;
@@ -678,9 +674,9 @@ drop_trigger_cleanup:
 		return prg;
 	}
 
-	static TriggerPrg *GetRowTrigger(Parse *parse, Trigger *trigger, Table *table,  int orconf)
+	static TriggerPrg *GetRowTrigger(Parse *parse, Trigger *trigger, Table *table, OE orconf)
 	{
-		Parse *root = ParseToplevel(parse);
+		Parse *root = Parse::Toplevel(parse);
 		_assert(!trigger->Name || table == TableOfTrigger(trigger));
 
 		// It may be that this trigger has already been coded (or is in the process of being coded). If this is the case, then an entry with
@@ -693,21 +689,21 @@ drop_trigger_cleanup:
 		return prg;
 	}
 
-	void sqlite3CodeRowTriggerDirect(Parse *parse, Trigger *p, Table *table, int reg, int orconf, int ignoreJump)
+	__device__ void Trigger::CodeRowTriggerDirect(Parse *parse, Core::Table *table, int reg, OE orconf, int ignoreJump)
 	{
 		Vdbe *v = parse->GetVdbe(); // Main VM
-		TriggerPrg *prg = GetRowTrigger(parse, p, table, orconf);
+		TriggerPrg *prg = GetRowTrigger(parse, this, table, orconf);
 		_assert(prg || parse->Errs || parse->Ctx->MallocFailed);
 
 		// Code the OP_Program opcode in the parent VDBE. P4 of the OP_Program is a pointer to the sub-vdbe containing the trigger program.
 		if (prg)
 		{
-			bool recursive = (p->Name && (parse->Ctx->Flags & Context::FLAG_RecTriggers) == 0);
+			bool recursive = (Name && (parse->Ctx->Flags & Context::FLAG_RecTriggers) == 0);
 
-			v->AddOp3(v, OP_Program, reg, ignoreJump, ++parse->Mems);
-			v->ChangeP4(v, -1, (const char *)prg->Program, Vdbe::P4T_SUBPROGRAM);
-#if DEBUG
-			v->VdbeComment("Call: %s.%s", (p->Name ? p->Name : "fkey"), OnErrorText(orconf));
+			v->AddOp3(OP_Program, reg, ignoreJump, ++parse->Mems);
+			v->ChangeP4(-1, (const char *)prg->Program, Vdbe::P4T_SUBPROGRAM);
+#if _DEBUG
+			v->Comment("Call: %s.%s", (Name ? Name : "fkey"), OnErrorText(orconf));
 #endif
 
 			// Set the P5 operand of the OP_Program instruction to non-zero if recursive invocation of this trigger program is disallowed. Recursive
@@ -716,13 +712,13 @@ drop_trigger_cleanup:
 		}
 	}
 
-	void sqlite3CodeRowTrigger(Parse *parse, Trigger *trigger, int op, ExprList *changes, int tr_tm, Table *table, int reg, int orconf, int ignoreJump)
+	__device__ void Trigger::CodeRowTrigger(Parse *parse, TK op, ExprList *changes, int trtm, Core::Table *table, int reg, OE orconf, int ignoreJump)
 	{
 		_assert(op == TK_UPDATE || op == TK_INSERT || op == TK_DELETE );
-		_assert(tr_tm == TRIGGER_BEFORE || tr_tm == TRIGGER_AFTER );
+		_assert(trtm == TRIGGER_BEFORE || trtm == TRIGGER_AFTER );
 		_assert((op == TK_UPDATE) == (changes != nullptr));
 
-		for (Trigger *p = trigger; p; p = p->Next)
+		for (Trigger *p = this; p; p = p->Next)
 		{
 			// Sanity checking:  The schema for the trigger and for the table are always defined.  The trigger must be in the same schema as the table or else it must be a TEMP trigger.
 			_assert(p->Schema);
@@ -730,18 +726,18 @@ drop_trigger_cleanup:
 			_assert(p->Schema == p->TabSchema || p->Schema == parse->Ctx->DBs[1].Schema);
 
 			// Determine whether we should code this trigger
-			if (p->OP == op && p->tr_tm == tr_tm && CheckColumnOverlap(p->Columns, changes))
-				sqlite3CodeRowTriggerDirect(parse, p, table, reg, orconf, ignoreJump);
+			if (p->OP == op && p->TRtm == trtm && CheckColumnOverlap(p->Columns, changes))
+				p->CodeRowTriggerDirect(parse, table, reg, orconf, ignoreJump);
 		}
 	}
 
-	uint32 sqlite3TriggerColmask(Parse *parse, Trigger *trigger, ExprList *changes, bool isNew, int tr_tm, Table *table, int orconf)
+	__device__ uint32 Trigger::Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, Core::Table *table, OE orconf)
 	{
 		const int op = (changes ? TK_UPDATE : TK_DELETE);
 		int isNewId = (isNew ? 1 : 0);
 		uint32 mask = 0;
-		for (Trigger *p = trigger; p; p = p->Next)
-			if (p->OP == op && (tr_tm & p->tr_tm) && CheckColumnOverlap(p->Columns, changes))
+		for (Trigger *p = this; p; p = p->Next)
+			if (p->OP == op && (trtm & p->TRtm) && CheckColumnOverlap(p->Columns, changes))
 			{
 				TriggerPrg *prg = GetRowTrigger(parse, p, table, orconf);
 				if (prg)

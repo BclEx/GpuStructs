@@ -156,7 +156,7 @@ namespace Core
 		__device__ IPager::JOURNALMODE Pager::GetJournalMode();
 		__device__ bool OkToChangeJournalMode();
 		__device__ int64 SetJournalSizeLimit(int64 limit);
-		__device__ IBackup **BackupPtr();
+		//__device__ IBackup **BackupPtr();
 
 		// Functions used to obtain and release page references.
 		__device__ RC Acquire(Pid id, IPage **pageOut, bool noContent);

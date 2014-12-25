@@ -2576,12 +2576,13 @@ namespace Core
             toplevel.MayAbort = 1;
         }
 
-        public void HaltConstraint(int onError, string p4, int p4type)
+        public void HaltConstraint(RC errorCode, int onError, string p4, int p4type)
         {
             Vdbe v = GetVdbe();
+            Debug.Assert((errCode & 0xff) == RC.CONSTRAINT);
             if (onError == OE.Abort)
                 MayAbort();
-            v.AddOp4(OP.Halt, SQLITE_CONSTRAINT, onError, 0, p4, p4type);
+            v.AddOp4(OP.Halt, errCode, onError, 0, p4, p4type);
         }
 
 #if !OMIT_REINDEX

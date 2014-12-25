@@ -45,7 +45,7 @@ namespace Core
         {
             Context ctx = parse.Ctx;
             if (ctx.Auth == null) return;
-            int db = SchemaToIndex(ctx, schema);// The index of the database the expression refers to
+            int db = Prepare.SchemaToIndex(ctx, schema);// The index of the database the expression refers to
             if (db < 0)
                 return; // An attempt to read a column out of a subquery or other temporary table.
 
@@ -66,7 +66,7 @@ namespace Core
             int col = expr.ColumnIdx; // Index of column in table
             if (C._NEVER(table == null)) return;
 
-            string colName;     // Name of the column of the table
+            string colName; // Name of the column of the table
             if (col >= 0)
             {
                 Debug.Assert(col < table.Cols.length);
@@ -84,7 +84,7 @@ namespace Core
                 expr.OP = TK.NULL;
         }
 
-        public static ARC Check(Parse parse, int code, string arg1, string arg2, string arg3)
+        public static ARC Check(Parse parse, AUTH code, string arg1, string arg2, string arg3)
         {
             Context ctx = parse.Ctx;
             // Don't do any authorization checks if the database is initialising or if the parser is being invoked from within sqlite3_declare_vtab.

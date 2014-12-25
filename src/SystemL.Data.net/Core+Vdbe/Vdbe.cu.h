@@ -179,20 +179,16 @@ namespace Core
 		SubProgram *Programs;	// Linked list of all sub-programs used by VM
 		array_t<uint8> OnceFlags; // Flags for OP_Once
 
-		__device__ void FreeCursor(VdbeCursor *);
 		__device__ void PopStack(int);
 		__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
 		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll);
-		__device__ int Exec();
 		__device__ static const char *OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);
 		__device__ static void MemStoreType(Mem *mem);
 		__device__ int CurrentAddr();
-		__device__ void ResetStepResult();
 #ifdef _DEBUG
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif
-
 
 #pragma region Vdbe+Api
 		// name1
@@ -377,7 +373,7 @@ namespace Core
 #ifdef _DEBUG
 		__device__ void PrintSql();
 #endif
-#if true || !defined(OMIT_TRACE) && defined(ENABLE_IOTRACE)
+#if !defined(OMIT_TRACE) && defined(ENABLE_IOTRACE)
 		__device__ void IOTraceSql();
 #endif
 		__device__ void Rewind();

@@ -19,7 +19,7 @@ namespace Core
 
     public partial class Table
     {
-        public static bool sqlite3_get_table_cb(object arg, int columns, string[] argv, string[] colv)
+        public static bool GetTableCallback(object arg, int columns, string[] argv, string[] colv)
         {
             TabResult p = (TabResult)arg;
             // Make sure there is enough space in p.azResult to hold everything we need to remember from this invocation of the callback.
@@ -71,7 +71,7 @@ namespace Core
             return true;
         }
 
-        public static RC sqlite3_get_table(Context db, string sql, ref string[] results, ref int rows, ref int columns, ref string errMsg)
+        public static RC GetTable(Context db, string sql, ref string[] results, ref int rows, ref int columns, ref string errMsg)
         {
             results = null;
             columns = 0;
@@ -88,12 +88,12 @@ namespace Core
             if (r.Results == null)
                 return (db.ErrCode = RC.NOMEM);
             r.Results[0] = null;
-            RC rc = Sql.sqlite3_exec(db, sql, sqlite3_get_table_cb, r, ref errMsg);
+            RC rc = Main.Exec(db, sql, GetTableCallback, r, ref errMsg);
             //Debug.Assert(sizeof(r.Results[0])>= sizeof(r.ResultsLength));
             //r.Results = INT_TO_PTR(r.ResultsLength);
             if (((int)rc & 0xff) == (int)RC.ABORT)
             {
-                sqlite3_free_table(ref r.Results);
+                FreeTable(ref r.Results);
                 if (r.ErrMsg != null)
                 {
                     if (errMsg != null)
@@ -108,7 +108,7 @@ namespace Core
             C._free(ref r.ErrMsg);
             if (rc != RC.OK)
             {
-                sqlite3_free_table(ref r.Results);
+                FreeTable(ref r.Results);
                 return rc;
             }
             if (r.ResultsAlloc > r.ResultsLength)
@@ -119,7 +119,7 @@ namespace Core
             return rc;
         }
 
-        static void sqlite3_free_table(ref string[] results)
+        static void FreeTable(ref string[] results)
         {
         }
     }

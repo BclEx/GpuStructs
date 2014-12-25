@@ -398,18 +398,18 @@ namespace Core { namespace Command
 		bool noCase = info->NoCase; 
 		bool prevEscape = false; // True if the previous character was 'escape'
 
-		while ((c = SysEx::Utf8Read(&pattern)) != 0)
+		while ((c = _utf8read(&pattern)) != 0)
 		{
 			if (c == matchAll && !prevEscape)
 			{
-				while ((c = SysEx::Utf8Read(&pattern)) == matchAll || c == matchOne)
-					if (c == matchOne && SysEx::Utf8Read(&string) == 0)
+				while ((c = _utf8read(&pattern)) == matchAll || c == matchOne)
+					if (c == matchOne && _utf8read(&string) == 0)
 						return false;
 				if (c == 0)
 					return true;
 				else if (c == escape)
 				{
-					c = SysEx::Utf8Read(&pattern);
+					c = _utf8read(&pattern);
 					if (c == 0)
 						return false;
 				}
@@ -421,7 +421,7 @@ namespace Core { namespace Command
 						_strskiputf8(string);
 					return (*string != 0);
 				}
-				while ((c2 = SysEx::Utf8Read(&string)) != 0)
+				while ((c2 = _utf8read(&string)) != 0)
 				{
 					if (noCase)
 					{
@@ -429,14 +429,14 @@ namespace Core { namespace Command
 						c = _tolower(c);
 						while (c2 != 0 && c2 != c)
 						{
-							c2 = SysEx::Utf8Read(&string);
+							c2 = _utf8read(&string);
 							c2 = _tolower(c2);
 						}
 					}
 					else
 					{
 						while (c2 != 0 && c2 != c)
-							c2 = SysEx::Utf8Read(&string);
+							c2 = _utf8read(&string);
 					}
 					if (c2 == 0) return false;
 					if (PatternCompare(pattern, string, info, escape)) return true;
@@ -445,7 +445,7 @@ namespace Core { namespace Command
 			}
 			else if (c == matchOne && !prevEscape)
 			{
-				if (SysEx::Utf8Read(&string) == 0)
+				if (_utf8read(&string) == 0)
 					return false;
 			}
 			else if (c == matchSet)
@@ -454,24 +454,24 @@ namespace Core { namespace Command
 				_assert(escape == 0); // This only occurs for GLOB, not LIKE
 				seen = 0;
 				invert = 0;
-				c = SysEx::Utf8Read(&string);
+				c = _utf8read(&string);
 				if (c == 0) return false;
-				c2 = SysEx::Utf8Read(&pattern);
+				c2 = _utf8read(&pattern);
 				if (c2 == '^')
 				{
 					invert = 1;
-					c2 = SysEx::Utf8Read(&pattern);
+					c2 = _utf8read(&pattern);
 				}
 				if (c2 == ']')
 				{
 					if (c == ']') seen = 1;
-					c2 = SysEx::Utf8Read(&pattern);
+					c2 = _utf8read(&pattern);
 				}
 				while (c2 && c2 != ']')
 				{
 					if (c2 == '-' && pattern[0] != ']' && pattern[0] != 0 && prior_c > 0)
 					{
-						c2 = SysEx::Utf8Read(&pattern);
+						c2 = _utf8read(&pattern);
 						if (c >= prior_c && c <= c2) seen = 1;
 						prior_c = 0;
 					}
@@ -481,7 +481,7 @@ namespace Core { namespace Command
 							seen = 1;
 						prior_c = c2;
 					}
-					c2 = SysEx::Utf8Read(&pattern);
+					c2 = _utf8read(&pattern);
 				}
 				if (c2 == 0 || (seen ^ invert) == 0)
 					return false;
@@ -490,7 +490,7 @@ namespace Core { namespace Command
 				prevEscape = true;
 			else
 			{
-				c2 = SysEx::Utf8Read(&string);
+				c2 = _utf8read(&string);
 				if (noCase)
 				{
 					c = _tolower(c);
@@ -531,12 +531,12 @@ namespace Core { namespace Command
 			// The escape character string must consist of a single UTF-8 character. Otherwise, return an error.
 			const unsigned char *zEscape = Vdbe::Value_Text(argv[2]);
 			if (!zEscape) return;
-			if (SysEx::Utf8CharLen((char *)zEscape, -1) != 1)
+			if (_utf8charlen((char *)zEscape, -1) != 1)
 			{
 				Vdbe::Result_Error(fctx, "ESCAPE expression must be a single character", -1);
 				return;
 			}
-			escape = SysEx::Utf8Read(&zEscape);
+			escape = _utf8read(&zEscape);
 		}
 		if (zA && zB)
 		{
@@ -669,7 +669,7 @@ namespace Core { namespace Command
 	__device__ static void UnicodeFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		const unsigned char *z = Vdbe::Value_Text(argv[0]);
-		if (z && z[0]) Vdbe::Result_Int(fctx, SysEx::Utf8Read(&z));
+		if (z && z[0]) Vdbe::Result_Int(fctx, _utf8read(&z));
 	}
 
 	__device__ static void CharFunc(FuncContext *fctx, int argc, Mem **argv)
@@ -1149,7 +1149,7 @@ namespace Core { namespace Command
 		SetLikeOptFlag(ctx, "like", caseSensitive ? (FUNC_LIKE | FUNC_CASE) : FUNC_LIKE);
 	}
 
-	__device__ bool Func::IsLikeFunction(Context *ctx, Expr *expr, int *isNocase, char *wc)
+	__device__ bool Func::IsLikeFunction(Context *ctx, Expr *expr, bool *isNocase, char *wc)
 	{
 		if (expr->OP != TK_FUNCTION  || !expr->x.List || expr->x.List->Exprs != 2)
 			return false;
