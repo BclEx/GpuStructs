@@ -459,7 +459,7 @@ error_out:
 			if (bytes > maxLen)
 			{
 				sqlite3Error(ctx, RC_TOOBIG, "statement too long");
-				rc = SysEx::ApiExit(ctx, RC_TOOBIG);
+				rc = Main::ApiExit(ctx, RC_TOOBIG);
 				goto end_prepare;
 			}
 			char *sqlCopy = _tagstrndup(ctx, sql, bytes);
@@ -538,7 +538,7 @@ error_out:
 
 end_prepare:
 		_stackfree(ctx, parse);
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		_assert((rc&ctx->ErrMask) == rc);
 		return rc;
 	}
@@ -624,7 +624,7 @@ end_prepare:
 			*tailOut = (uint8 *)sql + Vdbe::Utf16ByteLen(sql, charsParsed);
 		}
 		_tagfree(ctx, sql8); 
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}

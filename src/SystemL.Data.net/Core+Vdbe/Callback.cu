@@ -190,7 +190,7 @@ namespace Core
 		// So we must not search for built-ins when creating a new function.
 		if (!createFlag && (!best || (ctx->Flags & Context::FLAG_PreferBuiltin) != 0))
 		{
-			FuncDefHash *hash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
+			FuncDefHash *hash = &Main_GlobalFunctions;
 			bestScore = 0;
 			p = FunctionSearch(hash, h, name, nameLength);
 			while (p)
@@ -229,7 +229,7 @@ namespace Core
 		schema->IndexHash.Clear();
 		HashElem *elem;
 		for (elem = temp2.First; elem; elem = elem->Next)
-			sqlite3DeleteTrigger(nullptr, (Trigger *)elem->Data);
+			Trigger::DeleteTrigger(nullptr, (Trigger *)elem->Data);
 		temp2.Clear();
 		new Hash schema->TableHash ();
 		for (elem = temp1.First; elem; elem = elem->Next)
@@ -246,7 +246,7 @@ namespace Core
 
 	__device__ Schema *Callback::SchemaGet(Context *ctx, Btree *bt)
 	{
-		Schema *p = (bt ? bt->Schema(sizeof(Schema), SchemaClear) : (Schema *)_tagalloc(nullptr, sizeof(Schema), true));
+		Schema *p = (bt ? bt->Schema(sizeof(Schema), SchemaClear) : (Schema *)_tagalloc2(nullptr, sizeof(Schema), true));
 		if (!p)
 			ctx->MallocFailed = true;
 		else if (!p->FileFormat)

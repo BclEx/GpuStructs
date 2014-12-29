@@ -897,7 +897,7 @@ namespace Core
             return RC.NOMEM;
         }
 
-        static void ValueSetStr(Mem mem, int n, string z, TEXTENCODE encode, Action<object> del)
+        public static void ValueSetStr(Mem mem, int n, string z, TEXTENCODE encode, Action<object> del)
         {
             if (mem != null) MemSetStr(mem, z, n, encode, del);
         }

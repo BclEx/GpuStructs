@@ -23,7 +23,6 @@ namespace Core
 #pragma endregion 
 
 #pragma region Limits
-
 #ifndef MAX_ATTACHED
 #define MAX_ATTACHED 10
 #endif
@@ -34,11 +33,11 @@ namespace Core
 #ifndef MAX_EXPR_DEPTH
 #define MAX_EXPR_DEPTH 1000
 #endif
-	//#ifdef OMIT_TEMPDB
-	//#define OMIT_TEMPDB 1
-	//#else
-	//#define OMIT_TEMPDB 0
-	//#endif
+#ifdef OMIT_TEMPDB
+#define OMIT_TEMPDB true
+#else
+#define OMIT_TEMPDB false
+#endif
 #pragma endregion 
 
 #pragma region Func
@@ -78,6 +77,7 @@ namespace Core
 		FuncDef *Hash;				// Next with a different name but the same hash
 		FuncDestructor *Destructor; // Reference counted destructor function
 	};
+	struct FuncDefHash;
 
 	//   FUNCTION(name, args, arg, nc, func)
 	//     Used to create a scalar function definition of a function zName implemented by C function func that accepts nArg arguments. The
@@ -106,6 +106,16 @@ namespace Core
 	struct IIndexInfo;
 	struct IVTable;
 	struct IVTableCursor;
+	struct ITableModule;
+
+	struct TableModule
+	{
+		const ITableModule *IModule;    // Callback pointers
+		const char *Name;               // Name passed to create_module()
+		void *Aux;                      // pAux passed to create_module()
+		void (*Destroy)(void *);        // Module destructor function
+	};
+
 	class ITableModule //was:sqlite3_module
 	{
 	public:
@@ -188,6 +198,10 @@ namespace Core
 		// Virtual table implementations will typically add additional fields
 	};
 
+#pragma endregion
+
+#pragma region Types
+
 	enum OE : uint8
 	{
 		OE_None = 0,   // There is no constraint to check
@@ -211,10 +225,6 @@ namespace Core
 		CONFLICT_ABORT = 4,
 		CONFLICT_REPLACE = 5
 	};
-
-#pragma endregion
-
-#pragma region NAME1
 
 	enum SO : uint8
 	{
@@ -304,10 +314,6 @@ namespace Core
 		int Accumulators;			// Number of columns that show through to the output. Additional columns are used only as parameters to aggregate functions
 		array_t<AggInfoFunc> Funcs; // For each aggregate function
 	};
-
-#pragma endregion
-
-#pragma region Affinity
 
 	enum AFF : uint8
 	{
@@ -584,6 +590,7 @@ namespace Core
 		EP2_MallocedToken = 0x0001,	// Need to sqlite3DbFree() Expr.zToken
 		EP2_Irreducible = 0x0002,	// Cannot EXPRDUP_REDUCE this Expr
 	};
+	__device__ EP2 inline operator|=(EP2 a, int b) { return (EP2)(a | b); }
 
 	class Vdbe;
 	struct ExprSpan;
@@ -783,18 +790,27 @@ namespace Core
 			SrcCount *SrcCount;			// Counting column references
 		} u; // Extra data for callback
 
+#pragma region From: Resolve_c
+		__device__ static bool MatchSpanName(const char *span, const char *colName, const char *table, const char *dbName);
+		__device__ static Expr *CreateColumnExpr(Context *ctx, SrcList *src, int srcId, int colId);
+		__device__ static bool ResolveOrderGroupBy(Core::Parse *parse, Select *select, ExprList *orderBy, const char *type);
+		__device__ static bool ResolveExprNames(NameContext *nc, Expr *expr);
+		__device__ static void ResolveSelectNames(Core::Parse *parse, Select *p, NameContext *outerNC);
+#pragma endregion
+
+#pragma region From: Walker_c
 		__device__ WRC WalkExpr(Expr *expr);
 		__device__ WRC WalkExprList(ExprList *list);
 		__device__ WRC WalkSelect(Select *Select);
-		__device__ WRC WalkSelectExpr(Core::Select *left);
-		__device__ WRC WalkSelectFrom(Core::Select *left);
+		__device__ WRC WalkSelectExpr(Select *left);
+		__device__ WRC WalkSelectFrom(Select *left);
+#pragma endregion
 	};
 
 #pragma endregion
 
 #pragma region Callback
 
-	struct FuncDefHash;
 	struct Callback
 	{
 		__device__ static CollSeq *GetCollSeq(Parse *parse, TEXTENCODE encode, CollSeq *coll, const char *name);
@@ -855,16 +871,6 @@ namespace Core
 		int RegCtr;				// Memory register holding the rowid counter
 	};
 
-	struct Trigger;
-	struct TriggerPrg
-	{
-		Trigger *Trigger;		// Trigger this program was coded from
-		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
-		Vdbe::SubProgram *Program;	// Program implementing pTrigger/orconf
-		OE Orconf;             // Default ON CONFLICT policy
-		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
-	};
-
 	enum IN_INDEX : uint8
 	{
 		IN_INDEX_ROWID = 1,
@@ -881,6 +887,8 @@ namespace Core
 
 	struct FKey;
 	struct TableLock;
+	struct Trigger;
+	struct TriggerPrg;
 	struct Parse
 	{
 		struct ColCache
@@ -1122,20 +1130,10 @@ namespace Core
 	};
 
 #pragma endregion
-
 }
 #include "Context.cu.h"
 namespace Core {
-
 #pragma region Table
-
-	struct TableModule
-	{
-		const ITableModule *IModule;    // Callback pointers
-		const char *Name;               // Name passed to create_module()
-		void *Aux;                      // pAux passed to create_module()
-		void (*Destroy)(void *);        // Module destructor function
-	};
 
 	enum COLFLAG : uint16
 	{
@@ -1399,7 +1397,9 @@ namespace Core {
 	};
 
 #pragma endregion
-
+}
+#include "Vdbe.cu.h"
+namespace Core {
 #pragma region Trigger
 
 	enum TRIGGER : uint8
@@ -1452,6 +1452,15 @@ namespace Core {
 		IdList *IdList;			// Column names for INSERT
 		TriggerStep *Next;		// Next in the link-list
 		TriggerStep *Last;		// Last element in link-list. Valid for 1st elem only
+	};
+
+	struct TriggerPrg
+	{
+		Trigger *Trigger;		// Trigger this program was coded from
+		TriggerPrg *Next;		// Next entry in Parse.pTriggerPrg list
+		Vdbe::SubProgram *Program;	// Program implementing pTrigger/orconf
+		OE Orconf;             // Default ON CONFLICT policy
+		uint32 Colmasks[2];     // Masks of old.*, new.* columns accessed
 	};
 
 #pragma endregion
@@ -1570,19 +1579,17 @@ namespace Core {
 	}
 #pragma endregion
 
-}
-#include "Vdbe.cu.h"
-namespace Core {
-
 #pragma region Main
 
 	class Main
 	{
 	public:
+
+#pragma region From: Util_c
+
 		__device__ inline static RC ApiExit(Context *ctx, RC rc)
 		{
-			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed 
-			// is unsafe, as is the call to sqlite3Error().
+			// If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed is unsafe, as is the call to sqlite3Error().
 			_assert(!ctx || MutexEx::Held(ctx->Mutex));
 			if (ctx && (ctx->MallocFailed || rc == RC_IOERR_NOMEM))
 			{
@@ -1607,15 +1614,174 @@ namespace Core {
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Error(ctx, errCode, fmt, args); va_end(args); }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Error(ctx, errCode, fmt, args); va_end(args); }
 #else
-		__device__ inline void static Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args;  va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
+		__device__ inline void static Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args; va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
 #endif
-
-		__device__ static RC Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
-		//typedef bool (*ExecCallback_t)(void *, int, char **, char **);
-		//__device__ static RC Exec(Context *ctx, const char *sql, ExecCallback_t callback, void *arg, char **errMsg);
-	};
+		__device__ static bool SafetyCheckOk(Context *ctx);
+		__device__ static bool SafetyCheckSickOrOk(Context *ctx);
 
 #pragma endregion
 
+#pragma region From: Legacy_c
+
+		__device__ static RC Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
+
+#pragma endregion
+
+#pragma region Initialize/Shutdown/Config
+
+		struct GlobalStatics
+		{
+			bool UseCis;						// Use covering indices for full-scans
+			//sqlite3_pcache_methods2 pcache2;	// Low-level page-cache interface
+			void *Page;							// Page cache memory
+			int PageSize;						// Size of each page in pPage[]
+			int Pages;							// Number of pages in pPage[]
+			int MaxParserStack;					// maximum depth of the parser stack
+			// The above might be initialized to non-zero.  The following need to always initially be zero, however.
+			bool IsPCacheInit;					// True after malloc is initialized
+		};
+
+		static _WSD GlobalStatics g_globalStatics;
+		static _WSD FuncDefHash g_globalFunctions;
+#define Main_GlobalStatics _GLOBAL(GlobalStatics, Main::g_globalStatics)
+#define Main_GlobalFunctions _GLOBAL(FuncDefHash, Main::g_globalFunctions)
+
+		__device__ static RC Initialize();
+		__device__ static RC Shutdown();
+
+		enum CONFIG
+		{
+			CONFIG_PAGECACHE = 7,				// void*, int sz, int N
+			CONFIG_PCACHE = 14,					// no-op
+			CONFIG_GETPCACHE = 15,				// no-op
+			CONFIG_PCACHE2 = 18,				// sqlite3_pcache_methods2*
+			CONFIG_GETPCACHE2 = 19,				// sqlite3_pcache_methods2*
+			CONFIG_COVERING_INDEX_SCAN = 20,	// int
+		};
+		__device__ static RC Config(CONFIG op, va_list args);
+#if __CUDACC__
+		__device__ inline static RC Config(CONFIG op) { va_list args; va_start(args, nullptr); RC r = Config(op, args); va_end(args); return r; }
+		template <typename T1> __device__ inline static RC Config(CONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = Config(op, args); va_end(args); return r; }
+		template <typename T1, typename T2> __device__ inline static RC Config(CONFIG op, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); RC r = Config(op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3> __device__ inline static RC Config(CONFIG op, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); RC r = Config(op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static RC Config(CONFIG op, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); RC r = Config(op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static RC Config(CONFIG op, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); RC r = Config(op, args); va_end(args); return r; }
+#else
+		__device__ inline static RC Config(CONFIG op, ...) { va_list args; va_start(args, op); RC r = Config(op, args); va_end(args); return r; }
+#endif
+
+		enum CTXCONFIG
+		{
+			CTXCONFIG_LOOKASIDE = 1001,  // void* int int
+			CTXCONFIG_ENABLE_FKEY = 1002,  // int int*
+			CTXCONFIG_ENABLE_TRIGGER = 1003,  // int int*
+		};
+		__device__ static RC CtxConfig(Context *ctx, CTXCONFIG op, va_list args);
+#if __CUDACC__
+		__device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op) { va_list args; va_start(args, nullptr); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+		template <typename T1> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+		template <typename T1, typename T2> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+#else
+		__device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, ...) { va_list args; va_start(args, op); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
+#endif
+
+#pragma endregion
+
+		__device__ static RC CtxReleaseMemory(Context *ctx);
+		__device__ static void CloseSavepoints(Context *ctx);
+		__device__ static RC Close(Context *ctx, bool forceZombie);
+		__device__ static RC Close(Context *ctx);
+		__device__ static RC Close_v2(Context *ctx);
+		__device__ static void LeaveMutexAndCloseZombie(Context *ctx);
+		__device__ static void RollbackAll(Context *ctx, RC tripCode);
+		__device__ static const char *ErrStr(RC rc);
+		__device__ static int DefaultBusyCallback(void *ptr, int count);
+		__device__ static int InvokeBusyHandler(Context::BusyHandlerType *p);
+		__device__ static RC BusyHandler(Context *ctx, int (*busy)(void *, int), void *arg);
+#ifndef OMIT_PROGRESS_CALLBACK
+		__device__ static void ProgressHandler(Context *ctx,  int ops, int (*progress)(void *), void *arg);
+#endif
+		__device__ static RC BusyTmeout(Context *ctx, int ms);
+		__device__ static void Interrupt(Context *ctx);
+		__device__ static RC CreateFunc(Context *ctx, const char *funcName, int args, TEXTENCODE encode, void *userData, void (*func)(FuncContext*,int,Mem**), void (*step)(FuncContext*,int,Mem**), void (*final_)(FuncContext*), FuncDestructor *destructor);
+		__device__ static RC CreateFunction(Context *ctx, const char *funcName, int args, TEXTENCODE encode, void *p, void (*func)(FuncContext*,int,Mem**), void (*step)(FuncContext*,int,Mem**), void (*final_)(FuncContext*));
+		__device__ static RC CreateFunction_v2(Context *ctx, const char *funcName, int args, TEXTENCODE encode, void *p, void (*func)(FuncContext*,int,Mem**), void (*step)(FuncContext*,int,Mem**), void (*final_)(FuncContext*), void (*destroy)(void*));
+#ifndef OMIT_UTF16
+		__device__ static RC CreateFunction16(Context *ctx, const void *funcName, int args, TEXTENCODE encode, void *p, void (*func)(FuncContext*,int,Mem**), void (*step)(FuncContext*,int,Mem**), void (*final_)(FuncContext*));
+#endif
+		__device__ static RC OverloadFunction( Context *ctx, const char *funcName, int args);
+#ifndef OMIT_TRACE
+		__device__ static void *Trace(Context *ctx, void (*trace)(void*,const char*), void *arg);
+		__device__ static void *Profile(Context *ctx, void (*profile)(void*,const char*,uint64), void *arg);
+#endif
+		__device__ static void *CommitHook(Context *ctx, int (*callback)(void*), void *arg);
+		__device__ static void *UpdateHook(Context *ctx, void (*callback)(void*,int,char const*,char const*,int64), void *arg);
+		__device__ static void *RollbackHook(Context *ctx, void (*callback)(void*), void *arg);
+#ifndef OMIT_WAL
+		__device__ static RC WalDefaultHook(void *clientData, Context *ctx, const char *dbName, int frames);
+#endif
+		__device__ static RC WalAutocheckpoint(Context *ctx, int frames);
+		__device__ static void *WalHook(Context *ctx, int (*callback)(void*,Context*,const char*,int), void *arg);
+		__device__ static RC WalCheckpoint(Context *ctx, const char *dbName);
+		__device__ static RC WalCheckpoint_v2(Context *ctx, const char *dbName, IPager::CHECKPOINT mode, int *logsOut, int *ckptsOut);
+#ifndef OMIT_WAL
+		__device__ static RC Checkpoint(Context *ctx, int db, IPager::CHECKPOINT mode, int *logsOut, int *ckptsOut);
+#endif
+		__device__ static bool TempInMemory(Context *ctx);
+		__device__ static const char *ErrMsg(Context *ctx);
+		__device__ static const void *ErrMsg16(Context *ctx);
+		__device__ static RC ErrCode(Context *ctx);
+		__device__ static RC ExtendedErrCode(Context *ctx);
+		__device__ static int Limit(Context *ctx, LIMIT limit, int newLimit);
+		__device__ static RC Main::Open(const char *fileName, Context **ctxOut);
+		__device__ static RC Main::Open_v2(const char *fileName, Context **ctxOut, VSystem::OPEN flags, const char *vfsName);
+#ifndef OMIT_UTF16
+		__device__ static RC Open16(const void *fileName,  Context **ctxOut);
+#endif
+		__device__ static RC CreateCollation(Context *ctx, const char *name, TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*));
+		__device__ static RC CreateCollation_v2(Context *ctx, const char *name, TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*), void (*del)(void*));
+#ifndef OMIT_UTF16
+		__device__ static RC CreateCollation16(Context *ctx, const void *name, TEXTENCODE encode,  void *ctx2, int (*compare)(void*,int,const void*,int,const void*));
+#endif
+		__device__ static RC CollationNeeded(Context *ctx, void *collNeededArg, void (*collNeeded)(void*,Context*,TEXTENCODE,const char*));
+#ifndef OMIT_UTF16
+		__device__ static RC CollationNeeded16(Context *ctx, void *collNeededArg, void (*collNeeded16)(void*,Context*,TEXTENCODE,const void*));
+#endif
+#ifdef ENABLE_COLUMN_METADATA
+		__device__ static RC TableColumnMetadata(Context *ctx, const char *dbName, const char *tableName, const char *columnName, char const **dataTypeOut, char const **collSeqNameOut, bool *notNullOut, bool *primaryKeyOut, bool *autoincOut);
+#endif
+		__device__ static int Sleep(int ms);
+		__device__ static RC ExtendedResultCodes(Context *ctx, bool onoff);
+		__device__ static RC FileControl(Context *ctx, const char *dbName, VFile::FCNTL op, void *arg);
+		enum TESTCTRL
+		{
+			TESTCTRL_FIRST                   = 5,
+			TESTCTRL_PRNG_SAVE               = 5,
+			TESTCTRL_PRNG_RESTORE            = 6,
+			TESTCTRL_PRNG_RESET              = 7,
+			TESTCTRL_BITVEC_TEST             = 8,
+			TESTCTRL_FAULT_INSTALL           = 9,
+			TESTCTRL_BENIGN_MALLOC_HOOKS     =10,
+			TESTCTRL_PENDING_BYTE            =11,
+			TESTCTRL_ASSERT                  =12,
+			TESTCTRL_ALWAYS                  =13,
+			TESTCTRL_RESERVE                 =14,
+			TESTCTRL_OPTIMIZATIONS           =15,
+			TESTCTRL_ISKEYWORD               =16,
+			TESTCTRL_SCRATCHMALLOC           =17,
+			TESTCTRL_LOCALTIME_FAULT         =18,
+			TESTCTRL_EXPLAIN_STMT            =19,
+			TESTCTRL_LAST                    =19,
+		};
+		__device__ RC Main::TestControl(TESTCTRL op, va_list args);
+		__device__ static Btree *DbNameToBtree(Context *ctx, const char *dbName);
+		__device__ static const char *CtxFilename(Context *ctx, const char *dbName);
+		__device__ static int CtxReadonly(Context *ctx, const char *dbName);
+	};
+
+#pragma endregion
 }
 using namespace Core::Command;

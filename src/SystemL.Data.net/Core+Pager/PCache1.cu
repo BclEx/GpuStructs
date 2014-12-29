@@ -89,8 +89,8 @@ namespace Core
 
 #pragma endregion
 
-	__device__ static struct PCacheGlobal _pcache1;
-	__device__ static bool _config_coreMutex = false;
+	__device__ static _WSD PCacheGlobal g_pcache1;
+	#define _pcache1 _GLOBAL(PCacheGlobal, g_pcache1))
 
 #pragma region Page Allocation
 
@@ -370,7 +370,7 @@ namespace Core
 	{
 		_assert(!_pcache1.IsInit);
 		_memset(&_pcache1, 0, sizeof(_pcache1));
-		if (_config_coreMutex)
+		if (SysEx_GlobalStatics.CoreMutex)
 		{
 			_pcache1.Group.Mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_LRU);
 			_pcache1.Mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_PMEM);
@@ -396,7 +396,7 @@ namespace Core
 #if defined(ENABLE_MEMORY_MANAGEMENT) || THREADSAFE == 0
 		const bool separateCache = false;
 #else
-		bool separateCache = _config_coreMutex > 0;
+		bool separateCache = SysEx_GlobalStatics.CoreMutex;
 #endif
 		_assert((sizePage & (sizePage - 1)) == 0 && sizePage >= 512 && sizePage <= 65536);
 		_assert(sizeExtra < 300);

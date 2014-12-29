@@ -85,23 +85,6 @@ namespace Core
 		MAGIC_ZOMBIE = 0x64cffc7f,  // Close with last statement close
 	};
 
-	struct LookasideSlot
-	{
-		LookasideSlot *Next;    // Next buffer in the list of free buffers
-	};
-	struct Lookaside
-	{
-		uint16 Size;            // Size of each buffer in bytes
-		bool Enabled;           // False to disable new lookaside allocations
-		bool Malloced;          // True if pStart obtained from sqlite3_malloc()
-		int Outs;               // Number of buffers currently checked out
-		int MaxOuts;            // Highwater mark for nOut
-		int Stats[3];			// 0: hits.  1: size misses.  2: full misses
-		LookasideSlot *Free;	// List of available buffers
-		void *Start;			// First byte of available memory space
-		void *End;				// First byte past end of available space
-	};
-
 #ifndef OMIT_BUILTIN_TEST
 #define CtxOptimizationDisabled(ctx, mask)  (((ctx)->OptFlags&(mask))!=0)
 #define CtxOptimizationEnabled(ctx, mask)   (((ctx)->OptFlags&(mask))==0)
@@ -157,7 +140,7 @@ namespace Core
 		uint8 AutoCommit;					// The auto-commit flag.
 		uint8 TempStore;					// 1: file 2: memory 0: default
 		//TAGBASE::MallocFailed
-		uint8 DefaultLockMode;              // Default locking-mode for attached dbs
+		IPager::LOCKINGMODE DefaultLockMode;// Default locking-mode for attached dbs
 		signed char NextAutovac;			// Autovac setting after VACUUM if >=0
 		uint8 SuppressErr;					// Do not issue error messages if true
 		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
@@ -183,11 +166,11 @@ namespace Core
 		void *UpdateArg;
 		void (*UpdateCallback)(void*,int, const char*,const char*,int64);
 #ifndef OMIT_WAL
-		int (*WalCallback)(void *, Context *, const char *, int);
+		int (*WalCallback)(void*,Context*,const char*,int);
 		void *WalArg;
 #endif
-		void(*CollNeeded)(void *, Context *, int textRep, const char *);
-		void(*CollNeeded16)(void *, Context *, int textRep, const void *);
+		void(*CollNeeded)(void*,Context*,TEXTENCODE,const char*);
+		void(*CollNeeded16)(void*,Context*,TEXTENCODE,const void*);
 		void *CollNeededArg;
 		Mem *Err;							// Most recent error message
 		char *ErrMsg;						// Most recent error message (UTF-8 encoded)
@@ -197,13 +180,13 @@ namespace Core
 			volatile bool IsInterrupted;	// True if sqlite3_interrupt has been called
 			double NotUsed1;				// Spacer
 		} u1;
-		Lookaside Lookaside;				// Lookaside malloc configuration
+		//TAGBASE::Lookaside Lookaside;		// Lookaside malloc configuration
 #ifndef OMIT_AUTHORIZATION
 		ARC (*Auth)(void*,int,const char*,const char*,const char*,const char*); // Access authorization function
 		void *AuthArg;						// 1st argument to the access auth function
 #endif
 #ifndef OMIT_PROGRESS_CALLBACK
-		int (*Progress)(void *);			// The progress callback
+		int (*Progress)(void*);			// The progress callback
 		void *ProgressArg;					// Argument to the progress callback
 		int ProgressOps;					// Number of opcodes for progress callback
 #endif
@@ -227,7 +210,7 @@ namespace Core
 		Context *BlockingConnection;		// Connection that caused SQLITE_LOCKED
 		Context *UnlockConnection;			// Connection to watch for unlock
 		void *UnlockArg;					// Argument to xUnlockNotify
-		void (*UnlockNotify)(void **, int);	// Unlock notify callback
+		void (*UnlockNotify)(void**,int);	// Unlock notify callback
 		Context *NextBlocked;				// Next in list of all blocked connections
 #endif
 	};

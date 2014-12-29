@@ -37,10 +37,9 @@ namespace Core
 
 #if !OMIT_SHARED_CACHE
         static BtShared _sharedCacheList = null;
-        bool _sharedCacheEnabled = false;
-        RC sqlite3_enable_shared_cache(bool enable)
+        RC enable_shared_cache(bool enable)
         {
-            _sharedCacheEnabled = enable;
+            _globalMainStatics.SharedCacheEnabled = enable;
             return RC.OK;
         }
 #else

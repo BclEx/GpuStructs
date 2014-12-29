@@ -1310,7 +1310,7 @@ Size:          dbsize={11} dbOrigSize={12} dbFileSize={13}"
 
             // Also store the SQLite version number in bytes 96..99 and in bytes 92..95 store the change counter for which the version number is valid.
             ConvertEx.Put4(pg.Data, 92, change_counter);
-            ConvertEx.Put4(pg.Data, 96, SysEx.VERSION_NUMBER);
+            ConvertEx.Put4(pg.Data, 96, SysEx.CORE_VERSION_NUMBER);
         }
 
 #if !OMIT_WAL

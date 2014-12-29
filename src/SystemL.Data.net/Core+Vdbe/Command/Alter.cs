@@ -140,8 +140,8 @@ namespace Core.Command
             } while (dist != 2 || (token != TK.WHEN && token != TK.FOR && token != TK.BEGIN));
 
             // Variable tname now contains the token that is the old table-name in the CREATE TRIGGER statement.
-            string r = C._mtagprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + tname.length));
-            Vdbe.Result_Text(fctx, r, -1, DESTRUCTOR.DYNAMIC);
+            string r = C._mtagprintf(ctx, "%.*s\"%w\"%s", zLoc, sql.Substring(0, zLoc), tableName, sql.Substring(zLoc + (int)tname.length));
+            Vdbe.Result_Text(fctx, r, -1, C.DESTRUCTOR_DYNAMIC);
         }
 #endif
 
@@ -156,9 +156,10 @@ namespace Core.Command
   };
         public static void Functions()
         {
-            FuncDefHash hash = Context.GlobalFunctions;
+            FuncDefHash hash = Main.GlobalFunctions;
+            FuncDef[] funcs = _alterTableFuncs;
             for (int i = 0; i < _alterTableFuncs.Length; i++)
-                hash.Insert(_alterTableFuncs[i]);
+                Callback.FuncDefInsert(hash, funcs[i]);
         }
 
         static string WhereOrName(Context ctx, string where_, string constant)
@@ -178,7 +179,7 @@ namespace Core.Command
         static string WhereForeignKeys(Parse parse, Table table)
         {
             string where_ = string.Empty;
-            for (FKey p = FKey.FkReferences(table); p != null; p = p.NextTo)
+            for (FKey p = Parse.FKReferences(table); p != null; p = p.NextTo)
                 where_ = WhereOrName(parse.Ctx, where_, p.From.Name);
             return where_;
         }
@@ -192,7 +193,7 @@ namespace Core.Command
             // If the table is not located in the temp.db (in which case NULL is returned, loop through the tables list of triggers. For each trigger
             // that is not part of the temp.db schema, add a clause to the WHERE expression being built up in zWhere.
             if (table.Schema != tempSchema)
-                for (Trigger trig = sqlite3TriggerList(parse, table); trig != null; trig = trig.Next)
+                for (Trigger trig = Trigger.List(parse, table); trig != null; trig = trig.Next)
                     if (trig.Schema == tempSchema)
                         where_ = WhereOrName(ctx, where_, trig.Name);
             if (!string.IsNullOrEmpty(where_))
@@ -211,14 +212,14 @@ namespace Core.Command
             Vdbe v = parse.GetVdbe();
             if (C._NEVER(v == null)) return;
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
-            int db = sqlite3SchemaToIndex(ctx, table.Schema); // Index of database containing pTab
+            int db = Prepare.SchemaToIndex(ctx, table.Schema); // Index of database containing pTab
             Debug.Assert(db >= 0);
 
 #if !OMIT_TRIGGER
             // Drop any table triggers from the internal schema.
-            for (trig = sqlite3TriggerList(parse, table); trig != null; trig = trig.Next)
+            for (trig = Trigger.List(parse, table); trig != null; trig = trig.Next)
             {
-                int trigDb = sqlite3SchemaToIndex(ctx, trig.Schema);
+                int trigDb = Prepare.SchemaToIndex(ctx, trig.Schema);
                 Debug.Assert(trigDb == db || trigDb == 1);
                 v.AddOp4(OP.DropTrigger, trigDb, 0, 0, trig.Name, 0);
             }
@@ -258,25 +259,25 @@ namespace Core.Command
             Debug.Assert(src.Srcs == 1);
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
 
-            Table table = sqlite3LocateTable(parse, 0, src.Ids[0].Name, src.Ids[0].Database); // Table being renamed
+            Table table = parse.LocateTableItem(false, src.Ids[0]); // Table being renamed
             if (table == null) goto exit_rename_table;
-            int db = sqlite3SchemaToIndex(ctx, table.Schema); // Database that contains the table
+            int db = Prepare.SchemaToIndex(ctx, table.Schema); // Database that contains the table
             string dbName = ctx.DBs[db].Name; // Name of database iDb
             ctx.Flags |= Context.FLAG.PreferBuiltin;
 
             // Get a NULL terminated version of the new table name.
-            string nameAsString = sqlite3NameFromToken(ctx, name); // NULL-terminated version of pName
+            string nameAsString = Parse.NameFromToken(ctx, name); // NULL-terminated version of pName
             if (nameAsString == null) goto exit_rename_table;
 
             // Check that a table or index named 'zName' does not already exist in database iDb. If so, this is an error.
-            if (sqlite3FindTable(ctx, nameAsString, dbName) != null || sqlite3FindIndex(ctx, nameAsString, dbName) != null)
+            if (Parse.FindTable(ctx, nameAsString, dbName) != null || Parse.FindIndex(ctx, nameAsString, dbName) != null)
             {
                 parse.ErrorMsg("there is already another table or index with this name: %s", nameAsString);
                 goto exit_rename_table;
             }
 
             // Make sure it is not a system table being altered, or a reserved name that the table is being renamed to.
-            if (IsSystemTable(parse, table.Name) || sqlite3CheckObjectName(parse, nameAsString) != RC.OK)
+            if (IsSystemTable(parse, table.Name) || parse->CheckObjectName(nameAsString) != RC.OK)
                 goto exit_rename_table;
 
 #if !OMIT_VIEW
@@ -289,15 +290,15 @@ namespace Core.Command
 
 #if !OMIT_AUTHORIZATION
             // Invoke the authorization callback.
-            if (Auth.Check(parse, AUTH.ALTER_TABLE, dbName, table.Name, 0))
+            if (Auth.Check(parse, AUTH.ALTER_TABLE, dbName, table.Name, null))
                 goto exit_rename_table;
 #endif
 
             VTable vtable = null; // Non-zero if this is a v-tab with an xRename()
 #if !OMIT_VIRTUALTABLE
-            if (sqlite3ViewGetColumnNames(parse, table) != 0)
+            if (parse->ViewGetColumnNames(table) != 0)
                 goto exit_rename_table;
-            if (IsVirtual(table))
+            if (E.IsVirtual(table))
             {
                 vtable = VTable.GetVTable(ctx, table);
                 if (vtable.IVTable.IModule.Rename == null)
@@ -326,7 +327,7 @@ namespace Core.Command
 
             // figure out how many UTF-8 characters are in zName
             string tableName = table.Name; // Original name of the table
-            int tableNameLength = sqlite3Utf8CharLen(tableName, -1); // Number of UTF-8 characters in zTabName
+            int tableNameLength = C._utf8charlength(tableName, -1); // Number of UTF-8 characters in zTabName
 
 #if !OMIT_TRIGGER
             string where_ = string.Empty; // Where clause to locate temp triggers
@@ -374,7 +375,7 @@ namespace Core.Command
 
 #if !OMIT_AUTOINCREMENT
             // If the sqlite_sequence table exists in this database, then update it with the new table name.
-            if (sqlite3FindTable(ctx, "sqlite_sequence", dbName) != null)
+            if (Parse.FindTable(ctx, "sqlite_sequence", dbName) != null)
                 parse.NestedParse(
                 "UPDATE \"%w\".sqlite_sequence set name = %Q WHERE name = %Q",
                 dbName, nameAsString, table.Name);
@@ -396,7 +397,7 @@ namespace Core.Command
 #if !(OMIT_FOREIGN_KEY) && !(OMIT_TRIGGER)
             if ((ctx.Flags & Context.FLAG.ForeignKeys) != 0)
             {
-                for (FKey p = sqlite3FkReferences(table); p != null; p = p.NextTo)
+                for (FKey p = Parse.FkReferences(table); p != null; p = p.NextTo)
                 {
                     Table from = p.From;
                     if (from != table)
@@ -409,7 +410,7 @@ namespace Core.Command
             ReloadTableSchema(parse, table, nameAsString);
 
         exit_rename_table:
-            sqlite3SrcListDelete(ctx, ref src);
+            Expr.SrcListDelete(ctx, ref src);
             C._tagfree(ctx, ref nameAsString);
             ctx.Flags = savedDbFlags;
         }
@@ -422,11 +423,11 @@ namespace Core.Command
             {
                 int r1 = Expr.GetTempReg(parse);
                 int r2 = Expr.GetTempReg(parse);
-                v.AddOp3(OP.ReadCookie, db, r1, BTREE_FILE_FORMAT);
+                v.AddOp3(OP.ReadCookie, db, r1, Btree.META.FILE_FORMAT);
                 v.UsesBtree(db);
                 v.AddOp2(OP.Integer, minFormat, r2);
                 int j1 = v.AddOp3(OP.Ge, r2, 0, r1);
-                v.AddOp3(OP.SetCookie, db, BTREE_FILE_FORMAT, r2);
+                v.AddOp3(OP.SetCookie, db, Btree.META.FILE_FORMAT, r2);
                 v.JumpHere(j1);
                 Expr.ReleaseTempReg(parse, r1);
                 Expr.ReleaseTempReg(parse, r2);
@@ -440,17 +441,17 @@ namespace Core.Command
             Table newTable = parse.NewTable; // Copy of pParse.pNewTable
             Debug.Assert(newTable != null);
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
-            int db = sqlite3SchemaToIndex(ctx, newTable.Schema); // Database number
+            int db = Prepare.SchemaToIndex(ctx, newTable.Schema); // Database number
             string dbName = ctx.DBs[db].Name;// Database name
             string tableName = newTable.Name.Substring(16); // Table name: Skip the "sqlite_altertab_" prefix on the name
             Column col = newTable.Cols[newTable.Cols.length - 1]; // The new column
             Expr dflt = col.Dflt; // Default value for the new column
-            Table table = sqlite3FindTable(ctx, tableName, dbName); // Table being altered
+            Table table = Parse.FindTable(ctx, tableName, dbName); // Table being altered
             Debug.Assert(table != null);
 
 #if !OMIT_AUTHORIZATION
             // Invoke the authorization callback.
-            if (Auth.Check(parse, AUTH.ALTER_TABLE, dbName, table.Name, 0))
+            if (Auth.Check(parse, AUTH.ALTER_TABLE, dbName, table.Name, null))
                 return;
 #endif
 
@@ -471,7 +472,7 @@ namespace Core.Command
                 parse.ErrorMsg("Cannot add a UNIQUE column");
                 return;
             }
-            if ((ctx.Flags & Context.FLAG.ForeignKeys) != 0 && newTable.FKey != null && dflt != null)
+            if ((ctx.Flags & Context.FLAG.ForeignKeys) != 0 && newTable.FKeys != null && dflt != null)
             {
                 parse.ErrorMsg("Cannot add a REFERENCES column with non-NULL default value");
                 return;
@@ -531,7 +532,7 @@ namespace Core.Command
             Debug.Assert(parse.NewTable == null);
             Debug.Assert(Btree.HoldsAllMutexes(ctx));
             //if (ctx.MallocFailed) goto exit_begin_add_column;
-            Table table = sqlite3LocateTable(parse, 0, src.Ids[0].Name, src.Ids[0].Database);
+            Table table = parse.LocateTableItem(false, src.Ids[0]);
             if (table == null) goto exit_begin_add_column;
 
 #if !OMIT_VIRTUALTABLE
@@ -552,7 +553,7 @@ namespace Core.Command
                 goto exit_begin_add_column;
 
             Debug.Assert(table.AddColOffset > 0);
-            int db = sqlite3SchemaToIndex(ctx, table.Schema);
+            int db = Prepare.SchemaToIndex(ctx, table.Schema);
 
             // Put a copy of the Table struct in Parse.pNewTable for the sqlite3AddColumn() function and friends to modify.  But modify
             // the name by adding an "sqlite_altertab_" prefix.  By adding this prefix, we insure that the name will not collide with an existing
@@ -581,7 +582,7 @@ namespace Core.Command
                 col.Dflt = null;
                 newTable.Cols[i] = col;
             }
-            newTable.Schema = ctx.DB[db].Schema;
+            newTable.Schema = ctx.DBs[db].Schema;
             newTable.AddColOffset = table.AddColOffset;
             newTable.Refs = 1;
 

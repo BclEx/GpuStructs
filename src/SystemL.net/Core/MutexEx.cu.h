@@ -17,9 +17,12 @@
 			MUTEX_STATIC_PMEM = 7, // sqlite3PageMalloc()
 		};
 
+		void *Tag;
+
 		__device__ inline static MutexEx Alloc(MUTEX id)
 		{ 
 			MutexEx m;
+			m.Tag = (void *)1;
 			return m;
 		}
 		__device__ inline static void Enter(MutexEx mutex) { }

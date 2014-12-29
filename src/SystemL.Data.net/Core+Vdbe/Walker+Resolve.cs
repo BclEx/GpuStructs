@@ -87,7 +87,7 @@ namespace Core
             return true;
         }
 
-        static int LookupName(Parse parse, string dbName, string tableName, string colName, NameContext nc, Expr expr)
+        static WRC LookupName(Parse parse, string dbName, string tableName, string colName, NameContext nc, Expr expr)
         {
             int cnt = 0; // Number of matching column names
             int cntTab = 0; // Number of matching table names
@@ -366,7 +366,7 @@ namespace Core
 
         public static Expr CreateColumnExpr(Context ctx, SrcList src, int srcId, int colId)
         {
-            Expr p = sqlite3ExprAlloc(ctx, TK.COLUMN, null, 0);
+            Expr p = Expr.Alloc(ctx, TK.COLUMN, null, false);
             if (p != null)
             {
                 SrcList.SrcListItem item = src.Ids[srcId];
@@ -386,7 +386,7 @@ namespace Core
             return p;
         }
 
-        public static WRC ResolveExprStep(Walker walker, ref Expr expr)
+        static WRC ResolveExprStep(Walker walker, Expr expr)
         {
             NameContext nc = walker.u.NC;
             Debug.Assert(nc != null);
@@ -581,7 +581,6 @@ namespace Core
 
         static int ResolveOrderByTermToExprList(Parse parse, Select select, Expr expr)
         {
-            int i = 0;
             Debug.Assert(!expr.IsInteger(ref i));
             ExprList list = select.EList; // The columns of the result set
             // Resolve all names in the ORDER BY term expression
@@ -594,11 +593,11 @@ namespace Core
             Context ctx = parse.Ctx; // Database connection
             byte savedSuppErr = ctx.SuppressErr; // Saved value of db->suppressErr
             ctx.SuppressErr = 1;
-            RC rc = ResolveExprNames(nc, ref expr);
+            bool r = ResolveExprNames(nc, ref expr);
             ctx.SuppressErr = savedSuppErr;
-            if (rc != 0) return 0;
+            if (r) return 0;
             // Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
-            for (i = 0; i < list.Exprs; i++)
+            for (int i = 0; i < list.Exprs; i++)
                 if (Expr.Compare(list.Ids[i].Expr, expr) < 2)
                     return i + 1;
             // If no match, return 0.
@@ -704,7 +703,7 @@ namespace Core
             return 0;
         }
 
-        public static int ResolveOrderGroupBy(Parse parse, Select select, ExprList orderBy, string type)
+        public static bool ResolveOrderGroupBy(Parse parse, Select select, ExprList orderBy, string type)
         {
             Context ctx = parse.Ctx;
             if (orderBy == null || parse.Ctx.MallocFailed) return 0;
@@ -712,7 +711,7 @@ namespace Core
             if (orderBy.Exprs > ctx.Limits[(int)LIMIT.COLUMN])
             {
                 parse.ErrorMsg("too many terms in %s BY clause", type);
-                return 1;
+                return true;
             }
 #endif
             ExprList list = select.EList;
@@ -727,12 +726,12 @@ namespace Core
                     if (item.OrderByCol > list.Exprs)
                     {
                         ResolveOutOfRangeError(parse, type, i + 1, list.Exprs);
-                        return 1;
+                        return true;
                     }
                     ResolveAlias(parse, list, item.OrderByCol - 1, item.Expr, type);
                 }
             }
-            return 0;
+            return false;
         }
 
         static int ResolveOrderGroupBy(NameContext nc, Select select, ExprList orderBy, string type)

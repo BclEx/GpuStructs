@@ -642,12 +642,12 @@ start = sqlite3Hwtime();
               {
                 Debug.Assert( p.rc != SQLITE_OK );
                 C._setstring( ref p.zErrMsg, db, "%s", pOp.p4.z );
-                testcase( sqlite3GlobalConfig.xLog != null );
+                testcase( SysEx_GlobalStatics.xLog != null );
                 sqlite3_log( pOp.p1, "abort at %d in [%s]: %s", pc, p.zSql, pOp.p4.z );
               }
               else if ( p.rc != 0 )
               {
-                testcase( sqlite3GlobalConfig.xLog != null );
+                testcase( SysEx_GlobalStatics.xLog != null );
                 sqlite3_log( pOp.p1, "constraint failed at %d in [%s]", pc, p.zSql );
               }
               rc = sqlite3VdbeHalt( p );
@@ -6585,7 +6585,7 @@ sqlite3VdbePrintOp(stdout, origPc, aOp[origPc]);
 vdbe_error_halt:
       Debug.Assert( rc != 0 );
       p.rc = rc;
-      testcase( sqlite3GlobalConfig.xLog != null );
+      testcase( SysEx_GlobalStatics.xLog != null );
       sqlite3_log( rc, "statement aborts at %d: [%s] %s",
       pc, p.zSql, p.zErrMsg );
       sqlite3VdbeHalt( p );

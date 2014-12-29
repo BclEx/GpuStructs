@@ -28,23 +28,6 @@ namespace Core
         ZOMBIE = 0x64cffc7f,  // Close with last statement close
     }
 
-    public class LookasideSlot
-    {
-        public LookasideSlot Next;    // Next buffer in the list of free buffers
-    }
-    public struct Lookaside
-    {
-        public ushort Size;            // Size of each buffer in bytes
-        public bool Enabled;           // False to disable new lookaside allocations
-        public bool Malloced;          // True if pStart obtained from sqlite3_malloc()
-        public int Outs;               // Number of buffers currently checked out
-        public int MaxOuts;            // Highwater mark for nOut
-        public int[] Stats = new int[3];			// 0: hits.  1: size misses.  2: full misses
-        public LookasideSlot Free;	// List of available buffers
-        public int Start;			// First byte of available memory space
-        public int End;				// First byte past end of available space
-    }
-
     public static partial class E
     {
 #if !OMIT_BUILTIN_TEST
@@ -74,7 +57,7 @@ namespace Core
 
     public class FuncDefHash
     {
-        FuncDef[] data = new FuncDef[23]; // Hash table for functions
+        public FuncDef[] data = new FuncDef[23]; // Hash table for functions
     }
 
     public class Context : BContext
@@ -101,7 +84,7 @@ namespace Core
         public byte AutoCommit;                     // The auto-commit flag.
         public byte TempStore;                      // 1: file 2: memory 0: default
         //TAGBASE::MallocFailed
-        public byte DefaultLockMode;                // Default locking-mode for attached dbs
+        public IPager.LOCKINGMODE DefaultLockMode;  // Default locking-mode for attached dbs
         public sbyte NextAutovac;                   // Autovac setting after VACUUM if >=0
         public byte SuppressErr;                    // Do not issue error messages if true
         public byte VTableOnConflict;		        // Value to return for s3_vtab_on_conflict()
@@ -143,7 +126,7 @@ namespace Core
             public double NotUsed1;                 // Spacer
         }
         public _u1 u1;
-        public Lookaside Lookaside;			        // Lookaside malloc configuration
+        //TAGBASE::public Lookaside Lookaside;			        // Lookaside malloc configuration
 #if !OMIT_AUTHORIZATION
         public Func<object, int, string, string, string, string, ARC> Auth; // Access authorization function
         public object AuthArg;					    // 1st argument to the access auth function

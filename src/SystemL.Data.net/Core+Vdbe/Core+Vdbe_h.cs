@@ -30,11 +30,11 @@ namespace Core
 #if !MAX_EXPR_DEPTH
         public const int MAX_EXPR_DEPTH = 1000;
 #endif
-        //#ifdef OMIT_TEMPDB
-        //#define OMIT_TEMPDB 1
-        //#else
-        //#define OMIT_TEMPDB 0
-        //#endif
+#if OMIT_TEMPDB
+        public const bool OMIT_TEMPDB = true;
+#else
+        public const bool OMIT_TEMPDB = false;
+#endif
     }
     #endregion
 
@@ -118,6 +118,14 @@ namespace Core
 
     #region ITable
 
+    public class TableModule
+    {
+        public ITableModule IModule;        // Callback pointers
+        public string Name;                 // Name passed to create_module()
+        public object Aux;                  // pAux passed to create_module()
+        public Action<object> Destroy;      // Module destructor function
+    }
+
     public interface ITableModule
     {
         int Version;
@@ -199,6 +207,10 @@ namespace Core
         // Virtual table implementations will typically add additional fields
     }
 
+    #endregion
+
+    #region Types
+
     public enum OE : byte
     {
         None = 0,   // There is no constraint to check
@@ -222,10 +234,6 @@ namespace Core
         ABORT = 4,
         REPLACE = 5
     }
-
-    #endregion
-
-    #region NAME1
 
     public enum SO : byte
     {
@@ -313,10 +321,6 @@ namespace Core
         public int Accumulators;		// Number of columns that show through to the output. Additional columns are used only as parameters to aggregate functions
         public array_t<AggInfoFunc> Funcs; // For each aggregate function
     }
-
-    #endregion
-
-    #region Affinity
 
     public enum AFF : byte
     {
@@ -803,15 +807,6 @@ namespace Core
         public int RegCtr;				// Memory register holding the rowid counter
     }
 
-    public class TriggerPrg
-    {
-        public Trigger Trigger;		    // Trigger this program was coded from
-        public TriggerPrg Next;		    // Next entry in Parse.pTriggerPrg list
-        public Vdbe.SubProgram Program;	// Program implementing pTrigger/orconf
-        public OE Orconf;               // Default ON CONFLICT policy
-        public uint[] Colmasks = new uint[2];     // Masks of old.*, new.* columns accessed
-    }
-
     public enum IN_INDEX : byte
     {
         ROWID = 1,
@@ -934,15 +929,9 @@ namespace Core
 
     #endregion
 
-    #region Table
+    //include "Context.cu.h"
 
-    public class TableModule
-    {
-        public ITableModule IModule;        // Callback pointers
-        public string Name;                 // Name passed to create_module()
-        public object Aux;                  // pAux passed to create_module()
-        public Action<object> Destroy;      // Module destructor function
-    }
+    #region Table
 
     public enum COLFLAG : ushort
     {
@@ -1117,6 +1106,8 @@ namespace Core
 
     #endregion
 
+    //include "Vdbe.cu.h"
+
     #region Trigger
 
     public enum TRIGGER : byte
@@ -1174,6 +1165,16 @@ namespace Core
             return cp;
         }
     };
+
+
+    public class TriggerPrg
+    {
+        public Trigger Trigger;		    // Trigger this program was coded from
+        public TriggerPrg Next;		    // Next entry in Parse.pTriggerPrg list
+        public Vdbe.SubProgram Program;	// Program implementing pTrigger/orconf
+        public OE Orconf;               // Default ON CONFLICT policy
+        public uint[] Colmasks = new uint[2];     // Masks of old.*, new.* columns accessed
+    }
 
     #endregion
 

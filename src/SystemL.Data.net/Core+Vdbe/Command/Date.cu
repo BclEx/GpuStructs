@@ -781,7 +781,7 @@ zulu_time:
 #endif
 #pragma endregion
 
-	__device__ static FuncDef _dateTimeFuncs[] =
+	__device__ static _WSD FuncDef g_dateTimeFuncs[] =
 	{
 #ifndef OMIT_DATETIME_FUNCS
 		FUNCTION(julianday,        -1, 0, 0, JuliandayFunc ),
@@ -801,9 +801,10 @@ zulu_time:
 
 	__device__ void Date_::RegisterDateTimeFunctions()
 	{
-		FuncDefHash *hash = Context::GlobalFunctions;
-		for (int i = 0; i < _lengthof(_dateTimeFuncs); i++)
-			hash->Insert(&_dateTimeFuncs[i]);
+		FuncDefHash *hash = &Main_GlobalFunctions;
+		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_dateTimeFuncs);
+		for (int i = 0; i < _lengthof(g_dateTimeFuncs); i++)
+			Callback::FuncDefInsert(hash, &funcs[i]);
 	}
 
 } }

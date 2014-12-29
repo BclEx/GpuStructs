@@ -14,7 +14,7 @@ namespace Core
             public int J;
             public byte[] S = new byte[256];
 
-            public PrngType memcpy()
+            public PrngType _memcpy()
             {
                 PrngType cp = (PrngType)MemberwiseClone();
                 cp.S = new byte[S.Length];
@@ -26,43 +26,38 @@ namespace Core
 
         public static byte RandomByte()
         {
-            // The "wsdPrng" macro will resolve to the pseudo-random number generator state vector.  If writable static data is unsupported on the target,
-            // we have to locate the state vector at run-time.  In the more common case where writable static data is supported, wsdPrng can refer directly
-            // to the "sqlite3Prng" state vector declared above.
-            PrngType prng = _prng;
-
             // Initialize the state of the random number generator once, the first time this routine is called.  The seed value does
             // not need to contain a lot of randomness since we are not trying to do secure encryption or anything like that...
             //
             // Nothing in this file or anywhere else in SQLite does any kind of encryption.  The RC4 algorithm is being used as a PRNG (pseudo-random
             // number generator) not as an encryption device.
             byte t;
-            if (!prng.IsInit)
+            if (!_prng.IsInit)
             {
                 byte[] k = new byte[256];
-                prng.J = 0;
-                prng.I = 0;
+                _prng.J = 0;
+                _prng.I = 0;
                 VSystem.FindVfs(string.Empty).Randomness(256, k);
                 int i;
                 for (i = 0; i < 255; i++)
-                    prng.S[i] = (byte)i;
+                    _prng.S[i] = (byte)i;
                 for (i = 0; i < 255; i++)
                 {
-                    prng.J += prng.S[i] + k[i];
-                    t = prng.S[prng.J];
-                    prng.S[prng.J] = prng.S[i];
-                    prng.S[i] = t;
+                    _prng.J += _prng.S[i] + k[i];
+                    t = _prng.S[_prng.J];
+                    _prng.S[_prng.J] = _prng.S[i];
+                    _prng.S[i] = t;
                 }
-                prng.IsInit = true;
+                _prng.IsInit = true;
             }
             // Generate and return single random u8
-            prng.I++;
-            t = prng.S[prng.I];
-            prng.J += t;
-            prng.S[prng.I] = prng.S[prng.J];
-            prng.S[prng.J] = t;
-            t += prng.S[prng.I];
-            return prng.S[t];
+            _prng.I++;
+            t = _prng.S[_prng.I];
+            _prng.J += t;
+            _prng.S[_prng.I] = _prng.S[_prng.J];
+            _prng.S[_prng.J] = t;
+            t += _prng.S[_prng.I];
+            return _prng.S[t];
         }
 
         public static void PutRandom(int length, byte[] buffer, int offset)
@@ -97,11 +92,11 @@ namespace Core
 #endif
         }
 
-//#if !OMIT_BUILTIN_TEST
-//        static PrngType _savedPrng = null;
-//        static void PrngSaveState() { _savedPrng = _prng.memcpy(); }
-//        static void PrngRestoreState() { _prng = _savedPrng.memcpy(); }
-//        static void PrngResetState() { _prng.IsInit = false; }
-//#endif
+#if !OMIT_BUILTIN_TEST
+        static PrngType _savedPrng = null;
+        static void PrngSaveState() { _savedPrng = _prng._memcpy(); }
+        static void PrngRestoreState() { _prng = _savedPrng._memcpy(); }
+        static void PrngResetState() { _prng.IsInit = false; }
+#endif
     }
 }

@@ -98,8 +98,23 @@ namespace Core
 				*file = file2;
 			return rc;
 		}
+
+#pragma region File
+#ifdef ENABLE_8_3_NAMES
+		__device__ static void FileSuffix3(const char *baseFilename, char *z)
+#else
+		__device__ inline static void FileSuffix3(const char *baseFilename, char *z) { }
+#endif
+		__device__ static RC ParseUri(const char *defaultVfsName, const char *uri, VSystem::OPEN *flagsRef, VSystem **vfsOut, char **fileNameOut, char **errMsgOut);
+		__device__ static const char *UriParameter(const char *filename, const char *param);
+		__device__ static bool UriBoolean(const char *filename, const char *param, bool dflt);
+		__device__ static int64 UriInt64(const char *filename, const char *param, int64 dflt);
+
+#pragma endregion
 	};
 
-	//__device__ VSystem::OPEN inline operator|(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((unsigned int)a | (unsigned int)b); }
+	__device__ VSystem::OPEN inline operator|(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a | (int)b); }
+	__device__ VSystem::OPEN inline operator&(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a & (int)b); }
 	__device__ VSystem::OPEN inline operator|=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a | b); }
+	__device__ VSystem::OPEN inline operator&=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a & b); }
 }

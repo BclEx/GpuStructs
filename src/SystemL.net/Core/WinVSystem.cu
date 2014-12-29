@@ -1091,7 +1091,7 @@ namespace Core
 	RC win32_SetDirectory(DWORD type, LPCWSTR value)
 	{
 #ifndef OMIT_AUTOINIT
-		RC rc = SysEx::Initialize();
+		RC rc = SysEx::AutoInitialize();
 		if (rc) return rc;
 #endif
 		char **directory = nullptr;

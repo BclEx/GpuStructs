@@ -19,42 +19,42 @@ namespace Core
 
         public class StatType
         {
-            public int[] nowValue = new int[10];        // Current value
-            public int[] mxValue = new int[10];         // Maximum value
+            public int[] NowValue = new int[10];        // Current value
+            public int[] MaxValue = new int[10];         // Maximum value
         }
 
-        public static StatType Stat = new StatType();
+        public static StatType _stat = new StatType();
 
         internal static int StatusValue(STATUS op)
         {
-            Debug.Assert(op >= 0 && (int)op < Stat.nowValue.Length);
-            return Stat.nowValue[(int)op];
+            Debug.Assert(op >= 0 && (int)op < _stat.NowValue.Length);
+            return _stat.NowValue[(int)op];
         }
 
-        internal static void StatusAdd(STATUS op, int N)
+        internal static void StatusAdd(STATUS op, int n)
         {
-            Debug.Assert(op >= 0 && (int)op < Stat.nowValue.Length);
-            Stat.nowValue[(int)op] += N;
-            if (Stat.nowValue[(int)op] > Stat.mxValue[(int)op])
-                Stat.mxValue[(int)op] = Stat.nowValue[(int)op];
+            Debug.Assert(op >= 0 && (int)op < _stat.NowValue.Length);
+            _stat.NowValue[(int)op] += n;
+            if (_stat.NowValue[(int)op] > _stat.MaxValue[(int)op])
+                _stat.MaxValue[(int)op] = _stat.NowValue[(int)op];
         }
 
-        internal static void StatusSet(STATUS op, int X)
+        internal static void StatusSet(STATUS op, int x)
         {
-            Debug.Assert(op >= 0 && (int)op < Stat.nowValue.Length);
-            Stat.nowValue[(int)op] = X;
-            if (Stat.nowValue[(int)op] > Stat.mxValue[(int)op])
-                Stat.mxValue[(int)op] = Stat.nowValue[(int)op];
+            Debug.Assert(op >= 0 && (int)op < _stat.NowValue.Length);
+            _stat.NowValue[(int)op] = x;
+            if (_stat.NowValue[(int)op] > _stat.MaxValue[(int)op])
+                _stat.MaxValue[(int)op] = _stat.NowValue[(int)op];
         }
 
-        public static RC Status(STATUS op, ref int pCurrent, ref int pHighwater, int resetFlag)
+        public static RC Status(STATUS op, ref int current, ref int highwater, int resetFlag)
         {
-            if (op < 0 || (int)op >= Stat.nowValue.Length)
+            if (op < 0 || (int)op >= _stat.NowValue.Length)
                 return SysEx.MISUSE_BKPT();
-            pCurrent = Stat.nowValue[(int)op];
-            pHighwater = Stat.mxValue[(int)op];
+            current = _stat.NowValue[(int)op];
+            highwater = _stat.MaxValue[(int)op];
             if (resetFlag != 0)
-                Stat.mxValue[(int)op] = Stat.nowValue[(int)op];
+                _stat.MaxValue[(int)op] = _stat.NowValue[(int)op];
             return RC.OK;
         }
 

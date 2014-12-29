@@ -31,7 +31,7 @@ __device__ RC Vdbe::Finalize(Vdbe *p)
 	if (VdbeSafety(p)) return SysEx_MISUSE_BKPT;
 	MutexEx::Enter(ctx->Mutex);
 	RC rc = p->Finalize();
-	rc = SysEx::ApiExit(ctx, rc);
+	rc = Main::ApiExit(ctx, rc);
 	Main::LeaveMutexAndCloseZombie(ctx);
 	return rc;
 }
@@ -47,7 +47,7 @@ __device__ RC Vdbe::Reset(Vdbe *p)
 	RC rc = p->Reset();
 	p->Rewind();
 	_assert((rc & p->Ctx->ErrMask) == rc);
-	rc = SysEx::ApiExit(p->Ctx, rc);
+	rc = Main::ApiExit(p->Ctx, rc);
 	MutexEx::Leave(mutex);
 	return rc;
 }
@@ -308,7 +308,7 @@ __device__ RC Vdbe::Step2()
 	}
 
 	ctx->ErrCode = rc;
-	if (SysEx::ApiExit(Ctx, RC) == RC_NOMEM)
+	if (Main::ApiExit(Ctx, RC) == RC_NOMEM)
 		RC = RC_NOMEM;
 
 end_of_step:
@@ -353,7 +353,7 @@ __device__ RC Vdbe::Step()
 		if (!ctx->MallocFailed) { ErrMsg = _tagstrdup(ctx, err); RC = rc2; }
 		else { ErrMsg = nullptr; RC = rc = RC_NOMEM; }
 	}
-	rc = SysEx::ApiExit(ctx, rc);
+	rc = Main::ApiExit(ctx, rc);
 	MutexEx::Leave(ctx->Mutex);
 	return rc;
 }
@@ -400,7 +400,7 @@ __device__ void *Vdbe::Agregate_Context(FuncContext *fctx, int bytes)
 		{
 			MemGrow(mem, bytes, 0);
 			mem->Flags = MEM_Agg;
-			mem->U.Def = ctx->Func;
+			mem->u.Def = fctx->Func;
 			if (mem->Z)
 				_memset(mem->Z, 0, bytes);
 		}
@@ -424,17 +424,17 @@ __device__ void Vdbe::set_Auxdata(FuncContext *fctx, int args, void *aux, void (
 	VdbeFunc *vdbeFunc = fctx->VdbeFunc;
 	if (!vdbeFunc || vdbeFunc->AuxsLength <= args)
 	{
-		int auxLength = (vdbeFunc ? vdbeFunc->AuxLength : 0);
-		int newSize = sizeof(VdbeFunc) + sizeof(AuxData)*args;
-		vdbeFunc = _tagrealloc(ctx->S.Ctx, vdbeFunc, newSize);
+		int auxLength = (vdbeFunc ? vdbeFunc->AuxsLength : 0);
+		int newSize = sizeof(VdbeFunc) + sizeof(VdbeFunc::AuxData)*args;
+		vdbeFunc = (VdbeFunc *)_tagrealloc(fctx->S.Ctx, vdbeFunc, newSize);
 		if (!vdbeFunc)
 			goto failed;
-		ctx->VdbeFunc = vdbeFunc;
-		_memset(&vdbeFunc->Auxs[auxLength], 0, sizeof(AuxData)*(args+1-auxLength));
-		vdbeFunc->AuxLength = args+1;
+		fctx->VdbeFunc = vdbeFunc;
+		_memset(&vdbeFunc->Auxs[auxLength], 0, sizeof(VdbeFunc::AuxData)*(args+1-auxLength));
+		vdbeFunc->AuxsLength = args+1;
 		vdbeFunc->Func = fctx->Func;
 	}
-	AuxData *auxData = &vdbeFunc->Auxs[args];
+	VdbeFunc::AuxData *auxData = &vdbeFunc->Auxs[args];
 	if (auxData->Aux && auxData->Delete)
 		auxData->Delete(auxData->Aux);
 	auxData->Aux = aux;
@@ -502,7 +502,7 @@ __device__ static void ColumnMallocFailure(Vdbe *p)
 	// RC_NOMEM. The next call to _step() (if any) will return RC_ERROR and _finalize() will return NOMEM.
 	if (p)
 	{
-		p->RC = SysEx::ApiExit(p->Ctx, p->RC);
+		p->RC = Main::ApiExit(p->Ctx, p->RC);
 		MutexEx::Leave(p->Ctx->Mutex);
 	}
 }
@@ -636,7 +636,7 @@ __device__ static RC BindText(Vdbe *p, int i, const void *z, int n, void (*del)(
 			if (rc == RC_OK && encoding != 0)
 				rc = Vdbe::ChangeEncoding(var, CTXENCODE(p->Ctx));
 			SysEx::Error(p->Ctx, rc, 0);
-			SysEx::ApiExit(p->Ctx, rc);
+			Main::ApiExit(p->Ctx, rc);
 		}
 		MutexEx::Leave(p->Ctx->Mutex);
 	}

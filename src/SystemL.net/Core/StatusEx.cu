@@ -3,43 +3,53 @@
 
 namespace Core
 {
-	typedef struct StatType StatType;
-	__device__ static struct StatType
+	__device__ static _WSD struct Stat
 	{
-		int nowValue[10];         // Current value
-		int mxValue[10];          // Maximum value
-	} Stat = { {0,}, {0,} };
+		int NowValue[10];	// Current value
+		int MaxValue[10];	// Maximum value
+	} g_stat = { {0,}, {0,} };
+#ifndef OMIT_WSD
+#define _stat_Init
+#define _stat g_stat
+#else
+#define _stat_Init Stat *x = &GLOBAL(Stat, g_stat)
+#define _stat x[0]
+#endif
 
 	__device__ int StatusEx::StatusValue(StatusEx::STATUS op)
 	{
-		_assert(op >= 0 && op < _lengthof(Stat.nowValue));
-		return Stat.nowValue[op];
+		_stat_Init;
+		_assert(op >= 0 && op < _lengthof(_stat.NowValue));
+		return _stat.NowValue[op];
 	}
 
-	__device__ void StatusEx::StatusAdd(StatusEx::STATUS op, int N)
+	__device__ void StatusEx::StatusAdd(StatusEx::STATUS op, int n)
 	{
-		_assert(op >= 0 && op < _lengthof(Stat.nowValue));
-		Stat.nowValue[op] += N;
-		if (Stat.nowValue[op] > Stat.mxValue[op])
-			Stat.mxValue[op] = Stat.nowValue[op];
+		_stat_Init;
+		_assert(op >= 0 && op < _lengthof(_stat.NowValue));
+		_stat.NowValue[op] += n;
+		if (_stat.NowValue[op] > _stat.MaxValue[op])
+			_stat.MaxValue[op] = _stat.NowValue[op];
 	}
 
-	__device__ void StatusEx::StatusSet(StatusEx::STATUS op, int X)
+	__device__ void StatusEx::StatusSet(StatusEx::STATUS op, int x)
 	{
-		_assert(op >= 0 && op < _lengthof(Stat.nowValue));
-		Stat.nowValue[op] = X;
-		if (Stat.nowValue[op] > Stat.mxValue[op])
-			Stat.mxValue[op] = Stat.nowValue[op];
+		_stat_Init;
+		_assert(op >= 0 && op < _lengthof(_stat.NowValue));
+		_stat.NowValue[op] = x;
+		if (_stat.NowValue[op] > _stat.MaxValue[op])
+			_stat.MaxValue[op] = _stat.NowValue[op];
 	}
 
 	__device__ int StatusEx::Status(StatusEx::STATUS op, int *current, int *highwater, int resetFlag)
 	{
-		if (op < 0 || op >= _lengthof(Stat.nowValue))
+		_stat_Init;
+		if (op < 0 || op >= _lengthof(_stat.NowValue))
 			return SysEx_MISUSE_BKPT;
-		*current = Stat.nowValue[op];
-		*highwater = Stat.mxValue[op];
+		*current = _stat.NowValue[op];
+		*highwater = _stat.MaxValue[op];
 		if (resetFlag)
-			Stat.mxValue[op] = Stat.nowValue[op];
+			_stat.MaxValue[op] = _stat.NowValue[op];
 		return RC_OK;
 	}
 }

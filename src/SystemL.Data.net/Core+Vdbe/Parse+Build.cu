@@ -290,11 +290,11 @@ namespace Core
 		}
 		_memset(&ctx->DBs[j], 0, (ctx->DBs.length - j) * sizeof(ctx->DBs[0]));
 		ctx->DBs.length = j;
-		if (ctx->DBs.length <= 2 && ctx->DBs.data != ctx->StaticDBs)
+		if (ctx->DBs.length <= 2 && ctx->DBs.data != ctx->DBStatics)
 		{
 			_memcpy(ctx->StaticDBs, ctx->DBs.data, 2 * sizeof(ctx->DBs[0]));
 			_tagfree(ctx, ctx->DBs);
-			ctx->DBs = ctx->StaticDBs;
+			ctx->DBs = ctx->DBStatics;
 		}
 	}
 
@@ -1084,7 +1084,7 @@ primary_key_exit:
 			else
 			{
 				n = (int)(end->data - NameToken.data) + 1;
-				stmt = _mprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
+				stmt = _mtagprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
 			}
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
@@ -1114,7 +1114,7 @@ primary_key_exit:
 #endif
 
 			// Reparse everything to update our internal data structures
-			v->AddParseSchemaOp(db, _mprintf(ctx, "tbl_name='%q'", table->Name));
+			v->AddParseSchemaOp(db, _mtagprintf(ctx, "tbl_name='%q'", table->Name));
 		}
 
 		// Add the table to the in-memory representation of the database.
@@ -1139,7 +1139,7 @@ primary_key_exit:
 				if (!cons->data)
 					cons = end;
 				int nameLength = (int)((const char *)cons->data - name);
-				table->AddColOffset = 13 + Utf8CharLen(name, nameLength);
+				table->AddColOffset = 13 + _utf8charlength(name, nameLength);
 			}
 #endif
 		}
@@ -1164,9 +1164,9 @@ primary_key_exit:
 		}
 		Token *name = nullptr;
 		TwoPartName(name1, name2, &name);
-		int db = SchemaToIndex(ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(ctx, table->Schema);
 		DbFixer fix;
-		if (FixInit(&fix, this, db, "view", name) && FixSelect(&fix, select))
+		if (fix.FixInit(this, db, "view", name) && fix.FixSelect(select))
 		{
 			Select::Delete(ctx, select);
 			return;
@@ -1174,7 +1174,7 @@ primary_key_exit:
 
 		// Make a copy of the entire SELECT statement that defines the view. This will force all the Expr.token.z values to be dynamically
 		// allocated rather than point to the input string - which means that they will persist after the current sqlite3_exec() call returns.
-		table->Select = Select::Dup(ctx, select, EXPRDUP_REDUCE);
+		table->Select = Expr::SelectDup(ctx, select, EXPRDUP_REDUCE);
 		Select::Delete(ctx, select);
 		if (ctx->MallocFailed)
 			return;
@@ -1236,7 +1236,7 @@ primary_key_exit:
 		// to be permanent.  So the computation is done on a copy of the SELECT statement that defines the view.
 		_assert(table->Select);
 		int errs = 0; // Number of errors encountered
-		Select *select = Select::Dup(ctx, table->Select, 0); // Copy of the SELECT that implements the view
+		Select *select = Expr::SelectDup(ctx, table->Select, 0); // Copy of the SELECT that implements the view
 		if (select)
 		{
 			bool enableLookaside = ctx->Lookaside.Enabled;

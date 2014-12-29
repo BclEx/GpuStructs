@@ -784,12 +784,12 @@ __device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_
 			break; }
 
 							  //case TYPE_TOKEN: {
-							  //	Token *token = va_arg(args, Token *);
+							  //	Token *token = va_arg(args, Token*);
 							  //	if (token) Append((const char *)token->z, token->n);
 							  //	length = width = 0;
 							  //	break; }
 							  //case TYPE_SRCLIST: {
-							  //	SrcList *src = va_arg(args, SrcList *);
+							  //	SrcList *src = va_arg(args, SrcList*);
 							  //	int k = va_arg(args, int);
 							  //	SrcList::SrcListItem *item = &src->Ids[k];
 							  //	_assert(k >= 0 && k < src->Srcs);
@@ -1063,7 +1063,7 @@ __global__ static void Keypress(struct runtimeHeap_s *heap, unsigned char key)
 		va_list args;
 		va_start(args, 1, "2");
 		int a1 = va_arg(args, int);
-		char *a2 = va_arg(args, char *);
+		char *a2 = va_arg(args, char*);
 		va_end(args);
 		break; }
 	}

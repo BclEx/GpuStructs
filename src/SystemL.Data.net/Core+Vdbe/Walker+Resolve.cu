@@ -1,3 +1,4 @@
+// resolve.c
 #include "Core+Vdbe.cu.h"
 //#include <stdlib.h>
 //#include <string.h>
@@ -82,7 +83,7 @@ namespace Core
 		return true;
 	}
 
-	__device__ static int LookupName(Parse *parse, const char *dbName, const char *tableName, const char *colName, NameContext *nc, Expr *expr)
+	__device__ static WRC LookupName(Parse *parse, const char *dbName, const char *tableName, const char *colName, NameContext *nc, Expr *expr)
 	{
 		int cnt = 0; // Number of matching column names
 		int cntTab = 0; // Number of matching table names
@@ -359,7 +360,7 @@ lookupname_end:
 
 	__device__ Expr *Walker::CreateColumnExpr(Context *ctx, SrcList *src, int srcId, int colId)
 	{
-		Expr *p = Expr::Alloc(ctx, TK_COLUMN, 0, 0);
+		Expr *p = Expr::Alloc(ctx, TK_COLUMN, nullptr, false);
 		if (p)
 		{
 			SrcList::SrcListItem *item = &src->Ids[srcId];
@@ -379,7 +380,7 @@ lookupname_end:
 		return p;
 	}
 
-	__device__ static int ResolveExprStep(Walker *walker, Expr *expr)
+	__device__ static WRC ResolveExprStep(Walker *walker, Expr *expr)
 	{
 		NameContext *nc = walker->u.NC;
 		_assert(nc != nullptr);
@@ -560,7 +561,6 @@ lookupname_end:
 
 	__device__ static int ResolveOrderByTermToExprList(Parse *parse, Select *select, Expr *expr)
 	{
-		int i;
 		_assert(Expr::IsInteger(expr, &i) == 0);
 		ExprList *list = select->EList; // The columns of the result set
 		// Resolve all names in the ORDER BY term expression
@@ -574,11 +574,11 @@ lookupname_end:
 		Context *ctx = parse->Ctx; // Database connection
 		uint8 savedSuppErr = ctx->SuppressErr; // Saved value of db->suppressErr
 		ctx->SuppressErr = 1;
-		RC rc = sqlite3ResolveExprNames(&nc, expr); // Return code from subprocedures
+		bool r = ResolveExprNames(&nc, expr); // Return code from subprocedures
 		ctx->SuppressErr = savedSuppErr;
-		if (rc) return 0;
+		if (r) return 0;
 		// Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
-		for (i = 0; i < list->Exprs; i++)
+		for (int i = 0; i < list->Exprs; i++)
 			if (Expr::Compare(list->Ids[i].Expr, expr) < 2)
 				return i+1;
 		// If no match, return 0.
@@ -680,15 +680,15 @@ lookupname_end:
 		return 0;
 	}
 
-	__device__ int Walker::ResolveOrderGroupBy(Parse *parse, Select *select, ExprList *orderBy, const char *type)
+	__device__ bool Walker::ResolveOrderGroupBy(Core::Parse *parse, Select *select, ExprList *orderBy, const char *type)
 	{
 		Context *ctx = parse->Ctx;
-		if (!orderBy || ctx->MallocFailed) return 0;
+		if (!orderBy || ctx->MallocFailed) return false;
 #if MAX_COLUMN
 		if (orderBy->Exprs > ctx->Limits[LIMIT_COLUMN])
 		{
 			parse->ErrorMsg("too many terms in %s BY clause", type);
-			return 1;
+			return true;
 		}
 #endif
 		ExprList *list = select->EList;
@@ -702,12 +702,12 @@ lookupname_end:
 				if (item->OrderByCol > list->Exprs)
 				{
 					ResolveOutOfRangeError(parse, type, i+1, list->Exprs);
-					return 1;
+					return true;
 				}
 				ResolveAlias(parse, list, item->OrderByCol-1, item->Expr, type, 0);
 			}
 		}
-		return 0;
+		return false;
 	}
 
 	__device__ static int ResolveOrderGroupBy(NameContext *nc, Select *select, ExprList *orderBy, const char *type)
@@ -892,7 +892,7 @@ lookupname_end:
 		if (!expr) return false;
 #if MAX_EXPR_DEPTH > 0
 		{
-			Parse *parse = nc->Parse;
+			Core::Parse *parse = nc->Parse;
 			if (Expr::CheckHeight(parse, expr->Height + nc->Parse->Height))
 				return true;
 			parse->Height += expr->Height;
@@ -918,7 +918,7 @@ lookupname_end:
 		return ExprHasProperty(expr, EP_Error);
 	}
 
-	__device__ void Walker::ResolveSelectNames(Parse *parse, Select *p, NameContext *outerNC)
+	__device__ void Walker::ResolveSelectNames(Core::Parse *parse, Select *p, NameContext *outerNC)
 	{
 		_assert(p != nullptr);
 		Walker w;

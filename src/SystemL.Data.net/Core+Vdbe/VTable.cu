@@ -37,7 +37,7 @@ namespace Core
 				}
 			}
 		}
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		if (rc != RC_OK && destroy) destroy(aux);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
@@ -232,7 +232,7 @@ namespace Core
 			//
 			// The VM register number pParse->regRowid holds the rowid of an entry in the sqlite_master table tht was created for this vtab
 			// by sqlite3StartTable().
-			int db = sqlite3SchemaToIndex(ctx, table->Schema);
+			int db = Parse::SchemaToIndex(ctx, table->Schema);
 			parse->NestedParse("UPDATE %Q.%s SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q WHERE rowid=#%d",
 				ctx->DBs[db].Name, SCHEMA_TABLE(db),
 				table->Name, table->Name,
@@ -297,7 +297,7 @@ namespace Core
 		if (!moduleName)
 			return RC_NOMEM;
 
-		VTable *vtable = (VTable *)_tagalloc(ctx, sizeof(VTable), true);
+		VTable *vtable = (VTable *)_tagalloc2(ctx, sizeof(VTable), true);
 		if (!vtable)
 		{
 			_tagfree(ctx, moduleName);
@@ -306,7 +306,7 @@ namespace Core
 		vtable->Ctx = ctx;
 		vtable->Module = module;
 
-		int db = sqlite3SchemaToIndex(ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(ctx, table->Schema);
 		table->ModuleArgs[1] = ctx->DBs[db].Name;
 
 		// Invoke the virtual table constructor
@@ -472,7 +472,7 @@ namespace Core
 		Table *table;
 		if (!ctx->VTableCtx || !(table = ctx->VTableCtx->Table))
 		{
-			sqlite3Error(ctx, RC_MISUSE, nullptr);
+			Main::Error(ctx, RC_MISUSE, nullptr);
 			MutexEx::Leave(ctx->Mutex);
 			return SysEx_MISUSE_BKPT;
 		}
@@ -488,7 +488,7 @@ namespace Core
 			parse->Ctx = ctx;
 			parse->QueryLoops = 1;
 			char *error = nullptr;
-			if (sqlite3RunParser(parse, createTableName, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
+			if (Parse::RunParser(parse, createTableName, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
 			{
 				if (!table->Cols)
 				{
@@ -501,7 +501,7 @@ namespace Core
 			}
 			else
 			{
-				sqlite3Error(ctx, RC_ERROR, (error ? "%s" : 0), error);
+				Main::Error(ctx, RC_ERROR, (error ? "%s" : 0), error);
 				_tagfree(ctx, error);
 				rc = RC_ERROR;
 			}
@@ -514,7 +514,7 @@ namespace Core
 		}
 
 		_assert((rc & 0xff) == rc);
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}

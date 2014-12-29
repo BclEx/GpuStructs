@@ -129,7 +129,7 @@ namespace Core { namespace Command
 	}
 #endif
 
-	__constant__ static FuncDef _alterTableFuncs[] = {
+	__constant__ static _WSD FuncDef g_alterTableFuncs[] = {
 		FUNCTION(sqlite_rename_table,   2, 0, 0, RenameTableFunc),
 #ifndef OMIT_TRIGGER
 		FUNCTION(sqlite_rename_trigger, 2, 0, 0, RenameTriggerFunc),
@@ -140,9 +140,10 @@ namespace Core { namespace Command
 	};
 	__device__ void Alter::Functions()
 	{
-		FuncDefHash *hash = Context::GlobalFunctions;
-		for (int i = 0; i < _lengthof(_alterTableFuncs); i++)
-			hash->Insert(&_alterTableFuncs[i]);
+		FuncDefHash *hash = &Main_GlobalFunctions;
+		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_alterTableFuncs);
+		for (int i = 0; i < _lengthof(g_alterTableFuncs); i++)
+			Callback::FuncDefInsert(hash, &funcs[i]);
 	}
 
 	__device__ static char *WhereOrName(Context *ctx, char *where_, char *constant)
@@ -162,10 +163,8 @@ namespace Core { namespace Command
 	__device__ static char *WhereForeignKeys(Parse *parse, Table *table)
 	{
 		char *where_ = nullptr;
-		for (FKey *p = sqlite3FkReferences(table); p; p = p->NextTo)
-		{
+		for (FKey *p = Parse::FKReferences(table); p; p = p->NextTo)
 			where_ = WhereOrName(parse->Ctx, where_, p->From->Name);
-		}
 		return where_;
 	}
 #endif
@@ -179,11 +178,9 @@ namespace Core { namespace Command
 		// that is not part of the temp-db schema, add a clause to the WHERE expression being built up in zWhere.
 		if (table->Schema != tempSchema)
 		{
-			for (Trigger *trig = sqlite3TriggerList(parse, table); trig; trig = trig->Next)
+			for (Trigger *trig = Trigger::List(parse, table); trig; trig = trig->Next)
 				if (trig->Schema == tempSchema)
-				{
 					where_ = WhereOrName(ctx, where_, trig->Name);
-				}
 		}
 		if (where_)
 		{
@@ -200,14 +197,14 @@ namespace Core { namespace Command
 		Vdbe *v = parse->GetVdbe();
 		if (_NEVER(v == nullptr)) return;
 		_assert(Btree::HoldsAllMutexes(ctx));
-		int db = sqlite3SchemaToIndex(ctx, table->Schema); // Index of database containing pTab
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Index of database containing pTab
 		_assert(db >= 0);
 
 #ifndef OMIT_TRIGGER
 		// Drop any table triggers from the internal schema.
-		for (Trigger *trig = sqlite3TriggerList(parse, table); trig; trig = trig->Next)
+		for (Trigger *trig = Trigger::List(parse, table); trig; trig = trig->Next)
 		{
-			int trigDb = sqlite3SchemaToIndex(ctx, trig->Schema);
+			int trigDb = Prepare::SchemaToIndex(ctx, trig->Schema);
 			_assert(trigDb == db || trigDb == 1);
 			v->AddOp4(OP_DropTrigger, trigDb, 0, 0, trig->Name, 0);
 		}
@@ -247,25 +244,25 @@ namespace Core { namespace Command
 		_assert(src->Srcs == 1);
 		_assert(Btree::HoldsAllMutexes(ctx));
 
-		Table *table = sqlite3LocateTableItem(parse, 0, &src->Ids[0]); // Table being renamed
+		Table *table = parse->LocateTableItem(false, &src->Ids[0]); // Table being renamed
 		if (!table) goto exit_rename_table;
-		int db = sqlite3SchemaToIndex(ctx, table->Schema); // Database that contains the table
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Database that contains the table
 		char *dbName = ctx->DBs[db].Name; // Name of database iDb
 		ctx->Flags |= Context::FLAG_PreferBuiltin;
 
 		// Get a NULL terminated version of the new table name.
-		char *nameAsString = sqlite3NameFromToken(db, name); // NULL-terminated version of pName
+		char *nameAsString = Parse::NameFromToken(ctx, name); // NULL-terminated version of pName
 		if (!nameAsString) goto exit_rename_table;
 
 		// Check that a table or index named 'zName' does not already exist in database iDb. If so, this is an error.
-		if (sqlite3FindTable(ctx, nameAsString, dbName) || sqlite3FindIndex(ctx, nameAsString, dbName))
+		if (Parse::FindTable(ctx, nameAsString, dbName) || Parse::FindIndex(ctx, nameAsString, dbName))
 		{
 			parse->ErrorMsg("there is already another table or index with this name: %s", nameAsString);
 			goto exit_rename_table;
 		}
 
 		// Make sure it is not a system table being altered, or a reserved name that the table is being renamed to.
-		if (IsSystemTable(parse, table->Name) || sqlite3CheckObjectName(parse, nameAsString) != RC_OK)
+		if (IsSystemTable(parse, table->Name) || parse->CheckObjectName(nameAsString) != RC_OK)
 			goto exit_rename_table;
 
 #ifndef OMIT_VIEW
@@ -278,13 +275,13 @@ namespace Core { namespace Command
 
 #ifndef OMIT_AUTHORIZATION
 		// Invoke the authorization callback.
-		if (Auth::Check(parse, AUTH_ALTER_TABLE, dbName, table->Name, 0))
+		if (Auth::Check(parse, AUTH_ALTER_TABLE, dbName, table->Name, nullptr))
 			goto exit_rename_table;
 #endif
 
 		VTable *vtable = nullptr; // Non-zero if this is a v-tab with an xRename()
 #ifndef OMIT_VIRTUALTABLE
-		if (sqlite3ViewGetColumnNames(parse, table))
+		if (parse->ViewGetColumnNames(table))
 			goto exit_rename_table;
 		if (IsVirtual(table))
 		{
@@ -316,7 +313,7 @@ namespace Core { namespace Command
 
 		// figure out how many UTF-8 characters are in zName
 		const char *tableName = table->Name; // Original name of the table
-		int tableNameLength = sqlite3Utf8CharLen(tableName, -1); // Number of UTF-8 characters in zTabName
+		int tableNameLength = _utf8charlength(tableName, -1); // Number of UTF-8 characters in zTabName
 
 #ifndef OMIT_TRIGGER
 		char *where_ = nullptr; // Where clause to locate temp triggers
@@ -364,7 +361,7 @@ namespace Core { namespace Command
 
 #ifndef OMIT_AUTOINCREMENT
 		// If the sqlite_sequence table exists in this database, then update it with the new table name.
-		if (sqlite3FindTable(ctx, "sqlite_sequence", dbName))
+		if (Parse::FindTable(ctx, "sqlite_sequence", dbName))
 			parse->NestedParse(
 			"UPDATE \"%w\".sqlite_sequence set name = %Q WHERE name = %Q",
 			dbName, nameAsString, table->Name);
@@ -386,7 +383,7 @@ namespace Core { namespace Command
 #if !defined(OMIT_FOREIGN_KEY) && !defined(OMIT_TRIGGER)
 		if (ctx->Flags & Context::FLAG_ForeignKeys)
 		{
-			for (FKey *p = sqlite3FkReferences(table); p; p = p->NextTo)
+			for (FKey *p = Parse::FKReferences(table); p; p = p->NextTo)
 			{
 				Table *from = p->From;
 				if (from != table)
@@ -399,7 +396,7 @@ namespace Core { namespace Command
 		ReloadTableSchema(parse, table, nameAsString);
 
 exit_rename_table:
-		sqlite3SrcListDelete(ctx, src);
+		Expr::SrcListDelete(ctx, src);
 		_tagfree(ctx, nameAsString);
 		ctx->Flags = savedDbFlags;
 	}
@@ -412,11 +409,11 @@ exit_rename_table:
 		{
 			int r1 = Expr::GetTempReg(parse);
 			int r2 = Expr::GetTempReg(parse);
-			v->AddOp3(OP_ReadCookie, db, r1, BTREE_FILE_FORMAT);
+			v->AddOp3(OP_ReadCookie, db, r1, Btree::META_FILE_FORMAT);
 			v->UsesBtree(db);
 			v->AddOp2(OP_Integer, minFormat, r2);
 			int j1 = v->AddOp3( OP_Ge, r2, 0, r1);
-			v->AddOp3(OP_SetCookie, db, BTREE_FILE_FORMAT, r2);
+			v->AddOp3(OP_SetCookie, db, Btree::META_FILE_FORMAT, r2);
 			v->JumpHere(j1);
 			Expr::ReleaseTempReg(parse, r1);
 			Expr::ReleaseTempReg(parse, r2);
@@ -430,17 +427,17 @@ exit_rename_table:
 		Table *newTable = parse->NewTable; // Copy of pParse->pNewTable
 		_assert(newTable);
 		_assert(Btree::HoldsAllMutexes(ctx));
-		int db = sqlite3SchemaToIndex(ctx, newTable->Schema); // Database number
+		int db = Prepare::SchemaToIndex(ctx, newTable->Schema); // Database number
 		const char *dbName = ctx->DBs[db].Name; // Database name
 		const char *tableName = &newTable->Name[16];  // Table name: Skip the "sqlite_altertab_" prefix on the name
 		Column *col = &newTable->Cols[newTable->Cols.length-1]; // The new column
 		Expr *dflt = col->Dflt; // Default value for the new column
-		Table *table = sqlite3FindTable(ctx, tableName, dbName); // Table being altered
+		Table *table = Parse::FindTable(ctx, tableName, dbName); // Table being altered
 		_assert(table);
 
 #ifndef OMIT_AUTHORIZATION
 		// Invoke the authorization callback.
-		if (Auth::Check(parse, AUTH_ALTER_TABLE, dbName, table->Name, 0))
+		if (Auth::Check(parse, AUTH_ALTER_TABLE, dbName, table->Name, nullptr))
 			return;
 #endif
 
@@ -522,7 +519,7 @@ exit_rename_table:
 		_assert(!parse->NewTable);
 		_assert(Btree::HoldsAllMutexes(ctx));
 		if (ctx->MallocFailed) goto exit_begin_add_column;
-		Table *table = sqlite3LocateTableItem(parse, 0, &src->a[0]);
+		Table *table = parse->LocateTableItem(false, &src->Ids[0]);
 		if (!table) goto exit_begin_add_column;
 
 #ifndef OMIT_VIRTUALTABLE
@@ -543,12 +540,12 @@ exit_rename_table:
 			goto exit_begin_add_column;
 
 		_assert(table->AddColOffset > 0);
-		int db = sqlite3SchemaToIndex(ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(ctx, table->Schema);
 
 		// Put a copy of the Table struct in Parse.pNewTable for the sqlite3AddColumn() function and friends to modify.  But modify
 		// the name by adding an "sqlite_altertab_" prefix.  By adding this prefix, we insure that the name will not collide with an existing
 		// table because user table are not allowed to have the "sqlite_" prefix on their name.
-		Table *newTable = (Table *)_tagalloc(ctx, sizeof(Table), true);
+		Table *newTable = (Table *)_tagalloc2(ctx, sizeof(Table), true);
 		if (!newTable) goto exit_begin_add_column;
 		parse->NewTable = newTable;
 		newTable->Refs = 1;
@@ -556,8 +553,8 @@ exit_rename_table:
 		_assert(newTable->Cols.length > 0);
 		int allocs = (((newTable->Cols.length-1)/8)*8)+8;
 		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newtable->Cols.length < 8);
-		newTable->Cols.data = (Column *)_tagalloc(ctx, sizeof(Column)*allocs, true);
-		newTable->Name = _mprintf(ctx, "sqlite_altertab_%s", table->Name);
+		newTable->Cols.data = (Column *)_tagalloc2(ctx, sizeof(Column)*allocs, true);
+		newTable->Name = _mtagprintf(ctx, "sqlite_altertab_%s", table->Name);
 		if (!newTable->Cols || !newTable->Name)
 		{
 			ctx->MallocFailed = true;

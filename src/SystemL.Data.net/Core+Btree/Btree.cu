@@ -31,11 +31,11 @@ namespace Core
 #endif
 
 #ifndef OMIT_SHARED_CACHE
-	__device__ BtShared *_sharedCacheList = nullptr;
-	__device__ bool _sharedCacheEnabled = false;
+	__device__ BtShared *_WSD g_sharedCacheList = nullptr;
+#define _sharedCacheList _GLOBAL(BtShared *, g_sharedCacheList)
 	__device__ int enable_shared_cache(bool enable)
 	{
-		_sharedCacheEnabled = enable;
+		SysEx_GlobalStatics.SharedCacheEnabled = enable;
 		return RC_OK;
 	}
 #else

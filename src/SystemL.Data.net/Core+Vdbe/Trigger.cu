@@ -291,7 +291,7 @@ triggerfinish_cleanup:
 		TriggerStep *triggerStep = TriggerStepAllocate(ctx, TK_INSERT, tableName);
 		if (triggerStep)
 		{
-			triggerStep->Select = Select::Dup(ctx, select, EXPRDUP_REDUCE);
+			triggerStep->Select = Expr::SelectDup(ctx, select, EXPRDUP_REDUCE);
 			triggerStep->IdList = column;
 			triggerStep->ExprList = Expr::ListDup(ctx, list, EXPRDUP_REDUCE);
 			triggerStep->Orconf = orconf;

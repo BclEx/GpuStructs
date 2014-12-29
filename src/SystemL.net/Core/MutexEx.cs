@@ -1,6 +1,6 @@
 namespace Core
 {
-    public class MutexEx
+    public struct MutexEx
     {
         public static bool WantsCoreMutex { get; set; }
 
@@ -20,11 +20,11 @@ namespace Core
 
         public static MutexEx Alloc(MUTEX id)
         {
-            //if (!sqlite3GlobalConfig.bCoreMutex)
+            //if (!SysEx_GlobalStatics.bCoreMutex)
             //    return null;
             //Debug.Assert(mutexIsInit != 0);
-            //return sqlite3GlobalConfig.mutex.xMutexAlloc(id);
-            return null;
+            //return SysEx_GlobalStatics.mutex.xMutexAlloc(id);
+            return default(MutexEx);
         }
 
         public static void Enter(MutexEx mutex) { }
@@ -33,7 +33,7 @@ namespace Core
         public static bool NotHeld(MutexEx mutex) { return true; }
         public static void Free(MutexEx mutex) { }
 
-        public object mutex;    // Mutex controlling the lock
+        public object Tag;      // Mutex controlling the lock
         public int id;          // Mutex type
         public int nRef;        // Number of enterances
         public int owner;       // Thread holding this mutex
@@ -41,10 +41,6 @@ namespace Core
         public int trace;       // True to trace changes
 #endif
 
-        public MutexEx()
-        {
-            mutex = new object();
-        }
 
         //        public MutexEx(MutexEx mutex, int id, int nRef, int owner
         //#if DEBUG

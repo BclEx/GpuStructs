@@ -600,10 +600,10 @@ namespace Core
 				if( pOp->p4.z ){
 					assert( p->rc!=SQLITE_OK );
 					_setstring(&p->zErrMsg, db, "%s", pOp->p4.z);
-					testcase( sqlite3GlobalConfig.xLog!=0 );
+					testcase( SysEx_GlobalStatics.xLog!=0 );
 					sqlite3_log(pOp->p1, "abort at %d in [%s]: %s", pc, p->zSql, pOp->p4.z);
 				}else if( p->rc ){
-					testcase( sqlite3GlobalConfig.xLog!=0 );
+					testcase( SysEx_GlobalStatics.xLog!=0 );
 					sqlite3_log(pOp->p1, "constraint failed at %d in [%s]", pc, p->zSql);
 				}
 				rc = sqlite3VdbeHalt(p);
@@ -5931,7 +5931,7 @@ op_column_out:
 vdbe_error_halt:
 		assert( rc );
 		p->rc = rc;
-		testcase( sqlite3GlobalConfig.xLog!=0 );
+		testcase( SysEx_GlobalStatics.xLog!=0 );
 		sqlite3_log(rc, "statement aborts at %d: [%s] %s", 
 			pc, p->zSql, p->zErrMsg);
 		sqlite3VdbeHalt(p);

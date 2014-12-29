@@ -256,7 +256,7 @@ blob_open_out:
 		sqlite3Error(ctx, rc, (err ? "%s" : nullptr), err);
 		_tagfree(ctx, err);
 		_stackfree(ctx, parse);
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}
@@ -309,7 +309,7 @@ blob_open_out:
 				v->RC_ = rc;
 			}
 		}
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}
@@ -352,7 +352,7 @@ blob_open_out:
 			_assert(rc != RC_SCHEMA);
 		}
 
-		rc = SysEx::ApiExit(ctx, rc);
+		rc = Main::ApiExit(ctx, rc);
 		_assert(rc == RC_OK || !p->Stmt);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;

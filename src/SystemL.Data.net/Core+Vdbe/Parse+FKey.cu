@@ -549,7 +549,7 @@ namespace Core
 		{
 			Index *index = nullptr; // Parent key index for this FK
 			int *cols = nullptr; // child table cols -> parent key cols
-			if (FKLocateIndex(parse, table, key, &index, &cols)) return nullptr;
+			if (parse->FKLocateIndex(table, key, &index, &cols)) return nullptr;
 			_assert(cols || key->Cols.length == 1);
 
 			Expr *where_ = nullptr; // WHERE clause of trigger step
@@ -571,12 +571,12 @@ namespace Core
 
 				// Create the expression "OLD.zToCol = zFromCol". It is important that the "OLD.zToCol" term is on the LHS of the = operator, so
 				// that the affinity and collation sequence associated with the parent table are used for the comparison.
-				Expr *eq = Expr::PExpr(parse, TK_EQ,
-					Expr::PExpr(parse, TK_DOT, 
-					Expr::PExpr(parse, TK_ID, 0, 0, &oldToken),
-					Expr::PExpr(parse, TK_ID, 0, 0, &toCol)
+				Expr *eq = Expr::PExpr_(parse, TK_EQ,
+					Expr::PExpr_(parse, TK_DOT, 
+					Expr::PExpr_(parse, TK_ID, 0, 0, &oldToken),
+					Expr::PExpr_(parse, TK_ID, 0, 0, &toCol)
 					, 0),
-					Expr::PExpr(parse, TK_ID, 0, 0, &fromCol)
+					Expr::PExpr_(parse, TK_ID, 0, 0, &fromCol)
 					, 0); // tFromCol = OLD.tToCol
 				where_ = Expr::And(ctx, where_, eq);
 
@@ -586,14 +586,14 @@ namespace Core
 				//    WHEN NOT(old.col1 IS new.col1 AND ... AND old.colN IS new.colN)
 				if (changes)
 				{
-					eq = Expr::PExpr(parse, TK_IS,
-						Expr::PExpr(parse, TK_DOT, 
-						Expr::PExpr(parse, TK_ID, 0, 0, &oldToken),
-						Expr::PExpr(parse, TK_ID, 0, 0, &toCol),
+					eq = Expr::PExpr_(parse, TK_IS,
+						Expr::PExpr_(parse, TK_DOT, 
+						Expr::PExpr_(parse, TK_ID, 0, 0, &oldToken),
+						Expr::PExpr_(parse, TK_ID, 0, 0, &toCol),
 						0),
-						Expr::PExpr(parse, TK_DOT, 
-						Expr::PExpr(parse, TK_ID, 0, 0, &newToken),
-						Expr::PExpr(parse, TK_ID, 0, 0, &toCol),
+						Expr::PExpr_(parse, TK_DOT, 
+						Expr::PExpr_(parse, TK_ID, 0, 0, &newToken),
+						Expr::PExpr_(parse, TK_ID, 0, 0, &toCol),
 						0),
 						0);
 					when = Expr::And(ctx, when, eq);
@@ -603,22 +603,22 @@ namespace Core
 				{
 					Expr *newExpr;
 					if (action == OE_Cascade)
-						newExpr = Expr::PExpr(parse, TK_DOT, 
-						Expr::PExpr(parse, TK_ID, 0, 0, &newToken),
-						Expr::PExpr(parse, TK_ID, 0, 0, &toCol)
+						newExpr = Expr::PExpr_(parse, TK_DOT, 
+						Expr::PExpr_(parse, TK_ID, 0, 0, &newToken),
+						Expr::PExpr_(parse, TK_ID, 0, 0, &toCol)
 						, 0);
 					else if (action == OE_SetDflt)
 					{
 						Expr *dfltExpr = key->From->Cols[fromColId].Dflt;
 						if (dfltExpr)
-							newExpr = Expr::ExprDup(ctx, dfltExpr, 0);
+							newExpr = Expr::Dup(ctx, dfltExpr, 0);
 						else
-							newExpr = Expr::PExpr(parse, TK_NULL, 0, 0, 0);
+							newExpr = Expr::PExpr_(parse, TK_NULL, 0, 0, 0);
 					}
 					else
-						newExpr = Expr::PExpr(parse, TK_NULL, 0, 0, 0);
+						newExpr = Expr::PExpr_(parse, TK_NULL, 0, 0, 0);
 					list = Expr::ListAppend(parse, list, newExpr);
-					Expr::ListSetName(parse, pList, &fromCol, 0);
+					Expr::ListSetName(parse, list, &fromCol, 0);
 				}
 			}
 			_tagfree(ctx, cols);
@@ -632,7 +632,7 @@ namespace Core
 				Token from;
 				from.data = fromName;
 				from.length = fromNameLength;
-				Expr *raise = Expr::Expr(ctx, TK_RAISE, "foreign key constraint failed");
+				Expr *raise = Expr::Expr_(ctx, TK_RAISE, "foreign key constraint failed");
 				if (raise)
 					raise->Affinity = OE_Abort;
 				select = Select::New(parse, 
@@ -662,11 +662,11 @@ namespace Core
 
 				step->Where = Expr::Dup(ctx, where_, EXPRDUP_REDUCE);
 				step->ExprList = Expr::ListDup(ctx, list, EXPRDUP_REDUCE);
-				step->Select = Select::Dup(ctx, select, EXPRDUP_REDUCE);
+				step->Select = Expr::SelectDup(ctx, select, EXPRDUP_REDUCE);
 				if (when)
 				{
-					when = Expr::PExpr(parse, TK_NOT, when, 0, 0);
-					trigger->When = ExprD::up(ctx, when, EXPRDUP_REDUCE);
+					when = Expr::PExpr_(parse, TK_NOT, when, 0, 0);
+					trigger->When = Expr::Dup(ctx, when, EXPRDUP_REDUCE);
 				}
 			}
 

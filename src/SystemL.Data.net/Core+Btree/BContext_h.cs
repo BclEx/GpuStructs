@@ -64,17 +64,17 @@ namespace Core
         public int BusyTimeout;				    // Busy handler timeout, in msec
         public int SavepointsLength;            // Number of non-transaction savepoints
 
-        public int InvokeBusyHandler()
-        {
-            if (C._NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
-                return 0;
-            var rc = BusyHandler.Func(BusyHandler.Arg, BusyHandler.Busys);
-            if (rc == 0)
-                BusyHandler.Busys = -1;
-            else
-                BusyHandler.Busys++;
-            return rc;
-        }
+        //public int InvokeBusyHandler()
+        //{
+        //    if (C._NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
+        //        return 0;
+        //    var rc = BusyHandler.Func(BusyHandler.Arg, BusyHandler.Busys);
+        //    if (rc == 0)
+        //        BusyHandler.Busys = -1;
+        //    else
+        //        BusyHandler.Busys++;
+        //    return rc;
+        //}
 
         // HOOKS
 #if ENABLE_UNLOCK_NOTIFY
@@ -83,8 +83,8 @@ namespace Core
         internal void sqlite3ConnectionClosed(sqlite3 db);
 #else
         public static void ConnectionBlocked(BContext a, BContext b) { }
-        //internal static void sqlite3ConnectionUnlocked(sqlite3 x) { }
-        //internal static void sqlite3ConnectionClosed(sqlite3 x) { }
+        //internal static void ConnectionUnlocked(sqlite3 x) { }
+        //internal static void ConnectionClosed(sqlite3 x) { }
 #endif
 
         public bool TempInMemory()

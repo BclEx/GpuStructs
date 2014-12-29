@@ -3,53 +3,54 @@
 
 namespace Core
 {
-	__device__ static struct PrngType
+	__device__ static _WSD struct Prng
 	{
 		unsigned char IsInit;
 		unsigned char I;
 		unsigned char J;
 		unsigned char S[256];
-	} _prng;
+	} g_prng;
+#ifdef OMIT_WSD
+	Prng *p = &_GLOBAL(Prng, g_prng);
+#define _prng p[0]
+#else
+#define _prng g_prng
+#endif
 
 	__device__ static uint8 RandomByte()
 	{
-		// The "wsdPrng" macro will resolve to the pseudo-random number generator state vector.  If writable static data is unsupported on the target,
-		// we have to locate the state vector at run-time.  In the more common case where writable static data is supported, wsdPrng can refer directly
-		// to the "sqlite3Prng" state vector declared above.
-		PrngType prng = _prng;
-
 		// Initialize the state of the random number generator once, the first time this routine is called.  The seed value does
 		// not need to contain a lot of randomness since we are not trying to do secure encryption or anything like that...
 		//
 		// Nothing in this file or anywhere else in SQLite does any kind of encryption.  The RC4 algorithm is being used as a PRNG (pseudo-random
 		// number generator) not as an encryption device.
 		unsigned char t;
-		if (!prng.IsInit)
+		if (!_prng.IsInit)
 		{
 			char k[256];
-			prng.J = 0;
-			prng.I = 0;
+			_prng.J = 0;
+			_prng.I = 0;
 			VSystem::FindVfs(nullptr)->Randomness(256, k);
 			int i;
 			for (i = 0; i < 256; i++)
-				prng.S[i] = (uint8)i;
+				_prng.S[i] = (uint8)i;
 			for (i = 0; i < 256; i++)
 			{
-				prng.J += prng.S[i] + k[i];
-				t = prng.S[prng.J];
-				prng.S[prng.J] = prng.S[i];
-				prng.S[i] = t;
+				_prng.J += _prng.S[i] + k[i];
+				t = _prng.S[_prng.J];
+				_prng.S[_prng.J] = _prng.S[i];
+				_prng.S[i] = t;
 			}
-			prng.IsInit = true;
+			_prng.IsInit = true;
 		}
 		// Generate and return single random u8
-		prng.I++;
-		t = prng.S[prng.I];
-		prng.J += t;
-		prng.S[prng.I] = prng.S[prng.J];
-		prng.S[prng.J] = t;
-		t += prng.S[prng.I];
-		return prng.S[t];
+		_prng.I++;
+		t = _prng.S[_prng.I];
+		_prng.J += t;
+		_prng.S[_prng.I] = _prng.S[_prng.J];
+		_prng.S[_prng.J] = t;
+		t += _prng.S[_prng.I];
+		return _prng.S[t];
 	}
 
 	__device__ void SysEx::PutRandom(int length, void *buffer) //: sqlite3_randomness
@@ -66,11 +67,11 @@ namespace Core
 #endif
 	}
 
-//#if !OMIT_BUILTIN_TEST
-//	__device__ static PrngType *_savedPrng = nullptr;
-//	__device__ inline static void PrngSaveState() { _memcpy(_savedPrng, &_prng, sizeof(PrngType)); }
-//	__device__ inline static void PrngRestoreState() { _memcpy(&_prng, _savedPrng, sizeof(PrngType)); }
-//	__device__ inline static void PrngResetState() { _prng.IsInit = false; }
-//#endif
+#if !OMIT_BUILTIN_TEST
+	__device__ static _WSD Prng *g_savedPrng = nullptr;
+	__device__ inline static void PrngSaveState() { _memcpy<void>(&_GLOBAL(Prng, g_savedPrng), &_GLOBAL(Prng, g_prng), sizeof(g_prng)); }
+	__device__ inline static void PrngRestoreState() { _memcpy<void>(&_GLOBAL(Prng, g_prng), &_GLOBAL(Prng, g_savedPrng), sizeof(g_prng)); }
+	__device__ inline static void PrngResetState() { _prng.IsInit = false; }
+#endif
 
 }

@@ -1134,7 +1134,7 @@ namespace Core { namespace Command
 
 	static void SetLikeOptFlag(Context *ctx, const char *name, FUNC flagVal)
 	{
-		FuncDef *def = sqlite3FindFunction(ctx, name, _strlen30(name), 2, TEXTENCODE_UTF8, 0);
+		FuncDef *def = Callback::FindFunction(ctx, name, _strlen30(name), 2, TEXTENCODE_UTF8, 0);
 		if (_ALWAYS(def))
 			def->Flags = flagVal;
 	}
@@ -1154,7 +1154,7 @@ namespace Core { namespace Command
 		if (expr->OP != TK_FUNCTION  || !expr->x.List || expr->x.List->Exprs != 2)
 			return false;
 		_assert(!ExprHasProperty(expr, EP_xIsSelect));
-		FuncDef *def = sqlite3FindFunction(ctx, expr->u.Token, _strlen30(expr->u.Token), 2, TEXTENCODE_UTF8, 0);
+		FuncDef *def = Callback::FindFunction(ctx, expr->u.Token, _strlen30(expr->u.Token), 2, TEXTENCODE_UTF8, 0);
 		if (_NEVER(def == nullptr) || (def->Flags & FUNC_LIKE) == 0)
 			return false;
 		// The memcpy() statement assumes that the wildcard characters are the first three statements in the compareInfo structure.  The asserts() that follow verify that assumption
@@ -1162,14 +1162,14 @@ namespace Core { namespace Command
 		_assert((char *)&_likeInfoAlt == (char*)&_likeInfoAlt.MatchAll);
 		_assert(&((char *)&_likeInfoAlt)[1] == (char*)&_likeInfoAlt.MatchOne);
 		_assert(&((char *)&_likeInfoAlt)[2] == (char*)&_likeInfoAlt.MatchSet);
-		*isNoCase = ((def->Flags & FUNC_CASE) == 0);
+		*isNocase = ((def->Flags & FUNC_CASE) == 0);
 		return true;
 	}
 
 	// The following array holds FuncDef structures for all of the functions defined in this file.
 	//
 	// The array cannot be constant since changes are made to the FuncDef.pHash elements at start-time.  The elements of this array are read-only after initialization is complete.
-	__device__ static FuncDef _builtinFuncs[] = {
+	__device__ static _WSD FuncDef g_builtinFuncs[] = {
 		FUNCTION(ltrim,              1, 1, 0, TrimFunc         ),
 		FUNCTION(ltrim,              2, 1, 0, TrimFunc         ),
 		FUNCTION(rtrim,              1, 2, 0, TrimFunc         ),
@@ -1244,10 +1244,10 @@ namespace Core { namespace Command
 
 	__device__ void Func::RegisterGlobalFunctions()
 	{
-		FuncDefHash *hash = Context::GlobalFunctions;
-		FuncDef *func = (FuncDef *)_builtinFunc;
-		for (int i = 0; i < _lengthof(_builtinFunc); i++)
-			hash->Insert(&func[i]);
+		FuncDefHash *hash = &Main_GlobalFunctions;
+		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_builtinFunc);
+		for (int i = 0; i < _lengthof(g_builtinFunc); i++)
+			Callback::FuncDefInsert(hash, &funcs[i]);
 		Date_::RegisterDateTimeFunctions();
 #ifndef OMIT_ALTERTABLE
 		Alter::Functions();

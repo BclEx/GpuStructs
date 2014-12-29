@@ -1198,13 +1198,13 @@ namespace Core
         //            sqlite3StrAccumInit(_b, null, SQLITE_PRINT_BUF_SIZE * 3, 0);
         //            //acc.useMalloc = 0;
         //            sqlite3VXPrintf(_b, 0, zFormat, ap);
-        //            sqlite3GlobalConfig.xLog(sqlite3GlobalConfig.pLogArg, iErrCode,
+        //            SysEx_GlobalStatics.xLog(SysEx_GlobalStatics.pLogArg, iErrCode,
         //            sqlite3StrAccumFinish(_b));
         //        }
 
         //        static void sqlite3_log(int iErrCode, string zFormat, params va_list[] ap)
         //        {
-        //            if (sqlite3GlobalConfig.xLog != null)
+        //            if (SysEx_GlobalStatics.xLog != null)
         //            {
         //                //va_list ap;                             /* Vararg list */
         //                lock (lock_va_list)
@@ -1234,5 +1234,10 @@ namespace Core
         //        }
         //#endif
         #endregion
+
+        public static bool _isxdigit(char p)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -1,12 +1,13 @@
 using Core.IO;
 using System;
 using System.Diagnostics;
+using System.Text;
 namespace Core
 {
     public abstract partial class VSystem
     {
         internal static VSystem _vfsList;
-        internal static bool _isInit = false;
+        //internal static bool _isInit = false;
 
         public enum OPEN : uint
         {
@@ -46,7 +47,7 @@ namespace Core
         public int MaxPathname = 256;   // Maximum file pathname length
         public Func<VFile> CreateOsFile;
 
-        public void CopyTo(VSystem ct)
+        public void _memcpy(VSystem ct)
         {
             ct.SizeOsFile = this.SizeOsFile;
             ct.MaxPathname = this.MaxPathname;
@@ -141,5 +142,233 @@ namespace Core
             MutexEx.Leave(mutex);
             return RC.OK;
         }
+
+        #region File
+
+#if ENABLE_8_3_NAMES
+        public static void FileSuffix3(string baseFilename, ref string z)
+        {
+#if ENABLE_8_3_NAMESx2
+		if (!UriBoolean(baseFilename, "8_3_names", 0)) return;
+#endif
+            int sz = z.Length;
+            int i;
+            for (i = sz - 1; i > 0 && z[i] != '/' && z[i] != '.'; i--) { }
+            //if (z[i] == '.' && C._ALWAYS(sz > i + 4)) C._memmove(&z[i + 1], &z[sz - 3], 4);
+            //if (z[i] == '.' && C._ALWAYS(sz > i + 4)) C._memcpy(&z[i + 1], &z[sz - 3], 4);
+        }
+#else
+        public static void FileSuffix3(string baseFilename, ref string z) { }
+#endif
+
+        class OpenMode
+        {
+            public string Z;
+            public VSystem.OPEN Mode;
+
+            public OpenMode(string z, VSystem.OPEN mode)
+            {
+                Z = z;
+                Mode = mode;
+            }
+        }
+
+        static readonly OpenMode[] _cacheModes = new OpenMode[]
+        {
+           new OpenMode("shared",  VSystem.OPEN.SHAREDCACHE),
+           new OpenMode("private", VSystem.OPEN.PRIVATECACHE),
+           new OpenMode(null, (VSystem.OPEN)0)
+        };
+
+        static readonly OpenMode[] _openModes = new OpenMode[]
+        {
+            new OpenMode("ro",  VSystem.OPEN.READONLY),
+            new OpenMode("rw",  VSystem.OPEN.READWRITE), 
+            new OpenMode("rwc", VSystem.OPEN.READWRITE | VSystem.OPEN.CREATE),
+            new OpenMode(null, (VSystem.OPEN)0)
+        };
+
+        public static RC ParseUri(string defaultVfsName, string uri, ref VSystem.OPEN flagsRef, out VSystem vfsOut, out string fileNameOut, out string errMsgOut)
+        {
+            vfsOut = null;
+            fileNameOut = null;
+            errMsgOut = null;
+
+            VSystem.OPEN flags = flagsRef;
+            string vfsName = defaultVfsName;
+            int uriLength = uri.Length;
+
+            RC rc = RC.OK;
+            StringBuilder fileName = null;
+
+            if (((flags & VSystem.OPEN.URI) != 0 || SysEx._GlobalStatics.OpenUri) && uriLength >= 5 && uri.StartsWith("file:"))
+            {
+                // Make sure the SQLITE_OPEN_URI flag is set to indicate to the VFS xOpen method that there may be extra parameters following the file-name.
+                flags |= VSystem.OPEN.URI;
+
+                int bytes = uriLength + 2; // Bytes of space to allocate               
+                int uriIdx; // Input character index
+                for (uriIdx = 0; uriIdx < uriLength; uriIdx++) bytes += (uri[uriIdx] == '&' ? 1 : 0);
+                fileName = new StringBuilder(bytes);
+                if (fileName == null) return RC.NOMEM;
+
+                // Discard the scheme and authority segments of the URI.
+                if (uri[5] == '/' && uri[6] == '/')
+                {
+                    uriIdx = 7;
+                    while (uriIdx < uriLength && uri[uriIdx] != '/') uriIdx++;
+                    if (uriIdx != 7 && (uriIdx != 16 || !string.Equals("localhost", uri.Substring(7, 9), StringComparison.InvariantCultureIgnoreCase)))
+                    {
+                        errMsgOut = C._mprintf("invalid uri authority: %.*s", uriIdx - 7, uri.Substring(7));
+                        rc = RC.ERROR;
+                        goto parse_uri_out;
+                    }
+                }
+                else
+                    uriIdx = 5;
+
+                // Copy the filename and any query parameters into the zFile buffer. Decode %HH escape codes along the way. 
+                //
+                // Within this loop, variable eState may be set to 0, 1 or 2, depending on the parsing context. As follows:
+                //
+                //   0: Parsing file-name.
+                //   1: Parsing name section of a name=value query parameter.
+                //   2: Parsing value section of a name=value query parameter.
+                int state = 0; // Parser state when parsing URI
+                char c;
+                //int fileNameIdx = 0; // Output character index
+                while (uriIdx < uriLength && (c = uri[uriIdx]) != 0 && c != '#')
+                {
+                    uriIdx++;
+
+                    if (c == '%' && C._isxdigit(uri[uriIdx]) && C._isxdigit(uri[uriIdx + 1]))
+                    {
+                        int octet = (C._hextobyte(uri[uriIdx++]) << 4);
+                        octet += C._hextobyte(uri[uriIdx++]);
+                        Debug.Assert(octet >= 0 && octet < 256);
+                        if (octet == 0)
+                        {
+                            // This branch is taken when "%00" appears within the URI. In this case we ignore all text in the remainder of the path, name or
+                            // value currently being parsed. So ignore the current character and skip to the next "?", "=" or "&", as appropriate.
+                            while (uriIdx < uriLength && (c = uri[uriIdx]) != 0 && c != '#' &&
+                                (state != 0 || c != '?') &&
+                                (state != 1 || (c != '=' && c != '&')) &&
+                                (state != 2 || c != '&'))
+                                uriIdx++;
+                            continue;
+                        }
+                        c = (char)octet;
+                    }
+                    else if (state == 1 && (c == '&' || c == '='))
+                    {
+                        if (fileName[fileName.Length - 1] == '\0')
+                        {
+                            // An empty option name. Ignore this option altogether.
+                            while (uri[uriIdx] != '\0' && uri[uriIdx] != '#' && uri[uriIdx - 1] != '&') uriIdx++;
+                            continue;
+                        }
+                        if (c == '&')
+                            fileName.Append('\0');
+                        else
+                            state = 2;
+                        c = '\0';
+                    }
+                    else if ((state == 0 && c == '?') || (state == 2 && c == '&'))
+                    {
+                        c = '\0';
+                        state = 1;
+                    }
+                    fileName.Append(c);
+                }
+                if (state == 1) fileName.Append('\0');
+                fileName.Append('\0');
+                fileName.Append('\0');
+
+                // Check if there were any options specified that should be interpreted here. Options that are interpreted here include "vfs" and those that
+                // correspond to flags that may be passed to the sqlite3_open_v2() method.
+                string opt = fileName.ToString().Substring(fileName.Length + 1);
+                while (opt.Length > 0)
+                {
+                    int optLength = opt.Length;
+                    string val = opt.Substring(optLength);
+                    int valLength = val.Length;
+                    if (optLength == 3 && opt.StartsWith("vfs"))
+                        vfsName = val;
+                    else
+                    {
+                        OpenMode[] modes = null;
+                        string modeType = null;
+                        VSystem.OPEN mask = (VSystem.OPEN)0;
+                        VSystem.OPEN limit = (VSystem.OPEN)0;
+                        if (optLength == 5 && opt.StartsWith("cache"))
+                        {
+                            mask = VSystem.OPEN.SHAREDCACHE | VSystem.OPEN.PRIVATECACHE;
+                            modes = _cacheModes;
+                            limit = mask;
+                            modeType = "cache";
+                        }
+                        if (optLength == 4 && opt.StartsWith("mode"))
+                        {
+                            mask = VSystem.OPEN.READONLY | VSystem.OPEN.READWRITE | VSystem.OPEN.CREATE;
+                            modes = _openModes;
+                            limit = mask & flags;
+                            modeType = "access";
+                        }
+                        if (modes != null)
+                        {
+                            VSystem.OPEN mode = 0;
+                            for (int i = 0; modes[i].Z != null; i++)
+                            {
+                                string z = modes[i].Z;
+                                if (valLength == z.Length && z.StartsWith(val))
+                                {
+                                    mode = modes[i].Mode;
+                                    break;
+                                }
+                            }
+                            if (mode == 0)
+                            {
+                                errMsgOut = C._mprintf("no such %s mode: %s", modeType, val);
+                                rc = RC.ERROR;
+                                goto parse_uri_out;
+                            }
+                            if (mode > limit)
+                            {
+                                errMsgOut = C._mprintf("%s mode not allowed: %s", modeType, val);
+                                rc = RC.PERM;
+                                goto parse_uri_out;
+                            }
+                            flags = ((flags & ~mask) | mode);
+                        }
+                    }
+                    opt = val.Substring(valLength + 1);
+                }
+            }
+            else
+            {
+                fileName = (uri == null ? new StringBuilder() : new StringBuilder(uri.Substring(0, uriLength)));
+                if (fileName == null) return RC.NOMEM;
+                fileName.Append('\0');
+                fileName.Append('\0');
+            }
+
+            vfsOut = FindVfs(vfsName);
+            if (vfsOut == null)
+            {
+                errMsgOut = C._mprintf("no such vfs: %s", vfsName);
+                rc = RC.ERROR;
+            }
+        parse_uri_out:
+            if (rc != RC.OK)
+            {
+                C._free(ref fileName);
+                fileName = null;
+            }
+            flagsRef = flags;
+            fileNameOut = (fileName == null ? null : fileName.ToString().Substring(0, fileName.Length));
+            return rc;
+        }
+
+        #endregion
     }
 }

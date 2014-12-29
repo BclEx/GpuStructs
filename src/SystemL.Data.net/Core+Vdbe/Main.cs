@@ -5,9 +5,10 @@ using Pid = System.UInt32;
 
 namespace Core
 {
+    #region From: Util_c
+
     public partial class Parse
     {
-        // from util.c
         public void ErrorMsg(string fmt, params object[] args)
         {
             Context ctx = Ctx;
@@ -26,2369 +27,1267 @@ namespace Core
 
     public partial class Main
     {
-
-        internal static void Error(object tag, RC rc, string format, params object[] args)
+        public static RC ApiExit(Context ctx, RC rc)
         {
-            throw new NotImplementedException();
+            // If the ctx handle is not NULL, then we must hold the connection handle mutex here. Otherwise the read (and possible write) of db->mallocFailed is unsafe, as is the call to sqlite3Error().
+            Debug.Assert(ctx == null || MutexEx.Held(ctx.Mutex));
+            if (ctx != null && (ctx.MallocFailed || rc == RC.IOERR_NOMEM))
+            {
+                Error(ctx, RC.NOMEM, null);
+                ctx.MallocFailed = false;
+                rc = RC.NOMEM;
+            }
+            return (RC)((int)rc & (ctx != null ? ctx.ErrMask : 0xff));
         }
 
+        //public static void Error(Context ctx, RC rc, int noString) { Error(ctx, rc, (rc == 0 ? null : string.Empty)); }
+        public static void Error(Context ctx, RC rc, string fmt, params object[] args)
+        {
+            if (ctx != null && (ctx.Err != null || (ctx.Err = Vdbe.ValueNew(ctx)) != null))
+            {
+                ctx.ErrCode = rc;
+                if (fmt != null)
+                {
+                    string z = C._vmtagprintf(ctx, fmt, args);
+                    Vdbe.ValueSetStr(ctx.Err, -1, z, TEXTENCODE.UTF8, C.DESTRUCTOR_DYNAMIC);
+                }
+                else
+                    Vdbe.ValueSetStr(ctx.Err, 0, null, TEXTENCODE.UTF8, C.DESTRUCTOR_STATIC);
+            }
+        }
+
+        static void LogBadConnection(string type)
+        {
+            SysEx.LOG(RC.MISUSE, "API call with %s database connection pointer", type);
+        }
+
+        public static bool SafetyCheckOk(Context ctx)
+        {
+            if (ctx == null)
+            {
+                LogBadConnection("NULL");
+                return false;
+            }
+            MAGIC magic = ctx.Magic;
+            if (magic != MAGIC.OPEN)
+            {
+                if (SafetyCheckSickOrOk(ctx))
+                {
+                    C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
+                    LogBadConnection("unopened");
+                }
+                return false;
+            }
+            return true;
+        }
+
+        public static bool SafetyCheckSickOrOk(Context ctx)
+        {
+            MAGIC magic = ctx.Magic;
+            if (magic != MAGIC.SICK && magic != MAGIC.OPEN && magic != MAGIC.BUSY)
+            {
+                C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
+                LogBadConnection("invalid");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    #endregion
+
+    public partial class Main
+    {
+        #region Initialize/Shutdown/Config
+
+        // If the following global variable points to a string which is the name of a directory, then that directory will be used to store temporary files.
+        // See also the "PRAGMA temp_store_directory" SQL command.
+        static string g_temp_directory = null;
+        // If the following global variable points to a string which is the name of a directory, then that directory will be used to store
+        // all database files specified with a relative pathname.
+        // See also the "PRAGMA data_store_directory" SQL command.
+        static string g_data_directory = null;
+
+        public class GlobalStatics
+        {
+            public bool UseCis;						    // Use covering indices for full-scans
+            //public sqlite3_pcache_methods pcache;     // Low-level page-cache interface
+            public Btree.MemPage Page;                  // Page cache memory
+            public int PageSize;                        // Size of each page in pPage[]
+            public int Pages;                           // Number of pages in pPage[]
+            public int MaxParserStack;                  // maximum depth of the parser stack
+            // The above might be initialized to non-zero.  The following need to always initially be zero, however.
+            public bool IsPCacheInit;                    // True after malloc is initialized
+
+            public GlobalStatics(
+                bool useCis,
+                //sqlite3_pcache_methods pcache,
+                Btree.MemPage page,
+                int pageSize,
+                int pages,
+                int maxParserStack,
+                bool isPCacheInit)
+            {
+                UseCis = useCis;
+                //pcache = pcache;
+                Page = page;
+                PageSize = pageSize;
+                Pages = pages;
+                MaxParserStack = maxParserStack;
+                IsPCacheInit = isPCacheInit;
+            }
+        }
+
+        enum CONFIG
+        {
+            PAGECACHE = 7,				// void*, int sz, int N
+            PCACHE = 14,					// no-op
+            GETPCACHE = 15,				// no-op
+            PCACHE2 = 18,				// sqlite3_pcache_methods2*
+            GETPCACHE2 = 19,				// sqlite3_pcache_methods2*
+            COVERING_INDEX_SCAN = 20,	// int
+        }
+
+        const bool ALLOW_COVERING_INDEX_SCAN = true;
+
+        // The following singleton contains the global configuration for the SQLite library.
+        public static readonly GlobalStatics _GlobalStatics = new GlobalStatics(
+            ALLOW_COVERING_INDEX_SCAN,		// UseCis
+            //{0,0,0,0,0,0,0,0,0,0,0,0,0},	// pcache2
+            null,				            // Page
+            0,								// PageSize
+            0,								// Pages
+            0,								// MaxParserStack
+            // All the rest should always be initialized to zero
+            false							// IsPCacheInit
+        );
+        public static FuncDefHash _GlobalFunctions;
+
+        public static RC Initialize()
+        {
+            if (SysEx._GlobalStatics.IsInit) return RC.OK;
+
+            MutexEx masterMutex;
+            RC rc = SysEx.PreInitialize(out masterMutex);
+            if (rc != RC.OK) return rc;
+
+            //: FuncDefHash hash = _GlobalFunctions;
+            _GlobalFunctions = new FuncDefHash(); //: _memset(hash, 0, sizeof(_GlobalFunctions));
+            Command.Func.RegisterGlobalFunctions();
+            if (!_GlobalStatics.IsPCacheInit)
+                rc = PCache.Initialize();
+            if (rc == RC.OK)
+            {
+                _GlobalStatics.IsPCacheInit = true;
+                PCache.PageBufferSetup(_GlobalStatics.Page, _GlobalStatics.PageSize, _GlobalStatics.Pages);
+                SysEx._GlobalStatics.IsInit = true;
+            }
+            SysEx._GlobalStatics.InProgress = false;
+
+            // Do extra initialization steps requested by the EXTRA_INIT compile-time option.
+#if EXTRA_INIT
+            if (rc == RC.OK && SysEx._GlobalStatics.IsInit)
+                rc = EXTRA_INIT(null);
+#endif
+
+            SysEx.PostInitialize(masterMutex);
+            return rc;
+        }
+
+        public static RC Shutdown()
+        {
+            if (!SysEx._GlobalStatics.IsInit) return RC.OK;
+
+            // Do extra shutdown steps requested by the EXTRA_SHUTDOWN compile-time option.
+#if EXTRA_SHUTDOWN
+		EXTRA_SHUTDOWN();
+#endif
+
+            if (_GlobalStatics.IsPCacheInit)
+            {
+                PCache.Shutdown();
+                _GlobalStatics.IsPCacheInit = false;
+            }
+#if !OMIT_SHUTDOWN_DIRECTORIES
+            // The heap subsystem has now been shutdown and these values are supposed to be NULL or point to memory that was obtained from sqlite3_malloc(),
+            // which would rely on that heap subsystem; therefore, make sure these values cannot refer to heap memory that was just invalidated when the
+            // heap subsystem was shutdown.  This is only done if the current call to this function resulted in the heap subsystem actually being shutdown.
+            g_data_directory = null;
+            g_temp_directory = null;
+#endif
+
+            SysEx.Shutdown();
+            return RC.OK;
+        }
+
+        public static RC Main.Config(CONFIG op, params object[] args)
+        {
+            if ((int)op < (int)CONFIG.PAGECACHE) return SysEx.Config((SysEx.CONFIG)op, args);
+            RC rc = RC.OK;
+            switch (op)
+            {
+                case CONFIG.PAGECACHE:
+                    { // Designate a buffer for page cache memory space
+                        _GlobalStatics.Page = (Btree.MemPage)args[0];
+                        _GlobalStatics.PageSize = (int)args[1];
+                        _GlobalStatics.Pages = (int)args[2];
+                        break;
+                    }
+                case CONFIG.PCACHE:
+                    { // no-op
+                        break;
+                    }
+                case CONFIG.GETPCACHE:
+                    { // now an error
+                        rc = RC.ERROR;
+                        break;
+                    }
+                case CONFIG.PCACHE2:
+                    { // Specify an alternative page cache implementation
+                        //_GlobalStatics.PCache2 = (sqlite3_pcache_methods2)args[0];
+                        break;
+                    }
+                case CONFIG.GETPCACHE2:
+                    {
+                        //if (_GlobalStatics.Pcache2.Init == 0)
+                        //	PCacheSetDefault();
+                        //args[0] = _GlobalStatics.pcache2;
+                        break;
+                    }
+                case CONFIG.COVERING_INDEX_SCAN:
+                    {
+                        _GlobalStatics.UseCis = (bool)args[0];
+                        break;
+                    }
+                default:
+                    {
+                        rc = RC.ERROR;
+                        break;
+                    }
+            }
+            return rc;
+
+        }
+
+        public enum CTXCONFIG
+        {
+            LOOKASIDE = 1001,  // void* int int
+            ENABLE_FKEY = 1002,  // int int*
+            ENABLE_TRIGGER = 1003,  // int int*
+        }
+
+        public class FlagOp
+        {
+            public CTXCONFIG OP;      // The opcode
+            public Context.FLAG Mask;       // Mask of the bit in sqlite3.flags to set/clear
+
+            public FlagOp(CTXCONFIG op, Context.FLAG mask)
+            {
+                OP = op;
+                Mask = mask;
+            }
+        }
+
+        static readonly FlagOp[] _flagOps = new[]
+        {
+            new FlagOp(CTXCONFIG.ENABLE_FKEY,    Context.FLAG.ForeignKeys),
+            new FlagOp(CTXCONFIG.ENABLE_TRIGGER, Context.FLAG.EnableTrigger),
+        };
+
+        public static RC CtxConfig(Context ctx, CTXCONFIG op, params object[] args)
+        {
+            RC rc;
+            switch (op)
+            {
+                case CTXCONFIG.LOOKASIDE:
+                    {
+                        byte[] buf = (byte[])args[0]; // IMP: R-26835-10964
+                        int size = (int)args[1];       // IMP: R-47871-25994
+                        int count = (int)args[2];      // IMP: R-04460-53386
+                        rc = SysEx.SetupLookaside(ctx, buf, size, count);
+                        break;
+                    }
+                default:
+                    {
+                        rc = RC.ERROR; // IMP: R-42790-23372
+                        for (int i = 0; i < _flagOps.Length; i++)
+                        {
+                            if (_flagOps[i].OP == op)
+                            {
+                                bool set = (bool)args[0];
+                                Action<bool> r = (Action<bool>)args[1];
+                                Context.FLAG oldFlags = ctx.Flags;
+                                if (set)
+                                    ctx.Flags |= _flagOps[i].Mask;
+                                else
+                                    ctx.Flags &= ~_flagOps[i].Mask;
+                                if (oldFlags != ctx.Flags)
+                                    Vdbe.ExpirePreparedStatements(ctx);
+                                if (r != null)
+                                    r((ctx.Flags & _flagOps[i].Mask) != 0);
+                                rc = RC.OK;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+            }
+            return rc;
+        }
+
+        #endregion
+
+        //public static MutexEx CtxMutex(Context ctx) { return ctx.Mutex; }
+
+        public static RC CtxReleaseMemory(Context ctx)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            Btree.EnterAll(ctx);
+            for (int i = 0; i < ctx.DBs.length; i++)
+            {
+                Btree bt = ctx.DBs[i].Bt;
+                if (bt != null)
+                {
+                    Pager pager = bt.get_Pager();
+                    pager.Shrink();
+                }
+            }
+            Btree.LeaveAll(ctx);
+            MutexEx.Leave(ctx.Mutex);
+            return RC.OK;
+        }
+
+        static bool AllSpaces(string z, int iStart, int n)
+        {
+            while (n > 0 && z[iStart + n - 1] == ' ') { n--; }
+            return (n == 0);
+        }
+
+        static int BinCollFunc(object padFlag, int key1Length, string key1, int key2Length, string key2)
+        {
+            int n = (key1Length < key2Length ? key1Length : key2Length);
+            int rc = C._memcmp(key1, key2, n);
+            if (rc == 0)
+            {
+                if ((int)padFlag != 0 && AllSpaces(key1, n, key1Length - n) && AllSpaces(key2, n, key2Length - n)) { } // Leave rc unchanged at 0
+                else rc = key1Length - key2Length;
+            }
+            return rc;
+        }
+
+        static int NocaseCollatingFunc(object dummy1, int key1Length, string key1, int key2Length, string key2)
+        {
+            int r = string.Compare(key1, 0, key2, 0, (key1Length < key2Length ? key1Length : key2Length), StringComparison.OrdinalIgnoreCase);
+            if (r == 0)
+                r = key1Length - key2Length;
+            return r;
+        }
+
+        //public static long CtxLastInsertRowid(Context ctx) { return ctx.LastRowID; }
+        //public static int CtxChanges(Context ctx) { return ctx.Changes; }
+        //public static int CtxTotalChanges(Context ctx) { return ctx.TotalChanges; }
+
+        public static void CloseSavepoints(Context ctx)
+        {
+            while (ctx.Savepoints != null)
+            {
+                Savepoint t = ctx.Savepoints;
+                ctx.Savepoints = t.Next;
+                C._tagfree(ctx, ref t);
+            }
+            ctx.SavepointsLength = 0;
+            ctx.Statements = 0;
+            ctx.IsTransactionSavepoint = 0;
+        }
+
+        static void FunctionDestroy(Context ctx, FuncDef p)
+        {
+            FuncDestructor destructor = p.Destructor;
+            if (destructor != null)
+            {
+                destructor.Refs--;
+                if (destructor.Refs == 0)
+                {
+                    destructor.Destroy(destructor.UserData);
+                    C._tagfree(ctx, ref destructor);
+                }
+            }
+        }
+
+        static void DisconnectAllVtab(Context ctx)
+        {
+#if !OMIT_VIRTUALTABLE
+            Btree.EnterAll(ctx);
+            for (int i = 0; i < ctx.DBs.length; i++)
+            {
+                Schema schema = ctx.DBs[i].Schema;
+                if (ctx.DBs[i].Schema != null)
+                    for (HashElem p = schema.TableHash.First; p != null; p = p.Next)
+                    {
+                        Table table = (Table)p.Data;
+                        if (E.IsVirtual(table)) VTable.Disconnect(ctx, table);
+                    }
+            }
+            Btree.LeaveAll(ctx);
+#endif
+        }
+
+        static bool ConnectionIsBusy(Context ctx)
+        {
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            if (ctx.Vdbes != null) return true;
+            for (int j = 0; j < ctx.DBs.length; j++)
+            {
+                Btree bt = ctx.DBs[j].Bt;
+                if (bt != null && bt.IsInBackup()) return true;
+            }
+            return false;
+        }
+
+        #region Close/Rollback
+
+        public static RC Close(Context ctx) { return Close(ctx, false); }
+        public static RC Close_v2(Context ctx) { return Close(ctx, true); }
+        public static RC Close(Context ctx, bool forceZombie)
+        {
+            HashElem i;
+            int j;
+
+            if (ctx == null)
+                return RC.OK;
+            if (!SafetyCheckSickOrOk(ctx))
+                return SysEx.MISUSE_BKPT();
+            MutexEx.Enter(ctx.Mutex);
+
+            // Force xDestroy calls on all virtual tables
+            DisconnectAllVtab(ctx);
+
+            // If a transaction is open, the disconnectAllVtab() call above will not have called the xDisconnect() method on any virtual
+            // tables in the ctx->aVTrans[] array. The following sqlite3VtabRollback() call will do so. We need to do this before the check for active
+            // SQL statements below, as the v-table implementation may be storing some prepared statements internally.
+            VTable.Rollback(ctx);
+
+            // Legacy behavior (sqlite3_close() behavior) is to return SQLITE_BUSY if the connection can not be closed immediately.
+            if (!forceZombie && ConnectionIsBusy(ctx))
+            {
+                Error(ctx, RC.BUSY, "unable to close due to unfinalized statements or unfinished backups");
+                MutexEx.Leave(ctx.Mutex);
+                return RC.BUSY;
+            }
+
+#if ENABLE_SQLLOG
+		if (SysEx._GlobalStatics.Sqllog != null)
+			SysEx._GlobalStatics.Sqllog(SysEx._GlobalStatics.SqllogArg, ctx, 0, 2); // Closing the handle. Fourth parameter is passed the value 2.
+#endif
+
+            // Convert the connection into a zombie and then close it.
+            ctx.Magic = MAGIC.ZOMBIE;
+            LeaveMutexAndCloseZombie(ctx);
+            return RC.OK;
+        }
+
+        public static void LeaveMutexAndCloseZombie(Context ctx)
+        {
+            // If there are outstanding sqlite3_stmt or sqlite3_backup objects or if the connection has not yet been closed by sqlite3_close_v2(),
+            // then just leave the mutex and return.
+            if (ctx.Magic != MAGIC.ZOMBIE || ConnectionIsBusy(ctx))
+            {
+                MutexEx.Leave(ctx.Mutex);
+                return;
+            }
+
+            // If we reach this point, it means that the database connection has closed all sqlite3_stmt and sqlite3_backup objects and has been
+            // passed to sqlite3_close (meaning that it is a zombie).  Therefore, go ahead and free all resources.
+
+            // Free any outstanding Savepoint structures.
+            CloseSavepoints(ctx);
+
+            // Close all database connections
+            int j;
+            for (j = 0; j < ctx.DBs.length; j++)
+            {
+                Context.DB dbAsObj = ctx.DBs[j];
+                if (dbAsObj.Bt != null)
+                {
+                    dbAsObj.Bt.Close();
+                    dbAsObj.Bt = null;
+                    if (j != 1)
+                        dbAsObj.Schema = null;
+                }
+            }
+
+            // Clear the TEMP schema separately and last
+            if (ctx.DBs[1].Schema != null)
+                Callback.SchemaClear(ctx.DBs[1].Schema);
+            VTable.UnlockList(ctx);
+
+            // Free up the array of auxiliary databases
+            Parse.CollapseDatabaseArray(ctx);
+            Debug.Assert(ctx.DBs.length <= 2);
+            Debug.Assert(ctx.DBs.data == ctx.DBStatics);
+
+            // Tell the code in notify.c that the connection no longer holds any locks and does not require any further unlock-notify callbacks.
+            //Notify::ConnectionClosed(ctx);
+
+            for (j = 0; j < ctx.Funcs.data.Length; j++)
+            {
+                FuncDef next, hash;
+                for (FuncDef p = ctx.Funcs.data[j]; p != null; p = hash)
+                {
+                    hash = p.Hash;
+                    while (p != null)
+                    {
+                        FunctionDestroy(ctx, p);
+                        next = p.Next;
+                        C._tagfree(ctx, ref p);
+                        p = next;
+                    }
+                }
+            }
+            HashElem i;
+            for (i = ctx.CollSeqs.First; i != null; i = i.Next) // Hash table iterator
+            {
+                CollSeq[] coll = (CollSeq[])i.Data;
+                // Invoke any destructors registered for collation sequence user data.
+                for (j = 0; j < 3; j++)
+                    if (coll[j].Del != null)
+                        coll[j].Del(ref coll[j].User);
+                C._tagfree(ctx, ref coll);
+            }
+            ctx.CollSeqs.Clear();
+#if !OMIT_VIRTUALTABLE
+            for (i = ctx.Modules.First; i != null; i = i.Next)
+            {
+                TableModule mod = (TableModule)i.Data;
+                if (mod.Destroy != null)
+                    mod.Destroy(mod.Aux);
+                C._tagfree(ctx, ref mod);
+            }
+            ctx.Modules.Clear();
+#endif
+
+            Error(ctx, RC.OK, null); // Deallocates any cached error strings.
+            if (ctx.Err != null)
+                Vdbe.ValueFree(ref ctx.Err);
+            //LoadExt.CloseExtensions(ctx);
+
+            ctx.Magic = MAGIC.ERROR;
+
+            // The temp-database schema is allocated differently from the other schema objects (using sqliteMalloc() directly, instead of sqlite3BtreeSchema()).
+            // So it needs to be freed here. Todo: Why not roll the temp schema into the same sqliteMalloc() as the one that allocates the database structure?
+            C._tagfree(ctx, ref ctx.DBs[1].Schema);
+            MutexEx.Leave(ctx.Mutex);
+            ctx.Magic = MAGIC.CLOSED;
+            MutexEx.Free(ctx.Mutex);
+            Debug.Assert(ctx.Lookaside.Outs == 0); // Fails on a lookaside memory leak
+            if (ctx.Lookaside.Malloced)
+                C._free(ref ctx.Lookaside.Start);
+            C._free(ref ctx);
+        }
+
+        public static void RollbackAll(Context ctx, RC tripCode)
+        {
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            C._benignalloc_begin();
+            bool inTrans = false;
+            for (int i = 0; i < ctx.DBs.length; i++)
+            {
+                Btree p = ctx.DBs[i].Bt;
+                if (p != null)
+                {
+                    if (p.IsInTrans())
+                        inTrans = true;
+                    p.Rollback(tripCode);
+                    ctx.DBs[i].InTrans = 0;
+                }
+            }
+            VTable.Rollback(ctx);
+            C._benignalloc_end();
+
+            if ((ctx.Flags & Context.FLAG.InternChanges) != 0)
+            {
+                Vdbe.ExpirePreparedStatements(ctx);
+                Parse.ResetAllSchemasOfConnection(ctx);
+            }
+
+            // Any deferred constraint violations have now been resolved.
+            ctx.DeferredCons = 0;
+
+            // If one has been configured, invoke the rollback-hook callback
+            if (ctx.RollbackCallback != null && (inTrans || ctx.AutoCommit == 0))
+                ctx.RollbackCallback(ctx.RollbackArg);
+        }
+
+        #endregion
+
+        static string[] _msgs = new string[]
+            {
+                /* SQLITE_OK          */ "not an error",
+                /* SQLITE_ERROR       */ "SQL logic error or missing database",
+                /* SQLITE_INTERNAL    */ "",
+                /* SQLITE_PERM        */ "access permission denied",
+                /* SQLITE_ABORT       */ "callback requested query abort",
+                /* SQLITE_BUSY        */ "database is locked",
+                /* SQLITE_LOCKED      */ "database table is locked",
+                /* SQLITE_NOMEM       */ "out of memory",
+                /* SQLITE_READONLY    */ "attempt to write a readonly database",
+                /* SQLITE_INTERRUPT   */ "interrupted",
+                /* SQLITE_IOERR       */ "disk I/O error",
+                /* SQLITE_CORRUPT     */ "database disk image is malformed",
+                /* SQLITE_NOTFOUND    */ "unknown operation",
+                /* SQLITE_FULL        */ "database or disk is full",
+                /* SQLITE_CANTOPEN    */ "unable to open database file",
+                /* SQLITE_PROTOCOL    */ "locking protocol",
+                /* SQLITE_EMPTY       */ "table contains no data",
+                /* SQLITE_SCHEMA      */ "database schema has changed",
+                /* SQLITE_TOOBIG      */ "string or blob too big",
+                /* SQLITE_CONSTRAINT  */ "constraint failed",
+                /* SQLITE_MISMATCH    */ "datatype mismatch",
+                /* SQLITE_MISUSE      */ "library routine called out of sequence",
+                /* SQLITE_NOLFS       */ "large file support is disabled",
+                /* SQLITE_AUTH        */ "authorization denied",
+                /* SQLITE_FORMAT      */ "auxiliary database format error",
+                /* SQLITE_RANGE       */ "bind or column index out of range",
+                /* SQLITE_NOTADB      */ "file is encrypted or is not a database",
+            };
+        public static string ErrStr(RC rc)
+        {
+            string err = "unknown error";
+            switch (rc)
+            {
+                case RC.ABORT_ROLLBACK:
+                    {
+                        err = "abort due to ROLLBACK";
+                        break;
+                    }
+                default:
+                    {
+                        rc = (RC)((int)rc & 0xff);
+                        if (C._ALWAYS(rc >= 0) && (int)rc < _msgs.Length && _msgs[(int)rc] != null)
+                            err = _msgs[(int)rc];
+                        break;
+                    }
+            }
+            return err;
+        }
+
+        #region Busy Handler
+
+#if OS_WIN || HAVE_USLEEP
+        static readonly byte[] _delays = new byte[] { 1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50, 100 };
+        static readonly byte[] _totals = new byte[] { 0, 1, 3, 8, 18, 33, 53, 78, 103, 128, 178, 228 };
+        static readonly int NDELAY = _delays.Length;
+#endif
+
+        public static int DefaultBusyCallback(object ptr, int count)
+        {
+            Context ctx = (Context)ptr;
+            int timeout = ctx.BusyTimeout;
+            Debug.Assert(count >= 0);
+#if OS_WIN || HAVE_USLEEP
+            int delay, prior;
+            if (count < NDELAY)
+            {
+                delay = _delays[count];
+                prior = _totals[count];
+            }
+            else
+            {
+                delay = _delays[NDELAY - 1];
+                prior = _totals[NDELAY - 1] + delay * (count - (NDELAY - 1));
+            }
+            if (prior + delay > timeout)
+            {
+                delay = timeout - prior;
+                if (delay <= 0) return 0;
+            }
+            ctx.Vfs.Sleep(delay * 1000);
+            return 1;
+#else
+            if ((count + 1) * 1000 > timeout)
+                return 0;
+            ctx.Vfs.Sleep(1000000);
+            return 1;
+#endif
+        }
+
+        public static int InvokeBusyHandler(Context.BusyHandlerType p)
+        {
+            if (C._NEVER(p == null) || p.Func == null || p.Busys < 0) return 0;
+            int rc = p.Func(p.Arg, p.Busys);
+            if (rc == 0)
+                p.Busys = -1;
+            else
+                p.Busys++;
+            return rc;
+        }
+
+        public static RC BusyHandler(Context ctx, Func<object, int, int> busy, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            ctx.BusyHandler.Func = busy;
+            ctx.BusyHandler.Arg = arg;
+            ctx.BusyHandler.Busys = 0;
+            MutexEx.Leave(ctx.Mutex);
+            return RC.OK;
+        }
+
+#if !OMIT_PROGRESS_CALLBACK
+        public static void ProgressHandler(Context ctx, int ops, Func<object, int> progress, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            if (ops > 0)
+            {
+                ctx.Progress = progress;
+                ctx.ProgressOps = ops;
+                ctx.ProgressArg = arg;
+            }
+            else
+            {
+                ctx.Progress = null;
+                ctx.ProgressOps = 0;
+                ctx.ProgressArg = null;
+            }
+            MutexEx.Leave(ctx.Mutex);
+        }
+#endif
+
+        public static RC BusyTimeout(Context ctx, int ms)
+        {
+            if (ms > 0)
+            {
+                ctx.BusyTimeout = ms;
+                BusyHandler(ctx, DefaultBusyCallback, ctx);
+            }
+            else
+                BusyHandler(ctx, null, null);
+            return RC.OK;
+        }
+
+        public static void Interrupt(Context ctx)
+        {
+            ctx.u1.IsInterrupted = true;
+        }
+
+        #endregion
+
+        #region Function
+
+        public static RC CreateFunc(Context ctx, string funcName, int args, TEXTENCODE encode, object userData, Action<FuncContext, int, Mem[]> func, Action<FuncContext, int, Mem[]> step, Action<FuncContext> final_, FuncDestructor destructor)
+        {
+            FuncDef p;
+            int funcNameLength;
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            if (funcName == null ||
+            (func != null && (final_ != null || step != null)) ||
+            (func == null && (final_ != null && step == null)) ||
+            (func == null && (final_ == null && step != null)) ||
+            (args < -1 || args > MAX_FUNCTION_ARG) ||
+            (255 < (funcNameLength = funcName.Length)))
+                return SysEx.MISUSE_BKPT();
+
+#if !OMIT_UTF16
+            // If SQLITE_UTF16 is specified as the encoding type, transform this to one of SQLITE_UTF16LE or SQLITE_UTF16BE using the
+            // SQLITE_UTF16NATIVE macro. SQLITE_UTF16 is not used internally.
+            //
+            // If SQLITE_ANY is specified, add three versions of the function to the hash table.
+            if (encode == TEXTENCODE.UTF16)
+                encode = TEXTENCODE.UTF16NATIVE;
+            else if (encode == TEXTENCODE.ANY)
+            {
+                RC rc = CreateFunc(ctx, funcName, args, TEXTENCODE.UTF8, userData, func, step, final_, destructor);
+                if (rc == RC.OK)
+                    rc = CreateFunc(ctx, funcName, args, TEXTENCODE.UTF16LE, userData, func, step, final_, destructor);
+                if (rc != RC.OK)
+                    return rc;
+                encode = TEXTENCODE.UTF16BE;
+            }
+#else
+            encode = TEXTENCODE.UTF8;
+#endif
+
+            // Check if an existing function is being overridden or deleted. If so, and there are active VMs, then return SQLITE_BUSY. If a function
+            // is being overridden/deleted but there are no active VMs, allow the operation to continue but invalidate all precompiled statements.
+            FuncDef p = Callback.FindFunction(ctx, funcName, funcNameLength, args, encode, false);
+            if (p != null && p.PrefEncode == encode && p.Args == args)
+            {
+                if (ctx.ActiveVdbeCnt != 0)
+                {
+                    Error(ctx, RC.BUSY, "unable to delete/modify user-function due to active statements");
+                    Debug.Assert(!ctx.MallocFailed);
+                    return RC.BUSY;
+                }
+                else
+                    Vdbe.ExpirePreparedStatements(ctx);
+            }
+
+            p = Callback.FindFunction(ctx, funcName, funcNameLength, args, encode, true);
+            Debug.Assert(p != null || ctx.MallocFailed);
+            if (p == null)
+                return RC.NOMEM;
+
+            // If an older version of the function with a configured destructor is being replaced invoke the destructor function here.
+            FunctionDestroy(ctx, p);
+
+            if (destructor != null)
+                destructor.Refs++;
+            p.Destructor = destructor;
+            p.Flags = 0;
+            p.Func = func;
+            p.Step = step;
+            p.Finalize = final_;
+            p.UserData = userData;
+            p.Args = (short)args;
+            return RC.OK;
+        }
+
+        public static RC CreateFunction(Context ctx, string funcName, int args, TEXTENCODE encode, object p, Action<FuncContext, int, Mem[]> func, Action<FuncContext, int, Mem[]> step, Action<FuncContext> final_) { return CreateFunction_v2(ctx, funcName, args, encode, p, func, step, final_, null); }
+        public static RC CreateFunction_v2(Context ctx, string funcName, int args, TEXTENCODE encode, object p, Action<FuncContext, int, Mem[]> func, Action<FuncContext, int, Mem[]> step, Action<FuncContext> final_, Action<object> destroy)
+        {
+            RC rc = RC.ERROR;
+            FuncDestructor arg = null;
+            MutexEx.Enter(ctx.Mutex);
+            if (destroy != null)
+            {
+                arg = new FuncDestructor();
+                if (arg == null)
+                {
+                    destroy(p);
+                    goto _out;
+                }
+                arg.Destroy = destroy;
+                arg.UserData = p;
+            }
+            rc = CreateFunc(ctx, funcName, args, encode, p, func, step, final_, arg);
+            if (arg != null && arg.Refs == 0)
+            {
+                Debug.Assert(rc != RC.OK);
+                destroy(p);
+                C._tagfree(ctx, ref arg);
+            }
+        _out:
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+
+#if !OMIT_UTF16
+        public static RC CreateFunction16(Context ctx, string funcName, int args, TEXTENCODE encode, object p, Action<FuncContext, int, Mem[]> func, Action<FuncContext, int, Mem[]> step, Action<FuncContext> final_)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            Debug.Assert(!ctx.MallocFailed);
+            string funcName8 = Vdbe.Utf16to8(ctx, funcName, -1, TEXTENCODE.UTF16NATIVE);
+            RC rc = CreateFunc(ctx, funcName8, args, encode, p, func, step, final_, null);
+            C._tagfree(ctx, ref funcName8);
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+#endif
+
+        public static RC OverloadFunction(Context ctx, string funcName, int args)
+        {
+            int funcNameLength = funcName.Length;
+            RC rc;
+            MutexEx.Enter(ctx.Mutex);
+            if (Callback.FindFunction(ctx, funcName, funcNameLength, args, TEXTENCODE.UTF8, false) == null)
+                rc = CreateFunc(ctx, funcName, args, TEXTENCODE.UTF8, 0, Vdbe.InvalidFunction, null, null, null);
+            rc = ApiExit(ctx, RC.OK);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+
+        #endregion
+
+        #region Callback
+
+#if !OMIT_TRACE
+        public static object Trace(Context ctx, Action<object, string> trace, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.TraceArg;
+            ctx.Trace = trace;
+            ctx.TraceArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+        }
+
+        public static object Profile(Context ctx, Action<object, string, ulong> profile, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.ProfileArg;
+            ctx.Profile = profile;
+            ctx.ProfileArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+        }
+#endif
+
+        public static object CommitHook(Context ctx, Func<object, RC> callback, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.CommitArg;
+            ctx.CommitCallback = callback;
+            ctx.CommitArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+        }
+
+        public static object UpdateHook(Context ctx, Action<object, int, string, string, long> callback, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.UpdateArg;
+            ctx.UpdateCallback = callback;
+            ctx.UpdateArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+        }
+
+        public static object RollbackHook(Context ctx, Action<object> callback, object arg)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.RollbackArg;
+            ctx.RollbackCallback = callback;
+            ctx.RollbackArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+        }
+
+#if !OMIT_WAL
+        public RC WalDefaultHook(object clientData, Context ctx, string dbName, int frames)
+        {
+            if (frames >= (int)clientData)
+            {
+                C._benignalloc_begin();
+                WalCheckpoint(ctx, dbName);
+                C._benignalloc_end();
+            }
+            return RC.OK;
+        }
+#endif
+
+        public static RC WalAutocheckpoint(Context ctx, int frames)
+        {
+#if OMIT_WAL
+            return RC.OK;
+#else
+            if (frames > 0)
+                WalHook(ctx, WalDefaultHook, frames);
+            else
+                WalHook(ctx, null, 0);
+            return RC.OK;
+#endif
+        }
+
+        public static object WalHook(Context ctx, Func<object, Context, string, int, RC> callback, object arg)
+        {
+#if OMIT_WAL
+            return null;
+#else
+            MutexEx.Enter(ctx.Mutex);
+            object oldArg = ctx.WalArg;
+            ctx.WalCallback = callback;
+            ctx.WalArg = arg;
+            MutexEx.Leave(ctx.Mutex);
+            return oldArg;
+#endif
+        }
+
+        #endregion
+
+        #region Checkpoint
+
+        public static RC WalCheckpoint(Context ctx, string dbName) { int dummy1; return WalCheckpoint_v2(ctx, dbName, IPager.CHECKPOINT.PASSIVE, out dummy1, out dummy1); }
+        public static RC WalCheckpoint_v2(Context ctx, string dbName, IPager.CHECKPOINT mode, out int logsOut, out int ckptsOut)
+        {
+#if OMIT_WAL
+            logsOut = 0;
+            ckptsOut = 0;
+            return RC.OK;
+#else
+            int db = MAX_ATTACHED;  // sqlite3.aDb[] index of db to checkpoint
+
+            // Initialize the output variables to -1 in case an error occurs.
+            logsOut = -1;
+            ckptsOut = -1;
+
+            Debug.Assert(IPager.CHECKPOINT.FULL > IPager.CHECKPOINT.PASSIVE);
+            Debug.Assert(IPager.CHECKPOINT.FULL < IPager.CHECKPOINT.RESTART);
+            Debug.Assert(IPager.CHECKPOINT.PASSIVE + 2 == IPager.CHECKPOINT.RESTART);
+            if (mode < IPager.CHECKPOINT.PASSIVE || mode > IPager.CHECKPOINT.RESTART)
+                return RC.MISUSE;
+
+            MutexEx.Enter(ctx.Mutex);
+            if (dbName != null && dbName.Length > 0)
+                db = Parse.FindDbName(ctx, dbName);
+            RC rc;
+            if (db < 0)
+            {
+                rc = RC.ERROR;
+                Error(ctx, RC.ERROR, "unknown database: %s", dbName);
+            }
+            else
+            {
+                rc = Checkpoint(ctx, db, mode, out logsOut, out ckptsOut);
+                Error(ctx, rc, null);
+            }
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+#endif
+        }
+
+#if !OMIT_WAL
+        int Checkpoint(Context ctx, int db, IPager.CHECKPOINT mode, out int logsOut, out int ckptsOut)
+        {
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+            Debug.Assert(logsOut == -1);
+            Debug.Assert(ckptsOut == -1);
+
+            RC rc = RC.OK;
+            bool busy = false; // True if SQLITE_BUSY has been encountered
+            for (int i = 0; i < ctx.DBs.length && rc == RC.OK; i++)
+            {
+                if (i == db || db == MAX_ATTACHED)
+                {
+                    int dummy1;
+                    if (!busy)
+                        rc = Btree.Checkpoint(ctx.DBs[i].Bt, mode, logsOut, ckptsOut);
+                    else
+                        rc = Btree.Checkpoint(ctx.DBs[i].Bt, mode, dummy1, dummy1);
+                    if (rc == RC.BUSY)
+                    {
+                        busy = true;
+                        rc = RC.OK;
+                    }
+                }
+            }
+            return (rc == RC.OK && busy ? RC.BUSY : rc);
+        }
+#endif
+
+        #endregion
+
+        public static bool TempInMemory(Context ctx)
+        {
+            if (TEMP_STORE == 1)
+                return (ctx.TempStore == 2);
+            if (TEMP_STORE == 2)
+                return (ctx.TempStore != 1);
+            if (TEMP_STORE == 3)
+                return true;
+            return false;
+        }
+
+        public static string ErrMsg(Context ctx)
+        {
+            if (ctx == null)
+                return ErrStr(RC.NOMEM);
+            if (!SafetyCheckSickOrOk(ctx))
+                return ErrStr(SysEx.MISUSE_BKPT());
+            MutexEx.Enter(ctx.Mutex);
+            string z;
+            if (ctx.MallocFailed)
+                z = ErrStr(RC.NOMEM);
+            else
+            {
+                z = Vdbe.Value_Text(ctx.Err);
+                Debug.Assert(!ctx.MallocFailed);
+                if (z == null)
+                    z = ErrStr(ctx.ErrCode);
+            }
+            MutexEx.Leave(ctx.Mutex);
+            return z;
+        }
+
+#if !OMIT_UTF16
+        static readonly string _outOfMem = "out of memory";
+        static readonly string _misuse = "library routine called out of sequence";
+
+        public static string ErrMsg16(Context ctx)
+        {
+            if (ctx == null)
+                return _outOfMem;
+            if (SafetyCheckSickOrOk(ctx))
+                return _misuse;
+            MutexEx.Enter(ctx.Mutex);
+            string z;
+            if (ctx.MallocFailed)
+                z = _outOfMem;
+            else
+            {
+                z = Vdbe.Value_Text16(ctx.Err);
+                if (z == null)
+                {
+                    Vdbe.ValueSetStr(ctx.Err, -1, ErrStr(ctx.ErrCode), TEXTENCODE.UTF8, C.DESTRUCTOR_STATIC);
+                    z = Vdbe.Value_Text16(ctx.Err);
+                }
+                // A malloc() may have failed within the call to sqlite3_value_text16() above. If this is the case, then the ctx->mallocFailed flag needs to
+                // be cleared before returning. Do this directly, instead of via sqlite3ApiExit(), to avoid setting the database handle error message.
+                ctx.MallocFailed = false;
+            }
+            MutexEx.Leave(ctx.Mutex);
+            return z;
+        }
+#endif
+
+        public static RC ErrCode(Context ctx)
+        {
+            if (ctx != null && !SafetyCheckSickOrOk(ctx))
+                return SysEx.MISUSE_BKPT();
+            if (ctx == null || ctx.MallocFailed)
+                return RC.NOMEM;
+            return (RC)((int)ctx.ErrCode & ctx.ErrMask);
+        }
+
+        public static RC ExtendedErrCode(Context ctx)
+        {
+            if (ctx != null && !SafetyCheckSickOrOk(ctx))
+                return SysEx.MISUSE_BKPT();
+            if (ctx == null || ctx.MallocFailed)
+                return RC.NOMEM;
+            return ctx.ErrCode;
+        }
+
+        //public static string ErrStr(RC rc) { return ErrStr(rc); }
+
+        static RC CreateCollation(Context ctx, string name, TEXTENCODE encode, object ctx2, Func<object, int, object, int, object, int> compare, RefAction<object> del)
+        {
+            int nameLength = name.Length;
+            Debug.Assert(MutexEx.Held(ctx.Mutex));
+
+            // If SQLITE_UTF16 is specified as the encoding type, transform this to one of SQLITE_UTF16LE or SQLITE_UTF16BE using the
+            // SQLITE_UTF16NATIVE macro. SQLITE_UTF16 is not used internally.
+            TEXTENCODE encode2 = encode;
+            C.ASSERTCOVERAGE(encode2 == TEXTENCODE.UTF16);
+            C.ASSERTCOVERAGE(encode2 == TEXTENCODE.UTF16_ALIGNED);
+            if (encode2 == TEXTENCODE.UTF16 || encode2 == TEXTENCODE.UTF16_ALIGNED)
+                encode2 = TEXTENCODE.UTF16NATIVE;
+            if (encode2 < TEXTENCODE.UTF8 || encode2 > TEXTENCODE.UTF16BE)
+                return SysEx.MISUSE_BKPT();
+
+            // Check if this call is removing or replacing an existing collation sequence. If so, and there are active VMs, return busy. If there
+            // are no active VMs, invalidate any pre-compiled statements.
+            CollSeq coll = Callback.FindCollSeq(ctx, encode2, name, false);
+            if (coll != null && coll.Cmp != null)
+            {
+                if (ctx.ActiveVdbeCnt != 0)
+                {
+                    Error(ctx, RC.BUSY, "unable to delete/modify collation sequence due to active statements");
+                    return RC.BUSY;
+                }
+                Vdbe.ExpirePreparedStatements(ctx);
+
+                // If collation sequence pColl was created directly by a call to sqlite3_create_collation, and not generated by synthCollSeq(),
+                // then any copies made by synthCollSeq() need to be invalidated. Also, collation destructor - CollSeq.xDel() - function may need
+                // to be called.
+                if ((coll.Encode & ~TEXTENCODE.UTF16_ALIGNED) == encode2)
+                {
+                    CollSeq[] colls = ctx.CollSeqs.Find(name, nameLength, (CollSeq[])null);
+                    for (int j = 0; j < 3; j++)
+                    {
+                        CollSeq p = colls[j];
+                        if (p.Encode == coll.Encode)
+                        {
+                            if (p.Del != null)
+                                p.Del(ref p.User);
+                            p.Cmp = null;
+                        }
+                    }
+                }
+            }
+
+            coll = Callback.FindCollSeq(ctx, encode2, name, true);
+            if (coll == null)
+                return RC.NOMEM;
+            coll.Cmp = compare;
+            coll.User = ctx2;
+            coll.Del = del;
+            coll.Encode = (encode2 | (encode & TEXTENCODE.UTF16_ALIGNED));
+            Error(ctx, RC.OK, null);
+            return RC.OK;
+        }
+
+        #region Limit
+
+        // Make sure the hard limits are set to reasonable values
+        //#if MAX_LENGTH < 100
+        //#error MAX_LENGTH must be at least 100
+        //#endif
+        //#if MAX_SQL_LENGTH < 100
+        //#error MAX_SQL_LENGTH must be at least 100
+        //#endif
+        //#if MAX_SQL_LENGTH > MAX_LENGTH
+        //#error MAX_SQL_LENGTH must not be greater than MAX_LENGTH
+        //#endif
+        //#if MAX_COMPOUND_SELECT < 2
+        //#error MAX_COMPOUND_SELECT must be at least 2
+        //#endif
+        //#if MAX_VDBE_OP < 40
+        //#error MAX_VDBE_OP must be at least 40
+        //#endif
+        //#if MAX_FUNCTION_ARG < 0 || MAX_FUNCTION_ARG > 1000
+        //#error MAX_FUNCTION_ARG must be between 0 and 1000
+        //#endif
+        //#if MAX_ATTACHED<0 || MAX_ATTACHED > 62
+        //#error MAX_ATTACHED must be between 0 and 62
+        //#endif
+        //#if MAX_LIKE_PATTERN_LENGTH < 1
+        //#error MAX_LIKE_PATTERN_LENGTH must be at least 1
+        //#endif
+        //#if MAX_COLUMN > 32767
+        //#error MAX_COLUMN must not exceed 32767
+        //#endif
+        //#if MAX_TRIGGER_DEPTH < 1
+        //#error MAX_TRIGGER_DEPTH must be at least 1
+        //#endif
+
+        static readonly int[] _hardLimits = new int[]  {  // kept in sync with the LIMIT_*
+            MAX_LENGTH,
+            MAX_SQL_LENGTH,
+            MAX_COLUMN,
+            MAX_EXPR_DEPTH,
+            MAX_COMPOUND_SELECT,
+            MAX_VDBE_OP,
+            MAX_FUNCTION_ARG,
+            MAX_ATTACHED,
+            MAX_LIKE_PATTERN_LENGTH,
+            MAX_VARIABLE_NUMBER,
+            MAX_TRIGGER_DEPTH,
+        };
+
+        public static int Limit(Context ctx, LIMIT limit, int newLimit)
+        {
+            // EVIDENCE-OF: R-30189-54097 For each limit category SQLITE_LIMIT_NAME there is a hard upper bound set at compile-time by a C preprocessor
+            // macro called SQLITE_MAX_NAME. (The "_LIMIT_" in the name is changed to "_MAX_".)
+            Debug.Assert(_hardLimits[(int)LIMIT.LENGTH] == MAX_LENGTH);
+            Debug.Assert(_hardLimits[(int)LIMIT.SQL_LENGTH] == MAX_SQL_LENGTH);
+            Debug.Assert(_hardLimits[(int)LIMIT.COLUMN] == MAX_COLUMN);
+            Debug.Assert(_hardLimits[(int)LIMIT.EXPR_DEPTH] == MAX_EXPR_DEPTH);
+            Debug.Assert(_hardLimits[(int)LIMIT.COMPOUND_SELECT] == MAX_COMPOUND_SELECT);
+            Debug.Assert(_hardLimits[(int)LIMIT.VDBE_OP] == MAX_VDBE_OP);
+            Debug.Assert(_hardLimits[(int)LIMIT.FUNCTION_ARG] == MAX_FUNCTION_ARG);
+            Debug.Assert(_hardLimits[(int)LIMIT.ATTACHED] == MAX_ATTACHED);
+            Debug.Assert(_hardLimits[(int)LIMIT.LIKE_PATTERN_LENGTH] == MAX_LIKE_PATTERN_LENGTH);
+            Debug.Assert(_hardLimits[(int)LIMIT.VARIABLE_NUMBER] == MAX_VARIABLE_NUMBER);
+            Debug.Assert(_hardLimits[(int)LIMIT.TRIGGER_DEPTH] == MAX_TRIGGER_DEPTH);
+            Debug.Assert((int)LIMIT.TRIGGER_DEPTH == ((int)LIMIT.MAX_ - 1));
+
+            if (limit < 0 || limit >= LIMIT.MAX_)
+                return -1;
+            int oldLimit = ctx.Limits[(int)limit];
+            if (newLimit >= 0) // IMP: R-52476-28732
+            {
+                if (newLimit > _hardLimits[(int)limit])
+                    newLimit = _hardLimits[(int)limit]; // IMP: R-51463-25634
+                ctx.Limits[(int)limit] = newLimit;
+            }
+            return oldLimit; // IMP: R-53341-35419
+        }
+
+        #endregion
 
 #if false
-
-
-#if !SQLITE_AMALGAMATION
-    /* IMPLEMENTATION-OF: R-46656-45156 The sqlite3_version[] string constant
-** contains the text of SQLITE_VERSION macro. 
-*/
-    public static string sqlite3_version = SQLITE_VERSION;
-#endif
-
-    /* IMPLEMENTATION-OF: R-53536-42575 The sqlite3_libversion() function returns
-** a pointer to the to the sqlite3_version[] string constant. 
-*/
-    public static string sqlite3_libversion()
-    {
-      return sqlite3_version;
-    }
-
-    /* IMPLEMENTATION-OF: R-63124-39300 The sqlite3_sourceid() function returns a
-    ** pointer to a string constant whose value is the same as the
-    ** SQLITE_SOURCE_ID C preprocessor macro. 
-    */
-    public static string sqlite3_sourceid()
-    {
-      return SQLITE_SOURCE_ID;
-    }
-
-    /* IMPLEMENTATION-OF: R-35210-63508 The sqlite3_libversion_number() function
-    ** returns an integer equal to SQLITE_VERSION_NUMBER.
-    */
-    public static int sqlite3_libversion_number()
-    {
-      return SQLITE_VERSION_NUMBER;
-    }
-
-    /* IMPLEMENTATION-OF: R-54823-41343 The sqlite3_threadsafe() function returns
-    ** zero if and only if SQLite was compiled mutexing code omitted due to
-    ** the SQLITE_THREADSAFE compile-time option being set to 0.
-    */
-    public static int sqlite3_threadsafe()
-    {
-      return SQLITE_THREADSAFE;
-    }
-
-#if !SQLITE_OMIT_TRACE && SQLITE_ENABLE_IOTRACE
-/*
-** If the following function pointer is not NULL and if
-** SQLITE_ENABLE_IOTRACE is enabled, then messages describing
-** I/O active are written using this function.  These messages
-** are intended for debugging activity only.
-*/
-//void (*sqlite3IoTrace)(const char*, ...) = 0;
-static void sqlite3IoTrace( string X, params object[] ap ) {  }
-#endif
-
-    /*
-** If the following global variable points to a string which is the
-** name of a directory, then that directory will be used to store
-** temporary files.
-**
-** See also the "PRAGMA temp_store_directory" SQL command.
-*/
-    static string sqlite3_temp_directory = "";//string sqlite3_temp_directory = 0;
-
-    /*
-    ** Initialize SQLite.
-    **
-    ** This routine must be called to initialize the memory allocation,
-    ** VFS, and mutex subsystems prior to doing any serious work with
-    ** SQLite.  But as long as you do not compile with SQLITE_OMIT_AUTOINIT
-    ** this routine will be called automatically by key routines such as
-    ** sqlite3_open().
-    **
-    ** This routine is a no-op except on its very first call for the process,
-    ** or for the first call after a call to sqlite3_shutdown.
-    **
-    ** The first thread to call this routine runs the initialization to
-    ** completion.  If subsequent threads call this routine before the first
-    ** thread has finished the initialization process, then the subsequent
-    ** threads must block until the first thread finishes with the initialization.
-    **
-    ** The first thread might call this routine recursively.  Recursive
-    ** calls to this routine should not block, of course.  Otherwise the
-    ** initialization process would never complete.
-    **
-    ** Let X be the first thread to enter this routine.  Let Y be some other
-    ** thread.  Then while the initial invocation of this routine by X is
-    ** incomplete, it is required that:
-    **
-    **    *  Calls to this routine from Y must block until the outer-most
-    **       call by X completes.
-    **
-    **    *  Recursive calls to this routine from thread X return immediately
-    **       without blocking.
-    */
-    static int sqlite3_initialize()
-    {
-      //--------------------------------------------------------------------
-      // Under C#, Need to initialize some static variables
-      //
-      if ( sqlite3_version == null )
-        sqlite3_version = SQLITE_VERSION;
-      if ( sqlite3OpcodeProperty == null )
-        sqlite3OpcodeProperty = OPFLG_INITIALIZER;
-      if ( sqlite3GlobalConfig == null )
-        sqlite3GlobalConfig = sqlite3Config;
-      //--------------------------------------------------------------------
-
-
-      sqlite3_mutex pMaster;            /* The main static mutex */
-      int rc;                           /* Result code */
-
-#if SQLITE_OMIT_WSD
-rc = sqlite3_wsd_init(4096, 24);
-if( rc!=SQLITE_OK ){
-return rc;
-}
-#endif
-      /* If SQLite is already completely initialized, then this call
-** to sqlite3_initialize() should be a no-op.  But the initialization
-** must be complete.  So isInit must not be set until the very end
-** of this routine.
-*/
-      if ( sqlite3GlobalConfig.isInit != 0 )
-        return SQLITE_OK;
-
-      /* Make sure the mutex subsystem is initialized.  If unable to
-      ** initialize the mutex subsystem, return early with the error.
-      ** If the system is so sick that we are unable to allocate a mutex,
-      ** there is not much SQLite is going to be able to do.
-      **
-      ** The mutex subsystem must take care of serializing its own
-      ** initialization.
-      */
-      rc = sqlite3MutexInit();
-      if ( rc != 0 )
-        return rc;
-
-      /* Initialize the malloc() system and the recursive pInitMutex mutex.
-      ** This operation is protected by the STATIC_MASTER mutex.  Note that
-      ** MutexAlloc() is called for a static mutex prior to initializing the
-      ** malloc subsystem - this implies that the allocation of a static
-      ** mutex must not require support from the malloc subsystem.
-      */
-      pMaster = sqlite3MutexAlloc( SQLITE_MUTEX_STATIC_MASTER );
-      //sqlite3_mutex_enter( pMaster );
-      lock ( pMaster )
-      {
-        sqlite3GlobalConfig.isMutexInit = 1;
-        if ( sqlite3GlobalConfig.isMallocInit == 0 )
-        {
-          rc = sqlite3MallocInit();
-        }
-        if ( rc == SQLITE_OK )
-        {
-          sqlite3GlobalConfig.isMallocInit = 1;
-          if ( sqlite3GlobalConfig.pInitMutex == null )
-          {
-            sqlite3GlobalConfig.pInitMutex =
-            sqlite3MutexAlloc( SQLITE_MUTEX_RECURSIVE );
-            if ( sqlite3GlobalConfig.bCoreMutex && sqlite3GlobalConfig.pInitMutex == null )
-            {
-              rc = SQLITE_NOMEM;
-            }
-          }
-        }
-        if ( rc == SQLITE_OK )
-        {
-          sqlite3GlobalConfig.nRefInitMutex++;
-        }
-      }
-      //sqlite3_mutex_leave( pMaster );
-
-      /* If rc is not SQLITE_OK at this point, then either the malloc
-      ** subsystem could not be initialized or the system failed to allocate
-      ** the pInitMutex mutex. Return an error in either case.  */
-      if ( rc != SQLITE_OK )
-      {
-        return rc;
-      }
-
-      /* Do the rest of the initialization under the recursive mutex so
-      ** that we will be able to handle recursive calls into
-      ** sqlite3_initialize().  The recursive calls normally come through
-      ** sqlite3_os_init() when it invokes sqlite3_vfs_register(), but other
-      ** recursive calls might also be possible.
-      **
-      ** IMPLEMENTATION-OF: R-00140-37445 SQLite automatically serializes calls
-      ** to the xInit method, so the xInit method need not be threadsafe.
-      **
-      ** The following mutex is what serializes access to the appdef pcache xInit
-      ** methods.  The sqlite3_pcache_methods.xInit() all is embedded in the
-      ** call to sqlite3PcacheInitialize().
-      */
-      //sqlite3_mutex_enter( sqlite3GlobalConfig.pInitMutex );
-      lock ( sqlite3GlobalConfig.pInitMutex )
-      {
-        if ( sqlite3GlobalConfig.isInit == 0 && sqlite3GlobalConfig.inProgress == 0 )
-        {
-          sqlite3GlobalConfig.inProgress = 1;
-#if SQLITE_OMIT_WSD
-FuncDefHash *pHash = GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
-memset( pHash, 0, sizeof( sqlite3GlobalFunctions ) );
-#else
-          sqlite3GlobalFunctions = new FuncDefHash();
-          FuncDefHash pHash = sqlite3GlobalFunctions;
-#endif
-          sqlite3RegisterGlobalFunctions();
-          if ( sqlite3GlobalConfig.isPCacheInit == 0 )
-          {
-            rc = sqlite3PcacheInitialize();
-          }
-          if ( rc == SQLITE_OK )
-          {
-            sqlite3GlobalConfig.isPCacheInit = 1;
-            rc = sqlite3_os_init();
-          }
-          if ( rc == SQLITE_OK )
-          {
-            sqlite3PCacheBufferSetup( sqlite3GlobalConfig.pPage,
-            sqlite3GlobalConfig.szPage, sqlite3GlobalConfig.nPage );
-            sqlite3GlobalConfig.isInit = 1;
-          }
-          sqlite3GlobalConfig.inProgress = 0;
-        }
-      }
-      //sqlite3_mutex_leave( sqlite3GlobalConfig.pInitMutex );
-
-      /* Go back under the static mutex and clean up the recursive
-      ** mutex to prevent a resource leak.
-      */
-      //sqlite3_mutex_enter( pMaster );
-      lock ( pMaster )
-      {
-        sqlite3GlobalConfig.nRefInitMutex--;
-        if ( sqlite3GlobalConfig.nRefInitMutex <= 0 )
-        {
-          Debug.Assert( sqlite3GlobalConfig.nRefInitMutex == 0 );
-          //sqlite3_mutex_free( ref sqlite3GlobalConfig.pInitMutex );
-          sqlite3GlobalConfig.pInitMutex = null;
-        }
-      }
-      //sqlite3_mutex_leave( pMaster );
-
-      /* The following is just a sanity check to make sure SQLite has
-      ** been compiled correctly.  It is important to run this code, but
-      ** we don't want to run it too often and soak up CPU cycles for no
-      ** reason.  So we run it once during initialization.
-      */
-#if !NDEBUG
-#if !SQLITE_OMIT_FLOATING_POINT
-      /* This section of code's only "output" is via Debug.Assert() statements. */
-      if ( rc == SQLITE_OK )
-      {
-        //u64 x = ( ( (u64)1 ) << 63 ) - 1;
-        //double y;
-        //Debug.Assert( sizeof( u64 ) == 8 );
-        //Debug.Assert( sizeof( u64 ) == sizeof( double ) );
-        //memcpy( &y, x, 8 );
-        //Debug.Assert( sqlite3IsNaN( y ) );
-      }
-#endif
-#endif
-
-      return rc;
-    }
-
-    /*
-    ** Undo the effects of sqlite3_initialize().  Must not be called while
-    ** there are outstanding database connections or memory allocations or
-    ** while any part of SQLite is otherwise in use in any thread.  This
-    ** routine is not threadsafe.  But it is safe to invoke this routine
-    ** on when SQLite is already shut down.  If SQLite is already shut down
-    ** when this routine is invoked, then this routine is a harmless no-op.
-    */
-    public static int sqlite3_shutdown()
-    {
-      if ( sqlite3GlobalConfig.isInit != 0 )
-      {
-        sqlite3_os_end();
-        sqlite3_reset_auto_extension();
-        sqlite3GlobalConfig.isInit = 0;
-      }
-      if ( sqlite3GlobalConfig.isPCacheInit != 0 )
-      {
-        sqlite3PcacheShutdown();
-        sqlite3GlobalConfig.isPCacheInit = 0;
-      }
-      if ( sqlite3GlobalConfig.isMallocInit != 0 )
-      {
-        sqlite3MallocEnd();
-        sqlite3GlobalConfig.isMallocInit = 0;
-      }
-      if ( sqlite3GlobalConfig.isMutexInit != 0 )
-      {
-        sqlite3MutexEnd();
-        sqlite3GlobalConfig.isMutexInit = 0;
-      }
-      return SQLITE_OK;
-    }
-
-    /*
-    ** This API allows applications to modify the global configuration of
-    ** the SQLite library at run-time.
-    **
-    ** This routine should only be called when there are no outstanding
-    ** database connections or memory allocations.  This routine is not
-    ** threadsafe.  Failure to heed these warnings can lead to unpredictable
-    ** behavior.
-    */
-    // Overloads for ap assignments
-    static int sqlite3_config( int op, sqlite3_pcache_methods ap )
-    {      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_PCACHE:
-          {
-            /* Specify an alternative malloc implementation */
-            sqlite3GlobalConfig.pcache = ap; //sqlite3GlobalConfig.pcache = (sqlite3_pcache_methods)va_arg(ap, "sqlite3_pcache_methods");
-            break;
-          }
-      }
-      return rc;
-    }
-
-    static int sqlite3_config( int op, ref sqlite3_pcache_methods ap )
-    {      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_GETPCACHE:
-          {
-            if ( sqlite3GlobalConfig.pcache.xInit == null )
-            {
-              sqlite3PCacheSetDefault();
-            }
-            ap = sqlite3GlobalConfig.pcache;//va_arg(ap, sqlite3_pcache_methods) = sqlite3GlobalConfig.pcache;
-            break;
-          }
-      }
-      return rc;
-    }
-
-    static int sqlite3_config( int op, sqlite3_mem_methods ap )
-    {      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_MALLOC:
-          {
-            /* Specify an alternative malloc implementation */
-            sqlite3GlobalConfig.m = ap;// (sqlite3_mem_methods)va_arg( ap, "sqlite3_mem_methods" );
-            break;
-          }
-      }
-      return rc;
-    }
-
-    static int sqlite3_config( int op, ref sqlite3_mem_methods ap )
-    {      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_GETMALLOC:
-          {
-            /* Retrieve the current malloc() implementation */
-            //if ( sqlite3GlobalConfig.m.xMalloc == null ) sqlite3MemSetDefault();
-            ap = sqlite3GlobalConfig.m;//va_arg(ap, sqlite3_mem_methods) =  sqlite3GlobalConfig.m;
-            break;
-          }
-      }
-      return rc;
-    }
-
-#if SQLITE_THREADSAFE // && SQLITE_THREADSAFE>0
-    static int sqlite3_config( int op, sqlite3_mutex_methods ap )
-    {
-      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_MUTEX:
-          {
-            /* Specify an alternative mutex implementation */
-            sqlite3GlobalConfig.mutex = ap;// (sqlite3_mutex_methods)va_arg( ap, "sqlite3_mutex_methods" );
-            break;
-          }
-      }
-      return rc;
-    }
-
-    static int sqlite3_config( int op, ref sqlite3_mutex_methods ap )
-    {
-      //  va_list ap;
-      int rc = SQLITE_OK;
-      switch ( op )
-      {
-        case SQLITE_CONFIG_GETMUTEX:
-          {
-            /* Retrieve the current mutex implementation */
-            ap = sqlite3GlobalConfig.mutex;// *va_arg(ap, sqlite3_mutex_methods) =  sqlite3GlobalConfig.mutex;
-            break;
-          }
-      }
-      return rc;
-    }
-#endif
-
-    static int sqlite3_config( int op, params object[] ap )
-    {
-      //  va_list ap;
-      int rc = SQLITE_OK;
-
-      /* sqlite3_config() shall return SQLITE_MISUSE if it is invoked while
-      ** the SQLite library is in use. */
-      if ( sqlite3GlobalConfig.isInit != 0 )
-        return SQLITE_MISUSE_BKPT();
-
-      lock ( lock_va_list )
-      {
-        va_start( ap, null );
-        switch ( op )
-        {
-
-          /* Mutex configuration options are only available in a threadsafe
-          ** compile.
-          */
-#if SQLITE_THREADSAFE
-          case SQLITE_CONFIG_SINGLETHREAD:
-            {
-              /* Disable all mutexing */
-              sqlite3GlobalConfig.bCoreMutex = false;
-              sqlite3GlobalConfig.bFullMutex = false;
-              break;
-            }
-          case SQLITE_CONFIG_MULTITHREAD:
-            {
-              /* Disable mutexing of database connections */
-              /* Enable mutexing of core data structures */
-              sqlite3GlobalConfig.bCoreMutex = true;
-              sqlite3GlobalConfig.bFullMutex = false;
-              break;
-            }
-          case SQLITE_CONFIG_SERIALIZED:
-            {
-              /* Enable all mutexing */
-              sqlite3GlobalConfig.bCoreMutex = true;
-              sqlite3GlobalConfig.bFullMutex = true;
-              break;
-            }
-          case SQLITE_CONFIG_MUTEX:
-            {
-              /* Specify an alternative mutex implementation */
-              sqlite3GlobalConfig.mutex = va_arg( ap, (sqlite3_mutex_methods)null );
-              break;
-            }
-          case SQLITE_CONFIG_GETMUTEX:
-            {
-              /* Retrieve the current mutex implementation */
-              Debugger.Break(); // TODO -- *va_arg(ap, sqlite3_mutex_methods) = sqlite3GlobalConfig.mutex;
-              break;
-            }
-#endif
-          case SQLITE_CONFIG_MALLOC:
-            {
-              Debugger.Break(); // TODO --
-              /* Specify an alternative malloc implementation */
-              sqlite3GlobalConfig.m = va_arg( ap, (sqlite3_mem_methods)null );
-              break;
-            }
-          case SQLITE_CONFIG_GETMALLOC:
-            {
-              /* Retrieve the current malloc() implementation */
-              //if ( sqlite3GlobalConfig.m.xMalloc == null ) sqlite3MemSetDefault();
-              //Debugger.Break(); // TODO --//va_arg(ap, sqlite3_mem_methods) =  sqlite3GlobalConfig.m;
-              break;
-            }
-          case SQLITE_CONFIG_MEMSTATUS:
-            {
-              /* Enable or disable the malloc status collection */
-              sqlite3GlobalConfig.bMemstat = va_arg( ap, ( Int32 ) 0 ) != 0;
-              break;
-            }
-          case SQLITE_CONFIG_SCRATCH:
-            {
-              /* Designate a buffer for scratch memory space */
-              sqlite3GlobalConfig.pScratch = va_arg( ap, (Byte[][])null );
-              sqlite3GlobalConfig.szScratch = va_arg( ap, (Int32)0 );
-              sqlite3GlobalConfig.nScratch = va_arg( ap, ( Int32 ) 0 );
-              break;
-            }
-
-          case SQLITE_CONFIG_PAGECACHE:
-            {
-              /* Designate a buffer for page cache memory space */
-              sqlite3GlobalConfig.pPage = va_arg( ap, (MemPage) null );
-              sqlite3GlobalConfig.szPage = va_arg( ap, ( Int32 ) 0 );
-              sqlite3GlobalConfig.nPage = va_arg( ap, ( Int32 ) 0 );
-              break;
-            }
-
-          case SQLITE_CONFIG_PCACHE:
-            {
-              /* Specify an alternative page cache implementation */
-              Debugger.Break(); // TODO --sqlite3GlobalConfig.pcache = (sqlite3_pcache_methods)va_arg(ap, "sqlite3_pcache_methods");
-              break;
-            }
-
-          case SQLITE_CONFIG_GETPCACHE:
-            {
-              if ( sqlite3GlobalConfig.pcache.xInit == null )
-              {
-                sqlite3PCacheSetDefault();
-              }
-              Debugger.Break(); // TODO -- *va_arg(ap, sqlite3_pcache_methods) = sqlite3GlobalConfig.pcache;
-              break;
-            }
-
-#if SQLITE_ENABLE_MEMSYS3 || SQLITE_ENABLE_MEMSYS5
-case SQLITE_CONFIG_HEAP: {
-/* Designate a buffer for heap memory space */
-sqlite3GlobalConfig.pHeap = va_arg(ap, void);
-sqlite3GlobalConfig.nHeap = va_arg(ap, int);
-sqlite3GlobalConfig.mnReq = va_arg(ap, int);
-
-if( sqlite3GlobalConfig.mnReq<1 ){
-  sqlite3GlobalConfig.mnReq = 1;
-}else if( sqlite3GlobalConfig.mnReq>(1<<12) ){
-  /* cap min request size at 2^12 */
-  sqlite3GlobalConfig.mnReq = (1<<12);
-}
-
-if(  sqlite3GlobalConfig.pHeap==0 ){
-/* If the heap pointer is NULL, then restore the malloc implementation
-** back to NULL pointers too.  This will cause the malloc to go
-** back to its default implementation when sqlite3_initialize() is
-** run.
-*/
-memset(& sqlite3GlobalConfig.m, 0, sizeof( sqlite3GlobalConfig.m));
-}else{
-/* The heap pointer is not NULL, then install one of the
-** mem5.c/mem3.c methods. If neither ENABLE_MEMSYS3 nor
-** ENABLE_MEMSYS5 is defined, return an error.
-*/
-#if SQLITE_ENABLE_MEMSYS3
-sqlite3GlobalConfig.m = *sqlite3MemGetMemsys3();
-#endif
-#if SQLITE_ENABLE_MEMSYS5
-sqlite3GlobalConfig.m = *sqlite3MemGetMemsys5();
-#endif
-}
-break;
-}
-#endif
-
-          case SQLITE_CONFIG_LOOKASIDE:
-            {
-              sqlite3GlobalConfig.szLookaside = va_arg( ap, ( Int32 ) 0 );
-              sqlite3GlobalConfig.nLookaside = va_arg( ap, ( Int32 ) 0 );
-              break;
-            }
-
-          /* Record a pointer to the logger funcction and its first argument.
-          ** The default is NULL.  Logging is disabled if the function pointer is
-          ** NULL.
-          */
-          case SQLITE_CONFIG_LOG:
-            {
-              /* MSVC is picky about pulling func ptrs from va lists.
-              ** http://support.microsoft.com/kb/47961
-              ** sqlite3GlobalConfig.xLog = va_arg(ap, void()(void*,int,const char));
-              */
-              //typedef void(*LOGFUNC_t)(void*,int,const char);
-              sqlite3GlobalConfig.xLog = va_arg( ap, (dxLog)null );//"LOGFUNC_t" );
-              sqlite3GlobalConfig.pLogArg = va_arg( ap, (Object)null );
-              break;
-            }
-          case SQLITE_CONFIG_URI: {
-            sqlite3GlobalConfig.bOpenUri = va_arg( ap, (Boolean)true );
-            break;
-          }
-          default:
-            {
-              rc = SQLITE_ERROR;
-              break;
-            }
-        }
-        va_end( ref ap );
-      }
-      return rc;
-    }
-
-    /*
-    ** Set up the lookaside buffers for a database connection.
-    ** Return SQLITE_OK on success.
-    ** If lookaside is already active, return SQLITE_BUSY.
-    **
-    ** The sz parameter is the number of bytes in each lookaside slot.
-    ** The cnt parameter is the number of slots.  If pStart is NULL the
-    ** space for the lookaside memory is obtained from sqlite3_malloc().
-    ** If pStart is not NULL then it is sz*cnt bytes of memory to use for
-    ** the lookaside memory.
-    */
-    static int setupLookaside( sqlite3 db, byte[] pBuf, int sz, int cnt )
-    {
-      //void* pStart;
-      //if ( db.lookaside.nOut )
-      //{
-      //  return SQLITE_BUSY;
-      //}
-      ///* Free any existing lookaside buffer for this handle before
-      //** allocating a new one so we don't have to have space for
-      //** both at the same time.
-      //*/
-      //if ( db.lookaside.bMalloced )
-      //{
-      //  //sqlite3_free( db.lookaside.pStart );
-      //}
-      ///* The size of a lookaside slot needs to be larger than a pointer
-      //** to be useful.
-      //*/
-      //if ( sz <= (int)sizeof( LookasideSlot* ) ) sz = 0;
-      //if ( cnt < 0 ) cnt = 0;
-      //if ( sz == 0 || cnt == 0 )
-      //{
-      //  sz = 0;
-      //  pStart = 0;
-      //}
-      //else if ( pBuf == 0 )
-      //{
-      //  sz = ROUNDDOWN8(sz); /* IMP: R-33038-09382 */
-      //  sqlite3BeginBenignMalloc();
-      //  pStart = sqlite3Malloc( sz*cnt );  /* IMP: R-61949-35727 */
-      //  sqlite3EndBenignMalloc();
-      //}else{
-      //  sz = ROUNDDOWN8(sz); /* IMP: R-33038-09382 */
-      //  pStart = pBuf;
-      //}
-      //db.lookaside.pStart = pStart;
-      //db.lookaside.pFree = 0;
-      //db.lookaside.sz = (u16)sz;
-      //if ( pStart )
-      //{
-      //  int i;
-      //  LookasideSlot* p;
-      //  Debug.Assert( sz > sizeof( LookasideSlot* ) );
-      //  p = (LookasideSlot)pStart;
-      //  for ( i = cnt - 1 ; i >= 0 ; i-- )
-      //  {
-      //    p.pNext = db.lookaside.pFree;
-      //    db.lookaside.pFree = p;
-      //    p = (LookasideSlot)&( (u8)p )[sz];
-      //  }
-      //  db.lookaside.pEnd = p;
-      //  db.lookaside.bEnabled = 1;
-      //  db.lookaside.bMalloced = pBuf == 0 ? 1 : 0;
-      //}
-      //else
-      //{
-      //  db.lookaside.pEnd = 0;
-      //  db.lookaside.bEnabled = 0;
-      //  db.lookaside.bMalloced = 0;
-      //}
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Return the mutex associated with a database connection.
-    */
-    static sqlite3_mutex sqlite3_db_mutex( sqlite3 db )
-    {
-      return db.mutex;
-    }
-
-    public class _aFlagOp
-    {
-      public int op;      /* The opcode */
-      public u32 mask;    /* Mask of the bit in sqlite3.flags to set/clear */
-
-      public _aFlagOp( int op, u32 mask )
-      {
-        this.op = op;
-        this.mask = mask;
-      }
-    }
-
-    /*
-    ** Configuration settings for an individual database connection
-    */
-    static int sqlite3_db_config( sqlite3 db, int op, params object[] ap )
-    {
-      int rc;
-      //va_list ap;
-      lock ( lock_va_list )
-      {
-        va_start( ap, "" );
-        switch ( op )
-        {
-          case SQLITE_DBCONFIG_LOOKASIDE:
-            {
-              byte[] pBuf = va_arg( ap, (byte[])null );   /* IMP: R-26835-10964 */
-              int sz = va_arg( ap, (Int32)0 );              /* IMP: R-47871-25994 */
-              int cnt = va_arg( ap, ( Int32 ) 0 );             /* IMP: R-04460-53386 */
-              rc = setupLookaside( db, pBuf, sz, cnt );
-              break;
-            }
-          default:
-            {
-              _aFlagOp[] aFlagOp = new _aFlagOp[]{
-        new _aFlagOp( SQLITE_DBCONFIG_ENABLE_FKEY,    SQLITE_ForeignKeys    ),
-        new _aFlagOp( SQLITE_DBCONFIG_ENABLE_TRIGGER, SQLITE_EnableTrigger  ),
-      };
-              uint i;
-
-              rc = SQLITE_ERROR;                              /* IMP: R-42790-23372 */
-              for ( i = 0; i < ArraySize( aFlagOp ); i++ )
-              {
-                if ( aFlagOp[i].op == op )
-                {
-                  int onoff = va_arg( ap, ( Int32 ) 0 );
-                  int pRes = va_arg( ap, (Int32)0 );
-                  int oldFlags = db.flags;
-                  if ( onoff > 0 )
-                  {
-                    db.flags = (int)( (u32)db.flags | aFlagOp[i].mask );
-                  }
-                  else if ( onoff == 0 )
-                  {
-                    db.flags = (int)( db.flags & ~aFlagOp[i].mask );
-                  }
-                  if ( oldFlags != db.flags )
-                  {
-                    sqlite3ExpirePreparedStatements( db );
-                  }
-                  if ( pRes != 0 )
-                  {
-                    pRes = ( db.flags & aFlagOp[i].mask ) != 0 ? 1 : 0;
-                  }
-                  rc = SQLITE_OK;
-                  break;
-                }
-              }
-              break;
-            }
-        }
-        va_end( ref ap );
-      }
-      return rc;
-    }
-
-
-    /*
-    ** Return true if the buffer z[0..n-1] contains all spaces.
-    */
-    static bool allSpaces( string z, int iStart, int n )
-    {
-      while ( n > 0 && z[iStart + n - 1] == ' ' )
-      {
-        n--;
-      }
-      return n == 0;
-    }
-
-    /*
-    ** This is the default collating function named "BINARY" which is always
-    ** available.
-    **
-    ** If the padFlag argument is not NULL then space padding at the end
-    ** of strings is ignored.  This implements the RTRIM collation.
-    */
-    static int binCollFunc(
-    object padFlag,
-    int nKey1, string pKey1,
-    int nKey2, string pKey2
-    )
-    {
-      int rc, n;
-      n = nKey1 < nKey2 ? nKey1 : nKey2;
-      rc = memcmp( pKey1, pKey2, n );
-      if ( rc == 0 )
-      {
-        if ( (int)padFlag != 0 && allSpaces( pKey1, n, nKey1 - n ) && allSpaces( pKey2, n, nKey2 - n ) )
-        {
-          /* Leave rc unchanged at 0 */
-        }
-        else
-        {
-          rc = nKey1 - nKey2;
-        }
-      }
-      return rc;
-    }
-
-    /*
-    ** Another built-in collating sequence: NOCASE.
-    **
-    ** This collating sequence is intended to be used for "case independant
-    ** comparison". SQLite's knowledge of upper and lower case equivalents
-    ** extends only to the 26 characters used in the English language.
-    **
-    ** At the moment there is only a UTF-8 implementation.
-    */
-    static int nocaseCollatingFunc(
-    object NotUsed,
-    int nKey1, string pKey1,
-    int nKey2, string pKey2
-    )
-    {
-      int n = ( nKey1 < nKey2 ) ? nKey1 : nKey2;
-      int r = sqlite3StrNICmp( pKey1, pKey2, ( nKey1 < nKey2 ) ? nKey1 : nKey2 );
-      UNUSED_PARAMETER( NotUsed );
-      if ( 0 == r )
-      {
-        r = nKey1 - nKey2;
-      }
-      return r;
-    }
-
-    /*
-    ** Return the ROWID of the most recent insert
-    */
-    static public sqlite_int64 sqlite3_last_insert_rowid( sqlite3 db )
-    {
-      return db.lastRowid;
-    }
-
-    /*
-    ** Return the number of changes in the most recent call to sqlite3_exec().
-    */
-    static public int sqlite3_changes( sqlite3 db )
-    {
-      return db.nChange;
-    }
-
-    /*
-    ** Return the number of changes since the database handle was opened.
-    */
-    static public int sqlite3_total_changes( sqlite3 db )
-    {
-      return db.nTotalChange;
-    }
-
-    /*
-    ** Close all open savepoints. This function only manipulates fields of the
-    ** database handle object, it does not close any savepoints that may be open
-    ** at the b-tree/pager level.
-    */
-    static void sqlite3CloseSavepoints( sqlite3 db )
-    {
-      while ( db.pSavepoint != null )
-      {
-        Savepoint pTmp = db.pSavepoint;
-        db.pSavepoint = pTmp.pNext;
-        sqlite3DbFree( db, ref pTmp );
-      }
-      db.nSavepoint = 0;
-      db.nStatement = 0;
-      db.isTransactionSavepoint = 0;
-    }
-
-    /*
-    ** Invoke the destructor function associated with FuncDef p, if any. Except,
-    ** if this is not the last copy of the function, do not invoke it. Multiple
-    ** copies of a single function are created when create_function() is called
-    ** with SQLITE_ANY as the encoding.
-    */
-    static void functionDestroy( sqlite3 db, FuncDef p )
-    {
-      FuncDestructor pDestructor = p.pDestructor;
-      if ( pDestructor != null )
-      {
-        pDestructor.nRef--;
-        if ( pDestructor.nRef == 0 )
-        {
-          //pDestructor.xDestroy( pDestructor.pUserData );
-          sqlite3DbFree( db, ref pDestructor );
-        }
-      }
-    }
-
-    /*
-    ** Close an existing SQLite database
-    */
-    public static int sqlite3_close( sqlite3 db )
-    {
-      HashElem i;  /* Hash table iterator */
-      int j;
-
-      if ( db == null )
-      {
-        return SQLITE_OK;
-      }
-      if ( !sqlite3SafetyCheckSickOrOk( db ) )
-      {
-        return SQLITE_MISUSE_BKPT();
-      }
-      sqlite3_mutex_enter( db.mutex );
-
-      /* Force xDestroy calls on all virtual tables */
-      sqlite3ResetInternalSchema( db, -1 );
-
-      /* If a transaction is open, the ResetInternalSchema() call above
-      ** will not have called the xDisconnect() method on any virtual
-      ** tables in the db->aVTrans[] array. The following sqlite3VtabRollback()
-      ** call will do so. We need to do this before the check for active
-      ** SQL statements below, as the v-table implementation may be storing
-      ** some prepared statements internally.
-      */
-      sqlite3VtabRollback( db );
-
-      /* If there are any outstanding VMs, return SQLITE_BUSY. */
-
-      if ( db.pVdbe != null )
-      {
-        sqlite3Error( db, SQLITE_BUSY,
-        "unable to close due to unfinalised statements" );
-        sqlite3_mutex_leave( db.mutex );
-        return SQLITE_BUSY;
-      }
-      Debug.Assert( sqlite3SafetyCheckSickOrOk( db ) );
-
-      for ( j = 0; j < db.nDb; j++ )
-      {
-        Btree pBt = db.aDb[j].pBt;
-        if ( pBt != null && sqlite3BtreeIsInBackup( pBt ) )
-        {
-          sqlite3Error( db, SQLITE_BUSY,
-          "unable to close due to unfinished backup operation" );
-          sqlite3_mutex_leave( db.mutex );
-          return SQLITE_BUSY;
-        }
-      }
-
-      /* Free any outstanding Savepoint structures. */
-      sqlite3CloseSavepoints( db );
-
-      for ( j = 0; j < db.nDb; j++ )
-      {
-        Db pDb = db.aDb[j];
-        if ( pDb.pBt != null )
-        {
-          sqlite3BtreeClose( ref pDb.pBt );
-          pDb.pBt = null;
-          if ( j != 1 )
-          {
-            pDb.pSchema = null;
-          }
-        }
-      }
-      sqlite3ResetInternalSchema( db, -1 );
-
-      /* Tell the code in notify.c that the connection no longer holds any
-      ** locks and does not require any further unlock-notify callbacks.
-      */
-      sqlite3ConnectionClosed( db );
-
-      Debug.Assert( db.nDb <= 2 );
-      Debug.Assert( db.aDb[0].Equals( db.aDbStatic[0] ) );
-      for ( j = 0; j < ArraySize( db.aFunc.a ); j++ )
-      {
-        FuncDef pNext, pHash, p;
-        for ( p = db.aFunc.a[j]; p != null; p = pHash )
-        {
-          pHash = p.pHash;
-          while ( p != null )
-          {
-            functionDestroy( db, p );
-            pNext = p.pNext;
-            sqlite3DbFree( db, ref p );
-            p = pNext;
-          }
-
-        }
-      }
-
-      for ( i = db.aCollSeq.first; i != null; i = i.next )
-      {//sqliteHashFirst(db.aCollSeq); i!=null; i=sqliteHashNext(i)){
-        CollSeq[] pColl = (CollSeq[])i.data;// sqliteHashData(i);
-        /* Invoke any destructors registered for collation sequence user data. */
-        for ( j = 0; j < 3; j++ )
-        {
-          if ( pColl[j].xDel != null )
-          {
-            pColl[j].xDel( ref pColl[j].pUser );
-          }
-        }
-        sqlite3DbFree( db, ref pColl );
-      }
-      sqlite3HashClear( db.aCollSeq );
-#if !SQLITE_OMIT_VIRTUALTABLE
-      for ( i = sqliteHashFirst( db.aModule ); i != null; i = sqliteHashNext( i ) )
-      {
-        Module pMod = (Module)sqliteHashData( i );
-        if ( pMod.xDestroy != null )
-        {
-          pMod.xDestroy( ref pMod.pAux );
-        }
-        sqlite3DbFree( db, ref pMod );
-      }
-      sqlite3HashClear( db.aModule );
-#endif
-
-      sqlite3Error( db, SQLITE_OK, 0 ); /* Deallocates any cached error strings. */
-      if ( db.pErr != null )
-      {
-        sqlite3ValueFree( ref db.pErr );
-      }
-#if !SQLITE_OMIT_LOAD_EXTENSION
-      sqlite3CloseExtensions( db );
-#endif
-
-      db.magic = SQLITE_MAGIC_ERROR;
-
-      /* The temp.database schema is allocated differently from the other schema
-      ** objects (using sqliteMalloc() directly, instead of sqlite3BtreeSchema()).
-      ** So it needs to be freed here. Todo: Why not roll the temp schema into
-      ** the same sqliteMalloc() as the one that allocates the database
-      ** structure?
-      */
-      sqlite3DbFree( db, ref db.aDb[1].pSchema );
-      sqlite3_mutex_leave( db.mutex );
-      db.magic = SQLITE_MAGIC_CLOSED;
-      sqlite3_mutex_free( db.mutex );
-      Debug.Assert( db.lookaside.nOut == 0 );  /* Fails on a lookaside memory leak */
-      //if ( db.lookaside.bMalloced )
-      //{
-      //  sqlite3_free( ref db.lookaside.pStart );
-      //}
-      //sqlite3_free( ref db );
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Rollback all database files.
-    */
-    static void sqlite3RollbackAll( sqlite3 db )
-    {
-      int i;
-      int inTrans = 0;
-      Debug.Assert( sqlite3_mutex_held( db.mutex ) );
-      sqlite3BeginBenignMalloc();
-      for ( i = 0; i < db.nDb; i++ )
-      {
-        if ( db.aDb[i].pBt != null )
-        {
-          if ( sqlite3BtreeIsInTrans( db.aDb[i].pBt ) )
-          {
-            inTrans = 1;
-          }
-          sqlite3BtreeRollback( db.aDb[i].pBt );
-          db.aDb[i].inTrans = 0;
-        }
-      }
-
-      sqlite3VtabRollback( db );
-      sqlite3EndBenignMalloc();
-      if ( ( db.flags & SQLITE_InternChanges ) != 0 )
-      {
-        sqlite3ExpirePreparedStatements( db );
-        sqlite3ResetInternalSchema( db, -1 );
-      }
-
-      /* Any deferred constraint violations have now been resolved. */
-      db.nDeferredCons = 0;
-
-      /* If one has been configured, invoke the rollback-hook callback */
-      if ( db.xRollbackCallback != null && ( inTrans != 0 || 0 == db.autoCommit ) )
-      {
-        db.xRollbackCallback( db.pRollbackArg );
-      }
-    }
-
-    /*
-    ** Return a static string that describes the kind of error specified in the
-    ** argument.
-    */
-    static string sqlite3ErrStr( int rc )
-    {
-      string[] aMsg = new string[]{
-/* SQLITE_OK          */ "not an error",
-/* SQLITE_ERROR       */ "SQL logic error or missing database",
-/* SQLITE_INTERNAL    */ "",
-/* SQLITE_PERM        */ "access permission denied",
-/* SQLITE_ABORT       */ "callback requested query abort",
-/* SQLITE_BUSY        */ "database is locked",
-/* SQLITE_LOCKED      */ "database table is locked",
-/* SQLITE_NOMEM       */ "out of memory",
-/* SQLITE_READONLY    */ "attempt to write a readonly database",
-/* SQLITE_INTERRUPT   */ "interrupted",
-/* SQLITE_IOERR       */ "disk I/O error",
-/* SQLITE_CORRUPT     */ "database disk image is malformed",
-/* SQLITE_NOTFOUND    */ "unknown operation",
-/* SQLITE_FULL        */ "database or disk is full",
-/* SQLITE_CANTOPEN    */ "unable to open database file",
-/* SQLITE_PROTOCOL    */ "locking protocol",
-/* SQLITE_EMPTY       */ "table contains no data",
-/* SQLITE_SCHEMA      */ "database schema has changed",
-/* SQLITE_TOOBIG      */ "string or blob too big",
-/* SQLITE_CONSTRAINT  */ "constraint failed",
-/* SQLITE_MISMATCH    */ "datatype mismatch",
-/* SQLITE_MISUSE      */ "library routine called out of sequence",
-/* SQLITE_NOLFS       */ "large file support is disabled",
-/* SQLITE_AUTH        */ "authorization denied",
-/* SQLITE_FORMAT      */ "auxiliary database format error",
-/* SQLITE_RANGE       */ "bind or column index out of range",
-/* SQLITE_NOTADB      */ "file is encrypted or is not a database",
-};
-      rc &= 0xff;
-      if ( ALWAYS( rc >= 0 ) && rc < aMsg.Length && aMsg[rc] != "" )//(int)(sizeof(aMsg)/sizeof(aMsg[0]))
-      {
-        return aMsg[rc];
-      }
-      else
-      {
-        return "unknown error";
-      }
-    }
-
-    /*
-    ** This routine implements a busy callback that sleeps and tries
-    ** again until a timeout value is reached.  The timeout value is
-    ** an integer number of milliseconds passed in as the first
-    ** argument.
-    */
-    static int sqliteDefaultBusyCallback(
-    object ptr,               /* Database connection */
-    int count                /* Number of times table has been busy */
-    )
-    {
-#if SQLITE_OS_WIN || HAVE_USLEEP
-      u8[] delays = new u8[] { 1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50, 100 };
-      u8[] totals = new u8[] { 0, 1, 3, 8, 18, 33, 53, 78, 103, 128, 178, 228 };
-      //# define NDELAY ArraySize(delays)
-      int NDELAY = ArraySize( delays );
-      sqlite3 db = (sqlite3)ptr;
-      int timeout = db.busyTimeout;
-      int delay, prior;
-
-      Debug.Assert( count >= 0 );
-      if ( count < NDELAY )
-      {
-        delay = delays[count];
-        prior = totals[count];
-      }
-      else
-      {
-        delay = delays[NDELAY - 1];
-        prior = totals[NDELAY - 1] + delay * ( count - ( NDELAY - 1 ) );
-      }
-      if ( prior + delay > timeout )
-      {
-        delay = timeout - prior;
-        if ( delay <= 0 )
-          return 0;
-      }
-      sqlite3OsSleep( db.pVfs, delay * 1000 );
-      return 1;
-#else
-sqlite3 db = (sqlite3)ptr;
-int timeout = ( (sqlite3)ptr ).busyTimeout;
-if ( ( count + 1 ) * 1000 > timeout )
-{
-return 0;
-}
-sqlite3OsSleep( db.pVfs, 1000000 );
-return 1;
-#endif
-    }
-
-    /*
-    ** Invoke the given busy handler.
-    **
-    ** This routine is called when an operation failed with a lock.
-    ** If this routine returns non-zero, the lock is retried.  If it
-    ** returns 0, the operation aborts with an SQLITE_BUSY error.
-    */
-    static int sqlite3InvokeBusyHandler( BusyHandler p )
-    {
-      int rc;
-      if ( NEVER( p == null ) || p.xFunc == null || p.nBusy < 0 )
-        return 0;
-      rc = p.xFunc( p.pArg, p.nBusy );
-      if ( rc == 0 )
-      {
-        p.nBusy = -1;
-      }
-      else
-      {
-        p.nBusy++;
-      }
-      return rc;
-    }
-
-    /*
-    ** This routine sets the busy callback for an Sqlite database to the
-    ** given callback function with the given argument.
-    */
-    static int sqlite3_busy_handler(
-    sqlite3 db,
-    dxBusy xBusy,
-    object pArg
-    )
-    {
-      sqlite3_mutex_enter( db.mutex );
-      db.busyHandler.xFunc = xBusy;
-      db.busyHandler.pArg = pArg;
-      db.busyHandler.nBusy = 0;
-      sqlite3_mutex_leave( db.mutex );
-      return SQLITE_OK;
-    }
-
-#if !SQLITE_OMIT_PROGRESS_CALLBACK
-    /*
-** This routine sets the progress callback for an Sqlite database to the
-** given callback function with the given argument. The progress callback will
-** be invoked every nOps opcodes.
-*/
-    static void sqlite3_progress_handler(
-    sqlite3 db,
-    int nOps,
-    dxProgress xProgress, //int (xProgress)(void),
-    object pArg
-    )
-    {
-      sqlite3_mutex_enter( db.mutex );
-      if ( nOps > 0 )
-      {
-        db.xProgress = xProgress;
-        db.nProgressOps = nOps;
-        db.pProgressArg = pArg;
-      }
-      else
-      {
-        db.xProgress = null;
-        db.nProgressOps = 0;
-        db.pProgressArg = null;
-      }
-      sqlite3_mutex_leave( db.mutex );
-    }
-#endif
-
-
-    /*
-** This routine installs a default busy handler that waits for the
-** specified number of milliseconds before returning 0.
-*/
-    static public int sqlite3_busy_timeout( sqlite3 db, int ms )
-    {
-      if ( ms > 0 )
-      {
-        db.busyTimeout = ms;
-        sqlite3_busy_handler( db, sqliteDefaultBusyCallback, db );
-      }
-      else
-      {
-        sqlite3_busy_handler( db, null, null );
-      }
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Cause any pending operation to stop at its earliest opportunity.
-    */
-    static void sqlite3_interrupt( sqlite3 db )
-    {
-      db.u1.isInterrupted = true;
-    }
-
-
-    /*
-    ** This function is exactly the same as sqlite3_create_function(), except
-    ** that it is designed to be called by internal code. The difference is
-    ** that if a malloc() fails in sqlite3_create_function(), an error code
-    ** is returned and the mallocFailed flag cleared.
-    */
-    static int sqlite3CreateFunc(
-    sqlite3 db,
-    string zFunctionName,
-    int nArg,
-    u8 enc,
-    object pUserData,
-    dxFunc xFunc, //)(sqlite3_context*,int,sqlite3_value *),
-    dxStep xStep,//)(sqlite3_context*,int,sqlite3_value *),
-    dxFinal xFinal, //)(sqlite3_context),
-    FuncDestructor pDestructor
-    )
-    {
-      FuncDef p;
-      int nName;
-
-      Debug.Assert( sqlite3_mutex_held( db.mutex ) );
-      if ( zFunctionName == null ||
-      ( xFunc != null && ( xFinal != null || xStep != null ) ) ||
-      ( xFunc == null && ( xFinal != null && xStep == null ) ) ||
-      ( xFunc == null && ( xFinal == null && xStep != null ) ) ||
-      ( nArg < -1 || nArg > SQLITE_MAX_FUNCTION_ARG ) ||
-      ( 255 < ( nName = sqlite3Strlen30( zFunctionName ) ) ) )
-      {
-        return SQLITE_MISUSE_BKPT();
-      }
-
-#if !SQLITE_OMIT_UTF16
-/* If SQLITE_UTF16 is specified as the encoding type, transform this
-** to one of SQLITE_UTF16LE or SQLITE_UTF16BE using the
-** SQLITE_UTF16NATIVE macro. SQLITE_UTF16 is not used internally.
-**
-** If SQLITE_ANY is specified, add three versions of the function
-** to the hash table.
-*/
-if( enc==SQLITE_UTF16 ){
-enc = SQLITE_UTF16NATIVE;
-}else if( enc==SQLITE_ANY ){
-int rc;
-rc = sqlite3CreateFunc(db, zFunctionName, nArg, SQLITE_UTF8,
-pUserData, xFunc, xStep, xFinal, pDestructor);
-if( rc==SQLITE_OK ){
-rc = sqlite3CreateFunc(db, zFunctionName, nArg, SQLITE_UTF16LE,
-pUserData, xFunc, xStep, xFinal, pDestructor);
-}
-if( rc!=SQLITE_OK ){
-return rc;
-}
-enc = SQLITE_UTF16BE;
-}
-#else
-      enc = SQLITE_UTF8;
-#endif
-
-      /* Check if an existing function is being overridden or deleted. If so,
-** and there are active VMs, then return SQLITE_BUSY. If a function
-** is being overridden/deleted but there are no active VMs, allow the
-** operation to continue but invalidate all precompiled statements.
-*/
-      p = sqlite3FindFunction( db, zFunctionName, nName, nArg, enc, 0 );
-      if ( p != null && p.iPrefEnc == enc && p.nArg == nArg )
-      {
-        if ( db.activeVdbeCnt != 0 )
-        {
-          sqlite3Error( db, SQLITE_BUSY,
-          "unable to delete/modify user-function due to active statements" );
-          //Debug.Assert( 0 == db.mallocFailed );
-          return SQLITE_BUSY;
-        }
-        else
-        {
-          sqlite3ExpirePreparedStatements( db );
-        }
-      }
-
-      p = sqlite3FindFunction( db, zFunctionName, nName, nArg, enc, 1 );
-      Debug.Assert( p != null /*|| db.mallocFailed != 0 */ );
-      //if ( p == null )
-      //{
-      //  return SQLITE_NOMEM;
-      //}
-
-      /* If an older version of the function with a configured destructor is
-      ** being replaced invoke the destructor function here. */
-      functionDestroy( db, p );
-
-      if ( pDestructor != null )
-      {
-        pDestructor.nRef++;
-      }
-      p.pDestructor = pDestructor;
-      p.flags = 0;
-      p.xFunc = xFunc;
-      p.xStep = xStep;
-      p.xFinalize = xFinal;
-      p.pUserData = pUserData;
-      p.nArg = (i16)nArg;
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Create new user functions.
-    */
-    static public int sqlite3_create_function(
-    sqlite3 db,
-    string zFunc,
-    int nArg,
-    u8 enc,
-    object p,
-    dxFunc xFunc, //)(sqlite3_context*,int,sqlite3_value *),
-    dxStep xStep,//)(sqlite3_context*,int,sqlite3_value *),
-    dxFinal xFinal//)(sqlite3_context)
-    )
-    {
-      return sqlite3_create_function_v2( db, zFunc, nArg, enc, p, xFunc, xStep,
-                            xFinal, null );
-    }
-
-    static int sqlite3_create_function_v2(
-    sqlite3 db,
-    string zFunc,
-    int nArg,
-    int enc,
-    object p,
-    dxFunc xFunc, //)(sqlite3_context*,int,sqlite3_value *),
-    dxStep xStep,//)(sqlite3_context*,int,sqlite3_value *),
-    dxFinal xFinal,//)(sqlite3_context)
-    dxFDestroy xDestroy//)(void )
-    )
-    {
-      int rc = SQLITE_ERROR;
-      FuncDestructor pArg = null;
-      sqlite3_mutex_enter( db.mutex );
-      if ( xDestroy != null )
-      {
-        pArg = new FuncDestructor();//(FuncDestructor )sqlite3DbMallocZero(db, sizeof(FuncDestructor));
-        //if( null==pArg ){
-        //  xDestroy(p);
-        //  goto out;
-        //}
-        pArg.xDestroy = xDestroy;
-        pArg.pUserData = p;
-      }
-      rc = sqlite3CreateFunc( db, zFunc, nArg, (byte)enc, p, xFunc, xStep, xFinal, pArg );
-      if ( pArg != null && pArg.nRef == 0 )
-      {
-        Debug.Assert( rc != SQLITE_OK );
-        //xDestroy(p);
-        sqlite3DbFree( db, ref pArg );
-      }
-      //_out:
-      rc = sqlite3ApiExit( db, rc );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
-
-#if !SQLITE_OMIT_UTF16
-static int sqlite3_create_function16(
-sqlite3 db,
-string zFunctionName,
-int nArg,
-int eTextRep,
-object p,
-dxFunc xFunc,   //)(sqlite3_context*,int,sqlite3_value*),
-dxStep xStep,   //)(sqlite3_context*,int,sqlite3_value*),
-dxFinal xFinal  //)(sqlite3_context)
-){
-int rc;
-string zFunc8;
-sqlite3_mutex_enter(db.mutex);
-Debug.Assert( 0==db.mallocFailed );
-zFunc8 = sqlite3Utf16to8(db, zFunctionName, -1, SQLITE_UTF16NATIVE);
-rc = sqlite3CreateFunc(db, zFunc8, nArg, eTextRep, p, xFunc, xStep, xFinal, null);
-sqlite3DbFree(db,ref zFunc8);
-rc = sqlite3ApiExit(db, rc);
-sqlite3_mutex_leave(db.mutex);
-return rc;
-}
-#endif
-
-
-    /*
-** Declare that a function has been overloaded by a virtual table.
-**
-** If the function already exists as a regular global function, then
-** this routine is a no-op.  If the function does not exist, then create
-** a new one that always throws a run-time error.
-**
-** When virtual tables intend to provide an overloaded function, they
-** should call this routine to make sure the global function exists.
-** A global function must exist in order for name resolution to work
-** properly.
-*/
-    static int sqlite3_overload_function(
-    sqlite3 db,
-    string zName,
-    int nArg
-    )
-    {
-      int nName = sqlite3Strlen30( zName );
-      int rc;
-      sqlite3_mutex_enter( db.mutex );
-      if ( sqlite3FindFunction( db, zName, nName, nArg, SQLITE_UTF8, 0 ) == null )
-      {
-        sqlite3CreateFunc( db, zName, nArg, SQLITE_UTF8,
-        0, (dxFunc)sqlite3InvalidFunction, null, null, null );
-      }
-      rc = sqlite3ApiExit( db, SQLITE_OK );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
-
-#if !SQLITE_OMIT_TRACE
-    /*
-** Register a trace function.  The pArg from the previously registered trace
-** is returned.
-**
-** A NULL trace function means that no tracing is executes.  A non-NULL
-** trace is a pointer to a function that is invoked at the start of each
-** SQL statement.
-*/
-    static object sqlite3_trace( sqlite3 db, dxTrace xTrace, object pArg )
-    {// (*xTrace)(void*,const char), object pArg){
-      object pOld;
-      sqlite3_mutex_enter( db.mutex );
-      pOld = db.pTraceArg;
-      db.xTrace = xTrace;
-      db.pTraceArg = pArg;
-      sqlite3_mutex_leave( db.mutex );
-      return pOld;
-    }
-    /*
-    ** Register a profile function.  The pArg from the previously registered
-    ** profile function is returned.
-    **
-    ** A NULL profile function means that no profiling is executes.  A non-NULL
-    ** profile is a pointer to a function that is invoked at the conclusion of
-    ** each SQL statement that is run.
-    */
-    static object sqlite3_profile(
-    sqlite3 db,
-    dxProfile xProfile,//void (*xProfile)(void*,const char*,sqlite_u3264),
-    object pArg
-    )
-    {
-      object pOld;
-      sqlite3_mutex_enter( db.mutex );
-      pOld = db.pProfileArg;
-      db.xProfile = xProfile;
-      db.pProfileArg = pArg;
-      sqlite3_mutex_leave( db.mutex );
-      return pOld;
-    }
-#endif // * SQLITE_OMIT_TRACE */
-
-    /*** EXPERIMENTAL ***
-**
-** Register a function to be invoked when a transaction comments.
-** If the invoked function returns non-zero, then the commit becomes a
-** rollback.
-*/
-    static object sqlite3_commit_hook(
-    sqlite3 db,             /* Attach the hook to this database */
-    dxCommitCallback xCallback,   //int (*xCallback)(void),  /* Function to invoke on each commit */
-    object pArg             /* Argument to the function */
-    )
-    {
-      object pOld;
-      sqlite3_mutex_enter( db.mutex );
-      pOld = db.pCommitArg;
-      db.xCommitCallback = xCallback;
-      db.pCommitArg = pArg;
-      sqlite3_mutex_leave( db.mutex );
-      return pOld;
-    }
-
-    /*
-    ** Register a callback to be invoked each time a row is updated,
-    ** inserted or deleted using this database connection.
-    */
-    static object sqlite3_update_hook(
-    sqlite3 db,             /* Attach the hook to this database */
-    dxUpdateCallback xCallback,   //void (*xCallback)(void*,int,char const *,char const *,sqlite_int64),
-    object pArg             /* Argument to the function */
-    )
-    {
-      object pRet;
-      sqlite3_mutex_enter( db.mutex );
-      pRet = db.pUpdateArg;
-      db.xUpdateCallback = xCallback;
-      db.pUpdateArg = pArg;
-      sqlite3_mutex_leave( db.mutex );
-      return pRet;
-    }
-
-    /*
-    ** Register a callback to be invoked each time a transaction is rolled
-    ** back by this database connection.
-    */
-    static object sqlite3_rollback_hook(
-    sqlite3 db,             /* Attach the hook to this database */
-    dxRollbackCallback xCallback,   //void (*xCallback)(void), /* Callback function */
-    object pArg             /* Argument to the function */
-    )
-    {
-      object pRet;
-      sqlite3_mutex_enter( db.mutex );
-      pRet = db.pRollbackArg;
-      db.xRollbackCallback = xCallback;
-      db.pRollbackArg = pArg;
-      sqlite3_mutex_leave( db.mutex );
-      return pRet;
-    }
-
-#if !SQLITE_OMIT_WAL
-/*
-** The sqlite3_wal_hook() callback registered by sqlite3_wal_autocheckpoint().
-** Invoke sqlite3_wal_checkpoint if the number of frames in the log file
-** is greater than sqlite3.pWalArg cast to an integer (the value configured by
-** wal_autocheckpoint()).
-*/ 
-int sqlite3WalDefaultHook(
-void *pClientData,     /* Argument */
-sqlite3 db,           /* Connection */
-const string zDb,       /* Database */
-int nFrame             /* Size of WAL */
-){
-if( nFrame>=SQLITE_PTR_TO_INT(pClientData) ){
-sqlite3BeginBenignMalloc();
-sqlite3_wal_checkpoint(db, zDb);
-sqlite3EndBenignMalloc();
-}
-return SQLITE_OK;
-}
-#endif //* SQLITE_OMIT_WAL */
-
-    /*
-** Configure an sqlite3_wal_hook() callback to automatically checkpoint
-** a database after committing a transaction if there are nFrame or
-** more frames in the log file. Passing zero or a negative value as the
-** nFrame parameter disables automatic checkpoints entirely.
-**
-** The callback registered by this function replaces any existing callback
-** registered using sqlite3_wal_hook(). Likewise, registering a callback
-** using sqlite3_wal_hook() disables the automatic checkpoint mechanism
-** configured by this function.
-*/
-    static int sqlite3_wal_autocheckpoint( sqlite3 db, int nFrame )
-    {
-#if SQLITE_OMIT_WAL
-      UNUSED_PARAMETER( db );
-      UNUSED_PARAMETER( nFrame );
-#else
-if( nFrame>0 ){
-sqlite3_wal_hook(db, sqlite3WalDefaultHook, SQLITE_INT_TO_PTR(nFrame));
-}else{
-sqlite3_wal_hook(db, 0, 0);
-}
-#endif
-      return SQLITE_OK;
-    }
-
-    /*
-    ** Register a callback to be invoked each time a transaction is written
-    ** into the write-ahead-log by this database connection.
-    */
-    static object sqlite3_wal_hook(
-    sqlite3 db,                    /* Attach the hook to this db handle */
-    dxWalCallback xCallback,         //int(*xCallback)(void *, sqlite3*, const char*, int),
-    object pArg                    /* First argument passed to xCallback() */
-    )
-    {
-#if !SQLITE_OMIT_WAL
-void *pRet;
-sqlite3_mutex_enter(db.mutex);
-pRet = db.pWalArg;
-db.xWalCallback = xCallback;
-db.pWalArg = pArg;
-sqlite3_mutex_leave(db.mutex);
-return pRet;
-#else
-      return null;
-#endif
-    }
-
-
-    /*
-    ** Checkpoint database zDb.
-    */
-    static int sqlite3_wal_checkpoint_v2(
-      sqlite3 db,                   /* Database handle */
-      string zDb,                   /* Name of attached database (or NULL) */
-      int eMode,                    /* SQLITE_CHECKPOINT_* value */
-      out int pnLog,                /* OUT: Size of WAL log in frames */
-      out int pnCkpt                /* OUT: Total number of frames checkpointed */
-    )
-    {
-#if SQLITE_OMIT_WAL
-      pnLog = 0;
-      pnCkpt = 0;
-      return SQLITE_OK;
-#else
-  int rc;                         /* Return code */
-  int iDb = SQLITE_MAX_ATTACHED;  /* sqlite3.aDb[] index of db to checkpoint */
-
-  /* Initialize the output variables to -1 in case an error occurs. */
-  if( pnLog ) *pnLog = -1;
-  if( pnCkpt ) *pnCkpt = -1;
-
-  Debug.Assert( SQLITE_CHECKPOINT_FULL>SQLITE_CHECKPOINT_PASSIVE );
-  Debug.Assert( SQLITE_CHECKPOINT_FULL<SQLITE_CHECKPOINT_RESTART );
-  Debug.Assert( SQLITE_CHECKPOINT_PASSIVE+2==SQLITE_CHECKPOINT_RESTART );
-  if( eMode<SQLITE_CHECKPOINT_PASSIVE || eMode>SQLITE_CHECKPOINT_RESTART ){
-    return SQLITE_MISUSE;
-  }
-
-  sqlite3_mutex_enter(db->mutex);
-  if( zDb && zDb[0] ){
-    iDb = sqlite3FindDbName(db, zDb);
-  }
-  if( iDb<0 ){
-    rc = SQLITE_ERROR;
-    sqlite3Error(db, SQLITE_ERROR, "unknown database: %s", zDb);
-  }else{
-    rc = sqlite3Checkpoint(db, iDb, eMode, pnLog, pnCkpt);
-    sqlite3Error(db, rc, 0);
-  }
-  rc = sqlite3ApiExit(db, rc);
-  sqlite3_mutex_leave(db->mutex);
-  return rc;
-#endif
-    }
-
-
-    /*
-    ** Checkpoint database zDb. If zDb is NULL, or if the buffer zDb points
-    ** to contains a zero-length string, all attached databases are 
-    ** checkpointed.
-    */
-    static int sqlite3_wal_checkpoint( sqlite3 db, string zDb )
-    {
-      int dummy;
-      return sqlite3_wal_checkpoint_v2( db, zDb, SQLITE_CHECKPOINT_PASSIVE, out dummy, out dummy );
-    }
-
-#if !SQLITE_OMIT_WAL
-/*
-** Run a checkpoint on database iDb. This is a no-op if database iDb is
-** not currently open in WAL mode.
-**
-** If a transaction is open on the database being checkpointed, this 
-** function returns SQLITE_LOCKED and a checkpoint is not attempted. If 
-** an error occurs while running the checkpoint, an SQLite error code is 
-** returned (i.e. SQLITE_IOERR). Otherwise, SQLITE_OK.
-**
-** The mutex on database handle db should be held by the caller. The mutex
-** associated with the specific b-tree being checkpointed is taken by
-** this function while the checkpoint is running.
-**
-** If iDb is passed SQLITE_MAX_ATTACHED, then all attached databases are
-** checkpointed. If an error is encountered it is returned immediately -
-** no attempt is made to checkpoint any remaining databases.
-**
-** Parameter eMode is one of SQLITE_CHECKPOINT_PASSIVE, FULL or RESTART.
-*/
-int sqlite3Checkpoint(sqlite3 db, int iDb, int eMode, int *pnLog, int *pnCkpt){
-  int rc = SQLITE_OK;             /* Return code */
-  int i;                          /* Used to iterate through attached dbs */
-  int bBusy = 0;                  /* True if SQLITE_BUSY has been encountered */
-
-  Debug.Assert( sqlite3_mutex_held(db->mutex) );
-  Debug.Assert( !pnLog || *pnLog==-1 );
-  Debug.Assert( !pnCkpt || *pnCkpt==-1 );
-
-  for(i=0; i<db->nDb && rc==SQLITE_OK; i++){
-    if( i==iDb || iDb==SQLITE_MAX_ATTACHED ){
-      rc = sqlite3BtreeCheckpoint(db->aDb[i].pBt, eMode, pnLog, pnCkpt);
-      pnLog = 0;
-      pnCkpt = 0;
-      if( rc==SQLITE_BUSY ){
-        bBusy = 1;
-        rc = SQLITE_OK;
-      }
-    }
-  }
-
-  return (rc==SQLITE_OK && bBusy) ? SQLITE_BUSY : rc;
-}
-#endif //* SQLITE_OMIT_WAL */
-
-    /*
-    /*
-    ** This function returns true if main-memory should be used instead of
-    ** a temporary file for transient pager files and statement journals.
-    ** The value returned depends on the value of db->temp_store (runtime
-    ** parameter) and the compile time value of SQLITE_TEMP_STORE. The
-    ** following table describes the relationship between these two values
-    ** and this functions return value.
-    **
-    **   SQLITE_TEMP_STORE     db->temp_store     Location of temporary database
-    **   -----------------     --------------     ------------------------------
-    **   0                     any                file      (return 0)
-    **   1                     1                  file      (return 0)
-    **   1                     2                  memory    (return 1)
-    **   1                     0                  file      (return 0)
-    **   2                     1                  file      (return 0)
-    **   2                     2                  memory    (return 1)
-    **   2                     0                  memory    (return 1)
-    **   3                     any                memory    (return 1)
-    */
-    static bool sqlite3TempInMemory( sqlite3 db )
-    {
-      //#if SQLITE_TEMP_STORE==1
-      if ( SQLITE_TEMP_STORE == 1 )
-        return ( db.temp_store == 2 );
-      //#endif
-      //#if SQLITE_TEMP_STORE==2
-      if ( SQLITE_TEMP_STORE == 2 )
-        return ( db.temp_store != 1 );
-      //#endif
-      //#if SQLITE_TEMP_STORE==3
-      if ( SQLITE_TEMP_STORE == 3 )
-        return true;
-      //#endif
-      //#if SQLITE_TEMP_STORE<1 || SQLITE_TEMP_STORE>3
-      if ( SQLITE_TEMP_STORE < 1 || SQLITE_TEMP_STORE > 3 )
-        return false;
-      //#endif
-      return false;
-    }
-
-    /*
-    ** Return UTF-8 encoded English language explanation of the most recent
-    ** error.
-    */
-    public static string sqlite3_errmsg( sqlite3 db )
-    {
-      string z;
-      if ( db == null )
-      {
-        return sqlite3ErrStr( SQLITE_NOMEM );
-      }
-      if ( !sqlite3SafetyCheckSickOrOk( db ) )
-      {
-        return sqlite3ErrStr( SQLITE_MISUSE_BKPT() );
-      }
-      sqlite3_mutex_enter( db.mutex );
-      //if ( db.mallocFailed != 0 )
-      //{
-      //  z = sqlite3ErrStr( SQLITE_NOMEM );
-      //}
-      //else
-      {
-        z = sqlite3_value_text( db.pErr );
-        //Debug.Assert( 0 == db.mallocFailed );
-        if ( String.IsNullOrEmpty( z ) )
-        {
-          z = sqlite3ErrStr( db.errCode );
-        }
-      }
-      sqlite3_mutex_leave( db.mutex );
-      return z;
-    }
-
-#if !SQLITE_OMIT_UTF16
-/*
-** Return UTF-16 encoded English language explanation of the most recent
-** error.
-*/
-const void *sqlite3_errmsg16(sqlite3 db){
-static const u16 outOfMem[] = {
-'o', 'u', 't', ' ', 'o', 'f', ' ', 'm', 'e', 'm', 'o', 'r', 'y', 0
-};
-static const u16 misuse[] = {
-'l', 'i', 'b', 'r', 'a', 'r', 'y', ' ',
-'r', 'o', 'u', 't', 'i', 'n', 'e', ' ',
-'c', 'a', 'l', 'l', 'e', 'd', ' ',
-'o', 'u', 't', ' ',
-'o', 'f', ' ',
-'s', 'e', 'q', 'u', 'e', 'n', 'c', 'e', 0
-};
-
-string z;
-if( null==db ){
-return (void )outOfMem;
-}
-if( null==sqlite3SafetyCheckSickOrOk(db) ){
-return (void )misuse;
-}
-sqlite3_mutex_enter(db->mutex);
-if( db->mallocFailed ){
-z = (void )outOfMem;
-}else{
-z = sqlite3_value_text16(db->pErr);
-if( z==0 ){
-sqlite3ValueSetStr(db->pErr, -1, sqlite3ErrStr(db->errCode),
-SQLITE_UTF8, SQLITE_STATIC);
-z = sqlite3_value_text16(db->pErr);
-}
-/* A malloc() may have failed within the call to sqlite3_value_text16()
-** above. If this is the case, then the db->mallocFailed flag needs to
-** be cleared before returning. Do this directly, instead of via
-** sqlite3ApiExit(), to avoid setting the database handle error message.
-*/
-db->mallocFailed = 0;
-}
-sqlite3_mutex_leave(db->mutex);
-return z;
-}
-#endif // * SQLITE_OMIT_UTF16 */
-
-    /*
-** Return the most recent error code generated by an SQLite routine. If NULL is
-** passed to this function, we assume a malloc() failed during sqlite3_open().
-*/
-    static public int sqlite3_errcode( sqlite3 db )
-    {
-      if ( db != null && !sqlite3SafetyCheckSickOrOk( db ) )
-      {
-        return SQLITE_MISUSE_BKPT();
-      }
-      if ( null == db /*|| db.mallocFailed != 0 */ )
-      {
-        return SQLITE_NOMEM;
-      }
-      return db.errCode & db.errMask;
-    }
-    static int sqlite3_extended_errcode( sqlite3 db )
-    {
-      if ( db != null && !sqlite3SafetyCheckSickOrOk( db ) )
-      {
-        return SQLITE_MISUSE_BKPT();
-      }
-      if ( null == db /*|| db.mallocFailed != 0 */ )
-      {
-        return SQLITE_NOMEM;
-      }
-      return db.errCode;
-    }
-    /*
-    ** Create a new collating function for database "db".  The name is zName
-    ** and the encoding is enc.
-    */
-    static int createCollation(
-    sqlite3 db,
-    string zName,
-    u8 enc,
-    u8 collType,
-    object pCtx,
-    dxCompare xCompare,//)(void*,int,const void*,int,const void),
-    dxDelCollSeq xDel//)(void)
-    )
-    {
-      CollSeq pColl;
-      int enc2;
-      int nName = sqlite3Strlen30( zName );
-
-      Debug.Assert( sqlite3_mutex_held( db.mutex ) );
-
-      /* If SQLITE_UTF16 is specified as the encoding type, transform this
-      ** to one of SQLITE_UTF16LE or SQLITE_UTF16BE using the
-      ** SQLITE_UTF16NATIVE macro. SQLITE_UTF16 is not used internally.
-      */
-      enc2 = enc;
-      testcase( enc2 == SQLITE_UTF16 );
-      testcase( enc2 == SQLITE_UTF16_ALIGNED );
-      if ( enc2 == SQLITE_UTF16 || enc2 == SQLITE_UTF16_ALIGNED )
-      {
-        enc2 = SQLITE_UTF16NATIVE;
-      }
-      if ( enc2 < SQLITE_UTF8 || enc2 > SQLITE_UTF16BE )
-      {
-        return SQLITE_MISUSE_BKPT();
-      }
-
-      /* Check if this call is removing or replacing an existing collation
-      ** sequence. If so, and there are active VMs, return busy. If there
-      ** are no active VMs, invalidate any pre-compiled statements.
-      */
-      pColl = sqlite3FindCollSeq( db, (u8)enc2, zName, 0 );
-      if ( pColl != null && pColl.xCmp != null )
-      {
-        if ( db.activeVdbeCnt != 0 )
-        {
-          sqlite3Error( db, SQLITE_BUSY,
-          "unable to delete/modify collation sequence due to active statements" );
-          return SQLITE_BUSY;
-        }
-        sqlite3ExpirePreparedStatements( db );
-
-        /* If collation sequence pColl was created directly by a call to
-        ** sqlite3_create_collation, and not generated by synthCollSeq(),
-        ** then any copies made by synthCollSeq() need to be invalidated.
-        ** Also, collation destructor - CollSeq.xDel() - function may need
-        ** to be called.
-        */
-        if ( ( pColl.enc & ~SQLITE_UTF16_ALIGNED ) == enc2 )
-        {
-          CollSeq[] aColl = sqlite3HashFind( db.aCollSeq, zName, nName, (CollSeq[])null );
-          int j;
-          for ( j = 0; j < 3; j++ )
-          {
-            CollSeq p = aColl[j];
-            if ( p.enc == pColl.enc )
-            {
-              if ( p.xDel != null )
-              {
-                p.xDel( ref p.pUser );
-              }
-              p.xCmp = null;
-            }
-          }
-        }
-      }
-
-      pColl = sqlite3FindCollSeq( db, (u8)enc2, zName, 1 );
-      //if ( pColl == null )
-      //  return SQLITE_NOMEM;
-      pColl.xCmp = xCompare;
-      pColl.pUser = pCtx;
-      pColl.xDel = xDel;
-      pColl.enc = (u8)( enc2 | ( enc & SQLITE_UTF16_ALIGNED ) );
-      pColl.type = collType;
-      sqlite3Error( db, SQLITE_OK, 0 );
-      return SQLITE_OK;
-    }
-
-    /*
-    ** This array defines hard upper bounds on limit values.  The
-    ** initializer must be kept in sync with the SQLITE_LIMIT_*
-    ** #defines in sqlite3.h.
-    */
-    static int[] aHardLimit = new int[]  {
-SQLITE_MAX_LENGTH,
-SQLITE_MAX_SQL_LENGTH,
-SQLITE_MAX_COLUMN,
-SQLITE_MAX_EXPR_DEPTH,
-SQLITE_MAX_COMPOUND_SELECT,
-SQLITE_MAX_VDBE_OP,
-SQLITE_MAX_FUNCTION_ARG,
-SQLITE_MAX_ATTACHED,
-SQLITE_MAX_LIKE_PATTERN_LENGTH,
-SQLITE_MAX_VARIABLE_NUMBER,
-SQLITE_MAX_TRIGGER_DEPTH,
-};
-
-    /*
-    ** Make sure the hard limits are set to reasonable values
-    */
-    //#if SQLITE_MAX_LENGTH<100
-    //# error SQLITE_MAX_LENGTH must be at least 100
-    //#endif
-    //#if SQLITE_MAX_SQL_LENGTH<100
-    //# error SQLITE_MAX_SQL_LENGTH must be at least 100
-    //#endif
-    //#if SQLITE_MAX_SQL_LENGTH>SQLITE_MAX_LENGTH
-    //# error SQLITE_MAX_SQL_LENGTH must not be greater than SQLITE_MAX_LENGTH
-    //#endif
-    //#if SQLITE_MAX_COMPOUND_SELECT<2
-    //# error SQLITE_MAX_COMPOUND_SELECT must be at least 2
-    //#endif
-    //#if SQLITE_MAX_VDBE_OP<40
-    //# error SQLITE_MAX_VDBE_OP must be at least 40
-    //#endif
-    //#if SQLITE_MAX_FUNCTION_ARG<0 || SQLITE_MAX_FUNCTION_ARG>1000
-    //# error SQLITE_MAX_FUNCTION_ARG must be between 0 and 1000
-    //#endif
-    //#if SQLITE_MAX_ATTACHED<0 || SQLITE_MAX_ATTACHED>62
-    //# error SQLITE_MAX_ATTACHED must be between 0 and 62
-    //#endif
-    //#if SQLITE_MAX_LIKE_PATTERN_LENGTH<1
-    //# error SQLITE_MAX_LIKE_PATTERN_LENGTH must be at least 1
-    //#endif
-    //#if SQLITE_MAX_COLUMN>32767
-    //# error SQLITE_MAX_COLUMN must not exceed 32767
-    //#endif
-    //#if SQLITE_MAX_TRIGGER_DEPTH<1
-    //# error SQLITE_MAX_TRIGGER_DEPTH must be at least 1
-    //#endif
-
-    /*
-    ** Change the value of a limit.  Report the old value.
-    ** If an invalid limit index is supplied, report -1.
-    ** Make no changes but still report the old value if the
-    ** new limit is negative.
-    **
-    ** A new lower limit does not shrink existing constructs.
-    ** It merely prevents new constructs that exceed the limit
-    ** from forming.
-    */
-    static int sqlite3_limit( sqlite3 db, int limitId, int newLimit )
-    {
-      int oldLimit;
-
-
-      /* EVIDENCE-OF: R-30189-54097 For each limit category SQLITE_LIMIT_NAME
-      ** there is a hard upper bound set at compile-time by a C preprocessor
-      ** macro called SQLITE_MAX_NAME. (The "_LIMIT_" in the name is changed to
-      ** "_MAX_".)
-      */
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_LENGTH] == SQLITE_MAX_LENGTH );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_SQL_LENGTH] == SQLITE_MAX_SQL_LENGTH );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_COLUMN] == SQLITE_MAX_COLUMN );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_EXPR_DEPTH] == SQLITE_MAX_EXPR_DEPTH );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_COMPOUND_SELECT] == SQLITE_MAX_COMPOUND_SELECT );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_VDBE_OP] == SQLITE_MAX_VDBE_OP );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_FUNCTION_ARG] == SQLITE_MAX_FUNCTION_ARG );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_ATTACHED] == SQLITE_MAX_ATTACHED );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_LIKE_PATTERN_LENGTH] ==
-                                           SQLITE_MAX_LIKE_PATTERN_LENGTH );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_VARIABLE_NUMBER] == SQLITE_MAX_VARIABLE_NUMBER );
-      Debug.Assert( aHardLimit[SQLITE_LIMIT_TRIGGER_DEPTH] == SQLITE_MAX_TRIGGER_DEPTH );
-      Debug.Assert( SQLITE_LIMIT_TRIGGER_DEPTH == ( SQLITE_N_LIMIT - 1 ) );
-
-
-      if ( limitId < 0 || limitId >= SQLITE_N_LIMIT )
-      {
-        return -1;
-      }
-      oldLimit = db.aLimit[limitId];
-      if ( newLimit >= 0 )                     /* IMP: R-52476-28732 */
-      {
-        if ( newLimit > aHardLimit[limitId] )
-        {
-          newLimit = aHardLimit[limitId];      /* IMP: R-51463-25634 */
-        }
-        db.aLimit[limitId] = newLimit;
-      }
-      return oldLimit;                         /* IMP: R-53341-35419 */
-    }
-
-    class OpenMode {
-          public string z;
-          public int mode;
-
-      public OpenMode(string z, int mode)
-      {
-        this.z=z;
-        this.mode=mode;
-      }
-    } 
-    /*
-** This function is used to parse both URIs and non-URI filenames passed by the
-** user to API functions sqlite3_open() or sqlite3_open_v2(), and for database
-** URIs specified as part of ATTACH statements.
-**
-** The first argument to this function is the name of the VFS to use (or
-** a NULL to signify the default VFS) if the URI does not contain a "vfs=xxx"
-** query parameter. The second argument contains the URI (or non-URI filename)
-** itself. When this function is called the *pFlags variable should contain
-** the default flags to open the database handle with. The value stored in
-** *pFlags may be updated before returning if the URI filename contains 
-** "cache=xxx" or "mode=xxx" query parameters.
-**
-** If successful, SQLITE_OK is returned. In this case *ppVfs is set to point to
-** the VFS that should be used to open the database file. *pzFile is set to
-** point to a buffer containing the name of the file to open. It is the 
-** responsibility of the caller to eventually call sqlite3_free() to release
-** this buffer.
-**
-** If an error occurs, then an SQLite error code is returned and *pzErrMsg
-** may be set to point to a buffer containing an English language error 
-** message. It is the responsibility of the caller to eventually release
-** this buffer by calling sqlite3_free().
-*/
-static int sqlite3ParseUri(
-  string zDefaultVfs,        /* VFS to use if no "vfs=xxx" query option */
-  string zUri,               /* Nul-terminated URI to parse */
-  ref int pFlags,            /* IN/OUT: SQLITE_OPEN_XXX flags */
-  ref sqlite3_vfs ppVfs,     /* OUT: VFS to use */
-  ref string pzFile,         /* OUT: Filename component of URI */
-  ref string pzErrMsg        /* OUT: Error message (if rc!=SQLITE_OK) */
-){
-  int rc = SQLITE_OK;
-  int flags = pFlags;
-  string zVfs = zDefaultVfs;
-  StringBuilder zFile = null;
-  char c;
-  int nUri = sqlite3Strlen30(zUri);
-  pzErrMsg = null;
-  ppVfs = null;
-
-  if( ((flags & SQLITE_OPEN_URI) != 0 || sqlite3GlobalConfig.bOpenUri) 
-   && nUri>=5 && memcmp(zUri, "file:", 5)==0 
-  ){
-    string zOpt;
-    int eState;                   /* Parser state when parsing URI */
-    int iIn;                      /* Input character index */
-    //int iOut = 0;                 /* Output character index */
-    int nByte = nUri+2;           /* Bytes of space to allocate */
-
-    /* Make sure the SQLITE_OPEN_URI flag is set to indicate to the VFS xOpen 
-    ** method that there may be extra parameters following the file-name.  */
-    flags |= SQLITE_OPEN_URI;
-
-    for ( iIn = 0; iIn < nUri; iIn++ )
-      nByte += ( zUri[iIn] == '&' ) ? 1 : 0;
-    //zFile = sqlite3_malloc(nByte);
-    //if( null==zFile ) return SQLITE_NOMEM;
-    zFile = new StringBuilder( nByte );
-
-    /* Discard the scheme and authority segments of the URI. */
-    if( zUri[5]=='/' && zUri[6]=='/' ){
-      iIn = 7;
-      while ( iIn < nUri && zUri[iIn] != '/' )
-        iIn++;
-
-      if ( iIn != 7 && ( iIn != 16 || String.Compare( "localhost", zUri.Substring( 7, 9 ), StringComparison.InvariantCultureIgnoreCase ) != 0 ) )//memcmp("localhost", &zUri[7], 9)) )
-      {
-        pzErrMsg = sqlite3_mprintf("invalid uri authority: %.*s", 
-            iIn-7, zUri.Substring(7));
-        rc = SQLITE_ERROR;
-        goto parse_uri_out;
-      }
-    }else{
-      iIn = 5;
-    }
-
-    /* Copy the filename and any query parameters into the zFile buffer. 
-    ** Decode %HH escape codes along the way. 
-    **
-    ** Within this loop, variable eState may be set to 0, 1 or 2, depending
-    ** on the parsing context. As follows:
-    **
-    **   0: Parsing file-name.
-    **   1: Parsing name section of a name=value query parameter.
-    **   2: Parsing value section of a name=value query parameter.
-    */
-    eState = 0;
-    while ( iIn < nUri&& ( c = zUri[iIn] ) != 0 && c != '#' )
-    {
-      iIn++;
-      if( c=='%' 
-       && sqlite3Isxdigit(zUri[iIn]) 
-       && sqlite3Isxdigit(zUri[iIn+1]) 
-      ){
-        int octet = (sqlite3HexToInt(zUri[iIn++]) << 4);
-        octet += sqlite3HexToInt(zUri[iIn++]);
-
-        Debug.Assert( octet >= 0 && octet < 256 );
-        if ( octet == 0 )
-        {
-          /* This branch is taken when "%00" appears within the URI. In this
-          ** case we ignore all text in the remainder of the path, name or
-          ** value currently being parsed. So ignore the current character
-          ** and skip to the next "?", "=" or "&", as appropriate. */
-          while ( iIn < nUri && ( c = zUri[iIn] ) != 0 && c != '#' 
-              && (eState!=0 || c!='?')
-              && (eState!=1 || (c!='=' && c!='&'))
-              && (eState!=2 || c!='&')
-          ){
-            iIn++;
-          }
-          continue;
-        }
-        c = (char)octet;
-      }else if( eState==1 && (c=='&' || c=='=') ){
-        if ( zFile[zFile.Length-1] == '\0' )
-        {
-          /* An empty option name. Ignore this option altogether. */
-          while( zUri[iIn] != '\0' && zUri[iIn]!='#' && zUri[iIn-1]!='&' ) iIn++;
-          continue;
-        }
-        if( c=='&' ){
-          zFile.Append('\0');//[iOut++] = '\0';
-        }else{
-          eState = 2;
-        }
-        c = '\0';
-      }else if( (eState==0 && c=='?') || (eState==2 && c=='&') ){
-        c = '\0';
-        eState = 1;
-      }
-      zFile.Append(c);//      zFile[iOut++] = c;
-    }
-    if ( eState == 1 )
-      zFile.Append( '\0' );//[iOut++] = '\0';
-    zFile.Append( '\0' );//[iOut++] = '\0';
-    zFile.Append( '\0' );//[iOut++] = '\0';
-
-    /* Check if there were any options specified that should be interpreted 
-    ** here. Options that are interpreted here include "vfs" and those that
-    ** correspond to flags that may be passed to the sqlite3_open_v2()
-    ** method. */
-    zOpt = zFile.ToString().Substring(sqlite3Strlen30( zFile ) + 1);
-    while( zOpt.Length>0 ){
-      int nOpt = sqlite3Strlen30(zOpt);
-      string zVal = zOpt.Substring( nOpt );//zOpt[nOpt + 1];
-      int nVal = sqlite3Strlen30(zVal);
-
-      if( nOpt==3 && memcmp("vfs", zOpt, 3)==0 ){
-        zVfs = zVal;
-      }else{
-        OpenMode[] aMode = null;
-        string zModeType = "";
-        int mask = 0;
-        int limit = 0;
-
-        if( nOpt==5 && memcmp("cache", zOpt, 5)==0 ){
-          OpenMode[] aCacheMode = new OpenMode[] {
-           new OpenMode(  "shared",  SQLITE_OPEN_SHAREDCACHE ),
-           new OpenMode(  "private", SQLITE_OPEN_PRIVATECACHE ),
-           new OpenMode(  null, 0 )
-          };
-
-          mask = SQLITE_OPEN_SHAREDCACHE|SQLITE_OPEN_PRIVATECACHE;
-          aMode = aCacheMode;
-          limit = mask;
-          zModeType = "cache";
-        }
-        if( nOpt==4 && memcmp("mode", zOpt, 4)==0 ){
-          OpenMode[] aOpenMode = new OpenMode[] {
-            new OpenMode( "ro",  SQLITE_OPEN_READONLY ),
-            new OpenMode( "rw",  SQLITE_OPEN_READWRITE ), 
-            new OpenMode( "rwc", SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE ),
-            new OpenMode( null, 0 )
-          };
-
-          mask = SQLITE_OPEN_READONLY|SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE;
-          aMode = aOpenMode;
-          limit = mask & flags;
-          zModeType = "access";
-        }
-
-        if( aMode != null){
-          int i;
-          int mode = 0;
-          for(i=0; aMode[i].z!= null; i++){
-            string z = aMode[i].z;
-            if( nVal==sqlite3Strlen30(z) && 0==memcmp(zVal, z, nVal) ){
-              mode = aMode[i].mode;
-              break;
-            }
-          }
-          if( mode==0 ){
-            pzErrMsg = sqlite3_mprintf("no such %s mode: %s", zModeType, zVal);
-            rc = SQLITE_ERROR;
-            goto parse_uri_out;
-          }
-          if( mode>limit ){
-            pzErrMsg = sqlite3_mprintf("%s mode not allowed: %s",
-                                        zModeType, zVal);
-            rc = SQLITE_PERM;
-            goto parse_uri_out;
-          }
-          flags = ((flags & ~mask) | mode);
-        }
-      }
-
-      zOpt = zVal.Substring(nVal+1);
-    }
-
-  }else{
-    //zFile = sqlite3_malloc(nUri+2);
-    //if( null==zFile ) return SQLITE_NOMEM;
-    //memcpy(zFile, zUri, nUri);
-    zFile = zUri == null ? new StringBuilder() : new StringBuilder(zUri.Substring( 0, nUri ));
-    zFile.Append( '\0' );//[iOut++] = '\0';
-    zFile.Append( '\0' );//[iOut++] = '\0';
-  }
-
-  ppVfs = sqlite3_vfs_find(zVfs);
-  if( ppVfs==null ){
-    pzErrMsg = sqlite3_mprintf("no such vfs: %s", zVfs);
-    rc = SQLITE_ERROR;
-  }
- parse_uri_out:
-  if( rc!=SQLITE_OK ){
-    //sqlite3_free(zFile);
-    zFile = null;
-  }
-  pFlags = flags;
-  pzFile = zFile == null ? null : zFile.ToString().Substring( 0, sqlite3Strlen30( zFile.ToString() ) );
-  return rc;
-}
-
-    /*
-    ** This routine does the work of opening a database on behalf of
-    ** sqlite3_open() and sqlite3_open16(). The database filename "zFilename"
-    ** is UTF-8 encoded.
-    */
     static int openDatabase(
     string zFilename,   /* Database filename UTF-8 encoded */
     out sqlite3 ppDb,   /* OUT: Returned database handle */
@@ -2403,7 +1302,7 @@ static int sqlite3ParseUri(
       string zErrMsg = "";            /* Error message from sqlite3ParseUri() */
 
       ppDb = null;
-#if !SQLITE_OMIT_AUTOINIT
+#if !OMIT_AUTOINIT
       rc = sqlite3_initialize();
       if ( rc != 0 )
         return rc;
@@ -2427,7 +1326,7 @@ static int sqlite3ParseUri(
       testcase( ( 1 << ( flags & 7 ) ) == 0x40 ); /* READWRITE | CREATE */
       if ( ( ( 1 << ( flags & 7 ) ) & 0x46 ) == 0 ) return SQLITE_MISUSE_BKPT();
 
-      if ( sqlite3GlobalConfig.bCoreMutex == false )
+      if ( SysEx_GlobalStatics.bCoreMutex == false )
       {
         isThreadsafe = 0;
       }
@@ -2441,13 +1340,13 @@ static int sqlite3ParseUri(
       }
       else
       {
-        isThreadsafe = sqlite3GlobalConfig.bFullMutex ? 1 : 0;
+        isThreadsafe = SysEx_GlobalStatics.bFullMutex ? 1 : 0;
       }
       if ( ( flags & SQLITE_OPEN_PRIVATECACHE ) != 0 )
       {
         flags &= ~SQLITE_OPEN_SHAREDCACHE;
       }
-      else if ( sqlite3GlobalConfig.sharedCacheEnabled )
+      else if ( SysEx_GlobalStatics.sharedCacheEnabled )
       {
         flags |= SQLITE_OPEN_SHAREDCACHE;
       }
@@ -2480,7 +1379,7 @@ static int sqlite3ParseUri(
       db = new sqlite3();//sqlite3MallocZero( sqlite3.Length );
       if ( db == null )
         goto opendb_out;
-      if ( sqlite3GlobalConfig.bFullMutex && isThreadsafe != 0 )
+      if ( SysEx_GlobalStatics.bFullMutex && isThreadsafe != 0 )
       {
         db.mutex = sqlite3MutexAlloc( SQLITE_MUTEX_RECURSIVE );
         if ( db.mutex == null )
@@ -2502,18 +1401,18 @@ static int sqlite3ParseUri(
       db.flags |= SQLITE_ShortColNames | SQLITE_AutoIndex | SQLITE_EnableTrigger;
       if ( SQLITE_DEFAULT_FILE_FORMAT < 4 )
         db.flags |= SQLITE_LegacyFileFmt
-#if  SQLITE_ENABLE_LOAD_EXTENSION
+#if  ENABLE_LOAD_EXTENSION
 | SQLITE_LoadExtension
 #endif
-#if SQLITE_DEFAULT_RECURSIVE_TRIGGERS
+#if DEFAULT_RECURSIVE_TRIGGERS
    | SQLITE_RecTriggers
 #endif
-#if (SQLITE_DEFAULT_FOREIGN_KEYS) //&& SQLITE_DEFAULT_FOREIGN_KEYS
+#if (DEFAULT_FOREIGN_KEYS) //&& SQLITE_DEFAULT_FOREIGN_KEYS
    | SQLITE_ForeignKeys
 #endif
 ;
       sqlite3HashInit( db.aCollSeq );
-#if !SQLITE_OMIT_VIRTUALTABLE
+#if !OMIT_VIRTUALTABLE
       db.aModule = new Hash();
       sqlite3HashInit( db.aModule );
 #endif
@@ -2599,34 +1498,34 @@ if ( rc != SQLITE_OK )
       }
 
 
-#if  SQLITE_ENABLE_FTS1
+#if ENABLE_FTS1
 if( 0==db.mallocFailed ){
 extern int sqlite3Fts1Init(sqlite3);
 rc = sqlite3Fts1Init(db);
 }
 #endif
 
-#if  SQLITE_ENABLE_FTS2
+#if ENABLE_FTS2
 if( 0==db.mallocFailed && rc==SQLITE_OK ){
 extern int sqlite3Fts2Init(sqlite3);
 rc = sqlite3Fts2Init(db);
 }
 #endif
 
-#if  SQLITE_ENABLE_FTS3
+#if ENABLE_FTS3
 if( 0==db.mallocFailed && rc==SQLITE_OK ){
 rc = sqlite3Fts3Init(db);
 }
 #endif
 
-#if  SQLITE_ENABLE_ICU
+#if ENABLE_ICU
 if( 0==db.mallocFailed && rc==SQLITE_OK ){
 extern int sqlite3IcuInit(sqlite3);
 rc = sqlite3IcuInit(db);
 }
 #endif
 
-#if SQLITE_ENABLE_RTREE
+#if ENABLE_RTREE
 if( 0==db.mallocFailed && rc==SQLITE_OK){
 rc = sqlite3RtreeInit(db);
 }
@@ -2638,15 +1537,15 @@ rc = sqlite3RtreeInit(db);
       ** mode.  -DSQLITE_DEFAULT_LOCKING_MODE=0 make NORMAL the default locking
       ** mode.  Doing nothing at all also makes NORMAL the default.
       */
-#if  SQLITE_DEFAULT_LOCKING_MODE
+#if DEFAULT_LOCKING_MODE
 db.dfltLockMode = SQLITE_DEFAULT_LOCKING_MODE;
 sqlite3PagerLockingMode(sqlite3BtreePager(db.aDb[0].pBt),
 SQLITE_DEFAULT_LOCKING_MODE);
 #endif
 
       /* Enable the lookaside-malloc subsystem */
-      setupLookaside( db, null, sqlite3GlobalConfig.szLookaside,
-      sqlite3GlobalConfig.nLookaside );
+      setupLookaside( db, null, SysEx_GlobalStatics.szLookaside,
+      SysEx_GlobalStatics.nLookaside );
 
       sqlite3_wal_autocheckpoint( db, SQLITE_DEFAULT_WAL_AUTOCHECKPOINT );
 
@@ -2654,7 +1553,7 @@ opendb_out:
       //sqlite3_free(zOpen);
       if ( db != null )
       {
-        Debug.Assert( db.mutex != null || isThreadsafe == 0 || !sqlite3GlobalConfig.bFullMutex );
+        Debug.Assert( db.mutex != null || isThreadsafe == 0 || !SysEx_GlobalStatics.bFullMutex );
         sqlite3_mutex_leave( db.mutex );
       }
       rc = sqlite3_errcode( db );
@@ -2693,11 +1592,7 @@ opendb_out:
       return openDatabase( filename, out ppDb, flags, zVfs );
     }
 
-#if !SQLITE_OMIT_UTF16
-
-/*
-** Open a new database handle.
-*/
+#if !OMIT_UTF16
 int sqlite3_open16(
 string zFilename,
 sqlite3 **ppDb
@@ -2709,7 +1604,7 @@ int rc;
 Debug.Assert(zFilename );
 Debug.Assert(ppDb );
 *ppDb = 0;
-#if !SQLITE_OMIT_AUTOINIT
+#if !OMIT_AUTOINIT
 rc = sqlite3_initialize();
 if( rc !=0) return rc;
 #endif
@@ -2727,14 +1622,10 @@ ENC(*ppDb) = SQLITE_UTF16NATIVE;
 rc = SQLITE_NOMEM;
 }
 sqlite3ValueFree(pVal);
-
 return sqlite3ApiExit(0, rc);
 }
-#endif // * SQLITE_OMIT_UTF16 */
+#endif 
 
-    /*
-** Register a new collation sequence with the database handle db.
-*/
     static int sqlite3_create_collation(
     sqlite3 db,
     string zName,
@@ -2774,9 +1665,7 @@ return sqlite3ApiExit(0, rc);
     }
 
 #if !SQLITE_OMIT_UTF16
-/*
-** Register a new collation sequence with the database handle db.
-*/
+
 //int sqlite3_create_collation16(
 //  sqlite3* db,
 //  string zName,
@@ -2797,12 +1686,9 @@ return sqlite3ApiExit(0, rc);
 //  sqlite3_mutex_leave(db.mutex);
 //  return rc;
 //}
-#endif // * SQLITE_OMIT_UTF16 */
+#endif
 
-    /*
-** Register a collation sequence factory callback with the database handle
-** db. Replace any previously installed collation sequence factory.
-*/
+
     static int sqlite3_collation_needed(
     sqlite3 db,
     object pCollNeededArg,
@@ -2818,10 +1704,6 @@ return sqlite3ApiExit(0, rc);
     }
 
 #if !SQLITE_OMIT_UTF16
-/*
-** Register a collation sequence factory callback with the database handle
-** db. Replace any previously installed collation sequence factory.
-*/
 //int sqlite3_collation_needed16(
 //  sqlite3 db,
 //  void pCollNeededArg,
@@ -2834,18 +1716,9 @@ return sqlite3ApiExit(0, rc);
 //  sqlite3_mutex_leave(db.mutex);
 //  return SQLITE_OK;
 //}
-#endif // * SQLITE_OMIT_UTF16 */
-
-#if !SQLITE_OMIT_DEPRECATED
-/*
-** This function is now an anachronism. It used to be used to recover from a
-** malloc() failure, but SQLite now does this automatically.
-*/
-static int sqlite3_global_recover()
-{
-return SQLITE_OK;
-}
 #endif
+
+
 
     /*
 ** Test to see whether or not the database connection is in autocommit
@@ -2873,7 +1746,7 @@ return SQLITE_OK;
     */
     static int sqlite3CorruptError( int lineno )
     {
-      testcase( sqlite3GlobalConfig.xLog != null );
+      testcase( SysEx_GlobalStatics.xLog != null );
       sqlite3_log( SQLITE_CORRUPT,
       "database corruption at line %d of [%.10s]",
       lineno, 20 + sqlite3_sourceid() );
@@ -2881,7 +1754,7 @@ return SQLITE_OK;
     }
     static int sqlite3MisuseError( int lineno )
     {
-      testcase( sqlite3GlobalConfig.xLog != null );
+      testcase( SysEx_GlobalStatics.xLog != null );
       sqlite3_log( SQLITE_MISUSE,
       "misuse at line %d of [%.10s]",
       lineno, 20 + sqlite3_sourceid() );
@@ -2889,25 +1762,14 @@ return SQLITE_OK;
     }
     static int sqlite3CantopenError( int lineno )
     {
-      testcase( sqlite3GlobalConfig.xLog != null );
+      testcase( SysEx_GlobalStatics.xLog != null );
       sqlite3_log( SQLITE_CANTOPEN,
       "cannot open file at line %d of [%.10s]",
       lineno, 20 + sqlite3_sourceid() );
       return SQLITE_CANTOPEN;
     }
 
-#if !SQLITE_OMIT_DEPRECATED
-/*
-** This is a convenience routine that makes sure that all thread-specific
-** data for this thread has been deallocated.
-**
-** SQLite no longer uses thread-specific data so this routine is now a
-** no-op.  It is retained for historical compatibility.
-*/
-void sqlite3_thread_cleanup()
-{
-}
-#endif
+
     /*
 ** Return meta information about a specific column of a database table.
 ** See comment in sqlite3.h (sqlite.h.in) for details.
@@ -3373,29 +2235,19 @@ error_out:
     ** undo this setting.
     */
     case SQLITE_TESTCTRL_LOCALTIME_FAULT: {
-      sqlite3GlobalConfig.bLocaltimeFault = va_arg( ap, (Boolean)true );
+      SysEx_GlobalStatics.bLocaltimeFault = va_arg( ap, (Boolean)true );
       break;
     }
 
         }
         va_end( ref ap );
       }
-#endif //* SQLITE_OMIT_BUILTIN_TEST */
+#endif
       return rc;
     }
 
 
-/*
-** This is a utility routine, useful to VFS implementations, that checks
-** to see if a database file was a URI that contained a specific query 
-** parameter, and if so obtains the value of the query parameter.
-**
-** The zFilename argument is the filename pointer passed into the xOpen()
-** method of a VFS implementation.  The zParam argument is the name of the
-** query parameter we seek.  This routine returns the value of the zParam
-** parameter if it exists.  If the parameter does not exist, this routine
-** returns a NULL pointer.
-*/
+
 static string sqlite3_uri_parameter(string zFilename, string zParam){
   Debugger.Break();
   //zFilename += sqlite3Strlen30(zFilename) + 1;

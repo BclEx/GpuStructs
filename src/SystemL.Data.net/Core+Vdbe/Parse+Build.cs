@@ -304,7 +304,7 @@ namespace Core
             ctx.Flags |= Context.FLAG.InternChanges;
         }
 
-        public void CollapseDatabaseArray(Context ctx)
+        public static void CollapseDatabaseArray(Context ctx)
         {
             // If one or more of the auxiliary database files has been closed, then remove them from the auxiliary database list.  We take the
             // opportunity to do this here since we have just deleted all of the schema hash tables and therefore do not have to make any changes
@@ -325,8 +325,8 @@ namespace Core
             if (ctx.DBs.length != j)
                 ctx.DBs[j] = new Context.DB();
             ctx.DBs.length = j;
-            if (ctx.DBs.length <= 2 && ctx.DBs.data != ctx.StaticDBs)
-                Array.Copy(ctx.DBs.data, ctx.DbStatic, 2);
+            if (ctx.DBs.length <= 2 && ctx.DBs.data != ctx.DBStatics)
+                Array.Copy(ctx.DBs.data, ctx.DBStatics, 2);
         }
 
         public void ResetOneSchema(Context ctx, int db)
@@ -346,7 +346,7 @@ namespace Core
             }
         }
 
-        public void ResetAllSchemasOfConnection(Context ctx)
+        public static void ResetAllSchemasOfConnection(Context ctx)
         {
             // Case 2 (from here to the end): Reset all schemas for all attached databases.
             Btree.EnterAll(ctx);
