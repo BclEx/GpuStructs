@@ -1562,6 +1562,8 @@ namespace Core {
 
 		struct Pragma
 		{
+			__device__ static const char *JournalModename(IPager::JOURNALMODE mode);
+			__device__ static void Pragma_(Parse *parse, Token *id1, Token *id2, Token *value, bool minusFlag);
 		};
 
 		struct Select

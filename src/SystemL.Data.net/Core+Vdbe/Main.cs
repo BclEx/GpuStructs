@@ -1,3 +1,5 @@
+using Core.Command;
+using Core.IO;
 using System;
 using System.Diagnostics;
 using System.Text;
@@ -102,11 +104,11 @@ namespace Core
 
         // If the following global variable points to a string which is the name of a directory, then that directory will be used to store temporary files.
         // See also the "PRAGMA temp_store_directory" SQL command.
-        static string g_temp_directory = null;
+        internal static string g_temp_directory = null;
         // If the following global variable points to a string which is the name of a directory, then that directory will be used to store
         // all database files specified with a relative pathname.
         // See also the "PRAGMA data_store_directory" SQL command.
-        static string g_data_directory = null;
+        internal static string g_data_directory = null;
 
         public class GlobalStatics
         {
@@ -1079,6 +1081,8 @@ namespace Core
             return false;
         }
 
+        #region Error Message
+
         public static string ErrMsg(Context ctx)
         {
             if (ctx == null)
@@ -1151,7 +1155,9 @@ namespace Core
 
         //public static string ErrStr(RC rc) { return ErrStr(rc); }
 
-        static RC CreateCollation(Context ctx, string name, TEXTENCODE encode, object ctx2, Func<object, int, object, int, object, int> compare, RefAction<object> del)
+        #endregion
+
+        static RC CreateCollation(Context ctx, string name, TEXTENCODE encode, object ctx2, Func<object, int, string, int, string, int> compare, RefAction<object> del)
         {
             int nameLength = name.Length;
             Debug.Assert(MutexEx.Held(ctx.Mutex));
@@ -1287,981 +1293,690 @@ namespace Core
 
         #endregion
 
-#if false
-    static int openDatabase(
-    string zFilename,   /* Database filename UTF-8 encoded */
-    out sqlite3 ppDb,   /* OUT: Returned database handle */
-    int flags,         /* Operational flags */
-    string zVfs         /* Name of the VFS to use */
-    )
-    {
-      sqlite3 db;                     /* Store allocated handle here */
-      int rc;                         /* Return code */
-      int isThreadsafe;               /* True for threadsafe connections */
-      string zOpen = "";              /* Filename argument to pass to BtreeOpen() */
-      string zErrMsg = "";            /* Error message from sqlite3ParseUri() */
+        #region Open Database
 
-      ppDb = null;
+        static RC OpenDatabase(string fileName, out Context ctxOut, VSystem.OPEN flags, string vfsName)
+        {
+            ctxOut = null;
+            RC rc;
+
 #if !OMIT_AUTOINIT
-      rc = sqlite3_initialize();
-      if ( rc != 0 )
-        return rc;
+            rc = SysEx.AutoInitialize();
+            if (rc != 0) return rc;
 #endif
 
-      /* Only allow sensible combinations of bits in the flags argument.
-** Throw an error if any non-sense combination is used.  If we
-** do not block illegal combinations here, it could trigger
-** Debug.Assert() statements in deeper layers.  Sensible combinations
-** are:
-**
-**  1:  SQLITE_OPEN_READONLY
-**  2:  SQLITE_OPEN_READWRITE
-**  6:  SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
-*/
-      Debug.Assert( SQLITE_OPEN_READONLY == 0x01 );
-      Debug.Assert( SQLITE_OPEN_READWRITE == 0x02 );
-      Debug.Assert( SQLITE_OPEN_CREATE == 0x04 );
-      testcase( ( 1 << ( flags & 7 ) ) == 0x02 ); /* READONLY */
-      testcase( ( 1 << ( flags & 7 ) ) == 0x04 ); /* READWRITE */
-      testcase( ( 1 << ( flags & 7 ) ) == 0x40 ); /* READWRITE | CREATE */
-      if ( ( ( 1 << ( flags & 7 ) ) & 0x46 ) == 0 ) return SQLITE_MISUSE_BKPT();
+            // Only allow sensible combinations of bits in the flags argument.  Throw an error if any non-sense combination is used.  If we
+            // do not block illegal combinations here, it could trigger assert() statements in deeper layers.  Sensible combinations are:
+            //
+            //  1:  VSystem::OPEN_READONLY
+            //  2:  VSystem::OPEN_READWRITE
+            //  6:  VSystem::OPEN_READWRITE | VSystem::OPEN_CREATE
+            Debug.Assert((int)VSystem.OPEN.READONLY == 0x01);
+            Debug.Assert((int)VSystem.OPEN.READWRITE == 0x02);
+            Debug.Assert((int)VSystem.OPEN.CREATE == 0x04);
+            C.ASSERTCOVERAGE((1 << ((int)flags & 7)) == 0x02); // READONLY
+            C.ASSERTCOVERAGE((1 << ((int)flags & 7)) == 0x04); // READWRITE
+            C.ASSERTCOVERAGE((1 << ((int)flags & 7)) == 0x40); // READWRITE | CREATE
+            if (((1 << ((int)flags & 7)) & 0x46) == 0) return SysEx.MISUSE_BKPT();
 
-      if ( SysEx_GlobalStatics.bCoreMutex == false )
-      {
-        isThreadsafe = 0;
-      }
-      else if ( ( flags & SQLITE_OPEN_NOMUTEX ) != 0 )
-      {
-        isThreadsafe = 0;
-      }
-      else if ( ( flags & SQLITE_OPEN_FULLMUTEX ) != 0 )
-      {
-        isThreadsafe = 1;
-      }
-      else
-      {
-        isThreadsafe = SysEx_GlobalStatics.bFullMutex ? 1 : 0;
-      }
-      if ( ( flags & SQLITE_OPEN_PRIVATECACHE ) != 0 )
-      {
-        flags &= ~SQLITE_OPEN_SHAREDCACHE;
-      }
-      else if ( SysEx_GlobalStatics.sharedCacheEnabled )
-      {
-        flags |= SQLITE_OPEN_SHAREDCACHE;
-      }
+            bool isThreadsafe; // True for threadsafe connections
+            if (!SysEx._GlobalStatics.CoreMutex) isThreadsafe = false;
+            else if ((flags & VSystem.OPEN.NOMUTEX) != 0) isThreadsafe = false;
+            else if ((flags & VSystem.OPEN.FULLMUTEX) != 0) isThreadsafe = true;
+            else isThreadsafe = SysEx._GlobalStatics.FullMutex;
+            if ((flags & VSystem.OPEN.PRIVATECACHE) != 0) flags &= ~VSystem.OPEN.SHAREDCACHE;
+            else if (SysEx._GlobalStatics.SharedCacheEnabled) flags |= VSystem.OPEN.SHAREDCACHE;
 
-      /* Remove harmful bits from the flags parameter
-      **
-      ** The SQLITE_OPEN_NOMUTEX and SQLITE_OPEN_FULLMUTEX flags were
-      ** dealt with in the previous code block.  Besides these, the only
-      ** valid input flags for sqlite3_open_v2() are SQLITE_OPEN_READONLY,
-      ** SQLITE_OPEN_READWRITE, SQLITE_OPEN_CREATE, SQLITE_OPEN_SHAREDCACHE,
-      ** SQLITE_OPEN_PRIVATECACHE, and some reserved bits.  Silently mask
-      ** off all other flags.
-      */
-      flags &= ~( SQLITE_OPEN_DELETEONCLOSE |
-      SQLITE_OPEN_EXCLUSIVE |
-      SQLITE_OPEN_MAIN_DB |
-      SQLITE_OPEN_TEMP_DB |
-      SQLITE_OPEN_TRANSIENT_DB |
-      SQLITE_OPEN_MAIN_JOURNAL |
-      SQLITE_OPEN_TEMP_JOURNAL |
-      SQLITE_OPEN_SUBJOURNAL |
-      SQLITE_OPEN_MASTER_JOURNAL |
-      SQLITE_OPEN_NOMUTEX |
-      SQLITE_OPEN_FULLMUTEX |
-      SQLITE_OPEN_WAL
-      );
+            // Remove harmful bits from the flags parameter
+            //
+            // The SQLITE_OPEN_NOMUTEX and SQLITE_OPEN_FULLMUTEX flags were dealt with in the previous code block.  Besides these, the only
+            // valid input flags for sqlite3_open_v2() are SQLITE_OPEN_READONLY, SQLITE_OPEN_READWRITE, SQLITE_OPEN_CREATE, SQLITE_OPEN_SHAREDCACHE,
+            // SQLITE_OPEN_PRIVATECACHE, and some reserved bits.  Silently mask off all other flags.
+            flags &= ~(
+                VSystem.OPEN.DELETEONCLOSE |
+                VSystem.OPEN.EXCLUSIVE |
+                VSystem.OPEN.MAIN_DB |
+                VSystem.OPEN.TEMP_DB |
+                VSystem.OPEN.TRANSIENT_DB |
+                VSystem.OPEN.MAIN_JOURNAL |
+                VSystem.OPEN.TEMP_JOURNAL |
+                VSystem.OPEN.SUBJOURNAL |
+                VSystem.OPEN.MASTER_JOURNAL |
+                VSystem.OPEN.NOMUTEX |
+                VSystem.OPEN.FULLMUTEX |
+                VSystem.OPEN.WAL);
 
-
-      /* Allocate the sqlite data structure */
-      db = new sqlite3();//sqlite3MallocZero( sqlite3.Length );
-      if ( db == null )
-        goto opendb_out;
-      if ( SysEx_GlobalStatics.bFullMutex && isThreadsafe != 0 )
-      {
-        db.mutex = sqlite3MutexAlloc( SQLITE_MUTEX_RECURSIVE );
-        if ( db.mutex == null )
-        {
-          //sqlite3_free( ref db );
-          goto opendb_out;
-        }
-      }
-      sqlite3_mutex_enter( db.mutex );
-      db.errMask = 0xff;
-      db.nDb = 2;
-      db.magic = SQLITE_MAGIC_BUSY;
-      Array.Copy( db.aDbStatic, db.aDb, db.aDbStatic.Length );// db.aDb = db.aDbStatic;
-      Debug.Assert( db.aLimit.Length == aHardLimit.Length );
-      Buffer.BlockCopy( aHardLimit, 0, db.aLimit, 0, aHardLimit.Length * sizeof( int ) );//memcpy(db.aLimit, aHardLimit, sizeof(db.aLimit));
-      db.autoCommit = 1;
-      db.nextAutovac = -1;
-      db.nextPagesize = 0;
-      db.flags |= SQLITE_ShortColNames | SQLITE_AutoIndex | SQLITE_EnableTrigger;
-      if ( SQLITE_DEFAULT_FILE_FORMAT < 4 )
-        db.flags |= SQLITE_LegacyFileFmt
-#if  ENABLE_LOAD_EXTENSION
-| SQLITE_LoadExtension
+            // Allocate the sqlite data structure
+            Context ctx = new Context(); // Store allocated handle here
+            if (ctx == null) goto opendb_out;
+            if (SysEx._GlobalStatics.FullMutex && isThreadsafe)
+            {
+                ctx.Mutex = MutexEx.Alloc(MutexEx.MUTEX.RECURSIVE);
+                if (ctx.Mutex.Tag == null)
+                {
+                    C._free(ref ctx);
+                    ctx = null;
+                    goto opendb_out;
+                }
+            }
+            MutexEx.Enter(ctx.Mutex);
+            ctx.ErrMask = 0xff;
+            ctx.DBs.length = 2;
+            ctx.Magic = MAGIC.BUSY;
+            Array.Copy(ctx.DBStatics, ctx.DBs.data, ctx.DBStatics.Length);
+            Debug.Assert(ctx.Limits.Length == _hardLimits.Length);
+            Buffer.BlockCopy(_hardLimits, 0, ctx.Limits, 0, _hardLimits.Length * sizeof(int));
+            ctx.AutoCommit = 1;
+            ctx.NextAutovac = -1;
+            ctx.NextPagesize = 0;
+            ctx.Flags |= Context.FLAG.ShortColNames | Context.FLAG.AutoIndex | Context.FLAG.EnableTrigger;
+            if (DEFAULT_FILE_FORMAT < 4)
+                ctx.Flags |= Context.FLAG.LegacyFileFmt
+#if ENABLE_LOAD_EXTENSION
+ | Context.FLAG.LoadExtension
 #endif
 #if DEFAULT_RECURSIVE_TRIGGERS
-   | SQLITE_RecTriggers
+ | Context.FLAG.RecTriggers
 #endif
-#if (DEFAULT_FOREIGN_KEYS) //&& SQLITE_DEFAULT_FOREIGN_KEYS
-   | SQLITE_ForeignKeys
+#if DEFAULT_FOREIGN_KEYS
+ | Context.FLAG.ForeignKeys
 #endif
 ;
-      sqlite3HashInit( db.aCollSeq );
+            ctx.CollSeqs.Init();
 #if !OMIT_VIRTUALTABLE
-      db.aModule = new Hash();
-      sqlite3HashInit( db.aModule );
+            ctx.Modules = new Hash();
+            ctx.Modules.Init();
 #endif
 
-      /* Add the default collation sequence BINARY. BINARY works for both UTF-8
-      ** and UTF-16, so add a version for each to avoid any unnecessary
-      ** conversions. The only error that can occur here is a malloc() failure.
-      */
-      createCollation( db, "BINARY", SQLITE_UTF8, SQLITE_COLL_BINARY, 0,
-               binCollFunc, null );
-      createCollation( db, "BINARY", SQLITE_UTF16BE, SQLITE_COLL_BINARY, 0,
-              binCollFunc, null );
-      createCollation( db, "BINARY", SQLITE_UTF16LE, SQLITE_COLL_BINARY, 0,
-              binCollFunc, null );
-      createCollation( db, "RTRIM", SQLITE_UTF8, SQLITE_COLL_USER, 1,
-              binCollFunc, null );
-      //if ( db.mallocFailed != 0 )
-      //{
-      //  goto opendb_out;
-      //}
-      db.pDfltColl = sqlite3FindCollSeq( db, SQLITE_UTF8, "BINARY", 0 );
-      Debug.Assert( db.pDfltColl != null );
+            // Add the default collation sequence BINARY. BINARY works for both UTF-8 and UTF-16, so add a version for each to avoid any unnecessary
+            // conversions. The only error that can occur here is a malloc() failure.
+            CreateCollation(ctx, "BINARY", TEXTENCODE.UTF8, null, BinCollFunc, null);
+            CreateCollation(ctx, "BINARY", TEXTENCODE.UTF16BE, null, BinCollFunc, null);
+            CreateCollation(ctx, "BINARY", TEXTENCODE.UTF16LE, null, BinCollFunc, null);
+            CreateCollation(ctx, "RTRIM", TEXTENCODE.UTF8, 1, BinCollFunc, null);
+            if (ctx.MallocFailed)
+                goto opendb_out;
+            ctx.DefaultColl = Callback.FindCollSeq(ctx, TEXTENCODE.UTF8, "BINARY", false);
+            Debug.Assert(ctx.DefaultColl != null);
 
-      /* Also add a UTF-8 case-insensitive collation sequence. */
-      createCollation( db, "NOCASE", SQLITE_UTF8, SQLITE_COLL_NOCASE, 0,
-               nocaseCollatingFunc, null );
+            // Also add a UTF-8 case-insensitive collation sequence.
+            CreateCollation(ctx, "NOCASE", TEXTENCODE.UTF8, null, NocaseCollatingFunc, null);
 
-  /* Parse the filename/URI argument. */
-  db.openFlags = flags;
-  rc = sqlite3ParseUri( zVfs, zFilename, ref flags, ref db.pVfs, ref zOpen, ref zErrMsg );
-  if( rc!=SQLITE_OK ){
-    //if( rc==SQLITE_NOMEM ) db.mallocFailed = 1;
-    sqlite3Error(db, rc, zErrMsg.Length>0 ? "%s" : "", zErrMsg);
-    //sqlite3_free(zErrMsg);
-    goto opendb_out;
-  }
+            // Parse the filename/URI argument.
+            ctx.OpenFlags = flags;
+            string open; // Filename argument to pass to BtreeOpen()
+            string errMsg; // Error message from sqlite3ParseUri()
+            rc = VSystem.ParseUri(vfsName, fileName, ref flags, out ctx.Vfs, out open, out errMsg);
+            if (rc != RC.OK)
+            {
+                if (rc == RC.NOMEM) ctx.MallocFailed = true;
+                Main.Error(ctx, rc, (errMsg.Length > 0 ? "%s" : null), errMsg);
+                C._free(ref errMsg);
+                goto opendb_out;
+            }
 
-  /* Open the backend database driver */
-  rc = sqlite3BtreeOpen(db.pVfs, zOpen, db, ref db.aDb[0].pBt, 0,
-                        flags | SQLITE_OPEN_MAIN_DB);
-if ( rc != SQLITE_OK )
-      {
-        if ( rc == SQLITE_IOERR_NOMEM )
-        {
-          rc = SQLITE_NOMEM;
-        }
-        sqlite3Error( db, rc, 0 );
-        goto opendb_out;
-      }
-      db.aDb[0].pSchema = sqlite3SchemaGet( db, db.aDb[0].pBt );
-      db.aDb[1].pSchema = sqlite3SchemaGet( db, null );
+            // Open the backend database driver
+            rc = Btree.Open(ctx.Vfs, open, ctx, ref ctx.DBs[0].Bt, 0, flags | VSystem.OPEN.MAIN_DB);
+            if (rc != RC.OK)
+            {
+                if (rc == RC.IOERR_NOMEM)
+                    rc = RC.NOMEM;
+                Main.Error(ctx, rc, null);
+                goto opendb_out;
+            }
+            ctx.DBs[0].Schema = Callback.SchemaGet(ctx, ctx.DBs[0].Bt);
+            ctx.DBs[1].Schema = Callback.SchemaGet(ctx, null);
 
+            // The default safety_level for the main database is 'full'; for the temp database it is 'NONE'. This matches the pager layer defaults.  
+            ctx.DBs[0].Name = "main";
+            ctx.DBs[0].SafetyLevel = 3;
+            ctx.DBs[1].Name = "temp";
+            ctx.DBs[1].SafetyLevel = 1;
 
-      /* The default safety_level for the main database is 'full'; for the temp
-      ** database it is 'NONE'. This matches the pager layer defaults.
-      */
-      db.aDb[0].zName = "main";
-      db.aDb[0].safety_level = 3;
-      db.aDb[1].zName = "temp";
-      db.aDb[1].safety_level = 1;
+            ctx.Magic = MAGIC.OPEN;
+            if (ctx.MallocFailed)
+                goto opendb_out;
 
-      db.magic = SQLITE_MAGIC_OPEN;
-      //if ( db.mallocFailed != 0 )
-      //{
-      //  goto opendb_out;
-      //}
+            // Register all built-in functions, but do not attempt to read the database schema yet. This is delayed until the first time the database is accessed.
+            Main.Error(ctx, RC.OK, null);
+            Func.RegisterBuiltinFunctions(ctx);
 
-      /* Register all built-in functions, but do not attempt to read the
-      ** database schema yet. This is delayed until the first time the database
-      ** is accessed.
-      */
-      sqlite3Error( db, SQLITE_OK, 0 );
-      sqlite3RegisterBuiltinFunctions( db );
-
-      /* Load automatic extensions - extensions that have been registered
-      ** using the sqlite3_automatic_extension() API.
-      */
-      sqlite3AutoLoadExtensions( db );
-      rc = sqlite3_errcode( db );
-      if ( rc != SQLITE_OK )
-      {
-        goto opendb_out;
-      }
-
+            // Load automatic extensions - extensions that have been registered using the sqlite3_automatic_extension() API.
+            rc = Main.ErrCode(ctx);
+            if (rc != RC.OK)
+            {
+                LoadExt.AutoLoadExtensions(ctx);
+                rc = Main.ErrCode(ctx);
+                if (rc != RC.OK)
+                    goto opendb_out;
+            }
 
 #if ENABLE_FTS1
-if( 0==db.mallocFailed ){
-extern int sqlite3Fts1Init(sqlite3);
-rc = sqlite3Fts1Init(db);
-}
+            if (!ctx.MallocFailed)
+                rc = sqlite3Fts1Init(ctx);
 #endif
 
 #if ENABLE_FTS2
-if( 0==db.mallocFailed && rc==SQLITE_OK ){
-extern int sqlite3Fts2Init(sqlite3);
-rc = sqlite3Fts2Init(db);
-}
+            if (!ctx.MallocFailed && rc == RC.OK)
+                rc = sqlite3Fts2Init(ctx);
 #endif
 
 #if ENABLE_FTS3
-if( 0==db.mallocFailed && rc==SQLITE_OK ){
-rc = sqlite3Fts3Init(db);
-}
+            if (!ctx.MallocFailed && rc == RC.OK)
+                rc = sqlite3Fts3Init(ctx);
 #endif
 
 #if ENABLE_ICU
-if( 0==db.mallocFailed && rc==SQLITE_OK ){
-extern int sqlite3IcuInit(sqlite3);
-rc = sqlite3IcuInit(db);
-}
+            if (!ctx.MallocFailed && rc == RC.OK)
+                rc = sqlite3IcuInit(ctxb);
 #endif
 
 #if ENABLE_RTREE
-if( 0==db.mallocFailed && rc==SQLITE_OK){
-rc = sqlite3RtreeInit(db);
-}
+            if (!ctx.MallocFailed && rc == RC.OK)
+                rc = sqlite3RtreeInit(db);
 #endif
 
-      sqlite3Error( db, rc, 0 );
+            Main.Error(ctx, rc, null);
 
-      /* -DSQLITE_DEFAULT_LOCKING_MODE=1 makes EXCLUSIVE the default locking
-      ** mode.  -DSQLITE_DEFAULT_LOCKING_MODE=0 make NORMAL the default locking
-      ** mode.  Doing nothing at all also makes NORMAL the default.
-      */
+            // -DSQLITE_DEFAULT_LOCKING_MODE=1 makes EXCLUSIVE the default locking
+            // mode.  -DSQLITE_DEFAULT_LOCKING_MODE=0 make NORMAL the default locking
+            // mode.  Doing nothing at all also makes NORMAL the default.
 #if DEFAULT_LOCKING_MODE
-db.dfltLockMode = SQLITE_DEFAULT_LOCKING_MODE;
-sqlite3PagerLockingMode(sqlite3BtreePager(db.aDb[0].pBt),
-SQLITE_DEFAULT_LOCKING_MODE);
+            ctx.DefaultLockMode = DEFAULT_LOCKING_MODE;
+            ctx.DBs[0].Bt.get_Pager().LockingMode(DEFAULT_LOCKING_MODE);
 #endif
 
-      /* Enable the lookaside-malloc subsystem */
-      setupLookaside( db, null, SysEx_GlobalStatics.szLookaside,
-      SysEx_GlobalStatics.nLookaside );
+            // Enable the lookaside-malloc subsystem
+            SysEx.SetupLookaside(ctx, null, SysEx._GlobalStatics.LookasideSize, SysEx.GlobalStatics.Lookasides);
 
-      sqlite3_wal_autocheckpoint( db, SQLITE_DEFAULT_WAL_AUTOCHECKPOINT );
+            Main.WalAutocheckpoint(ctx, DEFAULT_WAL_AUTOCHECKPOINT);
 
-opendb_out:
-      //sqlite3_free(zOpen);
-      if ( db != null )
-      {
-        Debug.Assert( db.mutex != null || isThreadsafe == 0 || !SysEx_GlobalStatics.bFullMutex );
-        sqlite3_mutex_leave( db.mutex );
-      }
-      rc = sqlite3_errcode( db );
-      if ( rc == SQLITE_NOMEM )
-      {
-        sqlite3_close( db );
-        db = null;
-      }
-      else if ( rc != SQLITE_OK )
-      {
-        db.magic = SQLITE_MAGIC_SICK;
-      }
-      ppDb = db;
-      return sqlite3ApiExit( 0, rc );
-    }
+        opendb_out:
+            C._free(ref open);
+            if (ctx != null)
+            {
+                Debug.Assert(ctx.Mutex.Tag != null || !isThreadsafe || !SysEx._GlobalStatics.FullMutex);
+                MutexEx.Leave(ctx.Mutex);
+            }
+            rc = Main.ErrCode(ctx);
+            if (rc == RC.NOMEM)
+            {
+                Main.Close(ctx);
+                ctx = null;
+            }
+            else if (rc != RC.OK)
+                ctx.Magic = MAGIC.SICK;
+            ctxOut = ctx;
+#if ENABLE_SQLLOG
+		if (SysEx._GlobalStatics.Sqllog)
+			SysEx._GlobalStatics.Sqllog(SysEx._GlobalStatics.SqllogArg, ctx, fileName, 0); // Opening a ctx handle. Fourth parameter is passed 0.
+#endif
+            return Main.ApiExit(null, rc);
+        }
 
-    /*
-    ** Open a new database handle.
-    */
-    static public int sqlite3_open(
-    string zFilename,
-    out sqlite3 ppDb
-    )
-    {
-      return openDatabase( zFilename, out ppDb,
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, null );
-    }
-
-    static public int sqlite3_open_v2(
-    string filename,   /* Database filename (UTF-8) */
-    out sqlite3 ppDb,  /* OUT: SQLite db handle */
-    int flags,         /* Flags */
-    string zVfs        /* Name of VFS module to use */
-    )
-    {
-      return openDatabase( filename, out ppDb, flags, zVfs );
-    }
+        public static RC Open(string fileName, out Context ctxOut) { return OpenDatabase(fileName, out ctxOut, VSystem.OPEN.READWRITE | VSystem.OPEN.CREATE, null); }
+        public static RC Open_v2(string fileName, out Context ctxOut, VSystem.OPEN flags, string vfsName) { return OpenDatabase(fileName, out ctxOut, flags, vfsName); }
 
 #if !OMIT_UTF16
-int sqlite3_open16(
-string zFilename,
-sqlite3 **ppDb
-){
-char const *zFilename8;   /* zFilename encoded in UTF-8 instead of UTF-16 */
-sqlite3_value pVal;
-int rc;
-
-Debug.Assert(zFilename );
-Debug.Assert(ppDb );
-*ppDb = 0;
+        public static RC Open16(string fileName, out Context ctxOut)
+        {
+            Debug.Assert(fileName != null);
+            ctxOut = null;
+            RC rc;
 #if !OMIT_AUTOINIT
-rc = sqlite3_initialize();
-if( rc !=0) return rc;
+            rc = SysEx.AutoInitialize();
+            if (rc != 0) return rc;
 #endif
-pVal = sqlite3ValueNew(0);
-sqlite3ValueSetStr(pVal, -1, zFilename, SQLITE_UTF16NATIVE, SQLITE_STATIC);
-zFilename8 = sqlite3ValueText(pVal, SQLITE_UTF8);
-if( zFilename8 ){
-rc = openDatabase(zFilename8, ppDb,
-SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, 0);
-Debug.Assert(*ppDb || rc==SQLITE_NOMEM );
-if( rc==SQLITE_OK && !DbHasProperty(*ppDb, 0, DB_SchemaLoaded) ){
-ENC(*ppDb) = SQLITE_UTF16NATIVE;
-}
-}else{
-rc = SQLITE_NOMEM;
-}
-sqlite3ValueFree(pVal);
-return sqlite3ApiExit(0, rc);
-}
-#endif 
-
-    static int sqlite3_create_collation(
-    sqlite3 db,
-    string zName,
-    int enc,
-    object pCtx,
-    dxCompare xCompare
-    )
-    {
-      int rc;
-      sqlite3_mutex_enter( db.mutex );
-      //Debug.Assert( 0 == db.mallocFailed );
-      rc = createCollation( db, zName, (u8)enc, SQLITE_COLL_USER, pCtx, xCompare, null );
-      rc = sqlite3ApiExit( db, rc );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
-
-    /*
-    ** Register a new collation sequence with the database handle db.
-    */
-    static int sqlite3_create_collation_v2(
-    sqlite3 db,
-    string zName,
-    int enc,
-    object pCtx,
-    dxCompare xCompare, //int(*xCompare)(void*,int,const void*,int,const void),
-    dxDelCollSeq xDel  //void(*xDel)(void)
-    )
-    {
-      int rc;
-      sqlite3_mutex_enter( db.mutex );
-      //Debug.Assert( 0 == db.mallocFailed );
-      rc = createCollation( db, zName, (u8)enc, SQLITE_COLL_USER, pCtx, xCompare, xDel );
-      rc = sqlite3ApiExit( db, rc );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
-
-#if !SQLITE_OMIT_UTF16
-
-//int sqlite3_create_collation16(
-//  sqlite3* db,
-//  string zName,
-//  int enc,
-//  void* pCtx,
-//  int(*xCompare)(void*,int,const void*,int,const void)
-//){
-//  int rc = SQLITE_OK;
-//  string zName8;
-//  sqlite3_mutex_enter(db.mutex);
-//  Debug.Assert( 0==db.mallocFailed );
-//  zName8 = sqlite3Utf16to8(db, zName, -1, SQLITE_UTF16NATIVE);
-//  if( zName8 ){
-//    rc = createCollation(db, zName8, (u8)enc, SQLITE_COLL_USER, pCtx, xCompare, 0);
-//    sqlite3DbFree(db,ref zName8);
-//  }
-//  rc = sqlite3ApiExit(db, rc);
-//  sqlite3_mutex_leave(db.mutex);
-//  return rc;
-//}
+            Mem val = Vdbe.ValueNew(null);
+            Vdbe.ValueSetStr(val, -1, fileName, TEXTENCODE.UTF16NATIVE, C.DESTRUCTOR_STATIC);
+            string fileName8 = Vdbe.ValueText(val, TEXTENCODE.UTF8); // zFilename encoded in UTF-8 instead of UTF-16 
+            if (fileName8 != null)
+            {
+                rc = OpenDatabase(fileName8, out ctxOut, VSystem.OPEN.READWRITE | VSystem.OPEN.CREATE, null);
+                Debug.Assert(ctxOut != null || rc == RC.NOMEM);
+                if (rc == RC.OK && !E.DbHasProperty(ctxOut, 0, SCHEMA.SchemaLoaded))
+                    E.CTXENCODE(ctxOut, TEXTENCODE.UTF16NATIVE);
+            }
+            else
+                rc = RC.NOMEM;
+            Vdbe.ValueFree(ref val);
+            return ApiExit(null, rc);
+        }
 #endif
 
+        #endregion
 
-    static int sqlite3_collation_needed(
-    sqlite3 db,
-    object pCollNeededArg,
-    dxCollNeeded xCollNeeded
-    )
-    {
-      sqlite3_mutex_enter( db.mutex );
-      db.xCollNeeded = xCollNeeded;
-      db.xCollNeeded16 = null;
-      db.pCollNeededArg = pCollNeededArg;
-      sqlite3_mutex_leave( db.mutex );
-      return SQLITE_OK;
-    }
+        #region Create Collation
 
-#if !SQLITE_OMIT_UTF16
-//int sqlite3_collation_needed16(
-//  sqlite3 db,
-//  void pCollNeededArg,
-//  void(*xCollNeeded16)(void*,sqlite3*,int eTextRep,const void)
-//){
-//  sqlite3_mutex_enter(db.mutex);
-//  db.xCollNeeded = 0;
-//  db.xCollNeeded16 = xCollNeeded16;
-//  db.pCollNeededArg = pCollNeededArg;
-//  sqlite3_mutex_leave(db.mutex);
-//  return SQLITE_OK;
-//}
+        static RC CreateCollation(Context ctx, string name, TEXTENCODE encode, object ctx2, Func<object, int, string, int, string, int> compare)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            Debug.Assert(!ctx.MallocFailed);
+            RC rc = CreateCollation(ctx, name, encode, ctx2, compare, null);
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+
+        static RC CreateCollation_v2(Context ctx, string name, TEXTENCODE encode, object ctx2, Func<object, int, string, int, string, int> compare, RefAction<object> del)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            Debug.Assert(!ctx.MallocFailed);
+            RC rc = CreateCollation(ctx, name, encode, ctx2, compare, del);
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+
+#if !OMIT_UTF16
+        static RC CreateCollation16(Context ctx, string name, TEXTENCODE encode, object ctx2, Action<object, int, string, int, string, int> compare)
+        {
+            RC rc = RC.OK;
+            MutexEx.Enter(ctx.Mutex);
+            Debug.Assert(!ctx.MallocFailed);
+            string name8 = Vdbe.Utf16to8(ctx, name, -1, TEXTENCODE.UTF16NATIVE);
+            if (name8 != null)
+            {
+                rc = CreateCollation(ctx, name8, encode, ctx2, compare, null);
+                C._tagfree(ctx, ref name8);
+            }
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
 #endif
 
-
-
-    /*
-** Test to see whether or not the database connection is in autocommit
-** mode.  Return TRUE if it is and FALSE if not.  Autocommit mode is on
-** by default.  Autocommit is disabled by a BEGIN statement and reenabled
-** by the next COMMIT or ROLLBACK.
-**
-******* THIS IS AN EXPERIMENTAL API AND IS SUBJECT TO CHANGE ******
-*/
-    static u8 sqlite3_get_autocommit( sqlite3 db )
-    {
-      return db.autoCommit;
-    }
-
-    /*
-    ** The following routines are subtitutes for constants SQLITE_CORRUPT,
-    ** SQLITE_MISUSE, SQLITE_CANTOPEN, SQLITE_IOERR and possibly other error
-    ** constants.  They server two purposes:
-    **
-    **   1.  Serve as a convenient place to set a breakpoint in a debugger
-    **       to detect when version error conditions occurs.
-    **
-    **   2.  Invoke sqlite3_log() to provide the source code location where
-    **       a low-level error is first detected.
-    */
-    static int sqlite3CorruptError( int lineno )
-    {
-      testcase( SysEx_GlobalStatics.xLog != null );
-      sqlite3_log( SQLITE_CORRUPT,
-      "database corruption at line %d of [%.10s]",
-      lineno, 20 + sqlite3_sourceid() );
-      return SQLITE_CORRUPT;
-    }
-    static int sqlite3MisuseError( int lineno )
-    {
-      testcase( SysEx_GlobalStatics.xLog != null );
-      sqlite3_log( SQLITE_MISUSE,
-      "misuse at line %d of [%.10s]",
-      lineno, 20 + sqlite3_sourceid() );
-      return SQLITE_MISUSE;
-    }
-    static int sqlite3CantopenError( int lineno )
-    {
-      testcase( SysEx_GlobalStatics.xLog != null );
-      sqlite3_log( SQLITE_CANTOPEN,
-      "cannot open file at line %d of [%.10s]",
-      lineno, 20 + sqlite3_sourceid() );
-      return SQLITE_CANTOPEN;
-    }
-
-
-    /*
-** Return meta information about a specific column of a database table.
-** See comment in sqlite3.h (sqlite.h.in) for details.
-*/
-#if SQLITE_ENABLE_COLUMN_METADATA
-
-    static int sqlite3_table_column_metadata(
-    sqlite3 db,            /* Connection handle */
-    string zDbName,        /* Database name or NULL */
-    string zTableName,     /* Table name */
-    string zColumnName,    /* Column name */
-    ref string pzDataType, /* OUTPUT: Declared data type */
-    ref string pzCollSeq,  /* OUTPUT: Collation sequence name */
-    ref int pNotNull,      /* OUTPUT: True if NOT NULL constraint exists */
-    ref int pPrimaryKey,   /* OUTPUT: True if column part of PK */
-    ref int pAutoinc       /* OUTPUT: True if column is auto-increment */
-    )
-    {
-      int rc;
-      string zErrMsg = "";
-      Table pTab = null;
-      Column pCol = null;
-      int iCol;
-
-      string zDataType = null;
-      string zCollSeq = null;
-      int notnull = 0;
-      int primarykey = 0;
-      int autoinc = 0;
-
-      /* Ensure the database schema has been loaded */
-      sqlite3_mutex_enter( db.mutex );
-      sqlite3BtreeEnterAll( db );
-      rc = sqlite3Init( db, ref zErrMsg );
-      if ( SQLITE_OK != rc )
-      {
-        goto error_out;
-      }
-
-      /* Locate the table in question */
-      pTab = sqlite3FindTable( db, zTableName, zDbName );
-      if ( null == pTab || pTab.pSelect != null )
-      {
-        pTab = null;
-        goto error_out;
-      }
-
-      /* Find the column for which info is requested */
-      if ( sqlite3IsRowid( zColumnName ) )
-      {
-        iCol = pTab.iPKey;
-        if ( iCol >= 0 )
+        static RC CollationNeeded(Context ctx, object collNeededArg, Action<object, Context, TEXTENCODE, string> collNeeded)
         {
-          pCol = pTab.aCol[iCol];
+            MutexEx.Enter(ctx.Mutex);
+            ctx.CollNeeded = collNeeded;
+            ctx.CollNeeded16 = null;
+            ctx.CollNeededArg = collNeededArg;
+            MutexEx.Leave(ctx.Mutex);
+            return RC.OK;
         }
-      }
-      else
-      {
-        for ( iCol = 0; iCol < pTab.nCol; iCol++ )
+
+#if !OMIT_UTF16
+        static RC CollationNeeded16(Context ctx, object collNeededArg, Action<object, Context, TEXTENCODE, string> collNeeded16)
         {
-          pCol = pTab.aCol[iCol];
-          if ( pCol.zName.Equals( zColumnName, StringComparison.InvariantCultureIgnoreCase ) )
-          {
-            break;
-          }
+            MutexEx.Enter(ctx.Mutex); ;
+            ctx.CollNeeded = null;
+            ctx.CollNeeded16 = collNeeded16;
+            ctx.CollNeededArg = collNeededArg;
+            MutexEx.Leave(ctx.Mutex);
+            return RC.OK;
         }
-        if ( iCol == pTab.nCol )
-        {
-          pTab = null;
-          goto error_out;
-        }
-      }
-
-      /* The following block stores the meta information that will be returned
-      ** to the caller in local variables zDataType, zCollSeq, notnull, primarykey
-      ** and autoinc. At this point there are two possibilities:
-      **
-      **     1. The specified column name was rowid", "oid" or "_rowid_"
-      **        and there is no explicitly declared IPK column.
-      **
-      **     2. The table is not a view and the column name identified an
-      **        explicitly declared column. Copy meta information from pCol.
-      */
-      if ( pCol != null )
-      {
-        zDataType = pCol.zType;
-        zCollSeq = pCol.zColl;
-        notnull = pCol.notNull != 0 ? 1 : 0;
-        primarykey = pCol.isPrimKey != 0 ? 1 : 0;
-        autoinc = ( pTab.iPKey == iCol && ( pTab.tabFlags & TF_Autoincrement ) != 0 ) ? 1 : 0;
-      }
-      else
-      {
-        zDataType = "INTEGER";
-        primarykey = 1;
-      }
-      if ( String.IsNullOrEmpty( zCollSeq ) )
-      {
-        zCollSeq = "BINARY";
-      }
-
-error_out:
-      sqlite3BtreeLeaveAll( db );
-
-      /* Whether the function call succeeded or failed, set the output parameters
-      ** to whatever their local counterparts contain. If an error did occur,
-      ** this has the effect of zeroing all output parameters.
-      */
-      //if ( pzDataType )
-      pzDataType = zDataType;
-      //if ( pzCollSeq )
-      pzCollSeq = zCollSeq;
-      //if ( pNotNull )
-      pNotNull = notnull;
-      //if ( pPrimaryKey )
-      pPrimaryKey = primarykey;
-      //if ( pAutoinc )
-      pAutoinc = autoinc;
-
-      if ( SQLITE_OK == rc && null == pTab )
-      {
-        sqlite3DbFree( db, ref zErrMsg );
-        zErrMsg = sqlite3MPrintf( db, "no such table column: %s.%s", zTableName,
-        zColumnName );
-        rc = SQLITE_ERROR;
-      }
-      sqlite3Error( db, rc, ( !String.IsNullOrEmpty( zErrMsg ) ? "%s" : null ), zErrMsg );
-      sqlite3DbFree( db, ref zErrMsg );
-      rc = sqlite3ApiExit( db, rc );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
 #endif
 
-    /*
-** Sleep for a little while.  Return the amount of time slept.
-*/
-    static public int sqlite3_sleep( int ms )
-    {
-      sqlite3_vfs pVfs;
-      int rc;
-      pVfs = sqlite3_vfs_find( null );
-      if ( pVfs == null )
-        return 0;
+        #endregion
 
-      /* This function works in milliseconds, but the underlying OsSleep()
-      ** API uses microseconds. Hence the 1000's.
-      */
-      rc = ( sqlite3OsSleep( pVfs, 1000 * ms ) / 1000 );
-      return rc;
-    }
 
-    /*
-    ** Enable or disable the extended result codes.
-    */
-    static int sqlite3_extended_result_codes( sqlite3 db, bool onoff )
-    {
-      sqlite3_mutex_enter( db.mutex );
-      db.errMask = (int)( onoff ? 0xffffffff : 0xff );
-      sqlite3_mutex_leave( db.mutex );
-      return SQLITE_OK;
-    }
+        // THIS IS AN EXPERIMENTAL API AND IS SUBJECT TO CHANGE
 
-    /*
-    ** Invoke the xFileControl method on a particular database.
-    */
-    static int sqlite3_file_control( sqlite3 db, string zDbName, int op, ref sqlite3_int64 pArg )
-    {
-      int rc = SQLITE_ERROR;
-      int iDb;
-      sqlite3_mutex_enter( db.mutex );
-      if ( zDbName == null )
-      {
-        iDb = 0;
-      }
-      else
-      {
-        for ( iDb = 0; iDb < db.nDb; iDb++ )
+        //int GetAutocommit(Context ctx) { return ctx.AutoCommit; }
+        //static RC CorruptError(int lineno)
+        //{
+        //    C.ASSERTCOVERAGE(SysEx_GlobalStatics.Log != null);
+        //    SysEx.LOG(RC.CORRUPT, "database corruption at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
+        //    return RC.CORRUPT;
+        //}
+        //static  RC MisuseError(int lineno)
+        //{
+        //    C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
+        //    SysEx.LOG(RC.MISUSE,  "misuse at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
+        //    return RC.MISUSE;
+        //}
+        //static RC CantopenError(int lineno)
+        //{
+        //    C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
+        //    SysEx.LOG(RC.CANTOPEN, "cannot open file at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
+        //    return RC.CANTOPEN;
+        //}
+
+        #region Column Metadata
+#if ENABLE_COLUMN_METADATA
+        public static RC TableColumnMetadata(Context ctx, string dbName, string tableName, string columnName, out string dataTypeOut, out string collSeqNameOut, out bool notNullOut, out bool primaryKeyOut, out bool autoincOut)
         {
-          if ( db.aDb[iDb].zName == zDbName )
-            break;
-        }
-      }
-      if ( iDb < db.nDb )
-      {
-        Btree pBtree = db.aDb[iDb].pBt;
-        if ( pBtree != null )
-        {
-          Pager pPager;
-          sqlite3_file fd;
-          sqlite3BtreeEnter( pBtree );
-          pPager = sqlite3BtreePager( pBtree );
-          Debug.Assert( pPager != null );
-          fd = sqlite3PagerFile( pPager );
-          Debug.Assert( fd != null );
-          if ( op == SQLITE_FCNTL_FILE_POINTER )
-          {
-#if (SQLITE_SILVERLIGHT || WINDOWS_MOBILE)
-              pArg = (long)-1; // not supported
-#else
-            pArg = (long)fd.fs.Handle;
-#endif
-            rc = SQLITE_OK;
-          }
-          else if ( fd.pMethods != null )
-          {
-            rc = sqlite3OsFileControl( fd, (u32)op, ref pArg );
-          }
-          else
-          {
-            rc = SQLITE_NOTFOUND;
-          }
-          sqlite3BtreeLeave( pBtree );
-        }
-      }
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
-    }
+            // Ensure the database schema has been loaded
+            MutexEx.Enter(ctx.Mutex);
+            Btree.EnterAll(ctx);
+            string errMsg = null;
+            Table table = null;
+            string dataTypeName = null;
+            string collSeqName = null;
+            bool notnull = false;
+            bool primarykey = false;
+            bool autoinc = false;
+            RC rc = Prepare.Init(ctx, ref errMsg);
+            if (rc != RC.OK)
+                goto error_out;
 
-    /*
-    ** Interface to the testing logic.
-    */
-    static int sqlite3_test_control( int op, params object[] ap )
-    {
-      int rc = 0;
-#if !SQLITE_OMIT_BUILTIN_TEST
-      //  va_list ap;
-      lock ( lock_va_list )
-      {
-        va_start( ap, "op" );
-        switch ( op )
-        {
-
-          /*
-          ** Save the current state of the PRNG.
-          */
-          case SQLITE_TESTCTRL_PRNG_SAVE:
+            // Locate the table in question
+            table = Parse.FindTable(ctx, tableName, dbName);
+            if (table == null || table.Select != null)
             {
-              sqlite3PrngSaveState();
-              break;
+                table = null;
+                goto error_out;
             }
 
-          /*
-          ** Restore the state of the PRNG to the last state saved using
-          ** PRNG_SAVE.  If PRNG_SAVE has never before been called, then
-          ** this verb acts like PRNG_RESET.
-          */
-          case SQLITE_TESTCTRL_PRNG_RESTORE:
+            // Find the column for which info is requested 
+            int colId;
+            Column col = null;
+            if (Expr.IsRowid(columnName))
             {
-              sqlite3PrngRestoreState();
-              break;
+                colId = table.PKey;
+                if (colId >= 0)
+                    col = table.Cols[colId];
             }
-
-          /*
-          ** Reset the PRNG back to its uninitialized state.  The next call
-          ** to sqlite3_randomness() will reseed the PRNG using a single call
-          ** to the xRandomness method of the default VFS.
-          */
-          case SQLITE_TESTCTRL_PRNG_RESET:
+            else
             {
-              sqlite3PrngResetState();
-              break;
-            }
-
-          /*
-          **  sqlite3_test_control(BITVEC_TEST, size, program)
-          **
-          ** Run a test against a Bitvec object of size.  The program argument
-          ** is an array of integers that defines the test.  Return -1 on a
-          ** memory allocation error, 0 on success, or non-zero for an error.
-          ** See the sqlite3BitvecBuiltinTest() for additional information.
-          */
-          case SQLITE_TESTCTRL_BITVEC_TEST:
-            {
-              int sz = va_arg( ap, ( Int32 ) 0 );
-              int[] aProg = va_arg( ap, (Int32[])null );
-              rc = sqlite3BitvecBuiltinTest( (u32)sz, aProg );
-              break;
-            }
-
-          /*
-          **  sqlite3_test_control(BENIGN_MALLOC_HOOKS, xBegin, xEnd)
-          **
-          ** Register hooks to call to indicate which malloc() failures
-          ** are benign.
-          */
-          case SQLITE_TESTCTRL_BENIGN_MALLOC_HOOKS:
-            {
-              //typedef void (*void_function)(void);
-              void_function xBenignBegin;
-              void_function xBenignEnd;
-              xBenignBegin = va_arg( ap, (void_function)null );
-              xBenignEnd = va_arg( ap, (void_function)null );
-              sqlite3BenignMallocHooks( xBenignBegin, xBenignEnd );
-              break;
-            }
-          /*
-          **  sqlite3_test_control(SQLITE_TESTCTRL_PENDING_BYTE, unsigned int X)
-          **
-          ** Set the PENDING byte to the value in the argument, if X>0.
-          ** Make no changes if X==0.  Return the value of the pending byte
-          ** as it existing before this routine was called.
-          **
-          ** IMPORTANT:  Changing the PENDING byte from 0x40000000 results in
-          ** an incompatible database file format.  Changing the PENDING byte
-          ** while any database connection is open results in undefined and
-          ** dileterious behavior.
-          */
-          case SQLITE_TESTCTRL_PENDING_BYTE:
-            {
-              rc = PENDING_BYTE;
-#if !SQLITE_OMIT_WSD
-              {
-                u32 newVal = va_arg( ap, (UInt32)0 );
-                if ( newVal != 0 )
+                for (colId = 0; colId < table.Cols.length; colId++)
                 {
-                  if ( sqlite3PendingByte != newVal )
-                    sqlite3PendingByte = (int)newVal;
-#if DEBUG && TCLSH
-                  TCLsqlite3PendingByte.iValue = sqlite3PendingByte;
-#endif
-                  PENDING_BYTE = sqlite3PendingByte;
+                    col = table.Cols[colId];
+                    if (string.Equals(col.Name, columnName, StringComparison.InvariantCultureIgnoreCase))
+                        break;
                 }
-              }
-#endif
-              break;
+                if (colId == table.Cols.length)
+                {
+                    table = null;
+                    goto error_out;
+                }
             }
 
-          /*
-          **  sqlite3_test_control(SQLITE_TESTCTRL_ASSERT, int X)
-          **
-          ** This action provides a run-time test to see whether or not
-          ** Debug.Assert() was enabled at compile-time.  If X is true and Debug.Assert()
-          ** is enabled, then the return value is true.  If X is true and
-          ** Debug.Assert() is disabled, then the return value is zero.  If X is
-          ** false and Debug.Assert() is enabled, then the assertion fires and the
-          ** process aborts.  If X is false and Debug.Assert() is disabled, then the
-          ** return value is zero.
-          */
-          case SQLITE_TESTCTRL_ASSERT:
+            // The following block stores the meta information that will be returned to the caller in local variables zDataType, zCollSeq, notnull, primarykey
+            // and autoinc. At this point there are two possibilities:
+            //     1. The specified column name was rowid", "oid" or "_rowid_" and there is no explicitly declared IPK column. 
+            //     2. The table is not a view and the column name identified an explicitly declared column. Copy meta information from *col.
+            if (col != null)
             {
-              int x = 0;
-              Debug.Assert( ( x = va_arg( ap, ( Int32 ) 0 ) ) != 0 );
-              rc = x;
-              break;
+                dataTypeName = col.Type;
+                collSeqName = col.Coll;
+                notnull = (col.NotNull != 0);
+                primarykey = ((col.ColFlags & COLFLAG.PRIMKEY) != 0);
+                autoinc = (table.PKey == colId && (table.TabFlags & TF.Autoincrement) != 0);
             }
-
-
-          /*
-          **  sqlite3_test_control(SQLITE_TESTCTRL_ALWAYS, int X)
-          **
-          ** This action provides a run-time test to see how the ALWAYS and
-          ** NEVER macros were defined at compile-time.
-          **
-          ** The return value is ALWAYS(X).
-          **
-          ** The recommended test is X==2.  If the return value is 2, that means
-          ** ALWAYS() and NEVER() are both no-op pass-through macros, which is the
-          ** default setting.  If the return value is 1, then ALWAYS() is either
-          ** hard-coded to true or else it asserts if its argument is false.
-          ** The first behavior (hard-coded to true) is the case if
-          ** SQLITE_TESTCTRL_ASSERT shows that Debug.Assert() is disabled and the second
-          ** behavior (assert if the argument to ALWAYS() is false) is the case if
-          ** SQLITE_TESTCTRL_ASSERT shows that Debug.Assert() is enabled.
-          **
-          ** The run-time test procedure might look something like this:
-          **
-          **    if( sqlite3_test_control(SQLITE_TESTCTRL_ALWAYS, 2)==2 ){
-          **      // ALWAYS() and NEVER() are no-op pass-through macros
-          **    }else if( sqlite3_test_control(SQLITE_TESTCTRL_ASSERT, 1) ){
-          **      // ALWAYS(x) asserts that x is true. NEVER(x) asserts x is false.
-          **    }else{
-          **      // ALWAYS(x) is a constant 1.  NEVER(x) is a constant 0.
-          **    }
-          */
-          case SQLITE_TESTCTRL_ALWAYS:
+            else
             {
-              int x = va_arg( ap, ( Int32 ) 0 );
-              rc = ALWAYS( x );
-              break;
+                dataTypeName = "INTEGER";
+                primarykey = true;
             }
+            if (collSeqName == null)
+                collSeqName = "BINARY";
 
-          /*   sqlite3_test_control(SQLITE_TESTCTRL_RESERVE, sqlite3 db, int N)
-          **
-          ** Set the nReserve size to N for the main database on the database
-          ** connection db.
-          */
-          case SQLITE_TESTCTRL_RESERVE:
-            {
-              sqlite3 db = va_arg( ap, (sqlite3)null );
-              int x = va_arg( ap, ( Int32 ) 0 );
-              sqlite3_mutex_enter( db.mutex );
-              sqlite3BtreeSetPageSize( db.aDb[0].pBt, 0, x, 0 );
-              sqlite3_mutex_leave( db.mutex );
-              break;
-            }
+        error_out:
+            Btree.LeaveAll(ctx);
 
-          /*  sqlite3_test_control(SQLITE_TESTCTRL_OPTIMIZATIONS, sqlite3 db, int N)
-          **
-          ** Enable or disable various optimizations for testing purposes.  The 
-          ** argument N is a bitmask of optimizations to be disabled.  For normal
-          ** operation N should be 0.  The idea is that a test program (like the
-          ** SQL Logic Test or SLT test module) can run the same SQL multiple times
-          ** with various optimizations disabled to verify that the same answer
-          ** is obtained in every case.
-          */
-          case SQLITE_TESTCTRL_OPTIMIZATIONS:
-            {
-              sqlite3 db = va_arg( ap, (sqlite3)null );//sqlite3 db = va_arg(ap, sqlite3);
-              int x = va_arg( ap, (Int32)0 );//int x = va_arg(ap,int);
-              db.flags = ( x & SQLITE_OptMask ) | ( db.flags & ~SQLITE_OptMask );
-              break;
-            }
+            // Whether the function call succeeded or failed, set the output parameters to whatever their local counterparts contain. If an error did occur,
+            // this has the effect of zeroing all output parameters.
+            dataTypeOut = dataTypeName;
+            collSeqNameOut = collSeqName;
+            notNullOut = notnull;
+            primaryKeyOut = primarykey;
+            autoincOut = autoinc;
 
-          //#if SQLITE_N_KEYWORD
-          /* sqlite3_test_control(SQLITE_TESTCTRL_ISKEYWORD, const string zWord)
-          **
-          ** If zWord is a keyword recognized by the parser, then return the
-          ** number of keywords.  Or if zWord is not a keyword, return 0.
-          ** 
-          ** This test feature is only available in the amalgamation since
-          ** the SQLITE_N_KEYWORD macro is not defined in this file if SQLite
-          ** is built using separate source files.
-          */
-          case SQLITE_TESTCTRL_ISKEYWORD:
+            if (rc == RC.OK && table == null)
             {
-              string zWord = (string)va_arg( ap, "char*" );
-              int n = sqlite3Strlen30( zWord );
-              rc = ( sqlite3KeywordCode( zWord, n ) != TK_ID ) ? SQLITE_N_KEYWORD : 0;
-              break;
+                C._tagfree(ctx, ref errMsg);
+                errMsg = C._mtagprintf(ctx, "no such table column: %s.%s", tableName, columnName);
+                rc = RC.ERROR;
             }
-          //#endif 
-          /* sqlite3_test_control(SQLITE_TESTCTRL_PGHDRSZ)
-          **
-          ** Return the size of a pcache header in bytes.
-          */
-          case SQLITE_TESTCTRL_PGHDRSZ:
-            {
-              rc = -1;// sizeof(PgHdr);
-              break;
-            }
-
-          /* sqlite3_test_control(SQLITE_TESTCTRL_SCRATCHMALLOC, sz, &pNew, pFree);
-          **
-          ** Pass pFree into sqlite3ScratchFree(). 
-          ** If sz>0 then allocate a scratch buffer into pNew.  
-          */
-          case SQLITE_TESTCTRL_SCRATCHMALLOC:
-            {
-              //void pFree, *ppNew;
-              //int sz;
-              //sz = va_arg(ap, int);
-              //ppNew = va_arg(ap, void*);
-              //pFree = va_arg(ap, void);
-              //if( sz ) *ppNew = sqlite3ScratchMalloc(sz);
-              //sqlite3ScratchFree(pFree);
-              break;
-            }
-    /*   sqlite3_test_control(SQLITE_TESTCTRL_LOCALTIME_FAULT, int onoff);
-    **
-    ** If parameter onoff is non-zero, configure the wrappers so that all
-    ** subsequent calls to localtime() and variants fail. If onoff is zero,
-    ** undo this setting.
-    */
-    case SQLITE_TESTCTRL_LOCALTIME_FAULT: {
-      SysEx_GlobalStatics.bLocaltimeFault = va_arg( ap, (Boolean)true );
-      break;
-    }
-
+            Error(ctx, rc, (errMsg == null ? "%s" : null), errMsg);
+            C._tagfree(ctx, ref errMsg);
+            rc = ApiExit(ctx, rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
         }
-        va_end( ref ap );
-      }
 #endif
-      return rc;
-    }
+        #endregion
 
+        public static int Sleep(int ms)
+        {
+            int rc;
+            VSystem vfs = VSystem.FindVfs(null);
+            if (vfs == null) return 0;
+            // This function works in milliseconds, but the underlying OsSleep() API uses microseconds. Hence the 1000's.
+            return (vfs.Sleep(1000 * ms) / 1000);
+        }
 
+        public static RC ExtendedResultCodes(Context ctx, bool onoff)
+        {
+            MutexEx.Enter(ctx.Mutex);
+            ctx.ErrMask = (int)(onoff ? 0xffffffff : 0xff);
+            MutexEx.Leave(ctx.Mutex);
+            return RC.OK;
+        }
 
-static string sqlite3_uri_parameter(string zFilename, string zParam){
-  Debugger.Break();
-  //zFilename += sqlite3Strlen30(zFilename) + 1;
-  //while( zFilename[0] ){
-  //  int x = strcmp(zFilename, zParam);
-  //  zFilename += sqlite3Strlen30(zFilename) + 1;
-  //  if( x==0 ) return zFilename;
-  //  zFilename += sqlite3Strlen30(zFilename) + 1;
-  //}
-  return null;
-}
-
-}
-
+        public static RC FileControl(Context ctx, string dbName, VFile.FCNTL op, ref long arg)
+        {
+            RC rc = RC.ERROR;
+            MutexEx.Enter(ctx.Mutex);
+            Btree bt = DbNameToBtree(ctx, dbName);
+            if (bt != null)
+            {
+                bt.Enter();
+                Pager pager = bt.get_Pager();
+                Debug.Assert(pager != null);
+                VFile fd = pager.get_File();
+                Debug.Assert(fd != null);
+                if (op == VFile.FCNTL.FILE_POINTER)
+                {
+#if (SILVERLIGHT || WINDOWS_MOBILE)
+                    arg = (long)-1; // not supported
+#else
+                    arg = (long)fd.S.Handle;
 #endif
+                    rc = RC.OK;
+                }
+                else if (fd.Type != 0)
+                    rc = fd.FileControl(op, ref arg);
+                else
+                    rc = RC.NOTFOUND;
+                bt.Leave();
+            }
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
+        }
+
+        #region Test
+        public enum TESTCTRL
+        {
+            FIRST = 5,
+            PRNG_SAVE = 5,
+            PRNG_RESTORE = 6,
+            PRNG_RESET = 7,
+            BITVEC_TEST = 8,
+            FAULT_INSTALL = 9,
+            BENIGN_MALLOC_HOOKS = 10,
+            PENDING_BYTE = 11,
+            ASSERT = 12,
+            ALWAYS = 13,
+            RESERVE = 14,
+            OPTIMIZATIONS = 15,
+            ISKEYWORD = 16,
+            SCRATCHMALLOC = 17,
+            LOCALTIME_FAULT = 18,
+            EXPLAIN_STMT = 19,
+            LAST = 19,
+        }
+        static RC TestControl(TESTCTRL op, params object[] args)
+        {
+            int rc = 0;
+#if !OMIT_BUILTIN_TEST
+            switch (op)
+            {
+                case TESTCTRL.PRNG_SAVE:
+                    {
+                        // Save the current state of the PRNG.
+                        sqlite3PrngSaveState();
+                        break;
+                    }
+                case TESTCTRL.PRNG_RESTORE:
+                    {
+                        // Restore the state of the PRNG to the last state saved using PRNG_SAVE.  If PRNG_SAVE has never before been called, then
+                        // this verb acts like PRNG_RESET.
+                        sqlite3PrngRestoreState();
+                        break;
+                    }
+                case TESTCTRL.PRNG_RESET:
+                    {
+                        // Reset the PRNG back to its uninitialized state.  The next call to sqlite3_randomness() will reseed the PRNG using a single call
+                        // to the xRandomness method of the default VFS.
+                        sqlite3PrngResetState();
+                        break;
+                    }
+                case TESTCTRL.BITVEC_TEST:
+                    {
+                        // sqlite3_test_control(BITVEC_TEST, size, program)
+                        //
+                        // Run a test against a Bitvec object of size.  The program argument is an array of integers that defines the test.  Return -1 on a
+                        // memory allocation error, 0 on success, or non-zero for an error. See the sqlite3BitvecBuiltinTest() for additional information.
+                        int sz = (int)args[0];
+                        int[] progs = (int[])args[1];
+                        rc = sqlite3BitvecBuiltinTest(sz, progs);
+                        break;
+                    }
+                case TESTCTRL.BENIGN_MALLOC_HOOKS:
+                    {
+                        // sqlite3_test_control(BENIGN_MALLOC_HOOKS, xBegin, xEnd)
+                        //
+                        // Register hooks to call to indicate which malloc() failures are benign.
+                        object benignBegin = (object)args[0];
+                        object benignEnd = (object)args[1];
+                        sqlite3BenignMallocHooks(benignBegin, benignEnd);
+                        break;
+                    }
+                case TESTCTRL.PENDING_BYTE:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_PENDING_BYTE, unsigned int X)
+                        //
+                        // Set the PENDING byte to the value in the argument, if X>0. Make no changes if X==0.  Return the value of the pending byte
+                        // as it existing before this routine was called.
+                        //
+                        // IMPORTANT:  Changing the PENDING byte from 0x40000000 results in an incompatible database file format.  Changing the PENDING byte
+                        // while any database connection is open results in undefined and dileterious behavior.
+                        rc = VFile.PENDING_BYTE;
+                        uint newVal = (uint)args[0];
+                        if (newVal != 0) sqlite3PendingByte = (int)newVal;
+                        break;
+                    }
+                case TESTCTRL.ASSERT:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_ASSERT, int X)
+                        //
+                        // This action provides a run-time test to see whether or not assert() was enabled at compile-time.  If X is true and assert()
+                        // is enabled, then the return value is true.  If X is true and assert() is disabled, then the return value is zero.  If X is
+                        // false and assert() is enabled, then the assertion fires and the process aborts.  If X is false and assert() is disabled, then the
+                        // return value is zero.
+                        int x = 0;
+                        Debug.Assert((x = (int)args[0]) != 0);
+                        rc = x;
+                        break;
+                    }
+                case TESTCTRL.ALWAYS:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_ALWAYS, int X)
+                        //
+                        // This action provides a run-time test to see how the ALWAYS and NEVER macros were defined at compile-time.
+                        //
+                        // The return value is ALWAYS(X).  
+                        //
+                        // The recommended test is X==2.  If the return value is 2, that means ALWAYS() and NEVER() are both no-op pass-through macros, which is the
+                        // default setting.  If the return value is 1, then ALWAYS() is either hard-coded to true or else it asserts if its argument is false.
+                        // The first behavior (hard-coded to true) is the case if SQLITE_TESTCTRL_ASSERT shows that assert() is disabled and the second
+                        // behavior (assert if the argument to ALWAYS() is false) is the case if SQLITE_TESTCTRL_ASSERT shows that assert() is enabled.
+                        //
+                        // The run-time test procedure might look something like this:
+                        //
+                        //    if( sqlite3_test_control(SQLITE_TESTCTRL_ALWAYS, 2)==2 ){
+                        //      // ALWAYS() and NEVER() are no-op pass-through macros
+                        //    }else if( sqlite3_test_control(SQLITE_TESTCTRL_ASSERT, 1) ){
+                        //      // ALWAYS(x) asserts that x is true. NEVER(x) asserts x is false.
+                        //    }else{
+                        //      // ALWAYS(x) is a constant 1.  NEVER(x) is a constant 0.
+                        //    }
+                        int x = (int)args[0];
+                        rc = C._ALWAYS(x);
+                        break;
+                    }
+                case TESTCTRL.RESERVE:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_RESERVE, sqlite3 *ctx, int N)
+                        //
+                        // Set the nReserve size to N for the main database on the database connection ctx.
+                        Context ctx = (Context)args[0];
+                        int x = (int)args[1];
+                        MutexEx.Enter(ctx.Mutex);
+                        ctx.DBs[0].Bt.SetPageSize(0, x, false);
+                        MutexEx.Leave(ctx.Mutex);
+                        break;
+                    }
+                case TESTCTRL.OPTIMIZATIONS:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_OPTIMIZATIONS, sqlite3 *ctx, int N)
+                        //
+                        // Enable or disable various optimizations for testing purposes.  The argument N is a bitmask of optimizations to be disabled.  For normal
+                        // operation N should be 0.  The idea is that a test program (like the SQL Logic Test or SLT test module) can run the same SQL multiple times
+                        // with various optimizations disabled to verify that the same answer is obtained in every case.
+                        Context ctx = (Context)args[0];
+                        ctx.OptFlags = (OPTFLAG)((int)args[1] & 0xffff);
+                        break;
+                    }
+#if !N_KEYWORD
+                case TESTCTRL.ISKEYWORD:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_ISKEYWORD, const char *zWord)
+                        //
+                        // If zWord is a keyword recognized by the parser, then return the number of keywords.  Or if zWord is not a keyword, return 0.
+                        // 
+                        // This test feature is only available in the amalgamation since the SQLITE_N_KEYWORD macro is not defined in this file if SQLite
+                        // is built using separate source files.
+                        string word = (string)args[0];
+                        int n = word.Length;
+                        rc = (sqlite3KeywordCode(word, n) != TK.ID ? N_KEYWORD : 0);
+                        break;
+                    }
+#endif
+                case TESTCTRL.SCRATCHMALLOC:
+                    {
+                        // sqlite3_test_control(SQLITE_TESTCTRL_SCRATCHMALLOC, sz, &pNew, pFree);
+                        //
+                        // Pass pFree into sqlite3ScratchFree(). If sz>0 then allocate a scratch buffer into pNew.
+                        //int size = va_arg(args, int);
+                        //void **new_ = va_arg(args, void**);
+                        //void *free = va_arg(args, void*);
+                        //if (size) *newOut = _stackalloc(nullptr, size, false);
+                        //_stackfree(nullptr, free);
+                        break;
+                    }
+                case TESTCTRL.LOCALTIME_FAULT:
+                    {
+                        SysEx._GlobalStatics.LocaltimeFault = (bool)args[0];
+                        break;
+                    }
+            }
+#endif
+            return (RC)rc;
+        }
+        #endregion
+
+        public static Btree DbNameToBtree(Context ctx, string dbName)
+        {
+            for (int i = 0; i < ctx.DBs.length; i++)
+                if (ctx.DBs[i].Bt != null && (dbName == null || string.Equals(dbName, ctx.DBs[i].Name, StringComparison.OrdinalIgnoreCase)))
+                    return ctx.DBs[i].Bt;
+            return null;
+        }
+
+        public static string CtxFilename(Context ctx, string dbName)
+        {
+            Btree bt = DbNameToBtree(ctx, dbName);
+            return (bt != null ? bt.get_Filename() : null);
+        }
+
+        public static int CtxReadonly(Context ctx, string dbName)
+        {
+            Btree bt = DbNameToBtree(ctx, dbName);
+            return (bt != null ? (bt.get_Pager().get_Readonly() ? 1 : 0) : -1);
+        }
     }
 }

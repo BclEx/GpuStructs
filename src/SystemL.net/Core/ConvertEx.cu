@@ -534,4 +534,29 @@ do_atof_calc:
 
 #pragma endregion
 
+#pragma region From: Pragma_c
+
+	// 123456789 123456789
+	__constant__ static const char _safetyLevelText[] = "onoffalseyestruefull";
+	__constant__ static const uint8 _safetyLevelOffset[] = {0, 1, 2, 4, 9, 12, 16};
+	__constant__ static const uint8 _safetyLevelLength[] = {2, 2, 3, 5, 3, 4, 4};
+	__constant__ static const uint8 _safetyLevelValue[] =  {1, 0, 0, 0, 1, 1, 2};
+
+	__device__ uint8 ConvertEx::GetSafetyLevel(const char *z, int omitFull, uint8 dflt)
+	{
+		if (_isdigit(*z))
+			return (uint8)Atoi(z);
+		int n = _strlen30(z);
+		for (int i = 0; i < _lengthof(_safetyLevelLength) - omitFull; i++)
+			if (_safetyLevelLength[i] == n && !_strncmp(&_safetyLevelText[_safetyLevelOffset[i]],z,n))
+				return _safetyLevelValue[i];
+		return dflt;
+	}
+
+	__device__ bool ConvertEx::GetBoolean(const char *z, uint8 dflt)
+	{
+		return (GetSafetyLevel(z, 1, dflt) != 0);
+	}
+
+#pragma endregion
 }

@@ -98,5 +98,10 @@ namespace Core
         static void PrngRestoreState() { _prng = _savedPrng._memcpy(); }
         static void PrngResetState() { _prng.IsInit = false; }
 #endif
+
+        internal static RC AutoInitialize()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

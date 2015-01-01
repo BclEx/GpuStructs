@@ -369,6 +369,33 @@ namespace Core
             return rc;
         }
 
+        public static string UriParameter(string filename, string param)
+        {
+            if (filename == null) return null;
+            //int filenameIdx _strlen30(filename) + 1;
+            //while (filename[0])
+            //{
+            //    int x = _strcmp(filename, param);
+            //    filename += _strlen30(filename) + 1;
+            //    if (x == 0) return filename;
+            //    filename += _strlen30(filename) + 1;
+            //}
+            return null;
+        }
+
+        public static bool UriBoolean(string filename, string param, bool dflt)
+        {
+            string z = UriParameter(filename, param);
+            return (z != null ? ConvertEx.GetBoolean(z, (byte)(dflt ? 1 : 0)) : dflt);
+        }
+
+        public static long UriInt64(string filename, string param, long dflt)
+        {
+            string z = UriParameter(filename, param);
+            long v;
+            return (z != null && ConvertEx.Atoi64(z, out v, z.Length, TEXTENCODE.UTF8) == 0 ? v : dflt);
+        }
+
         #endregion
     }
 }

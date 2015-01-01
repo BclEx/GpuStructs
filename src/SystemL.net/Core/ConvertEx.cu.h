@@ -53,5 +53,11 @@
 			p[2] = (uint8)(v>>8);
 			p[3] = (uint8)v;
 		}
+
+#pragma region From: Pragma_c
+		__device__ static uint8 GetSafetyLevel(const char *z, int omitFull, uint8 dflt);
+		__device__ static bool GetBoolean(const char *z, uint8 dflt);
+#pragma region
+
 	};
 }

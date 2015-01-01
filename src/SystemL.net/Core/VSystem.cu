@@ -285,7 +285,7 @@ parse_uri_out:
 
 	__device__ const char *VSystem::UriParameter(const char *filename, const char *param)
 	{
-		if (!filename) return 0;
+		if (!filename) return nullptr;
 		filename += _strlen30(filename) + 1;
 		while (filename[0])
 		{
@@ -294,13 +294,13 @@ parse_uri_out:
 			if (x == 0) return filename;
 			filename += _strlen30(filename) + 1;
 		}
-		return 0;
+		return nullptr;
 	}
 
 	__device__ bool VSystem::UriBoolean(const char *filename, const char *param, bool dflt)
 	{
 		const char *z = UriParameter(filename, param);
-		return (z ? GetBoolean(z, dflt) : dflt);
+		return (z ? ConvertEx::GetBoolean(z, dflt) : dflt);
 	}
 
 	__device__ int64 VSystem::UriInt64(const char *filename, const char *param, int64 dflt)

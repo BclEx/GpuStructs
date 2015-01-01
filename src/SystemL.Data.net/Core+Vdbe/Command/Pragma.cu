@@ -4,27 +4,9 @@
 
 namespace Core { namespace Command
 {
-	// 123456789 123456789
-	__constant__ static const char _safetyLevelText[] = "onoffalseyestruefull";
-	__constant__ static const uint8 _safetyLevelOffset[] = {0, 1, 2, 4, 9, 12, 16};
-	__constant__ static const uint8 _safetyLevelLength[] = {2, 2, 3, 5, 3, 4, 4};
-	__constant__ static const uint8 _safetyLevelValue[] =  {1, 0, 0, 0, 1, 1, 2};
-
-	__device__ static uint8 GetSafetyLevel(const char *z, int omitFull, uint8 dflt)
-	{
-		if (_isdigit(*z))
-			return (uint8)ConvertEx::Atoi(z);
-		int n = _strlen30(z);
-		for (int i = 0; i < _lengthof(_safetyLevelLength) - omitFull; i++)
-			if (_safetyLevelLength[i] == n && !_strncmp(&_safetyLevelText[_safetyLevelOffset[i]],z,n))
-				return _safetyLevelValue[i];
-		return dflt;
-	}
-
-	__device__ bool Pragma::GetBoolean(const char *z, int dflt)
-	{
-		return (GetSafetyLevel(z, 1, dflt) != 0);
-	}
+	// moved to ConvertEx
+	//__device__ static uint8 GetSafetyLevel(const char *z, int omitFull, uint8 dflt);
+	//__device__ bool ConvertEx::GetBoolean(const char *z, uint8 dflt);
 
 #if !defined(OMIT_PRAGMA)
 
@@ -72,7 +54,7 @@ namespace Core { namespace Command
 			}
 			ctx->DBs[1].Bt->Close();
 			ctx->DBs[1].Bt = nullptr;
-			sqlite3ResetAllSchemasOfConnection(ctx);
+			Parse::ResetAllSchemasOfConnection(ctx);
 		}
 		return RC_OK;
 	}
@@ -95,7 +77,7 @@ namespace Core { namespace Command
 	{
 		Vdbe *v = parse->GetVdbe();
 		int mem = ++parse->Mems;
-		int64 *i64 = _tagalloc(parse->Ctx, sizeof(value));
+		int64 *i64 = (int64 *)_tagalloc(parse->Ctx, sizeof(value));
 		if (i64)
 			_memcpy(i64, &value, sizeof(value));
 		v->AddOp4(OP_Int64, 0, mem, 0, (char *)i64, Vdbe::P4T_INT64);
@@ -108,41 +90,41 @@ namespace Core { namespace Command
 	struct sPragmaType
 	{
 		const char *Name; // Name of the pragma
-		int Mask; // Mask for the db->flags value
+		Context::FLAG Mask; // Mask for the db->flags value
 	};
 	__constant__ static const sPragmaType _pragmas[] =
 	{
-		{"full_column_names",        SQLITE_FullColNames},
-		{"short_column_names",       SQLITE_ShortColNames},
-		{"count_changes",            SQLITE_CountRows},
-		{"empty_result_callbacks",   SQLITE_NullCallback},
-		{"legacy_file_format",       SQLITE_LegacyFileFmt},
-		{"fullfsync",                SQLITE_FullFSync},
-		{"checkpoint_fullfsync",     SQLITE_CkptFullFSync},
-		{"reverse_unordered_selects", SQLITE_ReverseOrder},
+		{"full_column_names",        Context::FLAG_FullColNames},
+		{"short_column_names",       Context::FLAG_ShortColNames},
+		{"count_changes",            Context::FLAG_CountRows},
+		{"empty_result_callbacks",   Context::FLAG_NullCallback},
+		{"legacy_file_format",       Context::FLAG_LegacyFileFmt},
+		{"fullfsync",                Context::FLAG_FullFSync},
+		{"checkpoint_fullfsync",     Context::FLAG_CkptFullFSync},
+		{"reverse_unordered_selects", Context::FLAG_ReverseOrder},
 #ifndef OMIT_AUTOMATIC_INDEX
-		{"automatic_index",          SQLITE_AutoIndex},
+		{"automatic_index",          Context::FLAG_AutoIndex},
 #endif
 #ifdef DEBUG
-		{"sql_trace",                SQLITE_SqlTrace},
-		{"vdbe_listing",             SQLITE_VdbeListing},
-		{"vdbe_trace",               SQLITE_VdbeTrace},
-		{"vdbe_addoptrace",          SQLITE_VdbeAddopTrace},
-		{"vdbe_debug",               SQLITE_SqlTrace|SQLITE_VdbeListing|SQLITE_VdbeTrace},
+		{"sql_trace",                Context::FLAG_SqlTrace},
+		{"vdbe_listing",             Context::FLAG_VdbeListing},
+		{"vdbe_trace",               Context::FLAG_VdbeTrace},
+		{"vdbe_addoptrace",          Context::FLAG_VdbeAddopTrace},
+		{"vdbe_debug",               Context::FLAG_SqlTrace|Context::FLAG_VdbeListing|Context::FLAG_VdbeTrace},
 #endif
 #ifndef OMIT_CHECK
-		{"ignore_check_constraints", SQLITE_IgnoreChecks},
+		{"ignore_check_constraints", Context::FLAG_IgnoreChecks},
 #endif
 		// The following is VERY experimental
-		{"writable_schema",          SQLITE_WriteSchema|SQLITE_RecoveryMode},
+		{"writable_schema",          Context::FLAG_WriteSchema|Context::FLAG_RecoveryMode},
 
 		// TODO: Maybe it shouldn't be possible to change the ReadUncommitted flag if there are any active statements.
-		{"read_uncommitted",         SQLITE_ReadUncommitted},
-		{"recursive_triggers",       SQLITE_RecTriggers},
+		{"read_uncommitted",         Context::FLAG_ReadUncommitted},
+		{"recursive_triggers",       Context::FLAG_RecTriggers},
 
 		// This flag may only be set if both foreign-key and trigger support are present in the build.
 #if !defined(OMIT_FOREIGN_KEY) && !defined(OMIT_TRIGGER)
-		{"foreign_keys",             SQLITE_ForeignKeys},
+		{"foreign_keys",             Context::FLAG_ForeignKeys},
 #endif
 	};
 
@@ -163,10 +145,10 @@ namespace Core { namespace Command
 						ReturnSingleInt(parse, p->Name, (ctx->Flags & p->Mask) != 0);
 					else
 					{
-						int mask = p->mask; // Mask of bits to set or clear.
+						Context::FLAG mask = p->Mask; // Mask of bits to set or clear.
 						if (ctx->AutoCommit == 0)
-							mask &= ~(SQLITE_ForeignKeys); // Foreign key support may not be enabled or disabled while not in auto-commit mode.
-						if (Pragma::GetBoolean(right, 0))
+							mask &= ~(Context::FLAG_ForeignKeys); // Foreign key support may not be enabled or disabled while not in auto-commit mode.
+						if (ConvertEx::GetBoolean(right, 0))
 							ctx->Flags |= mask;
 						else
 							ctx->Flags &= ~mask;
@@ -212,7 +194,7 @@ namespace Core { namespace Command
 		_assert(IPager::JOURNALMODE_WAL == 5);
 		_assert(mode>=0 && mode<=_lengthof(_modeName));
 		if (mode == _lengthof(_modeName)) return nullptr;
-		return _modeName[eMode];
+		return _modeName[mode];
 	}
 
 #if !defined(ENABLE_LOCKING_STYLE)
@@ -227,7 +209,7 @@ namespace Core { namespace Command
 #define INTEGRITY_CHECK_ERROR_MAX 100
 #endif
 
-	__constant__ static const VdbeOpList _getCacheSize[] =
+	__constant__ static const Vdbe::VdbeOpList _getCacheSize[] =
 	{
 		{OP_Transaction, 0, 0,        0},                         // 0
 		{OP_ReadCookie,  0, 1,        BTREE_DEFAULT_CACHE_SIZE},  // 1
@@ -238,7 +220,7 @@ namespace Core { namespace Command
 		{OP_Integer,     0, 1,        0},                         // 6
 		{OP_ResultRow,   1, 1,        0},
 	};
-	__constant__ static const VdbeOpList _setMeta6[] =
+	__constant__ static const Vdbe::VdbeOpList _setMeta6[] =
 	{
 		{OP_Transaction,    0,         1,                 0},    // 0
 		{OP_ReadCookie,     0,         1,         BTREE_LARGEST_ROOT_PAGE},
@@ -248,14 +230,14 @@ namespace Core { namespace Command
 		{OP_SetCookie,      0,         BTREE_INCR_VACUUM, 1},    // 5
 	};
 	// Code that appears at the end of the integrity check.  If no error messages have been generated, output OK.  Otherwise output the error message
-	__constant__ static const VdbeOpList _endCode[] =
+	__constant__ static const Vdbe::VdbeOpList _endCode[] =
 	{
 		{OP_AddImm,      1, 0,        0},    // 0
 		{OP_IfNeg,       1, 0,        0},    // 1
 		{OP_String8,     0, 3,        0},    // 2
 		{OP_ResultRow,   3, 1,        0},
 	};
-	__constant__ static const VdbeOpList _idxErr[] =
+	__constant__ static const Vdbe::VdbeOpList _idxErr[] =
 	{
 		{OP_AddImm,      1, -1,  0},
 		{OP_String8,     0,  3,  0},    // 1
@@ -269,7 +251,7 @@ namespace Core { namespace Command
 		{OP_IfPos,       1,  0,  0},    // 9
 		{OP_Halt,        0,  0,  0},
 	};
-	__constant__ static const VdbeOpList _cntIdx[] =
+	__constant__ static const Vdbe::VdbeOpList _cntIdx[] =
 	{
 		{OP_Integer,      0,  3,  0},
 		{OP_Rewind,       0,  0,  0},  // 1
@@ -300,14 +282,14 @@ namespace Core { namespace Command
 		{0, 0}
 	};
 	// Write the specified cookie value
-	__constant__ static const VdbeOpList _setCookie[] =
+	__constant__ static const Vdbe::VdbeOpList _setCookie[] =
 	{
 		{OP_Transaction,    0,  1,  0},    // 0
 		{OP_Integer,        0,  1,  0},    // 1
 		{OP_SetCookie,      0,  0,  1},    // 2
 	};
 	// Read the specified cookie value
-	__constant__ static const VdbeOpList _readCookie[] =
+	__constant__ static const Vdbe::VdbeOpList _readCookie[] =
 	{
 		{OP_Transaction,     0,  0,  0},    // 0
 		{OP_ReadCookie,      0,  1,  0},    // 1
@@ -323,7 +305,7 @@ namespace Core { namespace Command
 		Context *ctx = parse->Ctx; // The database connection
 		Vdbe *v = parse->V = Vdbe::Create(ctx); // Prepared statement
 		if (!v) return;
-		v->VdbeRunOnlyOnce();
+		v->RunOnlyOnce();
 		parse->Mems = 2;
 
 		// Interpret the [database.] part of the pragma statement. db is the index of the database this pragma is being applied to in db.aDb[].
@@ -353,7 +335,7 @@ namespace Core { namespace Command
 		fcntls[2] = right;
 		fcntls[3] = nullptr;
 		ctx->BusyHandler.Busys = 0;
-		RC rc = sqlite3_file_control(ctx, dbName, FCNTL_PRAGMA, (void *)fcntls); // return value form SQLITE_FCNTL_PRAGMA
+		RC rc = Main::FileControl(ctx, dbName, VFile::FCNTL_PRAGMA, (void *)fcntls); // return value form SQLITE_FCNTL_PRAGMA
 		if (rc == RC_OK)
 		{
 			if (fcntls[0])
@@ -377,7 +359,6 @@ namespace Core { namespace Command
 			parse->RC = rc;
 		}
 
-
 #if !defined(OMIT_PAGER_PRAGMAS) && !defined(OMIT_DEPRECATED)
 		//  PRAGMA [database.]default_cache_size
 		//  PRAGMA [database.]default_cache_size=N
@@ -391,7 +372,7 @@ namespace Core { namespace Command
 		// size of historical compatibility.
 		else if (!_strcmp(left, "default_cache_size"))
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			v->UsesBtree(db);
 			if (!right)
 			{
@@ -449,7 +430,7 @@ namespace Core { namespace Command
 		{
 			Btree *bt = dbAsObj->Bt;
 			_assert(bt != nullptr);
-			bool b = (right ? GetBoolean(right, 0) : -1);
+			bool b = (right ? ConvertEx::GetBoolean(right, 0) : -1);
 			if (id2->length == 0 && b >= 0)
 				for (int ii = 0; ii < ctx->DBs.length; ii++)
 					ctx->DBs[ii].Bt->SecureDelete(b);
@@ -471,8 +452,8 @@ namespace Core { namespace Command
 		// Return the number of pages in the specified database.
 		else if (!_strcmp(left, "page_count") || !_strcmp(left, "max_page_count"))
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
-			sqlite3CodeVerifySchema(parse, db);
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
+			Parse::CodeVerifySchema(parse, db);
 			int regId = ++parse->Mems;
 			if (_tolower(left[0]) == 'p')
 				v->AddOp2(OP_Pagecount, db, regId);
@@ -490,7 +471,7 @@ namespace Core { namespace Command
 			const char *ret = "normal";
 			IPager::LOCKINGMODE mode = GetLockingMode(right);
 			if (id2->length == 0 && mode == IPager::LOCKINGMODE_QUERY)
-				mode = ctx->DfltLockMode; // Simple "PRAGMA locking_mode;" statement. This is a query for the current default locking mode (which may be different to the locking-mode of the main database).
+				mode = ctx->DefaultLockMode; // Simple "PRAGMA locking_mode;" statement. This is a query for the current default locking mode (which may be different to the locking-mode of the main database).
 			else
 			{
 				Pager *pager;
@@ -507,7 +488,7 @@ namespace Core { namespace Command
 						pager = ctx->DBs[ii].Bt->get_Pager();
 						pager.LockingMode(mode);
 					}
-					ctx->DfltLockMode = mode;
+					ctx->DefaultLockMode = mode;
 				}
 				pager = dbAsObj->Bt->get_Pager();
 				mode = pager->LockingMode(mode);
@@ -528,23 +509,23 @@ namespace Core { namespace Command
 		{
 			// Force the schema to be loaded on all databases.  This causes all database files to be opened and the journal_modes set.  This is
 			// necessary because subsequent processing must know if the databases are in WAL mode.
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			v->SetNumCols(1);
 			v->SetColName(0, COLNAME_NAME, "journal_mode", DESTRUCTOR_STATIC);
 
 			IPager::JOURNALMODE mode; // One of the PAGER_JOURNALMODE_XXX symbols
 			if (!right)
-				mode = IPager::JOURNALMODE_QUERY; // If there is no "=MODE" part of the pragma, do a query for the current mode
+				mode = IPager::JOURNALMODE_JQUERY; // If there is no "=MODE" part of the pragma, do a query for the current mode
 			else
 			{
 				const char *modeName;
 				int n = _strlen30(right);
-				for (mode = 0; (modeMa,e = sqlite3JournalModename(mode)) != 0; mode++)
+				for (mode = 0; (mode = sqlite3JournalModename(mode)) != 0; mode++)
 					if (!_strcmp(right, modeName, n)) break;
 				if (!modeName)
-					mode = IPager::JOURNALMODE_QUERY; // If the "=MODE" part does not match any known journal mode, then do a query
+					mode = IPager::JOURNALMODE_JQUERY; // If the "=MODE" part does not match any known journal mode, then do a query
 			}
-			if (mode == IPager::JOURNALMODE_QUERY && id2->length == 0) // Convert "PRAGMA journal_mode" into "PRAGMA main.journal_mode"
+			if (mode == IPager::JOURNALMODE_JQUERY && id2->length == 0) // Convert "PRAGMA journal_mode" into "PRAGMA main.journal_mode"
 			{
 				db = 0;
 				id2->length = 1;
@@ -587,10 +568,10 @@ namespace Core { namespace Command
 		{
 			Btree *bt = dbAsObj->Bt;
 			_assert(bt != nullptr);
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			if (!right)
 			{
-				Btree::AUTOVACUUM auto_ = (_ALWAYS(bt) ? bt->GetAutoVacuum() : SQLITE_DEFAULT_AUTOVACUUM);
+				Btree::AUTOVACUUM auto_ = (_ALWAYS(bt) ? bt->GetAutoVacuum() : DEFAULT_AUTOVACUUM);
 				ReturnSingleInt(parse, "auto_vacuum", (int)auto_);
 			}
 			else
@@ -598,7 +579,7 @@ namespace Core { namespace Command
 				Btree::AUTOVACUUM auto_ = GetAutoVacuum(right);
 				_assert(auto_ >= 0 && auto_ <= 2);
 				ctx->NextAutovac = auto_;
-				if (ALWAYS(auto_ >= 0))
+				if (_ALWAYS(auto_ >= 0))
 				{
 					// Call SetAutoVacuum() to set initialize the internal auto and incr-vacuum flags. This is required in case this connection
 					// creates the database file. It is important that it is created as an auto-vacuum capable db.
@@ -624,7 +605,7 @@ namespace Core { namespace Command
 		// Do N steps of incremental vacuuming on a database.
 		else if (!_strcmp(left, "incremental_vacuum"))
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			int limit;
 			if (right == 0 || !ConvertEx::Atoi(right, &limit) || limit <= 0)
 				limit = 0x7fffffff;
@@ -647,7 +628,7 @@ namespace Core { namespace Command
 		// number of pages is adjusted so that the cache uses -N kibibytes of memory.
 		else if (!_strcmp(left, "cache_size"))
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 			if (!right)
 				ReturnSingleInt(parse, "cache_size", dbAsObj->Schema->CacheSize);
@@ -655,7 +636,7 @@ namespace Core { namespace Command
 			{
 				int size = ConvertEx::Atoi(right);
 				dbAsObj->Schema->CacheSize = size;
-				dbAsObj->Bt->SetCacheSize(dbAsObj->pSchema->CacheSize);
+				dbAsObj->Bt->SetCacheSize(dbAsObj->Schema->CacheSize);
 			}
 		}
 
@@ -683,11 +664,11 @@ namespace Core { namespace Command
 		{
 			if (!right)
 			{
-				if (sqlite3_temp_directory)
+				if (g_temp_directory)
 				{
 					v->SetNumCols(1);
 					v->SetColName(0, COLNAME_NAME, "temp_store_directory", DESTRUCTOR_STATIC);
-					v->AddOp4(OP_String8, 0, 1, 0, sqlite3_temp_directory, 0);
+					v->AddOp4(OP_String8, 0, 1, 0, g_temp_directory, 0);
 					v->AddOp2(OP_ResultRow, 1, 1);
 				}
 			}
@@ -704,10 +685,10 @@ namespace Core { namespace Command
 						goto pragma_out;
 					}
 				}
-				if (SQLITE_TEMP_STORE==0 || (SQLITE_TEMP_STORE==1 && ctx->temp_store<=1) || (SQLITE_TEMP_STORE==2 && ctx->temp_store==1))
+				if (TEMP_STORE == 0 || (TEMP_STORE == 1 && ctx->TempStore <= 1) || (TEMP_STORE == 2 && ctx->TempStore == 1))
 					InvalidateTempStorage(parse);
-				_free(sqlite3_temp_directory);
-				sqlite3_temp_directory = (right[0] ? _mprintf("%s", right) : nullptr);
+				_free(g_temp_directory);
+				g_temp_directory = (right[0] ? _mprintf("%s", right) : nullptr);
 #endif
 			}
 		}
@@ -724,11 +705,11 @@ namespace Core { namespace Command
 		{
 			if (!right)
 			{
-				if (sqlite3_data_directory)
+				if (g_data_directory)
 				{
 					v->SetNumCols(1);
 					v->SetColName(0, COLNAME_NAME, "data_store_directory", DESTRUCTOR_STATIC);
-					v->AddOp4(OP_String8, 0, 1, 0, sqlite3_data_directory, 0);
+					v->AddOp4(OP_String8, 0, 1, 0, g_data_directory, 0);
 					v->AddOp2(OP_ResultRow, 1, 1);
 				}
 			}
@@ -745,8 +726,8 @@ namespace Core { namespace Command
 						goto pragma_out;
 					}
 				}
-				_free(sqlite3_data_directory);
-				sqlite3_data_directory = (right[0] ? _mprintf("%s", right) : nullptr);
+				_free(g_data_directory);
+				g_data_directory = (right[0] ? _mprintf("%s", right) : nullptr);
 #endif
 			}
 		}
@@ -762,13 +743,13 @@ namespace Core { namespace Command
 			if (!right)
 			{
 				Pager *pager = dbAsObj->Bt->get_Pager();
-				IO::VFile *file = pager->get_File();
+				VFile *file = pager->get_File();
 				char *proxy_file_path = NULL;
-				file->FileControl(SQLITE_GET_LOCKPROXYFILE, &proxy_file_path);
+				file->FileControl(VFile::GET_LOCKPROXYFILE, &proxy_file_path);
 				if (proxy_file_path)
 				{
 					v->SetNumCols(1);
-					v->SetColName(0, COLNAME_NAME, "lock_proxy_file", SQLITE_STATIC);
+					v->SetColName(0, COLNAME_NAME, "lock_proxy_file", DESTRUCTOR_STATIC);
 					v->AddOp4(OP_String8, 0, 1, 0, proxy_file_path, 0);
 					v->AddOp2(OP_ResultRow, 1, 1);
 				}
@@ -776,7 +757,7 @@ namespace Core { namespace Command
 			else
 			{
 				Pager *pager = dbAsObj->Bt->get_Pager();
-				IO::VFile *file = pager->get_File();
+				VFile *file = pager->get_File();
 				rc = file->FileControl(SQLITE_SET_LOCKPROXYFILE, (right[0] ? right : nullptr));
 				if (rc != RC_OK)
 				{
@@ -794,7 +775,7 @@ namespace Core { namespace Command
 		// default value will be restored the next time the database is opened.
 		else if (!_strcmp(left, "synchronous"))
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			if (!right)
 				ReturnSingleInt(parse, "synchronous", dbAsObj->SafetyLevel-1);
 			else
@@ -802,7 +783,7 @@ namespace Core { namespace Command
 				if (!ctx->AutoCommit)
 					parse->ErrorMsg("Safety level may not be changed inside a transaction");
 				else
-					dbAsObj->SafetyLevel = GetSafetyLevel(right, 0, 1) + 1;
+					dbAsObj->SafetyLevel = ConvertEx::GetSafetyLevel(right, 0, 1) + 1;
 			}
 		}
 #endif
@@ -824,8 +805,8 @@ namespace Core { namespace Command
 		// dflt_value: The default value for the column, if any.
 		else if (!_strcmp(left, "table_info") && right)
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
-			Table *table = sqlite3FindTable(ctx, right, dbName);
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
+			Table *table = Parse::FindTable(ctx, right, dbName);
 			if (table)
 			{
 				Index *pk;
@@ -850,7 +831,7 @@ namespace Core { namespace Command
 						hidden++;
 						continue;
 					}
-					v->AddOp2(OP_Integer, i-nHidden, 1);
+					v->AddOp2(OP_Integer, i-hidden, 1);
 					v->AddOp4(OP_String8, 0, 2, 0, col->Name, 0);
 					v->AddOp4(OP_String8, 0, 3, 0, (col->Type ? col->Type : ""), 0);
 					v->AddOp2(OP_Integer, (col->NotNull ? 1 : 0), 4);
@@ -874,8 +855,8 @@ namespace Core { namespace Command
 		}
 		else if (!_strcmp(left, "index_info") && right)
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
-			Index *index = sqlite3FindIndex(ctx, right, dbName);
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
+			Index *index = Parse::FindIndex(ctx, right, dbName);
 			if (index)
 			{
 				Table *table = index->Table;
@@ -891,15 +872,15 @@ namespace Core { namespace Command
 					v->AddOp2(OP_Integer, i, 1);
 					v->AddOp2(OP_Integer, cid, 2);
 					_assert(table->Cols.length > cid);
-					v->AddOp4(OP_String8, 0, 3, 0, table->ols[cid].Name, 0);
+					v->AddOp4(OP_String8, 0, 3, 0, table->Cols[cid].Name, 0);
 					v->AddOp2(OP_ResultRow, 1, 3);
 				}
 			}
 		}
 		else if (!_strcmp(left, "index_list") && right)
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
-			Table *table = sqlite3FindTable(ctx, right, dbName);
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
+			Table *table = Parse::FindTable(ctx, right, dbName);
 			if (table)
 			{
 				v = parse->GetVdbe();
@@ -927,7 +908,7 @@ namespace Core { namespace Command
 		}
 		else if (!_strcmp(left, "database_list")=)
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			v->SetNumCols(v, 3);
 			parse->Mems = 3;
 			v->SetColName(0, COLNAME_NAME, "seq", DESTRUCTOR_STATIC);
@@ -948,9 +929,9 @@ namespace Core { namespace Command
 			v->SetNumCols(2);
 			parse->Mems = 2;
 			v->SetColName(0, COLNAME_NAME, "seq", DESTRUCTOR_STATIC);
-			v->SetColName(1, COLNAME_NAME, "name", DESTRUCTOR_STATIC)
-				int i = 0;
-			for (HashElem *p = ctx->CollSeq.First; p; p = p.Next)
+			v->SetColName(1, COLNAME_NAME, "name", DESTRUCTOR_STATIC);
+			int i = 0;
+			for (HashElem *p = ctx->CollSeqs.First; p; p = p.Next)
 			{
 				CollSeq *coll = (CollSeq *)p.Data;
 				v->AddOp2(OP_Integer, i++, 1);
@@ -962,12 +943,12 @@ namespace Core { namespace Command
 #ifndef OMIT_FOREIGN_KEY
 		else if (!_strcmp(left, "foreign_key_list") && right)
 		{
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
-			Table *table = sqlite3FindTable(ctx, right, dbName);
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
+			Table *table = Parse::FindTable(ctx, right, dbName);
 			if (table)
 			{
 				v = parse->GetVdbe();
-				FKey *fk = table->FKey;
+				FKey *fk = table->FKeys;
 				if (fk)
 				{
 					v->SetNumCols(8);
@@ -1008,7 +989,7 @@ namespace Core { namespace Command
 #ifndef OMIT_TRIGGER
 		else if (!_strcmp(left, "foreign_key_check"))
 		{
-			if (sqlite3ReadSchema(parse) ) goto pragma_out;
+			if (Prepare::ReadSchema(parse) ) goto pragma_out;
 			int regResult = parse->Mems+1; // 3 registers to hold a result row
 			parse->Mems += 4;
 			int regKey = ++parse->Mems; // Register to hold key for checking the FK
@@ -1027,7 +1008,7 @@ namespace Core { namespace Command
 				Table *table; // Child table contain "REFERENCES" keyword
 				if (right)
 				{
-					table = sqlite3LocateTable(parse, 0, right, dbName);
+					table = parse->LocateTable(false, right, dbName);
 					k = nullptr;
 				}
 				else
@@ -1036,7 +1017,7 @@ namespace Core { namespace Command
 					k = k.Next;
 				}
 				if (!table || !table->FKeys) continue;
-				sqlite3TableLock(parse, db, table->Id, 0, table->Name);
+				parse->TableLock(db, table->Id, false, table->Name);
 				if (table->Cols.length+regRow > parse->Mems) parse->Mems = table->Cols.length + regRow;
 				sqlite3OpenTable(parse, 0, db, table, OP_OpenRead);
 				v->AddOp4(OP_String8, 0, regResult, 0, table->Name, Vdbe::P4T_TRANSIENT);
@@ -1047,18 +1028,18 @@ namespace Core { namespace Command
 				FKey *fk; // A foreign key constraint
 				for (i = 1, fk = table->FKeys; fk; i++, fk = fk->NextFrom)
 				{
-					parent = sqlite3LocateTable(parse, 0, fk->To, dbName);
+					parent = parse->LocateTable(false, fk->To, dbName);
 					if (!parent) break;
 					index = nullptr;
-					sqlite3TableLock(parse, db, parent->Id, 0, parent->Name);
-					x = sqlite3FkLocateIndex(parse, parent, fk, &index, nullptr);
+					parse->TableLock(db, parent->Id, false, parent->Name);
+					x = parse->FKLocateIndex(parent, fk, &index, nullptr);
 					if (x == 0)
 					{
 						if (!index)
 							sqlite3OpenTable(parse, i, db, parent, OP_OpenRead);
 						else
 						{
-							KeyInfo *key = sqlite3IndexKeyinfo(parse, index);
+							KeyInfo *key = parse->IndexKeyinfo(index);
 							v->AddOp3(OP_OpenRead, i, index->Id, db);
 							v->ChangeP4(-1, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
 						}
@@ -1074,11 +1055,11 @@ namespace Core { namespace Command
 				int addrTop = v->AddOp1(OP_Rewind, 0); // Top of a loop checking foreign keys
 				for (i = 1, fk = table->FKeys; fk; i++, fk = fk->NextFrom)
 				{
-					parent = sqlite3LocateTable(parse, 0, fk->To, dbName);
+					parent = parse->LocateTable(false, fk->To, dbName);
 					_assert(parent != nullptr);
 					index = nullptr;
 					cols = nullptr;
-					x = sqlite3FkLocateIndex(parse, parent, fk, &index, &cols);
+					x = parse->LocateIndex(parent, fk, &index, &cols);
 					_assert(x == 0);
 					int addrOk = v->MakeLabel(); // Jump here if the key is OK
 					if (!index)
@@ -1128,7 +1109,7 @@ namespace Core { namespace Command
 		{
 			if (right)
 			{
-				if (GetBoolean(right, 0))
+				if (ConvertEx::GetBoolean(right, 0))
 					Parser::Trace(stderr, "parser: ");
 				else
 					Parser::Trace(nullptr, nullptr);
@@ -1140,7 +1121,7 @@ namespace Core { namespace Command
 		else if (!_strcmp(left, "case_sensitive_like"))
 		{
 			if (right)
-				Func::RegisterLikeFunctions(ctx, GetBoolean(right, 0));
+				Func::RegisterLikeFunctions(ctx, ConvertEx::GetBoolean(right, 0));
 		}
 
 #ifndef OMIT_INTEGRITY_CHECK
@@ -1160,7 +1141,7 @@ namespace Core { namespace Command
 			if (!id2->data) db = -1;
 
 			// Initialize the VDBE program
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			parse->Mems = 6;
 			v->SetNumCols(1);
 			v->SetColName(0, COLNAME_NAME, "integrity_check", DESTRUCTOR_STATIC);
@@ -1193,9 +1174,9 @@ namespace Core { namespace Command
 				_assert(Btree::SchemaMutexHeld(ctx, i, nullptr));
 				Hash *tables = &ctx->DBs[i].Schema->TableHash;
 				HashElem *x;
-				for (x = tables.First; x; x = x.Next)
+				for (x = tables->First; x; x = x->Next)
 				{
-					Table *table = x.Data;
+					Table *table = (Table *)x->Data;
 					v->AddOp2(OP_Integer, table->Id, 2+cnt);
 					cnt++;
 					for (Index *index = table->Index; index; index = index->Next)
@@ -1220,7 +1201,7 @@ namespace Core { namespace Command
 				v->JumpHere(addr);
 
 				// Make sure all the indices are constructed correctly.
-				for (x = tables.First; x && !isQuick; x = x.Next)
+				for (x = tables->First; x && !isQuick; x = x->Next)
 				{
 					Table *table = x.Data;
 					if (!table->Index) continue;
@@ -1262,7 +1243,7 @@ namespace Core { namespace Command
 					}
 				} 
 			}
-			addr = v->AddOpList(_length(_endCode), _endCode);
+			addr = v->AddOpList(_lengthof(_endCode), _endCode);
 			v->ChangeP2(addr, -maxErr);
 			v->JumpHere(addr+1);
 			v->ChangeP4(addr+2, "ok", Vdbe::P4T_STATIC);
@@ -1288,28 +1269,28 @@ namespace Core { namespace Command
 		{
 			if (!right) // "PRAGMA encoding"
 			{    
-				if (sqlite3ReadSchema(parse)) goto pragma_out;
+				if (Prepare::ReadSchema(parse)) goto pragma_out;
 				v->SetNumCols(1);
 				v->SetColName(0, COLNAME_NAME, "encoding", DESTRUCTOR_STATIC);
 				v->AddOp2(OP_String8, 0, 1);
 				_assert(_encodeNames[TEXTENCODE_UTF8].Encode == TEXTENCODE_UTF8);
 				_assert(_encodeNames[TEXTENCODE_UTF16LE].Encode == TEXTENCODE_UTF16LE);
 				_assert(_encodeNames[TEXTENCODE_UTF16BE].Encode == TEXTENCOD _UTF16BE);
-				v->ChangeP4(-1, _encodeNames[CTXENCODE(parse->ctx)].Name, Vdbe::P4T_STATIC);
+				v->ChangeP4(-1, _encodeNames[CTXENCODE(parse->Ctx)].Name, Vdbe::P4T_STATIC);
 				v->AddOp2(OP_ResultRow, 1, 1);
 			}
 			else // "PRAGMA encoding = XXX"
 			{
 				// Only change the value of sqlite.enc if the database handle is not initialized. If the main database exists, the new sqlite.enc value
 				// will be overwritten when the schema is next loaded. If it does not already exists, it will be created to use the new encoding value.
-				if (!(DbHasProperty(ctx, 0, DB_SchemaLoaded)) || DbHasProperty(ctx, 0, DB_Empty))
+				if (!(DbHasProperty(ctx, 0, SCHEMA_SchemaLoaded)) || DbHasProperty(ctx, 0, SCHEMA_Empty))
 				{
 					const EncodeName *encode;
 					for (encode = &_encodeNames[0]; encode->Name; encode++)
 					{
 						if (!_strcmp(right, encode->Name))
 						{
-							CXTENCODE(parse->ctx) = (encode->Encode ? encode->Encode : TEXTENCODE_UTF16NATIVE);
+							CXTENCODE(parse->Ctx) = (encode->Encode ? encode->Encode : TEXTENCODE_UTF16NATIVE);
 							break;
 						}
 					}
@@ -1425,7 +1406,7 @@ namespace Core { namespace Command
 		//
 		// This pragma attempts to free as much memory as possible from the current database connection.
 		else if (!_strcmp(left, "shrink_memory"))
-			sqlite3_db_release_memory(ctx);
+			Main::CtxReleaseMemory(ctx);
 
 		//   PRAGMA busy_timeout
 		//   PRAGMA busy_timeout = N
@@ -1435,7 +1416,7 @@ namespace Core { namespace Command
 		else if (!_strcmp(left, "busy_timeout"))
 		{
 			if (right)
-				sqlite3_busy_timeout(ctx, ConvertEx::Atoi(right));
+				Main::BusyTmeout(ctx, ConvertEx::Atoi(right));
 			ReturnSingleInt(parse, "timeout",  ctx->BusyTimeout);
 		}
 
@@ -1455,7 +1436,7 @@ namespace Core { namespace Command
 				int j;
 				const char *state = "unknown";
 				if (!bt || !bt->get_Pager()) state = "closed";
-				else if (sqlite3_file_control(ctx, i ? ctx->DBs[i].Name : 0, SQLITE_FCNTL_LOCKSTATE, &j) == RC_OK) state = _lockNames[j];
+				else if (Main::FileControl(ctx, i ? ctx->DBs[i].Name : 0, VFile::FCNTL_LOCKSTATE, &j) == RC_OK) state = _lockNames[j];
 				v->AddOp4(OP_String8, 0, 2, 0, state, Vdbe::P4T_STATIC);
 				v->AddOp2(OP_ResultRow, 1, 2);
 			}

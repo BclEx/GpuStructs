@@ -111,7 +111,7 @@ namespace Core
         #region ASSERT
         public static bool _NEVER(bool x) { return x; }
         public static void ASSERTCOVERAGE(bool p) { }
-        public static bool _ALWAYS(bool x) { if (x != true) Debug.Assert(false); return x; }
+        public static T _ALWAYS<T>(T x) { if (!x.Equals(default(T))) Debug.Assert(false); return x; }
         #endregion
 
         //////////////////////

@@ -989,6 +989,8 @@ _out:
 		return false;
 	}
 
+#pragma region Error Message
+
 	__device__ const char *Main::ErrMsg(Context *ctx)
 	{
 		const char *z;
@@ -1071,6 +1073,8 @@ _out:
 	}
 
 	//__device__ const char *Main::Errstr(int rc) { return ErrStr(rc); }
+
+#pragma endregion
 
 	__device__ static RC CreateCollation(Context *ctx, const char *name,  TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*), void (*del)(void*))
 	{
@@ -1208,6 +1212,8 @@ _out:
 
 #pragma endregion
 
+#pragma region Open Database
+
 	__device__ static RC OpenDatabase(const char *fileName, Context **ctxOut, VSystem::OPEN flags, const char *vfsName)
 	{
 		*ctxOut = nullptr;
@@ -1268,7 +1274,7 @@ _out:
 			if (!ctx->Mutex.Tag)
 			{
 				_free(ctx);
-				ctx = 0;
+				ctx = nullptr;
 				goto opendb_out;
 			}
 		}
@@ -1330,12 +1336,12 @@ _out:
 		}
 
 		// Open the backend database driver
-		rc = Btree::Open(ctx->Vfs, open, ctx, &ctx->DBs[0].Bt, 0, flags | VSystem::OPEN_MAIN_DB);
+		rc = Btree::Open(ctx->Vfs, open, ctx, &ctx->DBs[0].Bt, (Btree::OPEN)0, flags | VSystem::OPEN_MAIN_DB);
 		if (rc != RC_OK)
 		{
 			if (rc == RC_IOERR_NOMEM)
 				rc = RC_NOMEM;
-			Main::Error(ctx, rc, 0);
+			Main::Error(ctx, rc, nullptr);
 			goto opendb_out;
 		}
 		ctx->DBs[0].Schema = Callback::SchemaGet(ctx, ctx->DBs[0].Bt);
@@ -1426,7 +1432,7 @@ opendb_out:
 		*ctxOut = ctx;
 #ifdef ENABLE_SQLLOG
 		if (SysEx_GlobalStatics.Sqllog)
-			SysEx_GlobalStatics.Sqllog(SysEx_GlobalStatics.SqllogArg, ctx, filenName, 0); // Opening a ctx handle. Fourth parameter is passed 0.
+			SysEx_GlobalStatics.Sqllog(SysEx_GlobalStatics.SqllogArg, ctx, fileName, 0); // Opening a ctx handle. Fourth parameter is passed 0.
 #endif
 		return Main::ApiExit(nullptr, rc);
 	}
@@ -1452,7 +1458,7 @@ opendb_out:
 		{
 			rc = OpenDatabase(fileName8, ctxOut, VSystem::OPEN_READWRITE | VSystem::OPEN_CREATE, nullptr);
 			_assert(*ctxOut || rc == RC_NOMEM);
-			if (rc == RC_OK && !DbHasProperty(*ctxOut, 0, DB_SchemaLoaded))
+			if (rc == RC_OK && !DbHasProperty(*ctxOut, 0, SCHEMA_SchemaLoaded))
 				CTXENCODE(*ctxOut) = TEXTENCODE_UTF16NATIVE;
 		}
 		else
@@ -1461,6 +1467,10 @@ opendb_out:
 		return ApiExit(nullptr, rc);
 	}
 #endif
+
+#pragma endregion
+
+#pragma region Create Collation
 
 	__device__ RC Main::CreateCollation(Context *ctx, const char *name, TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*))
 	{
@@ -1522,10 +1532,11 @@ opendb_out:
 	}
 #endif
 
+#pragma endregion
+
 	// THIS IS AN EXPERIMENTAL API AND IS SUBJECT TO CHANGE
 
 	//__device__ int Main::GetAutocommit(Context *ctx) { return ctx->AutoCommit; }
-
 	//__device__ RC Main::CorruptError(int lineno)
 	//{
 	//	ASSERTCOVERAGE(SysEx_GlobalStatics.Log != nullptr);
@@ -1535,10 +1546,9 @@ opendb_out:
 	//__device__ RC Main::MisuseError(int lineno)
 	//{
 	//	ASSERTCOVERAGE(SysEx_GlobalStatics.Log != nullptr);
-	//	SysEx_LOG(RC_MISUSE,  "misuse at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
+	//	SysEx_LOG(RC_MISUSE, "misuse at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
 	//	return RC_MISUSE;
 	//}
-
 	//__device__ RC Main::CantopenError(int lineno)
 	//{
 	//	ASSERTCOVERAGE(SysEx_GlobalStatics.Log != nullptr);
@@ -1686,6 +1696,7 @@ error_out:
 		return rc;   
 	}
 
+#pragma region TEST
 	__device__ RC Main::TestControl(TESTCTRL op, va_list args)
 	{
 		int rc = 0;
@@ -1735,7 +1746,7 @@ error_out:
 			rc = PENDING_BYTE;
 #ifndef OMIT_WSD
 			{
-				unsigned int newVal = va_arg(args, unsigned int);
+				uint32 newVal = va_arg(args, uint32);
 				if (newVal) sqlite3PendingByte = newVal;
 			}
 #endif
@@ -1782,7 +1793,7 @@ error_out:
 			Context *ctx = va_arg(args, Context*);
 			int x = va_arg(args, int);
 			MutexEx::Enter(ctx->Mutex);
-			ctx->DBs[0].Bt->SetPageSize(0, x, 0);
+			ctx->DBs[0].Bt->SetPageSize(0, x, false);
 			MutexEx::Leave(ctx->Mutex);
 			break; }
 		case TESTCTRL_OPTIMIZATIONS: {
@@ -1792,7 +1803,7 @@ error_out:
 			// operation N should be 0.  The idea is that a test program (like the SQL Logic Test or SLT test module) can run the same SQL multiple times
 			// with various optimizations disabled to verify that the same answer is obtained in every case.
 			Context *ctx = va_arg(args, Context*);
-			ctx->OptFlags = (uint16)(va_arg(args, int) & 0xffff);
+			ctx->OptFlags = (OPTFLAG)(va_arg(args, int) & 0xffff);
 			break; }
 #ifdef N_KEYWORD
 		case TESTCTRL_ISKEYWORD: {
@@ -1810,7 +1821,7 @@ error_out:
 		case TESTCTRL_SCRATCHMALLOC: {
 			// sqlite3_test_control(SQLITE_TESTCTRL_SCRATCHMALLOC, sz, &pNew, pFree);
 			//
-			// Pass pFree into sqlite3ScratchFree(). If sz>0 then allocate a scratch buffer into pNew.  
+			// Pass pFree into sqlite3ScratchFree(). If sz>0 then allocate a scratch buffer into pNew.
 			int size = va_arg(args, int);
 			void **new_ = va_arg(args, void**);
 			void *free = va_arg(args, void*);
@@ -1840,11 +1851,12 @@ error_out:
 #endif
 		return (RC)rc;
 	}
+#pragma endregion
 
 	__device__ Btree *Main::DbNameToBtree(Context *ctx, const char *dbName)
 	{
 		for (int i = 0; i < ctx->DBs.length; i++)
-			if (ctx->DBs[i].Bt && (dbName==0 || !_strcmp(dbName, ctx->DBs[i].Name)))
+			if (ctx->DBs[i].Bt && (!dbName || !_strcmp(dbName, ctx->DBs[i].Name)))
 				return ctx->DBs[i].Bt;
 		return nullptr;
 	}

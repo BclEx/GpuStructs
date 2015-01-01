@@ -8,8 +8,8 @@ namespace GpuData
     {
         public static void Main(string[] args)
         {
-            MutexEx masterMutex = new MutexEx();
-            RC rc = SysEx.PreInitialize(ref masterMutex);
+            MutexEx masterMutex;
+            RC rc = SysEx.PreInitialize(out masterMutex);
             if (rc != RC.OK) return;
             SysEx.PostInitialize(masterMutex);
             //TestVFS();

@@ -278,7 +278,7 @@ namespace Core
 
 #pragma endregion
 
-	__device__ static RC SysEx::SetupLookaside(TagBase *tag, void *buf, int size, int count)
+	__device__ RC SysEx::SetupLookaside(TagBase *tag, void *buf, int size, int count)
 	{
 		if (tag->Lookaside.Outs)
 			return RC_BUSY;

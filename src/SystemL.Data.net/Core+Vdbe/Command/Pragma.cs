@@ -2,31 +2,15 @@ using System;
 using System.Diagnostics;
 using System.Text;
 using System.Globalization;
+using Core.IO;
 
 namespace Core.Command
 {
     public partial class Pragma
     {
-        // 123456789 123456789
-        static readonly string _safetyLevelText = "onoffalseyestruefull";
-        static readonly int[] _safetyLevelOffset = new int[] { 0, 1, 2, 4, 9, 12, 16 };
-        static readonly int[] _safetyLevelLength = new int[] { 2, 2, 3, 5, 3, 4, 4 };
-        static readonly byte[] _safetyLevelValue = new byte[] { 1, 0, 0, 0, 1, 1, 2 };
-        static byte GetSafetyLevel(string z, int omitFull, byte dflt)
-        {
-            if (char.IsDigit(z[0]))
-                return (byte)ConvertEx.Atoi(z);
-            int n = z.Length;
-            for (int i = 0; i < _safetyLevelLength.Length - omitFull; i++)
-                if (_safetyLevelLength[i] == n && string.CompareOrdinal(_safetyLevelText.Substring(_safetyLevelOffset[i]), 0, z, 0, n) == 0)
-                    return _safetyLevelValue[i];
-            return dflt;
-        }
-
-        public static byte GetBoolean(string z, byte dflt)
-        {
-            return (GetSafetyLevel(z, 1, dflt) != 0);
-        }
+        // moved to ConvertEx
+        //public static byte GetSafetyLevel(string z, int omitFull, byte dflt);
+        //public static bool GetBoolean(string z, byte dflt);
 
 #if !(OMIT_PRAGMA)
 
@@ -67,14 +51,14 @@ namespace Core.Command
             Context ctx = parse.Ctx;
             if (ctx.DBs[1].Bt != null)
             {
-                if (!ctx.AutoCommit || ctx.DBs[1].Bt.IsInReadTrans())
+                if (ctx.AutoCommit == 0 || ctx.DBs[1].Bt.IsInReadTrans())
                 {
                     parse.ErrorMsg("temporary storage cannot be changed from within a transaction");
                     return RC.ERROR;
                 }
                 ctx.DBs[1].Bt.Close();
                 ctx.DBs[1].Bt = null;
-                sqlite3ResetInternalSchema(ctx, -1);
+                Parse.ResetInternalSchema(ctx, -1);
             }
             return RC.OK;
         }
@@ -107,8 +91,8 @@ namespace Core.Command
         struct sPragmaType
         {
             public string Name; // Name of the pragma
-            public int Mask; // Mask for the db.flags value
-            public sPragmaType(string name, int mask)
+            public Context.FLAG Mask; // Mask for the db.flags value
+            public sPragmaType(string name, Context.FLAG mask)
             {
                 Name = name;
                 Mask = mask;
@@ -116,37 +100,37 @@ namespace Core.Command
         }
         static readonly sPragmaType[] _pragmas = new sPragmaType[]
         {
-            new sPragmaType("full_column_names",        SQLITE_FullColNames),
-            new sPragmaType("short_column_names",       SQLITE_ShortColNames),
-            new sPragmaType("count_changes",            SQLITE_CountRows),
-            new sPragmaType("empty_result_callbacks",   SQLITE_NullCallback),
-            new sPragmaType("legacy_file_format",       SQLITE_LegacyFileFmt),
-            new sPragmaType("fullfsync",                SQLITE_FullFSync),
-            new sPragmaType("checkpoint_fullfsync",     SQLITE_CkptFullFSync),
-            new sPragmaType("reverse_unordered_selects", SQLITE_ReverseOrder),
+            new sPragmaType("full_column_names",        Context.FLAG.FullColNames),
+            new sPragmaType("short_column_names",       Context.FLAG.ShortColNames),
+            new sPragmaType("count_changes",            Context.FLAG.CountRows),
+            new sPragmaType("empty_result_callbacks",   Context.FLAG.NullCallback),
+            new sPragmaType("legacy_file_format",       Context.FLAG.LegacyFileFmt),
+            new sPragmaType("fullfsync",                Context.FLAG.FullFSync),
+            new sPragmaType("checkpoint_fullfsync",     Context.FLAG.CkptFullFSync),
+            new sPragmaType("reverse_unordered_selects", Context.FLAG.ReverseOrder),
             #if !OMIT_AUTOMATIC_INDEX
-            new sPragmaType("automatic_index",          SQLITE_AutoIndex),
+            new sPragmaType("automatic_index",          Context.FLAG.AutoIndex),
             #endif
             #if DEBUG
-            new sPragmaType("sql_trace",                SQLITE_SqlTrace),
-            new sPragmaType("vdbe_listing",             SQLITE_VdbeListing),
-            new sPragmaType("vdbe_trace",               SQLITE_VdbeTrace),
-		    new sPragmaType("vdbe_addoptrace",          SQLITE_VdbeAddopTrace),
-		    new sPragmaType("vdbe_debug",               SQLITE_SqlTrace|SQLITE_VdbeListing|SQLITE_VdbeTrace),
+            new sPragmaType("sql_trace",                Context.FLAG.SqlTrace),
+            new sPragmaType("vdbe_listing",             Context.FLAG.VdbeListing),
+            new sPragmaType("vdbe_trace",               Context.FLAG.VdbeTrace),
+		    new sPragmaType("vdbe_addoptrace",          Context.FLAG.VdbeAddopTrace),
+		    new sPragmaType("vdbe_debug",               Context.FLAG.SqlTrace|Context.FLAG.VdbeListing|Context.FLAG.VdbeTrace),
             #endif
             #if !OMIT_CHECK
-            new sPragmaType("ignore_check_constraints", SQLITE_IgnoreChecks),
+            new sPragmaType("ignore_check_constraints", Context.FLAG.IgnoreChecks),
             #endif
             // The following is VERY experimental
-            new sPragmaType("writable_schema",          SQLITE_WriteSchema|SQLITE_RecoveryMode),
+            new sPragmaType("writable_schema",          Context.FLAG.WriteSchema|Context.FLAG.RecoveryMode),
 
             // TODO: Maybe it shouldn't be possible to change the ReadUncommitted flag if there are any active statements.
-            new sPragmaType( "read_uncommitted",         SQLITE_ReadUncommitted),
-            new sPragmaType( "recursive_triggers",       SQLITE_RecTriggers),
+            new sPragmaType( "read_uncommitted",         Context.FLAG.ReadUncommitted),
+            new sPragmaType( "recursive_triggers",       Context.FLAG.RecTriggers),
 
             // This flag may only be set if both foreign-key and trigger support are present in the build.
             #if !OMIT_FOREIGN_KEY && !OMIT_TRIGGER
-            new sPragmaType("foreign_keys",             SQLITE_ForeignKeys),
+            new sPragmaType("foreign_keys",             Context.FLAG.ForeignKeys),
             #endif
         };
 
@@ -168,10 +152,10 @@ namespace Core.Command
                             ReturnSingleInt(parse, p.Name, ((ctx.Flags & p.Mask) != 0) ? 1 : 0);
                         else
                         {
-                            int mask = p.Mask; // Mask of bits to set or clear.
+                            Context.FLAG mask = p.Mask; // Mask of bits to set or clear.
                             if (ctx.AutoCommit == 0)
-                                mask &= ~(SQLITE_ForeignKeys); // Foreign key support may not be enabled or disabled while not in auto-commit mode.
-                            if (GetBoolean(right, 0))
+                                mask &= ~(Context.FLAG.ForeignKeys); // Foreign key support may not be enabled or disabled while not in auto-commit mode.
+                            if (ConvertEx.GetBoolean(right, 0))
                                 ctx.Flags |= mask;
                             else
                                 ctx.Flags &= ~mask;
@@ -361,7 +345,7 @@ namespace Core.Command
             fcntls[2] = right;
             fcntls[3] = null;
             ctx.BusyHandler.Busys = 0;
-            RC rc = sqlite3_file_control(ctx, dbName, FCNTL_PRAGMA, fcntls); // return value form SQLITE_FCNTL_PRAGMA
+            RC rc = Main.FileControl(ctx, dbName, VFile.FCNTL.PRAGMA, ref fcntls); // return value form SQLITE_FCNTL_PRAGMA
             if (rc == RC.OK)
             {
                 if (fcntls[0] != null)
@@ -399,7 +383,7 @@ namespace Core.Command
             // size of historical compatibility.
             if (string.Equals(left, "default_cache_size", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 v.UsesBtree(db);
                 if (right == null)
                 {
@@ -456,7 +440,7 @@ namespace Core.Command
             {
                 Btree bt = dbAsObj.Bt;
                 Debug.Assert(bt != null);
-                int b = (right != null ? GetBoolean(right, 0) : -1);
+                int b = (right != null ? (ConvertEx.GetBoolean(right, 0) ? 1: 0) : -1);
                 if (id2.length == 0 && b >= 0)
                     for (int ii = 0; ii < ctx.DBs.length; ii++)
                         ctx.DBs[ii].Bt.SecureDelete(b);
@@ -474,7 +458,7 @@ namespace Core.Command
             // Return the number of pages in the specified database.
             else if (string.Equals(left, "page_count", StringComparison.OrdinalIgnoreCase) || string.Equals(left, "max_page_count", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 parse.CodeVerifySchema(db);
                 int regId = ++parse.Mems;
                 if (left[0] == 'p')
@@ -493,7 +477,7 @@ namespace Core.Command
                 string ret = "normal";
                 IPager.LOCKINGMODE mode = GetLockingMode(right);
                 if (id2.length == 0 && mode == IPager.LOCKINGMODE.QUERY)
-                    mode = ctx.DfltLockMode; // Simple "PRAGMA locking_mode;" statement. This is a query for the current default locking mode (which may be different to the locking-mode of the main database).
+                    mode = ctx.DefaultLockMode; // Simple "PRAGMA locking_mode;" statement. This is a query for the current default locking mode (which may be different to the locking-mode of the main database).
                 else
                 {
                     Pager pager;
@@ -510,7 +494,7 @@ namespace Core.Command
                             pager = ctx.DBs[ii].Bt.get_Pager();
                             pager.LockingMode(mode);
                         }
-                        ctx.dfltLockMode = mode;
+                        ctx.DefaultLockMode = mode;
                     }
                     pager = dbAsObj.Bt.get_Pager();
                     mode = (pager.LockingMode(mode) ? 1 : 0);
@@ -531,23 +515,23 @@ namespace Core.Command
             {
                 // Force the schema to be loaded on all databases.  This causes all database files to be opened and the journal_modes set.  This is
                 // necessary because subsequent processing must know if the databases are in WAL mode.
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 v.SetNumCols(1);
                 v.SetColName(0, COLNAME_NAME, "journal_mode", C.DESTRUCTOR_STATIC);
 
                 IPager.JOURNALMODE mode; // One of the PAGER_JOURNALMODE_XXX symbols
                 if (right == null)
-                    mode = IPager.JOURNALMODE.QUERY; // If there is no "=MODE" part of the pragma, do a query for the current mode
+                    mode = IPager.JOURNALMODE.JQUERY; // If there is no "=MODE" part of the pragma, do a query for the current mode
                 else
                 {
                     string modeName;
                     int n = right.Length;
                     for (mode = 0; (modeName = JournalModename(mode)) != null; mode++)
-                        if (string.Equals(right, modeName, n)) break;
+                        if (string.Compare(right, 0, modeName, 0, n, StringComparison.OrdinalIgnoreCase) == 0) break;
                     if (modeName == null)
-                        mode = IPager.JOURNALMODE.QUERY;  // If the "=MODE" part does not match any known journal mode, then do a query
+                        mode = IPager.JOURNALMODE.JQUERY;  // If the "=MODE" part does not match any known journal mode, then do a query
                 }
-                if (mode == IPager.JOURNALMODE.QUERY && id2.length == 0) // Convert "PRAGMA journal_mode" into "PRAGMA main.journal_mode"
+                if (mode == IPager.JOURNALMODE.JQUERY && id2.length == 0) // Convert "PRAGMA journal_mode" into "PRAGMA main.journal_mode"
                 {
                     db = 0;
                     id2.length = 1;
@@ -590,10 +574,10 @@ namespace Core.Command
             {
                 Btree bt = dbAsObj.Bt;
                 Debug.Assert(bt != null);
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 if (right == null)
                 {
-                    Btree.AUTOVACUUM auto_ = (ALWAYS(bt) ? bt.GetAutoVacuum() : SQLITE_DEFAULT_AUTOVACUUM);
+                    Btree.AUTOVACUUM auto_ = (C._ALWAYS(bt) ? bt.GetAutoVacuum() : DEFAULT_AUTOVACUUM);
                     ReturnSingleInt(parse, "auto_vacuum", (int)auto_);
                 }
                 else
@@ -601,7 +585,7 @@ namespace Core.Command
                     Btree.AUTOVACUUM auto_ = GetAutoVacuum(right);
                     Debug.Assert((int)auto_ >= 0 && (int)auto_ <= 2);
                     ctx.NextAutovac = auto_;
-                    if (ALWAYS((int)auto_ >= 0))
+                    if (C._ALWAYS((int)auto_ >= 0))
                     {
                         // Call SetAutoVacuum() to set initialize the internal auto and incr-vacuum flags. This is required in case this connection
                         // creates the database file. It is important that it is created as an auto-vacuum capable db.
@@ -627,7 +611,7 @@ namespace Core.Command
             // Do N steps of incremental vacuuming on a database.
             else if (string.Equals(left, "incremental_vacuum", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 int limit = 0;
                 if (right == null || !ConvertEx.Atoi(right, ref limit) || limit <= 0)
                     limit = 0x7fffffff;
@@ -651,7 +635,7 @@ namespace Core.Command
             // number of pages is adjusted so that the cache uses -N kibibytes of memory.
             else if (string.Equals(left, "cache_size", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
                 if (right == null)
                     ReturnSingleInt(parse, "cache_size", dbAsObj.Schema.CacheSize);
@@ -662,7 +646,6 @@ namespace Core.Command
                     dbAsObj.Bt.SetCacheSize(dbAsObj.Schema.CacheSize);
                 }
             }
-
 
             //   PRAGMA temp_store
             //   PRAGMA temp_store = "default"|"memory"|"file"
@@ -688,11 +671,11 @@ namespace Core.Command
             {
                 if (right == null)
                 {
-                    if (sqlite3_temp_directory != null)
+                    if (Main.g_temp_directory != null)
                     {
                         v.SetNumCols(1);
                         v.SetColName(0, COLNAME_NAME, "temp_store_directory", C.DESTRUCTOR_STATIC);
-                        v.AddOp4(OP.String8, 0, 1, 0, sqlite3_temp_directory, 0);
+                        v.AddOp4(OP.String8, 0, 1, 0, Main.g_temp_directory, 0);
                         v.AddOp2(OP.ResultRow, 1, 1);
                     }
                 }
@@ -709,10 +692,10 @@ namespace Core.Command
                             goto pragma_out;
                         }
                     }
-                    if (SQLITE_TEMP_STORE == 0 || (SQLITE_TEMP_STORE == 1 && ctx.temp_store <= 1) || (SQLITE_TEMP_STORE == 2 && ctx.temp_store == 1))
+                    if (TEMP_STORE == 0 || (TEMP_STORE == 1 && ctx.TempStore <= 1) || (TEMP_STORE == 2 && ctx.TempStore == 1))
                         InvalidateTempStorage(parse);
-                    C._free(ref sqlite3_temp_directory);
-                    sqlite3_temp_directory = (right.Length > 0 ? right : null);
+                    C._free(ref Main.g_temp_directory);
+                    Main.g_temp_directory = (right.Length > 0 ? right : null);
 #endif
                 }
             }
@@ -733,7 +716,7 @@ namespace Core.Command
                     {
                         v.SetNumCols(1);
                         v.SetColName(0, COLNAME_NAME, "data_store_directory", C.DESTRUCTOR_STATIC);
-                        v.AddOp4(OP.String8, 0, 1, 0, sqlite3_data_directory, 0);
+                        v.AddOp4(OP.String8, 0, 1, 0, Main.g_data_directory, 0);
                         v.AddOp2(OP.ResultRow, 1, 1);
                     }
                 }
@@ -751,7 +734,7 @@ namespace Core.Command
                         }
                     }
                     C._free(ref sqlite3_data_directory);
-                    sqlite3_data_directory = (right.Length > 0 ? right : null);
+                    Main.g_data_directory = (right.Length > 0 ? right : null);
 #endif
                 }
             }
@@ -800,7 +783,7 @@ namespace Core.Command
             // default value will be restored the next time the database is opened.
             else if (string.Equals(left, "synchronous", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 if (right == null)
                     ReturnSingleInt(parse, "synchronous", dbAsObj.SafetyLevel - 1);
                 else
@@ -808,7 +791,7 @@ namespace Core.Command
                     if (ctx.AutoCommit == 0)
                         parse.ErrorMsg("Safety level may not be changed inside a transaction");
                     else
-                        dbAsObj.SafetyLevel = (byte)(GetSafetyLevel(right, 0, 1) + 1);
+                        dbAsObj.SafetyLevel = (byte)(ConvertEx.GetSafetyLevel(right, 0, 1) + 1);
                 }
             }
 
@@ -831,8 +814,8 @@ namespace Core.Command
             // dflt_value: The default value for the column, if any.
             else if (string.Equals(left, "table_info", StringComparison.OrdinalIgnoreCase) && right != null)
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
-                Table table = sqlite3FindTable(ctx, right, dbName);
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
+                Table table = Parse.FindTable(ctx, right, dbName);
                 if (table != null)
                 {
                     Index pk;
@@ -851,7 +834,7 @@ namespace Core.Command
                     for (int i = 0; i < table.Cols.length; i++)
                     {
                         Column col = table.Cols[i];
-                        if (IsHiddenColumn(col))
+                        if (E.IsHiddenColumn(col))
                         {
                             hidden++;
                             continue;
@@ -880,8 +863,8 @@ namespace Core.Command
             }
             else if (string.Equals(left, "index_info", StringComparison.OrdinalIgnoreCase) && right != null)
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
-                Index index = sqlite3FindIndex(ctx, right, dbName);
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
+                Index index = Parse.FindIndex(ctx, right, dbName);
                 if (index != null)
                 {
                     Table table = index.Table;
@@ -904,8 +887,8 @@ namespace Core.Command
             }
             else if (string.Equals(left, "index_list", StringComparison.OrdinalIgnoreCase) && right != null)
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
-                Table table = sqlite3FindTable(ctx, right, dbName);
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
+                Table table = Parse.FindTable(ctx, right, dbName);
                 if (table != null)
                 {
                     v = parse.GetVdbe();
@@ -933,7 +916,7 @@ namespace Core.Command
             }
             else if (string.Equals(left, "database_list", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 v.SetNumCols(3);
                 parse.Mems = 3;
                 v.SetColName(0, COLNAME_NAME, "seq", C.DESTRUCTOR_STATIC);
@@ -968,12 +951,12 @@ namespace Core.Command
 #if !OMIT_FOREIGN_KEY
             else if (string.Equals(left, "foreign_key_list", StringComparison.OrdinalIgnoreCase) && right != null)
             {
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
-                Table table = sqlite3FindTable(ctx, right, dbName);
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
+                Table table = Parse.FindTable(ctx, right, dbName);
                 if (table != null)
                 {
                     v = parse.GetVdbe();
-                    FKey fk = table.FKey;
+                    FKey fk = table.FKeys;
                     if (fk != null)
                     {
                         v.SetNumCols(8);
@@ -997,8 +980,8 @@ namespace Core.Command
                                 string onUpdate = ActionName(fk.Actions[1]);
                                 v.AddOp2(OP.Integer, i, 1);
                                 v.AddOp2(OP.Integer, j, 2);
-                                v.AddOp4(OP.String8, 0, 3, 0, fk.zTo, 0);
-                                v.AddOp4(OP.String8, 0, 4, 0, table.aCol[fk.aCol[j].iFrom].zName, 0);
+                                v.AddOp4(OP.String8, 0, 3, 0, fk.To, 0);
+                                v.AddOp4(OP.String8, 0, 4, 0, table.Cols[fk.Cols[j].From].Name, 0);
                                 v.AddOp4(colName != null ? OP.String8 : OP.Null, 0, 5, 0, colName, 0);
                                 v.AddOp4(OP.String8, 0, 6, 0, onUpdate, 0);
                                 v.AddOp4(OP.String8, 0, 7, 0, onDelete, 0);
@@ -1006,7 +989,7 @@ namespace Core.Command
                                 v.AddOp2(OP.ResultRow, 1, 8);
                             }
                             ++i;
-                            fk = fk.pNextFrom;
+                            fk = fk.NextFrom;
                         }
                     }
                 }
@@ -1014,7 +997,7 @@ namespace Core.Command
 #if !OMIT_TRIGGER
             else if (string.Equals(left, "foreign_key_check", StringComparison.OrdinalIgnoreCase))
             {
-                if (sqlite3ReadSchema(parse)) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 int regResult = parse.Mems + 1; // 3 registers to hold a result row
                 parse.Mems += 4;
                 int regKey = ++parse.Mems; // Register to hold key for checking the FK
@@ -1033,7 +1016,7 @@ namespace Core.Command
                     Table table; // Child table contain "REFERENCES" keyword
                     if (right != null)
                     {
-                        table = sqlite3LocateTable(parse, 0, right, dbName);
+                        table = parse.LocateTable(false, right, dbName);
                         k = null;
                     }
                     else
@@ -1042,7 +1025,7 @@ namespace Core.Command
                         k = k.Next;
                     }
                     if (table == null || table.FKeys == null) continue;
-                    sqlite3TableLock(parse, db, table.Id, 0, table.Name);
+                    parse.TableLock(db, table.Id, false, table.Name);
                     if (table.Cols.length + regRow > parse.Mems) parse.Mems = table.Cols.length + regRow;
                     sqlite3OpenTable(parse, 0, db, table, OP.OpenRead);
                     v.AddOp4(OP.String8, 0, regResult, 0, table.Name, Vdbe.P4T.TRANSIENT);
@@ -1053,18 +1036,18 @@ namespace Core.Command
                     FKey fk; // A foreign key constraint
                     for (i = 1, fk = table.FKeys[0]; fk != null; i++, fk = fk.NextFrom)
                     {
-                        parent = sqlite3LocateTable(parse, 0, fk.To, dbName);
+                        parent = parse.LocateTable(false, fk.To, dbName);
                         if (parent == null) break;
                         index = null;
-                        sqlite3TableLock(parse, db, parent.Id, 0, parent.Name);
-                        x = sqlite3FkLocateIndex(parse, parent, fk, ref index, null);
+                        parse.TableLock(db, parent.Id, false, parent.Name);
+                        x = parse.FKLocateIndex(parent, fk, ref index, null);
                         if (x == 0)
                         {
                             if (index == null)
                                 sqlite3OpenTable(parse, i, db, parent, OP.OpenRead);
                             else
                             {
-                                KeyInfo key = sqlite3IndexKeyinfo(parse, index);
+                                KeyInfo key = parse.IndexKeyinfo(index);
                                 v.AddOp3(OP.OpenRead, i, index.Id, db);
                                 v.ChangeP4(-1, (string)key, Vdbe.P4T.KEYINFO_HANDOFF);
                             }
@@ -1080,11 +1063,11 @@ namespace Core.Command
                     int addrTop = v.AddOp1(OP.Rewind, 0); // Top of a loop checking foreign keys
                     for (i = 1, fk = table.FKeys[0]; fk != null; i++, fk = fk.NextFrom)
                     {
-                        parent = sqlite3LocateTable(parse, 0, fk.To, dbName);
+                        parent = parse.LocateTable(false, fk.To, dbName);
                         Debug.Assert(parent != null);
                         index = null;
                         cols = null;
-                        x = sqlite3FkLocateIndex(parse, parent, fk, ref index, ref cols);
+                        x = parse.FkLocateIndex(parent, fk, ref index, ref cols);
                         Debug.Assert(x == 0);
                         int addrOk = v.MakeLabel(); // Jump here if the key is OK
                         if (index == null)
@@ -1106,10 +1089,10 @@ namespace Core.Command
                         }
                         else
                         {
-                            for (int j = 0; j < fk->Cols.length; j++)
+                            for (int j = 0; j < fk.Cols.length; j++)
                             {
                                 Expr.CodeGetColumnOfTable(v, table, 0, (cols != null ? cols[j] : fk.Cols[0].From), regRow + j);
-                                v.AddOp2(OP_IsNull, regRow + j, addrOk);
+                                v.AddOp2(OP.IsNull, regRow + j, addrOk);
                             }
                             v.AddOp3(OP.MakeRecord, regRow, fk.Cols.length, regKey);
                             v.ChangeP4(-1, sqlite3IndexAffinityStr(v, index), Vdbe.P4T.TRANSIENT);
@@ -1134,7 +1117,7 @@ namespace Core.Command
             {
                 if (right != null)
                 {
-                    if (GetBoolean(right) != 0)
+                    if (ConvertEx.GetBoolean(right))
                         Parser.Trace(Console.Out, "parser: ");
                     else
                         Parser.Trace(null, null);
@@ -1146,7 +1129,7 @@ namespace Core.Command
             else if (left.Equals("case_sensitive_like", StringComparison.OrdinalIgnoreCase))
             {
                 if (right != null)
-                    Func.RegisterLikeFunctions(ctx, GetBoolean(right, 0));
+                    Func.RegisterLikeFunctions(ctx, ConvertEx.GetBoolean(right, 0));
             }
 
 #if !OMIT_INTEGRITY_CHECK
@@ -1162,11 +1145,11 @@ namespace Core.Command
                 // Otherwise, if the command was simply "PRAGMA integrity_check" (or "PRAGMA quick_check"), then db is set to 0. In this case, set db
                 // to -1 here, to indicate that the VDBE should verify the integrity of all attached databases.
                 Debug.Assert(db >= 0);
-                Debug.Assert(db == 0 || id2->data != null);
-                if (id2->data == null) db = -1;
+                Debug.Assert(db == 0 || id2.data != null);
+                if (id2.data == null) db = -1;
 
                 // Initialize the VDBE program
-                if (sqlite3ReadSchema(parse) != 0) goto pragma_out;
+                if (Prepare.ReadSchema(parse) != 0) goto pragma_out;
                 parse.Mems = 6;
                 v.SetNumCols(1);
                 v.SetColName(0, COLNAME_NAME, "integrity_check", C.DESTRUCTOR_STATIC);
@@ -1179,7 +1162,7 @@ namespace Core.Command
                     if (maxErr <= 0)
                         maxErr = INTEGRITY_CHECK_ERROR_MAX;
                 }
-                v->AddOp2(OP.Integer, maxErr, 1); // reg[1] holds errors left
+                v.AddOp2(OP.Integer, maxErr, 1); // reg[1] holds errors left
 
                 // Do an integrity check on each database file
                 for (int i = 0; i < ctx.DBs.length; i++)

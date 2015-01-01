@@ -667,5 +667,31 @@ namespace Core
         }
 
         #endregion
+
+        #region From: Pragma_c
+        
+        // 123456789 123456789
+        static readonly string _safetyLevelText = "onoffalseyestruefull";
+        static readonly int[] _safetyLevelOffset = new int[] { 0, 1, 2, 4, 9, 12, 16 };
+        static readonly int[] _safetyLevelLength = new int[] { 2, 2, 3, 5, 3, 4, 4 };
+        static readonly byte[] _safetyLevelValue = new byte[] { 1, 0, 0, 0, 1, 1, 2 };
+
+        public static byte GetSafetyLevel(string z, int omitFull, byte dflt)
+        {
+            if (char.IsDigit(z[0]))
+                return (byte)ConvertEx.Atoi(z);
+            int n = z.Length;
+            for (int i = 0; i < _safetyLevelLength.Length - omitFull; i++)
+                if (_safetyLevelLength[i] == n && string.CompareOrdinal(_safetyLevelText.Substring(_safetyLevelOffset[i]), 0, z, 0, n) == 0)
+                    return _safetyLevelValue[i];
+            return dflt;
+        }
+
+        public static bool GetBoolean(string z, byte dflt)
+        {
+            return (GetSafetyLevel(z, 1, dflt) != 0);
+        }
+
+        #endregion
     }
 }
