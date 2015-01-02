@@ -516,10 +516,10 @@ namespace Core
 	struct Select
 	{
 		ExprList *EList;			// The fields of the result
-		uint8 OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
+		TK OP;						// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
 		SF SelFlags;				// Various SF_* values
 		int LimitId, OffsetId;		// Memory registers holding LIMIT & OFFSET counters
-		int AddrOpenEphm[3];		// OP_OpenEphem opcodes related to this select
+		::OP AddrOpenEphms[3];		// OP_OpenEphem opcodes related to this select
 		double SelectRows;			// Estimated number of result rows
 		SrcList *Src;				// The FROM clause
 		Expr *Where;				// The WHERE clause
@@ -531,6 +531,12 @@ namespace Core
 		Select *Rightmost;			// Right-most select in a compound select statement
 		Expr *Limit;				// LIMIT expression. NULL means not used.
 		Expr *Offset;				// OFFSET expression. NULL means not used.
+
+		__device__ static void DestInit(SelectDest *dest, SRT dest2, int parmId);
+		__device__ static Select *New(Parse *parse, ExprList *list, SrcList *src, Expr *where, ExprList *groupBy, Expr *having, ExprList *orderBy, SF selFlags, Expr *limit, Expr *offset);
+		__device__ static void Delete(Context *ctx, Select *p);
+		__device__ static JT JoinType(Parse *parse, Token *a, Token *b, Token *c);
+		__device__ bool ProcessJoin(Parse *parse);
 	};
 
 	enum SRT : uint8
@@ -1566,9 +1572,10 @@ namespace Core {
 			__device__ static void Pragma_(Parse *parse, Token *id1, Token *id2, Token *value, bool minusFlag);
 		};
 
-		struct Select
-		{
-		};
+		//struct Select
+		//{
+
+		//};
 
 		struct Update
 		{

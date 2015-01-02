@@ -546,10 +546,10 @@ namespace Core
     public class Select
     {
         public ExprList EList;			// The fields of the result
-        public byte OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
+        public TK OP;					// One of: TK_UNION TK_ALL TK_INTERSECT TK_EXCEPT
         public SF SelFlags;				// Various SF_* values
         public int LimitId, OffsetId;	// Memory registers holding LIMIT & OFFSET counters
-        public int[] AddrOpenEphm = new int[3];		// OP_OpenEphem opcodes related to this select
+        public OP[] AddrOpenEphms = new OP[3];		// OP_OpenEphem opcodes related to this select
         public double SelectRows;		// Estimated number of result rows
         public SrcList Src;				// The FROM clause
         public Expr Where;				// The WHERE clause
