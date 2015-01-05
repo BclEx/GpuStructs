@@ -537,6 +537,8 @@ namespace Core
 		__device__ static void Delete(Context *ctx, Select *p);
 		__device__ static JT JoinType(Parse *parse, Token *a, Token *b, Token *c);
 		__device__ bool ProcessJoin(Parse *parse);
+		__device__ Table *ResultSetOfSelect(Parse *parse);
+		//__device__ static Vdbe *GetVdbe(Parse *parse);
 	};
 
 	enum SRT : uint8

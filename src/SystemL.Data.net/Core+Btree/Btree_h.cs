@@ -9,7 +9,7 @@ namespace Core
         public BContext Ctx;		// The database connection
         public TEXTENCODE Encode;	// Text encoding - one of the SQLITE_UTF* values
         public ushort Fields;       // Number of entries in aColl[]
-        public byte[] SortOrders;   // Sort order for each column.  May be NULL
+        public SO[] SortOrders;   // Sort order for each column.  May be NULL
         public CollSeq[] Colls = new CollSeq[1];  // Collating sequence for each term of the key
 
         public KeyInfo _memcpy() { return (KeyInfo)MemberwiseClone(); }

@@ -914,11 +914,6 @@ namespace Core
 #endif
         public Table ZombieTab;			// List of Table objects to delete after code gen
         public TriggerPrg TriggerPrg;		// Linked list of coded triggers
-
-        internal Vdbe GetVdbe()
-        {
-            throw new NotImplementedException();
-        }
     }
 
     public struct AuthContext
