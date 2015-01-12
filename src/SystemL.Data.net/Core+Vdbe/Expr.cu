@@ -2209,51 +2209,51 @@ no_mem:
 	{
 		const char *binOp = nullptr;   // Binary operator
 		const char *uniOp = nullptr;   // Unary operator
-		int op = (!expr ? TK_NULL : expr->OP); // The opcode being coded
+		TK op = (!expr ? TK_NULL : expr->OP); // The opcode being coded
 		switch (op)
 		{
 		case TK_AGG_COLUMN: {
-			ExplainPrintf(v, "AGG{%d:%d}", expr->TableIdx, expr->ColumnIdx);
+			Vdbe::ExplainPrintf(v, "AGG{%d:%d}", expr->TableIdx, expr->ColumnIdx);
 			break; }
 
 		case TK_COLUMN: {
 			if (expr->TableIdx < 0) // This only happens when coding check constraints
-				ExplainPrintf(v, "COLUMN(%d)", expr->ColumnIdx);
+				Vdbe::ExplainPrintf(v, "COLUMN(%d)", expr->ColumnIdx);
 			else
-				ExplainPrintf(v, "{%d:%d}", expr->Table, expr->ColumnIdx);
+				Vdbe::ExplainPrintf(v, "{%d:%d}", expr->Table, expr->ColumnIdx);
 			break; }
 
 		case TK_INTEGER: {
 			if (expr->Flags & EP_IntValue)
-				ExplainPrintf(v, "%d", expr->u.I);
+				Vdbe::ExplainPrintf(v, "%d", expr->u.I);
 			else
-				ExplainPrintf(v, "%s", expr->u.Token);
+				Vdbe::ExplainPrintf(v, "%s", expr->u.Token);
 			break; }
 
 #ifndef OMIT_FLOATING_POINT
 		case TK_FLOAT: {
-			ExplainPrintf(v, "%s", expr->u.Token);
+			Vdbe::ExplainPrintf(v, "%s", expr->u.Token);
 			break; }
 #endif
 		case TK_STRING: {
-			ExplainPrintf(v, "%Q", expr->u.Token);
+			Vdbe::ExplainPrintf(v, "%Q", expr->u.Token);
 			break; }
 
 		case TK_NULL: {
-			ExplainPrintf(v, "NULL");
+			Vdbe::ExplainPrintf(v, "NULL");
 			break; }
 
 #ifndef OMIT_BLOB_LITERAL
 		case TK_BLOB: {
-			ExplainPrintf(v, "%s", expr->u.Token);
+			Vdbe::ExplainPrintf(v, "%s", expr->u.Token);
 			break; }
 #endif
 		case TK_VARIABLE: {
-			ExplainPrintf(v, "VARIABLE(%s,%d)", expr->u.Token, expr->ColumnIdx);
+			Vdbe::ExplainPrintf(v, "VARIABLE(%s,%d)", expr->u.Token, expr->ColumnIdx);
 			break; }
 
 		case TK_REGISTER: {
-			ExplainPrintf(v, "REGISTER(%d)", expr->TableIdx);
+			Vdbe::ExplainPrintf(v, "REGISTER(%d)", expr->TableIdx);
 			break; }
 
 		case TK_AS: {
@@ -2272,9 +2272,9 @@ no_mem:
 			case AFF_INTEGER: aff = "INTEGER"; break;
 			case AFF_REAL: aff = "REAL"; break;
 			}
-			ExplainPrintf(v, "CAST-%s(", aff);
+			Vdbe::ExplainPrintf(v, "CAST-%s(", aff);
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v, ")");
+			Vdbe::ExplainPrintf(v, ")");
 			break; }
 #endif
 
@@ -2308,7 +2308,7 @@ no_mem:
 
 		case TK_COLLATE: {
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v,".COLLATE(%s)", expr->u.Token);
+			Vdbe::ExplainPrintf(v,".COLLATE(%s)", expr->u.Token);
 			break; }
 
 		case TK_AGG_FUNCTION:
@@ -2316,36 +2316,36 @@ no_mem:
 		case TK_FUNCTION: {
 			ExprList *farg = (ExprHasAnyProperty(expr, EP_TokenOnly) ? nullptr : expr->x.List); // List of function arguments
 			if (op == TK_AGG_FUNCTION)
-				ExplainPrintf(v, "AGG_FUNCTION%d:%s(", expr->OP2, expr->u.Token);
+				Vdbe::ExplainPrintf(v, "AGG_FUNCTION%d:%s(", expr->OP2, expr->u.Token);
 			else
-				ExplainPrintf(v, "FUNCTION:%s(", expr->u.Token);
+				Vdbe::ExplainPrintf(v, "FUNCTION:%s(", expr->u.Token);
 			if (farg)
 				ExplainExprList(v, farg);
-			ExplainPrintf(v, ")");
+			Vdbe::ExplainPrintf(v, ")");
 			break; }
 
 #ifndef OMIT_SUBQUERY
 		case TK_EXISTS: {
-			ExplainPrintf(v, "EXISTS(");
-			ExplainSelect(v, expr->x.Select);
-			ExplainPrintf(v,")");
+			Vdbe::ExplainPrintf(v, "EXISTS(");
+			Select::ExplainSelect(v, expr->x.Select);
+			Vdbe::ExplainPrintf(v,")");
 			break; }
 
 		case TK_SELECT: {
-			ExplainPrintf(v, "(");
-			ExplainSelect(v, expr->x.Select);
-			ExplainPrintf(v, ")");
+			Vdbe::ExplainPrintf(v, "(");
+			Select::ExplainSelect(v, expr->x.Select);
+			Vdbe::ExplainPrintf(v, ")");
 			break; }
 
 		case TK_IN: {
-			ExplainPrintf(v, "IN(");
+			Vdbe::ExplainPrintf(v, "IN(");
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v, ",");
+			Vdbe::ExplainPrintf(v, ",");
 			if (ExprHasProperty(expr, EP_xIsSelect))
-				ExplainSelect(v, expr->x.Select);
+				Select::ExplainSelect(v, expr->x.Select);
 			else
 				ExplainExprList(v, expr->x.List);
-			ExplainPrintf(v, ")");
+			Vdbe::ExplainPrintf(v, ")");
 			break; }
 #endif
 
@@ -2359,26 +2359,26 @@ no_mem:
 			Expr *x = expr->Left;
 			Expr *y = expr->x.List->Ids[0].Expr;
 			Expr *z = expr->x.List->Ids[1].Expr;
-			ExplainPrintf(v, "BETWEEN(");
+			Vdbe::ExplainPrintf(v, "BETWEEN(");
 			ExplainExpr(v, x);
-			ExplainPrintf(v, ",");
+			Vdbe::ExplainPrintf(v, ",");
 			ExplainExpr(v, u);
-			ExplainPrintf(v, ",");
+			Vdbe::ExplainPrintf(v, ",");
 			ExplainExpr(v, z);
-			ExplainPrintf(v, ")");
+			Vdbe::ExplainPrintf(v, ")");
 			break; }
 
 		case TK_TRIGGER: {
 			// If the opcode is TK_TRIGGER, then the expression is a reference to a column in the new.* or old.* pseudo-tables available to
 			// trigger programs. In this case Expr.iTable is set to 1 for the new.* pseudo-table, or 0 for the old.* pseudo-table. Expr.iColumn
 			// is set to the column of the pseudo-table to read, or to -1 to read the rowid field.
-			ExplainPrintf(v, "%s(%d)", (expr->TableIdx ? "NEW" : "OLD"), expr->ColumnIdx);
+			Vdbe::ExplainPrintf(v, "%s(%d)", (expr->TableIdx ? "NEW" : "OLD"), expr->ColumnIdx);
 			break; }
 
 		case TK_CASE: {
-			ExplainPrintf(v, "CASE(");
+			Vdbe::ExplainPrintf(v, "CASE(");
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v, ",");
+			Vdbe::ExplainPrintf(v, ",");
 			ExplainExprList(v, expr->x.List);
 			break; }
 
@@ -2392,53 +2392,53 @@ no_mem:
 			case OE_Fail:       type = "fail";      break;
 			case OE_Ignore:     type = "ignore";    break;
 			}
-			ExplainPrintf(v, "RAISE-%s(%s)", type, expr->u.Token);
+			Vdbe::ExplainPrintf(v, "RAISE-%s(%s)", type, expr->u.Token);
 			break; }
 #endif
 		}
 
 		if (binOp)
 		{
-			ExplainPrintf(v,"%s(", binOp);
+			Vdbe::ExplainPrintf(v,"%s(", binOp);
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v,",");
+			Vdbe::ExplainPrintf(v,",");
 			ExplainExpr(v, expr->Right);
-			ExplainPrintf(v,")");
+			Vdbe::ExplainPrintf(v,")");
 		}
 		else if (uniOp)
 		{
-			ExplainPrintf(v,"%s(", uniOp);
+			Vdbe::ExplainPrintf(v,"%s(", uniOp);
 			ExplainExpr(v, expr->Left);
-			ExplainPrintf(v,")");
+			Vdbe::ExplainPrintf(v,")");
 		}
 	}
 
-	__device__ void ExplainExprList(Vdbe *v, ExprList *list)
+	__device__ void Expr::ExplainExprList(Vdbe *v, ExprList *list)
 	{
 		if (!list || list->Exprs == 0)
 		{
-			ExplainPrintf(v, "(empty-list)");
+			Vdbe::ExplainPrintf(v, "(empty-list)");
 			return;
 		}
 		else if (list->Exprs == 1)
 			ExplainExpr(v, list->Ids[0].Expr);
 		else
 		{
-			ExplainPush(v);
+			Vdbe::ExplainPush(v);
 			for (int i = 0; i < list->Exprs; i++)
 			{
-				ExplainPrintf(v, "item[%d] = ", i);
-				ExplainPush(v);
+				Vdbe::ExplainPrintf(v, "item[%d] = ", i);
+				Vdbe::ExplainPush(v);
 				ExplainExpr(v, list->Ids[i].Expr);
-				ExplainPop(v);
+				Vdbe::ExplainPop(v);
 				if (list->Ids[i].Name)
-					ExplainPrintf(v, " AS %s", list->Ids[i].Name);
+					Vdbe::ExplainPrintf(v, " AS %s", list->Ids[i].Name);
 				if (list->Ids[i].SpanIsTab)
-					ExplainPrintf(v, " (%s)", list->Ids[i].Span);
+					Vdbe::ExplainPrintf(v, " (%s)", list->Ids[i].Span);
 				if (i < list->Exprs-1)
-					ExplainNL(v);
+					Vdbe::ExplainNL(v);
 			}
-			ExplainPop(v);
+			Vdbe::ExplainPop(v);
 		}
 	}
 #endif

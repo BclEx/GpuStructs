@@ -313,6 +313,8 @@ namespace Core
 		array_t<AggInfoColumn> Columns; // For each column used in source tables
 		int Accumulators;			// Number of columns that show through to the output. Additional columns are used only as parameters to aggregate functions
 		array_t<AggInfoFunc> Funcs; // For each aggregate function
+
+		//? make Columns -> Cols
 	};
 
 	enum AFF : uint8
@@ -539,6 +541,12 @@ namespace Core
 		__device__ bool ProcessJoin(Parse *parse);
 		__device__ Table *ResultSetOfSelect(Parse *parse);
 		//__device__ static Vdbe *GetVdbe(Parse *parse);
+		__device__ static RC IndexedByLookup(Parse *parse, SrcList::SrcListItem *from);
+		__device__ void Expand(Parse *parse, Select *select);
+		__device__ void AddTypeInfo(Parse *parse);
+		__device__ void Prep(Parse *parse, NameContext *outerNC);
+		__device__ static RC Select_(Parse *parse, Select *p, SelectDest *dest);
+		__device__ static void ExplainSelect(Vdbe *v, Select *p);
 	};
 
 	enum SRT : uint8
@@ -606,7 +614,7 @@ namespace Core
 	enum IN_INDEX : uint8;
 	struct Expr
 	{
-		uint8 OP;					// Operation performed by this node
+		TK OP;					// Operation performed by this node
 		AFF Aff;					// The affinity of the column or 0 if not a column
 		EP Flags;					// Various flags.  EP_* See below
 		union
@@ -660,7 +668,7 @@ namespace Core
 #if MAX_EXPR_DEPTH > 0
 		__device__ static RC CheckHeight(Parse *parse, int height);
 		__device__ void SetHeight(Parse *parse);
-		__device__ int SelectExprHeight(Select *select);
+		__device__ static int SelectExprHeight(Select *select);
 #endif
 		__device__ static Expr *Alloc(Context *ctx, int op, const Token *token, bool dequote);
 		__device__ static Expr *Expr_(Context *ctx, int op, const char *token);
@@ -713,6 +721,7 @@ namespace Core
 		__device__ static int CodeAndCache(Parse *parse, Expr *expr, int target);
 #ifdef ENABLE_TREE_EXPLAIN
 		__device__ static void ExplainExpr(Vdbe *o, Expr *expr);
+		__device__ static void ExplainExprList(Vdbe *v, ExprList *list);
 #endif
 		__device__ static void CodeConstants(Parse *parse, Expr *expr);
 		__device__ static int CodeExprList(Parse *parse, ExprList *list, int target, bool doHardCopy);

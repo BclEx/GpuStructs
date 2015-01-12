@@ -2231,7 +2231,7 @@ namespace Core
         }
 
         #region Explain
-#if !ENABLE_TREE_EXPLAIN
+#if ENABLE_TREE_EXPLAIN
         public static void ExplainExpr(Vdbe v, Expr expr)
         {
             string binOp = null;   // Binary operator
@@ -2241,63 +2241,63 @@ namespace Core
             {
                 case TK.AGG_COLUMN:
                     {
-                        ExplainPrintf(v, "AGG{%d:%d}", expr.TableIdx, expr.ColumnIdx);
+                        Vdbe.ExplainPrintf(v, "AGG{%d:%d}", expr.TableIdx, expr.ColumnIdx);
                         break;
                     }
 
                 case TK.COLUMN:
                     {
                         if (expr.TableIdx < 0) // This only happens when coding check constraints
-                            ExplainPrintf(v, "COLUMN(%d)", expr.ColumnIdx);
+                            Vdbe.ExplainPrintf(v, "COLUMN(%d)", expr.ColumnIdx);
                         else
-                            ExplainPrintf(v, "{%d:%d}", expr.Table, expr.ColumnIdx);
+                            Vdbe.ExplainPrintf(v, "{%d:%d}", expr.Table, expr.ColumnIdx);
                         break;
                     }
 
                 case TK.INTEGER:
                     {
                         if ((expr.Flags & EP.IntValue) != 0)
-                            ExplainPrintf(v, "%d", expr.u.I);
+                            Vdbe.ExplainPrintf(v, "%d", expr.u.I);
                         else
-                            ExplainPrintf(v, "%s", expr.u.Token);
+                            Vdbe.ExplainPrintf(v, "%s", expr.u.Token);
                         break;
                     }
 
 #if !OMIT_FLOATING_POINT
                 case TK.FLOAT:
                     {
-                        ExplainPrintf(v, "%s", expr.u.Token);
+                        Vdbe.ExplainPrintf(v, "%s", expr.u.Token);
                         break;
                     }
 #endif
                 case TK.STRING:
                     {
-                        ExplainPrintf(v, "%Q", expr.u.Token);
+                        Vdbe.ExplainPrintf(v, "%Q", expr.u.Token);
                         break;
                     }
 
                 case TK.NULL:
                     {
-                        ExplainPrintf(v, "NULL");
+                        Vdbe.ExplainPrintf(v, "NULL");
                         break;
                     }
 
 #if !OMIT_BLOB_LITERAL
                 case TK.BLOB:
                     {
-                        ExplainPrintf(v, "%s", expr.u.Token);
+                        Vdbe.ExplainPrintf(v, "%s", expr.u.Token);
                         break;
                     }
 #endif
                 case TK.VARIABLE:
                     {
-                        ExplainPrintf(v, "VARIABLE(%s,%d)", expr.u.Token, expr.ColumnIdx);
+                        Vdbe.ExplainPrintf(v, "VARIABLE(%s,%d)", expr.u.Token, expr.ColumnIdx);
                         break;
                     }
 
                 case TK.REGISTER:
                     {
-                        ExplainPrintf(v, "REGISTER(%d)", expr.TableIdx);
+                        Vdbe.ExplainPrintf(v, "REGISTER(%d)", expr.TableIdx);
                         break;
                     }
 
@@ -2320,9 +2320,9 @@ namespace Core
                             case AFF.INTEGER: aff = "INTEGER"; break;
                             case AFF.REAL: aff = "REAL"; break;
                         }
-                        ExplainPrintf(v, "CAST-%s(", aff);
+                        Vdbe.ExplainPrintf(v, "CAST-%s(", aff);
                         ExplainExpr(v, expr.Left);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 #endif
@@ -2358,7 +2358,7 @@ namespace Core
                 case TK.COLLATE:
                     {
                         ExplainExpr(v, expr.Left);
-                        ExplainPrintf(v, ".COLLATE(%s)", expr.u.Token);
+                        Vdbe.ExplainPrintf(v, ".COLLATE(%s)", expr.u.Token);
                         break;
                     }
 
@@ -2368,42 +2368,42 @@ namespace Core
                     {
                         ExprList farg = (E.ExprHasAnyProperty(expr, EP.TokenOnly) ? null : expr.x.List); // List of function arguments
                         if (op == TK.AGG_FUNCTION)
-                            ExplainPrintf(v, "AGG_FUNCTION%d:%s(", expr.OP2, expr.u.Token);
+                            Vdbe.ExplainPrintf(v, "AGG_FUNCTION%d:%s(", expr.OP2, expr.u.Token);
                         else
-                            ExplainPrintf(v, "FUNCTION:%s(", expr.u.Token);
+                            Vdbe.ExplainPrintf(v, "FUNCTION:%s(", expr.u.Token);
                         if (farg)
                             ExplainExprList(v, farg);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 
 #if !OMIT_SUBQUERY
                 case TK.EXISTS:
                     {
-                        ExplainPrintf(v, "EXISTS(");
-                        ExplainSelect(v, expr.x.Select);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, "EXISTS(");
+                        Select.ExplainSelect(v, expr.x.Select);
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 
                 case TK.SELECT:
                     {
-                        ExplainPrintf(v, "(");
-                        ExplainSelect(v, expr.x.Select);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, "(");
+                        Select.ExplainSelect(v, expr.x.Select);
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 
                 case TK.IN:
                     {
-                        ExplainPrintf(v, "IN(");
+                        Vdbe.ExplainPrintf(v, "IN(");
                         ExplainExpr(v, expr.Left);
-                        ExplainPrintf(v, ",");
+                        Vdbe.ExplainPrintf(v, ",");
                         if (E.ExprHasProperty(expr, EP.xIsSelect))
-                            ExplainSelect(v, expr.x.Select);
+                            Select.ExplainSelect(v, expr.x.Select);
                         else
                             ExplainExprList(v, expr.x.List);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 #endif
@@ -2419,13 +2419,13 @@ namespace Core
                         Expr x = expr.Left;
                         Expr y = expr.x.List.Ids[0].Expr;
                         Expr z = expr.x.List.Ids[1].Expr;
-                        ExplainPrintf(v, "BETWEEN(");
+                        Vdbe.ExplainPrintf(v, "BETWEEN(");
                         ExplainExpr(v, x);
-                        ExplainPrintf(v, ",");
+                        Vdbe.ExplainPrintf(v, ",");
                         ExplainExpr(v, u);
-                        ExplainPrintf(v, ",");
+                        Vdbe.ExplainPrintf(v, ",");
                         ExplainExpr(v, z);
-                        ExplainPrintf(v, ")");
+                        Vdbe.ExplainPrintf(v, ")");
                         break;
                     }
 
@@ -2434,15 +2434,15 @@ namespace Core
                         // If the opcode is TK_TRIGGER, then the expression is a reference to a column in the new.* or old.* pseudo-tables available to
                         // trigger programs. In this case Expr.iTable is set to 1 for the new.* pseudo-table, or 0 for the old.* pseudo-table. Expr.iColumn
                         // is set to the column of the pseudo-table to read, or to -1 to read the rowid field.
-                        ExplainPrintf(v, "%s(%d)", (expr.TableIdx ? "NEW" : "OLD"), expr.ColumnIdx);
+                        Vdbe.ExplainPrintf(v, "%s(%d)", (expr.TableIdx ? "NEW" : "OLD"), expr.ColumnIdx);
                         break;
                     }
 
                 case TK.CASE:
                     {
-                        ExplainPrintf(v, "CASE(");
+                        Vdbe.ExplainPrintf(v, "CASE(");
                         ExplainExpr(v, expr.Left);
-                        ExplainPrintf(v, ",");
+                        Vdbe.ExplainPrintf(v, ",");
                         ExplainExprList(v, expr.x.List);
                         break;
                     }
@@ -2458,7 +2458,7 @@ namespace Core
                             case OE.Fail: type = "fail"; break;
                             case OE.Ignore: type = "ignore"; break;
                         }
-                        ExplainPrintf(v, "RAISE-%s(%s)", type, expr.u.Token);
+                        Vdbe.ExplainPrintf(v, "RAISE-%s(%s)", type, expr.u.Token);
                         break;
                     }
 #endif
@@ -2466,46 +2466,46 @@ namespace Core
 
             if (binOp != null)
             {
-                ExplainPrintf(v, "%s(", binOp);
+                Vdbe.ExplainPrintf(v, "%s(", binOp);
                 ExplainExpr(v, expr.Left);
-                ExplainPrintf(v, ",");
+                Vdbe.ExplainPrintf(v, ",");
                 ExplainExpr(v, expr.Right);
-                ExplainPrintf(v, ")");
+                Vdbe.ExplainPrintf(v, ")");
             }
             else if (uniOp != null)
             {
-                ExplainPrintf(v, "%s(", uniOp);
+                Vdbe.ExplainPrintf(v, "%s(", uniOp);
                 ExplainExpr(v, expr.Left);
-                ExplainPrintf(v, ")");
+                Vdbe.ExplainPrintf(v, ")");
             }
         }
 
-        void ExplainExprList(Vdbe v, ExprList list)
+        public static void ExplainExprList(Vdbe v, ExprList list)
         {
             if (list == null || list.Exprs == 0)
             {
-                ExplainPrintf(v, "(empty-list)");
+                Vdbe.ExplainPrintf(v, "(empty-list)");
                 return;
             }
             else if (list.Exprs == 1)
                 ExplainExpr(v, list.Ids[0].Expr);
             else
             {
-                ExplainPush(v);
+                Vdbe.ExplainPush(v);
                 for (int i = 0; i < list.Exprs; i++)
                 {
-                    ExplainPrintf(v, "item[%d] = ", i);
-                    ExplainPush(v);
+                    Vdbe.ExplainPrintf(v, "item[%d] = ", i);
+                    Vdbe.ExplainPush(v);
                     ExplainExpr(v, list.Ids[i].Expr);
-                    ExplainPop(v);
+                    Vdbe.ExplainPop(v);
                     if (list.Ids[i].Name)
-                        ExplainPrintf(v, " AS %s", list.Ids[i].Name);
+                        Vdbe.ExplainPrintf(v, " AS %s", list.Ids[i].Name);
                     if (list.Ids[i].SpanIsTab)
-                        ExplainPrintf(v, " (%s)", list.Ids[i].Span);
+                        Vdbe.ExplainPrintf(v, " (%s)", list.Ids[i].Span);
                     if (i < list.Exprs - 1)
-                        ExplainNL(v);
+                        Vdbe.ExplainNL(v);
                 }
-                ExplainPop(v);
+                Vdbe.ExplainPop(v);
             }
         }
 #endif
