@@ -3,8 +3,6 @@
 
 namespace Core
 {
-	//#include "opcodes.h"
-
 	// The Vdbe.aColName array contains 5n Mem structures, where n is the number of columns of data returned by the statement.
 #define COLNAME_NAME     0
 #define COLNAME_DECLTYPE 1
@@ -28,6 +26,12 @@ namespace Core
 	class Vdbe
 	{
 	public:
+		enum  STMTSTATUS : uint8
+		{
+			STMTSTATUS_FULLSCAN_STEP = 1,
+			STMTSTATUS_SORT = 2,
+			STMTSTATUS_AUTOINDEX = 3,
+		};
 
 		enum P4T : int8
 		{
@@ -94,7 +98,7 @@ namespace Core
 				VTable *VTable;			// Used when p4type is P4T_VTAB
 				KeyInfo *KeyInfo;		// Used when p4type is P4T_KEYINFO
 				int *Is;				// Used when p4type is P4T_INTARRAY
-				SubProgram *Program;	// Used when p4type is P4T_SUBPROGRAM
+				Vdbe::SubProgram *Program;	// Used when p4type is P4T_SUBPROGRAM
 				RC (*Advance)(BtCursor *, int *); // Used when p4type is P4T_ADVANCE
 			} P4;						// fourth parameter
 #ifdef _DEBUG
@@ -108,7 +112,7 @@ namespace Core
 
 		struct SubProgram
 		{
-			array_t<VdbeOp> *Ops;		// Array of opcodes for sub-program
+			array_t<VdbeOp> Ops;		// Array of opcodes for sub-program
 			int Mems;                   // Number of memory cells required
 			int Csrs;                   // Number of cursors required
 			int Onces;                  // Number of OP_Once instructions
@@ -173,12 +177,12 @@ namespace Core
 		Explain *_explain;		// The explainer
 		char *_explainString;   // Explanation of data structures
 #endif
-		array_t<VdbeFrame> Frames; // Parent frame
+		VdbeFrame *Frames;		// Parent frame
+		int FramesLength;		// Number of frames in Frames list
 		VdbeFrame *DelFrames;   // List of frame objects to free on VM reset
 		uint32 Expmask;         // Binding to these vars invalidates VM
 		SubProgram *Programs;	// Linked list of all sub-programs used by VM
 		array_t<uint8> OnceFlags; // Flags for OP_Once
-
 
 		__device__ static void MemStoreType(Mem *mem);
 		__device__ static TYPE ValueNumericType(Mem *mem);
@@ -186,21 +190,18 @@ namespace Core
 #ifdef _DEBUG
 		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
 #endif
+		__device__ RC Exec();
 
-
-		__device__ void PopStack(int);
-		__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
-		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll);
-		__device__ static const char *OpcodeName(int);
-		__device__ int CloseStatement(Vdbe *, int);
-		__device__ int CurrentAddr();
-
+		// not sure
+		//__device__ void PopStack(int);
+		//__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
+		//__device__ int CloseStatement(Vdbe *, int);
 
 #pragma region Vdbe+Api
 		// name1
 		__device__ static RC Finalize(Vdbe *p);
 		__device__ static RC Reset(Vdbe *p);
-		__device__ RC ClearBindings(Vdbe *p);
+		__device__ RC ClearBindings();
 
 		// value
 		__device__ static const void *Value_Blob(Mem *p);
@@ -250,8 +251,8 @@ namespace Core
 		__device__ static void *Agregate_Context(FuncContext *fctx, int bytes);
 		__device__ static void *get_Auxdata(FuncContext *fctx, int arg);
 		__device__ static void set_Auxdata(FuncContext *fctx, int args, void *aux, void (*delete_)(void*));
-		__device__ int Column_Count(Vdbe *p);
-		__device__ int Data_Count(Vdbe *p);
+		__device__ static int Column_Count(Vdbe *p);
+		__device__ static int Data_Count(Vdbe *p);
 
 		// column
 		__device__ static const void *Column_Blob(Vdbe *p, int i);
@@ -341,6 +342,7 @@ namespace Core
 #ifdef _DEBUG
 		__device__ bool AssertMayAbort(bool mayAbort);
 #endif
+		__device__ int CurrentAddr();
 		__device__ VdbeOp *TakeOpArray(int *opsLength, int *maxArgs);
 		__device__ int AddOpList(int opsLength, VdbeOpList const *ops);
 		__device__ void ChangeP1(uint32 addr, int val);
@@ -360,8 +362,36 @@ namespace Core
 		__device__ inline void Comment(const char *fmt, va_list args) { }
 		__device__ inline void NoopComment(const char *fmt, va_list args) { }
 #endif
+#if __CUDACC__
+		__device__ inline static void Comment(const char *fmt) { va_list args; va_start(args, nullptr); Comment(fmt, args); va_end(args); }
+		template <typename T1> __device__ inline static void Comment(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Comment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void Comment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Comment(fmt, args); va_end(args); }
+		//
+		__device__ inline static void NoopComment(const char *fmt) { va_list args; va_start(args, nullptr); NoopComment(fmt, args); va_end(args); }
+		template <typename T1> __device__ inline static void NoopComment(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); NoopComment(fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); NoopComment(fmt, args); va_end(args); }
+#else
+		__device__ inline void Comment(const char *fmt, ...) { va_list args; va_start(args, fmt); Comment(fmt, args); va_end(args); }
+		__device__ inline void NoopComment(const char *fmt, ...) { va_list args; va_start(args, fmt); NoopComment(fmt, args); va_end(args); }
+#endif
 		__device__ VdbeOp *GetOp(int addr);
-		__device__ void Vdbe::UsesBtree(int i);
+		__device__ void UsesBtree(int i);
 #if !defined(OMIT_SHARED_CACHE) && THREADSAFE>0
 		__device__ void Enter();
 		__device__ void Leave();
@@ -476,6 +506,7 @@ namespace Core
 		__device__ static RC MemCopy(Mem *to, const Mem *from);
 		__device__ static void MemMove(Mem *to, Mem *from);
 		__device__ static RC MemSetStr(Mem *mem, const char *z, int n, TEXTENCODE encode, void (*del)(void *));
+		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll);
 		__device__ static RC MemFromBtree(BtCursor *cur, int offset, int amount, bool key, Mem *mem);
 #define VdbeMemRelease(X) if((X)->Flags&(MEM_Agg|MEM_Dyn|MEM_RowSet|MEM_Frame)) Vdbe::MemReleaseExternal(X);
 

@@ -469,7 +469,7 @@ namespace Core
             Context ctx = parse.Ctx; // Data_base connection
             Mem val = null;
 
-            if (!sqlite3IsLikeFunction(ctx, expr, ref noCase, wc))
+            if (!Command.Func.IsLikeFunction(ctx, expr, ref noCase, wc))
                 return 0;
             ExprList list = expr.x.List; // List of operands to the LIKE operator
             Expr left = list.Ids[1].Expr; // Right and left size of LIKE operator
@@ -487,9 +487,9 @@ namespace Core
                 Vdbe reprepare = parse.Reprepare;
                 int column = right.ColumnIdx;
                 val = Vdbe.GetValue(reprepare, column, (byte)AFF.NONE);
-                if (val != null && sqlite3_value_type(val) == TYPE.TEXT)
-                    z = sqlite3_value_text(val);
-                sqlite3VdbeSetVarmask(parse.V, column); // IMP: R-23257-02778
+                if (val != null && Vdbe.Value_Type(val) == TYPE.TEXT)
+                    z = Vdbe.Value_Text(val);
+                Vdbe.SetVarmask(parse.V, column); // IMP: R-23257-02778
                 Debug.Assert(right.OP == TK.VARIABLE || right.OP == TK.REGISTER);
             }
             else if (op == TK.STRING)
@@ -509,23 +509,23 @@ namespace Core
                     if (op == TK.VARIABLE)
                     {
                         Vdbe v = parse.V;
-                        sqlite3VdbeSetVarmask(v, right.ColumnIdx); // IMP: R-23257-02778
+                        Vdbe.SetVarmask(v, right.ColumnIdx); // IMP: R-23257-02778
                         if (isComplete && right.u.Token.Length > 1)
                         {
                             // If the rhs of the LIKE expression is a variable, and the current value of the variable means there is no need to invoke the LIKE
                             // function, then no OP_Variable will be added to the program. This causes problems for the sqlite3_bind_parameter_name()
                             // API. To workaround them, add a dummy OP_Variable here.
-                            int r1 = parse.GetTempReg();
+                            int r1 = Expr.GetTempReg(parse);
                             Expr.CodeTarget(parse, right, r1);
                             v.ChangeP3(v.CurrentAddr() - 1, 0);
-                            parse.ReleaseTempReg(r1);
+                            Expr.ReleaseTempReg(parse, r1);
                         }
                     }
                 }
                 else
                     z = null;
             }
-            sqlite3ValueFree(ref val);
+            Vdbe.ValueFree(ref val);
             return (z != null ? 1 : 0);
         }
 #endif
@@ -2799,7 +2799,7 @@ namespace Core
         {
             if (parse.Explain == 2)
             {
-                u32 flags = level.Plan.WsFlags;
+                WHERE flags = level.Plan.WsFlags;
                 SrcList.SrcListItem item = list.Ids[level.From];
                 Vdbe v = parse.V; // VM being constructed
                 Context ctx = parse.Ctx; // Database handle
@@ -4067,7 +4067,8 @@ namespace Core
                         if (op.P1 != level.TabCur) continue;
                         if (op.Opcode == OP.Column)
                         {
-                            for (int j = 0; j < idx.Columns.length; j++)
+                            int j;
+                            for (j = 0; j < idx.Columns.length; j++)
                             {
                                 if (op.P2 == idx.Columns[j])
                                 {

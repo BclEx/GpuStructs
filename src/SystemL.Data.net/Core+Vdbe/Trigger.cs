@@ -361,7 +361,7 @@ namespace Core
             int nameLength = nameAsString.Length;
             Debug.Assert(dbName != null || Btree.HoldsAllMutexes(ctx));
             Trigger trigger = null;
-            for (int i = OMIT_TEMPDB; i < ctx.DBs.length; i++)
+            for (int i = E.OMIT_TEMPDB; i < ctx.DBs.length; i++)
             {
                 int j = (i < 2 ? i ^ 1 : i); // Search TEMP before MAIN
                 if (dbName != null && !string.Equals(ctx.DBs[j].Name, dbName, StringComparison.InvariantCultureIgnoreCase)) continue;

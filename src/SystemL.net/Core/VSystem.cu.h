@@ -113,8 +113,8 @@ namespace Core
 #pragma endregion
 	};
 
-	__device__ VSystem::OPEN inline operator|(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a | (int)b); }
-	__device__ VSystem::OPEN inline operator&(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a & (int)b); }
-	__device__ VSystem::OPEN inline operator|=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a | b); }
-	__device__ VSystem::OPEN inline operator&=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a & b); }
+	__device__ inline VSystem::OPEN operator|(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a | (int)b); }
+	__device__ inline VSystem::OPEN operator&(VSystem::OPEN a, VSystem::OPEN b) { return (VSystem::OPEN)((int)a & (int)b); }
+	__device__ inline VSystem::OPEN operator|=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a | b); }
+	__device__ inline VSystem::OPEN operator&=(VSystem::OPEN a, int b) { return (VSystem::OPEN)(a & b); }
 }

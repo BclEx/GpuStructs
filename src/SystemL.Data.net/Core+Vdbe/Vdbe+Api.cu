@@ -115,7 +115,7 @@ __device__ void Vdbe::Result_Blob(FuncContext *fctx, const void *z, int n, void 
 {
 	_assert(n >= 0);
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	SetResultStrOrError(fctx, z, n, 0, del);
+	SetResultStrOrError(fctx, (const char *)z, n, (TEXTENCODE)0, del);
 }
 __device__ void Vdbe::Result_Double(FuncContext *fctx, double value)
 {
@@ -160,17 +160,17 @@ __device__ void Vdbe::Result_Text(FuncContext *fctx, const char *z, int n, void 
 __device__ void Vdbe::Result_Text16(FuncContext *fctx, const void *z, int n, void (*del)(void *))
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	SetResultStrOrError(fctx, z, n, TEXTENCODE_UTF16NATIVE, del);
+	SetResultStrOrError(fctx, (const char *)z, n, TEXTENCODE_UTF16NATIVE, del);
 }
 __device__ void Vdbe::Result_Text16be(FuncContext *fctx, const void *z, int n, void (*del)(void *))
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	SetResultStrOrError(fctx, z, n, TEXTENCODE_UTF16BE, del);
+	SetResultStrOrError(fctx, (const char *)z, n, TEXTENCODE_UTF16BE, del);
 }
 __device__ void Vdbe::Result_Text16le(FuncContext *fctx, const void *z, int n, void (*del)(void *))
 {
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
-	SetResultStrOrError(fctx, z, n, TEXTENCODE_UTF16LE, del);
+	SetResultStrOrError(fctx, (const char *)z, n, TEXTENCODE_UTF16LE, del);
 }
 #endif
 __device__ void Vdbe::Result_Value(FuncContext *fctx, Mem *value)
@@ -187,7 +187,7 @@ __device__ void Vdbe::Result_ErrorCode(FuncContext *fctx, RC errCode)
 {
 	fctx->IsError = errCode;
 	if (fctx->S.Flags & MEM_Null)
-		Vdbe::MemSetStr(&fctx->S, sqlite3ErrStr(errCode), -1, TEXTENCODE_UTF8, DESTRUCTOR_STATIC);
+		Vdbe::MemSetStr(&fctx->S, Main::ErrStr(errCode), -1, TEXTENCODE_UTF8, DESTRUCTOR_STATIC);
 }
 __device__ void Vdbe::Result_ErrorOverflow(FuncContext *fctx)
 {
@@ -253,12 +253,12 @@ __device__ RC Vdbe::Step2()
 	Context *ctx = Ctx;
 	if (ctx->MallocFailed)
 	{
-		this.RC = RC_NOMEM;
+		RC_ = RC_NOMEM;
 		return RC_NOMEM;
 	}
 	if (PC <= 0 && Expired)
 	{
-		RC = RC_SCHEMA;
+		RC_ = RC_SCHEMA;
 		rc = RC_ERROR;
 		goto end_of_step;
 	}
@@ -291,37 +291,37 @@ __device__ RC Vdbe::Step2()
 
 #ifndef OMIT_TRACE
 	// Invoke the profile callback if there is one
-	if (rc != RC_ROW && ctx->Profile && !ctx->Init.Busy && Sql)
+	if (rc != RC_ROW && ctx->Profile && !ctx->Init.Busy && Sql_)
 	{
 		int64 now;
 		ctx->Vfs->CurrentTimeInt64(&now);
-		ctx->Profile(ctx->ProfileArg, Sql, (now - StartTime)*1000000);
+		ctx->Profile(ctx->ProfileArg, Sql_, (now - StartTime)*1000000);
 	}
 #endif
 
 	if (rc == RC_DONE)
 	{
-		_assert(RC == RC_OK);
-		RC = DoWalCallbacks(ctx);
-		if (RC != RC_OK)
+		_assert(RC_ == RC_OK);
+		RC_ = DoWalCallbacks(ctx);
+		if (RC_ != RC_OK)
 			rc = RC_ERROR;
 	}
 
 	ctx->ErrCode = rc;
-	if (Main::ApiExit(Ctx, RC) == RC_NOMEM)
-		RC = RC_NOMEM;
+	if (Main::ApiExit(Ctx, RC_) == RC_NOMEM)
+		RC_ = RC_NOMEM;
 
 end_of_step:
 	// At this point local variable rc holds the value that should be returned if this statement was compiled using the legacy 
 	// sqlite3_prepare() interface. According to the docs, this can only be one of the values in the first assert() below. Variable p->rc 
 	// contains the value that would be returned if sqlite3_finalize() were called on statement p.
 	_assert(rc == RC_ROW || rc == RC_DONE || rc == RC_ERROR || rc == RC_BUSY || rc == RC_MISUSE);
-	_assert(RC != RC_ROW && RC != RC_DONE);
+	_assert(RC_ != RC_ROW && RC_ != RC_DONE);
 	// If this statement was prepared using sqlite3_prepare_v2(), and an error has occurred, then return the error code in p->rc to the
 	// caller. Set the error code in the database handle to the same value.
 	if (IsPrepareV2 && rc != RC_ROW && rc != RC_DONE)
 		rc = TransferError();
-	return (rc & ctx->ErrMask);
+	return (RC)(rc & ctx->ErrMask);
 }
 
 #ifndef MAX_SCHEMA_RETRY
@@ -336,13 +336,13 @@ __device__ RC Vdbe::Step()
 	Context *ctx = Ctx; // The database connection
 	MutexEx::Enter(ctx->Mutex);
 	DoingRerun = false;
-	while ((rc = Step2()) == RC_SCHEMA && cnt++ < MAX_SCHEMA_RETRY && (rc2 = rc = Reprepare()) == RC_OK)
+	while ((rc = Step2()) == RC_SCHEMA && cnt++ < MAX_SCHEMA_RETRY && (rc2 = rc = Prepare::Reprepare(this)) == RC_OK)
 	{
 		Reset(this);
 		DoingRerun = true;
 		_assert(!Expired);
 	}
-	if (rc2 != RC_OK && ALWAYS(IsPrepareV2) && _ALWAYS(ctx->Err))
+	if (rc2 != RC_OK && _ALWAYS(IsPrepareV2) && _ALWAYS(ctx->Err))
 	{
 		// This case occurs after failing to recompile an sql statement. The error message from the SQL compiler has already been loaded 
 		// into the database handle. This block copies the error message from the database handle into the statement and sets the statement
@@ -350,8 +350,8 @@ __device__ RC Vdbe::Step()
 		// sqlite3_errmsg() and sqlite3_errcode().
 		const char *err = (const char *)Value_Text(ctx->Err); 
 		_tagfree(ctx, ErrMsg);
-		if (!ctx->MallocFailed) { ErrMsg = _tagstrdup(ctx, err); RC = rc2; }
-		else { ErrMsg = nullptr; RC = rc = RC_NOMEM; }
+		if (!ctx->MallocFailed) { ErrMsg = _tagstrdup(ctx, err); RC_ = rc2; }
+		else { ErrMsg = nullptr; RC_ = rc = RC_NOMEM; }
 	}
 	rc = Main::ApiExit(ctx, rc);
 	MutexEx::Leave(ctx->Mutex);
@@ -384,7 +384,7 @@ __device__ void Vdbe::InvalidFunction(FuncContext *fctx, int notUsed1, Mem **not
 
 __device__ void *Vdbe::Agregate_Context(FuncContext *fctx, int bytes)
 {
-	_assert(fctx && fctx->Func && fctx->Func->xStep);
+	_assert(fctx && fctx->Func && fctx->Func->Step);
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));
 	Mem *mem = fctx->Mem;
 	ASSERTCOVERAGE(bytes < 0);
@@ -470,7 +470,7 @@ __device__ static const Mem _nullMem
 #if defined(_DEBUG) && defined(__GNUC__)
 	__attribute__((aligned(8))) 
 #endif
-	= {0, "", (double)0, {0}, 0, MEM_Null, TYPE_NULL, 0,
+	= {0, "", (double)0, {0}, 0, MEM_Null, TYPE_NULL, (TEXTENCODE)0,
 #ifdef _DEBUG
 	0, 0,  // scopyFrom, filler
 #endif
@@ -489,7 +489,7 @@ __device__ static Mem *ColumnMem(Vdbe *p, int i)
 		if (p && _ALWAYS(p->Ctx))
 		{
 			MutexEx::Enter(p->Ctx->Mutex);
-			SysEx::Error(p->Ctx, RC_RANGE, 0);
+			Main::Error(p->Ctx, RC_RANGE, 0);
 		}
 		r = (Mem *)&_nullMem;
 	}
@@ -502,7 +502,7 @@ __device__ static void ColumnMallocFailure(Vdbe *p)
 	// RC_NOMEM. The next call to _step() (if any) will return RC_ERROR and _finalize() will return NOMEM.
 	if (p)
 	{
-		p->RC = Main::ApiExit(p->Ctx, p->RC);
+		p->RC_ = Main::ApiExit(p->Ctx, p->RC_);
 		MutexEx::Leave(p->Ctx->Mutex);
 	}
 }
@@ -513,7 +513,7 @@ __device__ int Vdbe::Column_Bytes16(Vdbe *p, int i) { int val = Value_Bytes16(Co
 __device__ double Vdbe::Column_Double(Vdbe *p, int i) { double val = Value_Double(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ int Vdbe::Column_Int(Vdbe *p, int i) { int val = Value_Int(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ int64 Vdbe::Column_Int64(Vdbe *p, int i) { int64 val = Value_Int64(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
-__device__ const unsigned char *Vdbe::Column_Text(Vdbe *p, int i) { const unsigned char *val = Value_Text(ColumnMem(p, i ); ColumnMallocFailure(p); return val; }
+__device__ const unsigned char *Vdbe::Column_Text(Vdbe *p, int i) { const unsigned char *val = Value_Text(ColumnMem(p, i)); ColumnMallocFailure(p); return val; }
 __device__ Mem *Vdbe::Column_Value(Vdbe *p, int i)
 {
 	Mem *val = ColumnMem(p, i);
@@ -535,7 +535,7 @@ __device__ static const void *ColumnName(Vdbe *p, int n, const void *(*func)(Mem
 	Context *ctx = p->Ctx;
 	_assert(ctx != nullptr);
 	const void *r = nullptr;
-	int n2 = Column_Count(p);
+	int n2 = Vdbe::Column_Count(p);
 	if (n < n2 && n >= 0)
 	{
 		n += useType*n2;
@@ -553,7 +553,7 @@ __device__ static const void *ColumnName(Vdbe *p, int n, const void *(*func)(Mem
 	return r;
 }
 
-__device__ const char *Vdbe::Column_Name(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_NAME); }
+__device__ const char *Vdbe::Column_Name(Vdbe *p, int n) { return (const char *)ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_NAME); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_Name16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text16, COLNAME_NAME); }
 #endif
@@ -562,24 +562,24 @@ __device__ const void *Vdbe::Column_Name16(Vdbe *p, int n) { return ColumnName(p
 #error "Must not define both SQLITE_OMIT_DECLTYPE and SQLITE_ENABLE_COLUMN_METADATA"
 #endif
 #ifndef OMIT_DECLTYPE
-__device__ const char *Vdbe::Column_Decltype(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_DECLTYPE); }
+__device__ const char *Vdbe::Column_Decltype(Vdbe *p, int n) { return (const char *)ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_DECLTYPE); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_Decltype16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text16, COLNAME_DECLTYPE); }
 #endif
 #endif
 
 #ifdef ENABLE_COLUMN_METADATA
-__device__ const char *Vdbe::Column_DatabaseName(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_DATABASE); }
+__device__ const char *Vdbe::Column_DatabaseName(Vdbe *p, int n) { return (const char *)ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_DATABASE); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_DatabaseName16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text16, COLNAME_DATABASE); }
 #endif
 
-__device__ const char *Vdbe::Column_TableName(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_TABLE); }
+__device__ const char *Vdbe::Column_TableName(Vdbe *p, int n) { return (const char *)ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_TABLE); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_TableName16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text16, COLNAME_TABLE); }
 #endif
 
-__device__ const char *Vdbe::Column_OriginName(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_COLUMN); }
+__device__ const char *Vdbe::Column_OriginName(Vdbe *p, int n) { return (const char *)ColumnName(p, n, (const void *(*)(Mem *))Value_Text, COLNAME_COLUMN); }
 #ifndef OMIT_UTF16
 __device__ const void *Vdbe::Column_OriginName16(Vdbe *p, int n) { return ColumnName(p, n, (const void *(*)(Mem *)Value_Text16, COLNAME_COLUMN); }
 #endif
@@ -597,14 +597,14 @@ static RC VdbeUnbind(Vdbe *p, int i)
 	MutexEx::Enter(p->Ctx->Mutex);
 	if (p->Magic != VDBE_MAGIC_RUN || p->PC >= 0)
 	{
-		SysEx::Error(p->Ctx, RC_MISUSE, 0);
+		Main::Error(p->Ctx, RC_MISUSE, 0);
 		MutexEx::Leave(p->Ctx->Mutex);
 		SysEx_LOG(RC_MISUSE, "bind on a busy prepared statement: [%s]", p->Sql);
 		return SysEx_MISUSE_BKPT;
 	}
-	if (i < 1 || i > p->Vars)
+	if (i < 1 || i > p->Vars.length)
 	{
-		SysEx::Error(p->Ctx, RC_RANGE, 0);
+		Main::Error(p->Ctx, RC_RANGE, 0);
 		MutexEx::Leave(p->Ctx->Mutex);
 		return RC_RANGE;
 	}
@@ -612,7 +612,7 @@ static RC VdbeUnbind(Vdbe *p, int i)
 	var = &p->Vars[i];
 	Vdbe::MemRelease(var);
 	var->Flags = MEM_Null;
-	SysEx::Error(p->Ctx, RC_OK, 0);
+	Main::Error(p->Ctx, RC_OK, 0);
 
 	// If the bit corresponding to this variable in Vdbe.expmask is set, then binding a new value to this variable invalidates the current query plan.
 	//
@@ -632,10 +632,10 @@ __device__ static RC BindText(Vdbe *p, int i, const void *z, int n, void (*del)(
 		if (z)
 		{
 			Mem *var = &p->Vars[i-1];
-			rc = Vdbe::MemSetStr(var, z, n, encoding, del);
+			rc = Vdbe::MemSetStr(var, (const char *)z, n, encoding, del);
 			if (rc == RC_OK && encoding != 0)
 				rc = Vdbe::ChangeEncoding(var, CTXENCODE(p->Ctx));
-			SysEx::Error(p->Ctx, rc, 0);
+			Main::Error(p->Ctx, rc, 0);
 			Main::ApiExit(p->Ctx, rc);
 		}
 		MutexEx::Leave(p->Ctx->Mutex);
@@ -644,7 +644,7 @@ __device__ static RC BindText(Vdbe *p, int i, const void *z, int n, void (*del)(
 		del((void *)z);
 	return rc;
 }
-__device__ RC Vdbe::Bind_Blob(Vdbe *p, int i, const void *z, int n, void (*del)(void *)) { return BindText(p, i, z, n, del, 0); }
+__device__ RC Vdbe::Bind_Blob(Vdbe *p, int i, const void *z, int n, void (*del)(void *)) { return BindText(p, i, z, n, del, (TEXTENCODE)0); }
 __device__ RC Vdbe::Bind_Double(Vdbe *p, int i, double value)
 {
 	RC rc = VdbeUnbind(p, i);
@@ -683,22 +683,22 @@ __device__ RC Bind_Value(Vdbe *p, int i, const Mem *value)
 	switch (value->Type)
 	{
 	case TYPE_INTEGER: {
-		rc = Bind_Int64(p, i, value->u.I);
+		rc = Vdbe::Bind_Int64(p, i, value->u.I);
 		break; }
 	case TYPE_FLOAT: {
-		rc = Bind_Double(p, i, value->R);
+		rc = Vdbe::Bind_Double(p, i, value->R);
 		break; }
 	case TYPE_BLOB: {
 		if (value->Flags & MEM_Zero)
-			rc = Bind_Zeroblob(p, i, value->u.Zero);
+			rc = Vdbe::Bind_Zeroblob(p, i, value->u.Zero);
 		else
-			rc = Bind_Blob(p, i, value->z, value->n, DESTRUCTOR_TRANSIENT);
+			rc = Vdbe::Bind_Blob(p, i, value->Z, value->N, DESTRUCTOR_TRANSIENT);
 		break; }
 	case TYPE_TEXT: {
-		rc = BindText(p, i, value->z, value->n, DESTRUCTOR_TRANSIENT, value->Encode);
+		rc = BindText(p, i, value->Z, value->N, DESTRUCTOR_TRANSIENT, value->Encode);
 		break; }
 	default: {
-		rc = Bind_Null(p, i);
+		rc = Vdbe::Bind_Null(p, i);
 		break; }
 	}
 	return rc;
@@ -754,7 +754,7 @@ __device__ bool Vdbe::Stmt_Busy(Vdbe *p) { return (p && p->PC > 0 && p->Magic ==
 __device__ Vdbe *Vdbe::Stmt_Next(Context *ctx, Vdbe *p)
 {
 	MutexEx::Enter(ctx->Mutex);
-	Vdbe *next = (!p ? ctx->Vdbe[0] : p->Next);
+	Vdbe *next = (!p ? ctx->Vdbes : p->Next);
 	MutexEx::Leave(ctx->Mutex);
 	return next;
 }

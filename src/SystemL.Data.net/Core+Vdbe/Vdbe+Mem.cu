@@ -508,7 +508,7 @@ namespace Core {
 		return (bytes > limit ? RC_TOOBIG : RC_OK);
 	}
 
-	__device__ int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll)
+	__device__ int Vdbe::MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll)
 	{
 		MEM f1 = mem1->Flags;
 		MEM f2 = mem2->Flags;

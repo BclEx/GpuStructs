@@ -669,7 +669,7 @@ namespace Core
                     size = (uint)minLocal;
                 size += 4;
             }
-            size += (uint)iter; // size += (u32)(iter - cell);
+            size += (uint)iter; // size += (uint32)(iter - cell);
 
             // The minimum size of any cell is 4 bytes.
             if (size < 4)

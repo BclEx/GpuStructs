@@ -12,7 +12,7 @@
 
 #define ConvertEx_GetVarint32(A,B) \
 	(uint8)((*(A)<(uint8)0x80)?((B)=(uint32)*(A)),1:\
-	ConvertEx::GetVarint32((A),(u32 *)&(B)))
+	ConvertEx::GetVarint32((A),(uint32 *)&(B)))
 #define ConvertEx_PutVarint32(A,B) \
 	(uint8)(((uint32)(B)<(uint32)0x80)?(*(A)=(unsigned char)(B)),1:\
 	ConvertEx::PutVarint32((A),(B)))

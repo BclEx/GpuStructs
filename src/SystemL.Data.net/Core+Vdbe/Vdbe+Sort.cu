@@ -281,7 +281,7 @@ namespace Core
 		if (!sorter->Unpacked) return RC_NOMEM;
 		_assert(sorter->Unpacked == (UnpackedRecord *)d);
 
-		if (!ctx->TempInMemory())
+		if (!Main::TempInMemory(ctx))
 		{
 			int pageSize = ctx->DBs[0].Bt->GetPageSize(); // Page size of main database
 			sorter->MinPmaSize = SORTER_MIN_WORKING * pageSize;

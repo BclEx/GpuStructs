@@ -126,7 +126,7 @@ namespace Core
 
             // zMasterSchema and zInitScript are set to point at the master schema and initialisation script appropriate for the database being
             // initialized. zMasterName is the name of the master table.
-            string masterSchema = (OMIT_TEMPDB == 0 && db == 1 ? temp_master_schema : master_schema);
+            string masterSchema = (E.OMIT_TEMPDB == 0 && db == 1 ? temp_master_schema : master_schema);
             string masterName = E.SCHEMA_TABLE(db);
 
             // Construct the schema tables.
@@ -154,7 +154,7 @@ namespace Core
             Context.DB dbAsObj = ctx.DBs[db];
             if (dbAsObj.Bt == null)
             {
-                if (OMIT_TEMPDB == 0 && C._ALWAYS(db == 1))
+                if (E.OMIT_TEMPDB == 0 && C._ALWAYS(db == 1))
                     E.DbSetProperty(ctx, 1, SCHEMA.SchemaLoaded);
                 return RC.OK;
             }
@@ -168,7 +168,7 @@ namespace Core
                 rc = dbAsObj.Bt.BeginTrans(0);
                 if (rc != RC.OK)
                 {
-                    C._setstring(ref errMsg, ctx, "%s", sqlite3ErrStr(rc));
+                    C._setstring(ref errMsg, ctx, "%s", Main.ErrStr(rc));
                     goto initone_error_out;
                 }
                 openedTransaction = true;

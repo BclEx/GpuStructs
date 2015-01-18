@@ -120,28 +120,28 @@ namespace Core
 	{
 	public:
 		int Version;
-		__device__ virtual RC Create(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ virtual RC Connect(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ virtual RC BestIndex(IVTable *vtab, IIndexInfo *);
-		__device__ virtual RC Disconnect(IVTable *vtab);
-		__device__ virtual RC Destroy(IVTable *vtab);
-		__device__ virtual RC Open(IVTable *vtab, IVTableCursor **cursors);
-		__device__ virtual RC Close(IVTableCursor*);
-		__device__ virtual RC Filter(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
-		__device__ virtual RC Next(IVTableCursor*);
-		__device__ virtual RC Eof(IVTableCursor*);
-		__device__ virtual RC Column(IVTableCursor *, FuncContext *, int);
-		__device__ virtual RC Rowid(IVTableCursor *, int64 *rowid);
-		__device__ virtual RC Update(IVTable *, int, Mem **, int64 *);
-		__device__ virtual RC Begin(IVTable *vtab);
-		__device__ virtual RC Sync(IVTable *vtab);
-		__device__ virtual RC Commit(IVTable *vtab);
-		__device__ virtual RC Rollback(IVTable *vtab);
-		__device__ virtual RC FindFunction(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
-		__device__ virtual RC Rename(IVTable *vtab, const char *new_);
-		__device__ virtual RC Savepoint(IVTable *vtab, int);
-		__device__ virtual RC Release(IVTable *vtab, int);
-		__device__ virtual RC RollbackTo(IVTable *vtab, int);
+		__device__ RC (*Create)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		__device__ RC (*Connect)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		__device__ RC (*BestIndex)(IVTable *vtab, IIndexInfo *);
+		__device__ RC (*Disconnect)(IVTable *vtab);
+		__device__ RC (*Destroy)(IVTable *vtab);
+		__device__ RC (*Open)(IVTable *vtab, IVTableCursor **cursors);
+		__device__ RC (*Close)(IVTableCursor*);
+		__device__ RC (*Filter)(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
+		__device__ RC (*Next)(IVTableCursor*);
+		__device__ RC (*Eof)(IVTableCursor*);
+		__device__ RC (*Column)(IVTableCursor *, FuncContext *, int);
+		__device__ RC (*Rowid)(IVTableCursor *, int64 *rowid);
+		__device__ RC (*Update)(IVTable *, int, Mem **, int64 *);
+		__device__ RC (*Begin)(IVTable *vtab);
+		__device__ RC (*Sync)(IVTable *vtab);
+		__device__ RC (*Commit)(IVTable *vtab);
+		__device__ RC (*Rollback)(IVTable *vtab);
+		__device__ RC (*FindFunction)(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
+		__device__ RC (*Rename)(IVTable *vtab, const char *new_);
+		__device__ RC (*Savepoint)(IVTable *vtab, int);
+		__device__ RC (*Release)(IVTable *vtab, int);
+		__device__ RC (*RollbackTo)(IVTable *vtab, int);
 	};
 
 	enum INDEX_CONSTRAINT : uint8
@@ -396,11 +396,13 @@ namespace Core
 		WHERE_ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
 		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
+	__device__ inline WHERE operator|=(WHERE a, int b) { return (WHERE)(a | b); }
+	__device__ inline WHERE operator|(WHERE a, WHERE b) { return (WHERE)((int)a | (int)b); }
 
 	struct WhereTerm;
 	struct WherePlan
 	{
-		uint32 WsFlags;                 // WHERE_* flags that describe the strategy
+		uint32 WsFlags;					// WHERE_* flags that describe the strategy
 		uint16 Eqs;                     // Number of == constraints
 		uint16 OBSats;                  // Number of ORDER BY terms satisfied
 		double Rows;					// Estimated number of rows (for EQP)
@@ -473,6 +475,8 @@ namespace Core
 		double SavedNQueryLoop;		// pParse->nQueryLoop outside the WHERE loop
 		double RowOuts;				// Estimated number of output rows
 		WhereLevel Data[1];			// Information about each nest loop in WHERE
+		__device__ static WhereInfo *Begin(::Parse *parse, SrcList *tabList, Expr *where,  ExprList *orderBy, ExprList *distinct, WHERE wctrlFlags, int idxCur);
+		__device__ static void End(WhereInfo *winfo);
 	};
 
 	enum NC : uint8
@@ -1234,7 +1238,7 @@ namespace Core {
 		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
 		TF_Virtual = 0x10,			// Is a virtual table
 	};
-	__device__ TF inline operator|=(TF a, int b) { return (TF)(a | b); }
+	__device__ inline TF operator|=(TF a, int b) { return (TF)(a | b); }
 
 	struct Index;
 	struct Select;

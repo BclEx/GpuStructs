@@ -36,6 +36,13 @@ namespace Core
 #endif
         static int ADDR(int x) { return -1 - x; }
 
+        public enum STMTSTATUS : byte
+        {
+            STMTSTATUS_FULLSCAN_STEP = 1,
+            STMTSTATUS_SORT = 2,
+            STMTSTATUS_AUTOINDEX = 3,
+        }
+
         public enum P4T : sbyte
         {
             NOTUSED = 0,        // The P4 parameter is not used
@@ -232,8 +239,9 @@ namespace Core
         Explain _explain;		            // The explainer
         string _explainString;              // Explanation of data structures
 #endif
-        public array_t<VdbeFrame> Frames;   // Parent frame
-        public VdbeFrame DelFrames;          // List of frame objects to free on VM reset
+        public VdbeFrame Frames;            // Parent frame
+        public int FramesLength;            // Number of frames in Frames list
+        public VdbeFrame DelFrames;         // List of frame objects to free on VM reset
         public uint Expmask;                // Binding to these vars invalidates VM
         public SubProgram Programs;         // Linked list of all sub-programs used by VM
         public array_t<byte> OnceFlags;     // Flags for OP_Once

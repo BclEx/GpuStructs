@@ -172,7 +172,7 @@ namespace Core
 		// All mutexes are required for schema access.  Make sure we hold them. */
 		_assert(dbName || Btree::HoldsAllMutexes(ctx));
 		Table *table = nullptr;
-		for (int i = OMIT_TEMPDB; i < ctx->DBs.length; i++)
+		for (int i = E_OMIT_TEMPDB; i < ctx->DBs.length; i++)
 		{
 			int j = (i < 2 ? i ^ 1 : i); // Search TEMP before MAIN
 			if (dbName && _strcmp(dbName, ctx->DBs[j].Name))
@@ -224,7 +224,7 @@ namespace Core
 		_assert(Btree::HoldsAllMutexes(ctx));
 		Index *p = nullptr;
 		int nameLength = _strlen30(name);
-		for (int i = OMIT_TEMPDB; i < ctx->DBs.length; i++)
+		for (int i = E_OMIT_TEMPDB; i < ctx->DBs.length; i++)
 		{
 			int j = (i < 2 ? i ^ 1 : i); // Search TEMP before MAIN
 			Schema *schema = ctx->DBs[j].Schema;
@@ -446,7 +446,7 @@ namespace Core
 			int nameLength = _strlen30(name);
 			Context::DB *db2;
 			for (db = (ctx->DBs.length - 1), db2 = &ctx->DBs[db]; db >= 0; db--, db2--)
-				if ((!OMIT_TEMPDB || db != 1) && _strlen30(db2->Name) == nameLength && !_strcmp(db2->Name, name))
+				if ((!E_OMIT_TEMPDB || db != 1) && _strlen30(db2->Name) == nameLength && !_strcmp(db2->Name, name))
 					break;
 		}
 		return db;
@@ -518,13 +518,13 @@ namespace Core
 		int db = TwoPartName(name1, name2, &unqual); // Database number to create the table in
 		if (db < 0)
 			return;
-		if (!OMIT_TEMPDB && isTemp && name2->length > 0 && db != 1)
+		if (!E_OMIT_TEMPDB && isTemp && name2->length > 0 && db != 1)
 		{
 			// If creating a temp table, the name may not be qualified. Unless the database name is "temp" anyway. 
 			ErrorMsg("temporary table name must be unqualified");
 			return;
 		}
-		if (!OMIT_TEMPDB && isTemp)
+		if (!E_OMIT_TEMPDB && isTemp)
 			db = 1;
 		NameToken = *unqual;
 		Context *ctx = Ctx;
@@ -540,15 +540,15 @@ namespace Core
 #ifndef OMIT_AUTHORIZATION
 		//_assert((isTemp & 1) == isTemp);
 		{
-			int code;
+			AUTH code;
 			char *dbName = ctx->DBs[db].Name;
 			if (Auth::Check(this, AUTH_INSERT, SCHEMA_TABLE(isTemp), 0, dbName))
 				goto begin_table_error;
 			if (isView)
-				code = (!OMIT_TEMPDB && isTemp ? AUTH_CREATE_TEMP_VIEW : AUTH_CREATE_VIEW);
+				code = (!E_OMIT_TEMPDB && isTemp ? AUTH_CREATE_TEMP_VIEW : AUTH_CREATE_VIEW);
 			else
-				code = (!OMIT_TEMPDB && isTemp ? AUTH_CREATE_TEMP_TABLE : AUTH_CREATE_TABLE);
-			if (!isVirtual && Auth::Check(this, code, name, 0, dbName))
+				code = (!E_OMIT_TEMPDB && isTemp ? AUTH_CREATE_TEMP_TABLE : AUTH_CREATE_TABLE);
+			if (!isVirtual && Auth::Check(this, code, name, nullptr, dbName))
 				goto begin_table_error;
 		}
 #endif
@@ -1483,11 +1483,11 @@ primary_key_exit:
 			const char *dbName = ctx->DBs[db].Name;
 			if (Auth::Check(this, AUTH_DELETE, tableName, 0, dbName))
 				goto exit_drop_table;
-			int code;
+			AUTH code;
 			const char *arg2;
 			if (isView)
 			{
-				code = (!OMIT_TEMPDB && db == 1 ? DROP_TEMP_VIEW : DROP_VIEW);
+				code = (!E_OMIT_TEMPDB && db == 1 ? AUTH_DROP_TEMP_VIEW : AUTH_DROP_VIEW);
 				arg2 = 0;
 			}
 #ifndef OMIT_VIRTUALTABLE
@@ -1499,10 +1499,10 @@ primary_key_exit:
 #endif
 			else
 			{
-				code = (!OMIT_TEMPDB && db == 1 ? DROP_TEMP_TABLE : DROP_TABLE);
+				code = (!E_OMIT_TEMPDB && db == 1 ? AUTH_DROP_TEMP_TABLE : AUTH_DROP_TABLE);
 				arg2 = 0;
 			}
-			if (AuthCheck(this, code, table->Name, arg2, dbName) || AuthCheck(this, SQLITE_DELETE, table->Name, 0, dbName))
+			if (AuthCheck(this, code, table->Name, arg2, dbName) || AuthCheck(this, AUTH_DELETE, table->Name, nullptr, dbName))
 				goto exit_drop_table;
 		}
 #endif
@@ -2157,8 +2157,8 @@ exit_create_index:
 			Table *table = index->Table;
 			const char *dbName = ctx->DBs[db].Name;
 			const char *tableName = SCHEMA_TABLE(db);
-			int code = (!OMIT_TEMPDB && db ? AUTH_DROP_TEMP_INDEX : AUTH_DROP_INDEX);
-			if (Auth::Check(this, AUTH_DELETE, tableName, 0, dbName) || Auth::Check(this, code, index->Name, table->Name, dbName))
+			AUTH code = (!E_OMIT_TEMPDB && db ? AUTH_DROP_TEMP_INDEX : AUTH_DROP_INDEX);
+			if (Auth::Check(this, AUTH_DELETE, tableName, nullptr, dbName) || Auth::Check(this, code, index->Name, table->Name, dbName))
 				goto exit_drop_index;
 		}
 #endif
@@ -2509,7 +2509,7 @@ append_from_error:
 			{
 				toplevel->CookieMask |= mask;
 				toplevel->CookieValue[db] = ctx->DBs[db].Schema->SchemaCookie;
-				if (!OMIT_TEMPDB && db == 1)
+				if (!E_OMIT_TEMPDB && db == 1)
 					toplevel->OpenTempDatabase();
 			}
 		}

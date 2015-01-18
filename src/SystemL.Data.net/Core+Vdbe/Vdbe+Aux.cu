@@ -157,7 +157,7 @@ __device__ void Vdbe::set_RunOnlyOnce()
 struct VdbeOpIter
 {
 	Vdbe *V;					// Vdbe to iterate through the opcodes of
-	array_t<Vdbe::SubProgram> Subs;	// Array of subprograms
+	array_t<Vdbe::SubProgram*> Subs;	// Array of subprograms
 	int Addr;					// Address of next instruction to return
 	int SubId;					// 0 = main program, 1 = first sub-program etc.
 };
@@ -185,8 +185,8 @@ static Vdbe::VdbeOp *OpIterNext(VdbeOpIter *p)
 				if (p->Subs[j] == r->P4.Program) break;
 			if (j == p->Subs.length)
 			{
-				int bytes = (p->Subs.length+1)*sizeof(SubProgram *);
-				p->Subs.data = _tagrealloc_or_free(v->Ctx, p->Subs.data, bytes);
+				int bytes = (p->Subs.length+1)*sizeof(Vdbe::SubProgram *);
+				p->Subs.data = (Vdbe::SubProgram **)_tagrealloc_or_free(v->Ctx, p->Subs.data, bytes);
 				if (!p->Subs.data)
 					r = nullptr;
 				else
@@ -310,7 +310,7 @@ __device__ int Vdbe::AddOpList(int opsLength, VdbeOpList const *ops)
 		for (int i = 0; i < opsLength; i++, in_++)
 		{
 			int p2 = in_->P2;
-			VdbeOp *out_ = &p->aOp[i+addr];
+			VdbeOp *out_ = &Ops[i+addr];
 			out_->Opcode = in_->Opcode;
 			out_->P1 = in_->P1;
 			out_->P2 = (p2 < 0 && (_opcodeProperty[out_->Opcode] & OPFLG_JUMP) != 0 ? addr + ADDR(p2) : p2);
@@ -332,7 +332,7 @@ __device__ int Vdbe::AddOpList(int opsLength, VdbeOpList const *ops)
 __device__ void Vdbe::ChangeP1(uint32 addr, int val) { if ((uint32)Ops.length > addr) Ops[addr].P1 = val; }
 __device__ void Vdbe::ChangeP2(uint32 addr, int val) { if ((uint32)Ops.length > addr) Ops[addr].P2 = val; }
 __device__ void Vdbe::ChangeP3(uint32 addr, int val) { if ((uint32)Ops.length > addr) Ops[addr].P3 = val; }
-__device__ void Vdbe::ChangeP5(uint8 val) { if (Ops.data) { _assert(Ops.length > 0); Ops[p->Ops.length-1].P5 = val; } }
+__device__ void Vdbe::ChangeP5(uint8 val) { if (Ops.data) { _assert(Ops.length > 0); Ops[Ops.length-1].P5 = val; } }
 
 __device__ void Vdbe::JumpHere(int addr)
 {
@@ -437,7 +437,7 @@ __device__ void Vdbe::ChangeP4(int addr, const char *p4, int n)
 	if (addr < 0)
 		addr = Ops.length - 1;
 	Vdbe::VdbeOp *op = &Ops[addr];
-	_assert(op->P4Type == P4T_NOTUSED || op->P4Rype == P4T_INT32);
+	_assert(op->P4Type == P4T_NOTUSED || op->P4Type == P4T_INT32);
 	FreeP4(ctx, op->P4Type, op->P4.P);
 	op->P4.P = nullptr;
 	if ((P4T)n == P4T_INT32)
@@ -461,9 +461,9 @@ __device__ void Vdbe::ChangeP4(int addr, const char *p4, int n)
 		if (keyInfo)
 		{
 			_memcpy((char *)keyInfo, p4, bytes - fields);
-			uint8 *sortOrders = keyInfo->SortOrders;
+			SO *sortOrders = keyInfo->SortOrders;
 			_assert(sortOrders != nullptr);
-			keyInfo->SortOrders = (unsigned char *)&keyInfo->Colls[fields];
+			keyInfo->SortOrders = (SO *)&keyInfo->Colls[fields];
 			_memcpy(keyInfo->SortOrders, sortOrders, fields);
 			op->P4Type = P4T_KEYINFO;
 		}
@@ -499,34 +499,32 @@ __device__ void Vdbe::ChangeP4(int addr, const char *p4, int n)
 }
 
 #ifndef NDEBUG
-__device__ void Vdbe::Comment(Vdbe *p, const char *format, va_list args)
+__device__ void Vdbe::Comment(const char *format, va_list args)
 {
-	if (p == nullptr) return;
-	_assert(p->Ops.length > 0 || !p->Ops.data);
-	_assert(!p->Ops.data || !p->Ops[p->Ops.length-1].Comment || p->Ctx->MallocFailed);
-	if (p->Ops.length)
+	_assert(Ops.length > 0 || !Ops.data);
+	_assert(!Ops.data || !Ops[Ops.length-1].Comment || Ctx->MallocFailed);
+	if (Ops.length)
 	{
-		_assert(p->Ops.data);
-		_tagfree(p->Ctx, p->Ops[p->Ops.length-1].Comment);
-		p->Ops[p->Ops.length-1].Comment = _vmtagprintf(p->Ctx, format, args);
+		_assert(Ops.data);
+		_tagfree(Ctx, Ops[Ops.length-1].Comment);
+		Ops[Ops.length-1].Comment = _vmtagprintf(Ctx, format, args, nullptr);
 	}
 }
-__device__ void Vdbe::NoopComment(Vdbe *p, const char *format, va_list args)
+__device__ void Vdbe::NoopComment(const char *format, va_list args)
 {
-	if (p == nullptr) return;
-	p->AddOp0(OP_Noop);
-	_assert(p->Ops.length > 0 || !p->Ops.data);
-	_assert(!p->Ops.data || !p->Ops[p->Ops.length-1].Comment || p->Ctx->MallocFailed);
-	if (p->Ops.length)
+	AddOp0(OP_Noop);
+	_assert(Ops.length > 0 || !Ops.data);
+	_assert(!Ops.data || !Ops[Ops.length-1].Comment || Ctx->MallocFailed);
+	if (Ops.length)
 	{
-		_assert(p->Ops.data);
-		_tagfree(p->Ctx, p->Ops[p->Ops.length-1].Comment);
-		p->Ops[p->Ops.length-1].Comment = _vmtagprintf(p->Ctx, format, args);
+		_assert(Ops.data);
+		_tagfree(Ctx, Ops[Ops.length-1].Comment);
+		Ops[Ops.length-1].Comment = _vmtagprintf(Ctx, format, args, nullptr);
 	}
 }
 #endif
 
-__constant__ static VdbeOp _dummy;  // Ignore the MSVC warning about no initializer
+__constant__ static Vdbe::VdbeOp _dummy1;  // Ignore the MSVC warning about no initializer
 __device__ Vdbe::VdbeOp *Vdbe::GetOp(int addr)
 {
 	// C89 specifies that the constant "dummy" will be initialized to all zeros, which is correct.  MSVC generates a warning, nevertheless.
@@ -539,7 +537,7 @@ __device__ Vdbe::VdbeOp *Vdbe::GetOp(int addr)
 		addr = Ops.length - 1;
 	}
 	_assert((addr >= 0 && addr < Ops.length) || Ctx->MallocFailed);
-	return (Ctx->MallocFailed ? (VdbeOp *)&_dummy : &Ops[addr]);
+	return (Ctx->MallocFailed ? (VdbeOp *)&_dummy1 : &Ops[addr]);
 }
 
 #if !defined(OMIT_EXPLAIN) || !defined(NDEBUG) || defined(VDBE_PROFILE) || defined(_DEBUG)
@@ -723,7 +721,7 @@ __device__ void Vdbe::FrameDelete(VdbeFrame *p)
 	Mem *mems = VdbeFrameMem(p);
 	VdbeCursor **cursors = (VdbeCursor **)&mems[p->ChildMems];
 	for (int i = 0; i < p->ChildCursors; i++)
-		sqlite3VdbeFreeCursor(p->V, cursors[i]);
+		p->V->FreeCursor(cursors[i]);
 	ReleaseMemArray(mems, p->ChildMems);
 	_tagfree(p->V->Ctx, p);
 }
@@ -789,21 +787,21 @@ __device__ RC Vdbe::List()
 	{
 		RC_ = RC_INTERRUPT;
 		rc = RC_ERROR;
-		_setstring(&ErrMsg, ctx, "%s", sqlite3ErrStr(RC_));
+		_setstring(&ErrMsg, ctx, "%s", Main::ErrStr(RC_));
 	}
 	else
 	{
 		char *z;
 		VdbeOp *op;
 		if (i < Ops.length)
-			op = &p->aOp[i]; // The output line number is small enough that we are still in the main program.
+			op = &Ops[i]; // The output line number is small enough that we are still in the main program.
 		else
 		{
 			// We are currently listing subprograms.  Figure out which one and pick up the appropriate opcode.
 			i -= Ops.length;
 			int j;
 			for (j = 0; i >= subs[j]->Ops.length; j++)
-				i -= subs[j]->Ops.legnth;
+				i -= subs[j]->Ops.length;
 			op = &subs[j]->Ops[i];
 		}
 		if (HasExplain == 1)
@@ -1022,7 +1020,7 @@ __device__ void Vdbe::MakeReady(Parse *parse)
 	uint8 *csr = (uint8 *)&Ops[Ops.length]; // Memory avaliable for allocation
 	uint8 *end = (uint8 *)&Ops[OpsAlloc]; // First byte past end of zCsr[]
 	ResolveP2Values(this, &args);
-	UsesStmtJournal = (uint8)(parse->IsMultiWrite && parse->MayAbort);
+	UsesStmtJournal = (uint8)(parse->IsMultiWrite && parse->_MayAbort);
 	if (parse->Explain && mems < 10)
 		mems = 10;
 	_memset(csr, 0, end-csr);
@@ -1049,7 +1047,7 @@ __device__ void Vdbe::MakeReady(Parse *parse)
 		OnceFlags.data = (uint8 *)AllocSpace(OnceFlags.data, onces, &csr, end, &bytes);
 		if (bytes)
 			FreeThis = _tagalloc2(ctx, bytes, true);
-		csr = FreeThis;
+		csr = (uint8 *)FreeThis;
 		end = &csr[bytes];
 	} while (bytes && !ctx->MallocFailed);
 
@@ -1117,7 +1115,7 @@ __device__ int Vdbe::FrameRestore(VdbeFrame *frame)
 	v->Cursors.data = frame->Cursors.data;
 	v->Cursors.length = frame->Cursors.length;
 	v->Ctx->LastRowID = frame->LastRowID;
-	v->Changes = prame->Changes;
+	v->Changes = frame->Changes;
 	return frame->PC;
 }
 
@@ -1304,7 +1302,7 @@ __device__ static RC VdbeCommit(Context *ctx, Vdbe *p)
 			__snprintf(&masterName[mainFileNameLength], 13, "-mj%06X9%02X", (random>>8)&0xffffff, random&0xff);
 			// The antipenultimate character of the master journal name must be "9" to avoid name collisions when using 8+3 filenames.
 			_assert(masterName[_strlen30(masterName)-3] == '9');
-			SysEx::FileSuffix3(mainFileName, masterName);
+			VSystem::FileSuffix3(mainFileName, masterName);
 			rc = vfs->Access(masterName, VSystem::ACCESS_EXISTS, &res);
 		} while (rc == RC_OK && res);
 		if (rc == RC_OK)
@@ -1582,7 +1580,7 @@ __device__ RC Vdbe::Halt()
 				else
 				{
 					ctx->DeferredCons = 0;
-					Build::CommitInternalChanges(ctx);
+					Parse::CommitInternalChanges(ctx);
 				}
 			}
 			else
@@ -1669,13 +1667,13 @@ __device__ RC Vdbe::TransferError()
 	{
 		bool mallocFailed = ctx->MallocFailed;
 		_benignalloc_begin();
-		sqlite3ValueSetStr(ctx->Err, -1, p->ErrMsg, TEXTENCODE_UTF8, DESTRUCTOR_TRANSIENT);
+		Vdbe::ValueSetStr(ctx->Err, -1, ErrMsg, TEXTENCODE_UTF8, DESTRUCTOR_TRANSIENT);
 		_benignalloc_end();
 		ctx->MallocFailed = mallocFailed;
 		ctx->ErrCode = rc;
 	}
 	else
-		sqlite3Error(ctx, rc, nullptr);
+		Main::Error(ctx, rc, nullptr);
 	return rc;
 }
 
@@ -1718,8 +1716,8 @@ __device__ RC Vdbe::Reset()
 	{
 		// The expired flag was set on the VDBE before the first call to sqlite3_step(). For consistency (since sqlite3_step() was
 		// called), set the database error in this case as well.
-		sqlite3Error(ctx, RC_, nullptr);
-		sqlite3ValueSetStr(ctx->Err, -1, ErrMsg, TEXTENCODE_UTF8, DESTRUCTOR_TRANSIENT);
+		Main::Error(ctx, RC_, nullptr);
+		Vdbe::ValueSetStr(ctx->Err, -1, ErrMsg, TEXTENCODE_UTF8, DESTRUCTOR_TRANSIENT);
 		_tagfree(ctx, ErrMsg);
 		ErrMsg = nullptr;
 	}
@@ -1922,7 +1920,7 @@ __device__ uint32 Vdbe::SerialPut(uint8 *buf, int bufLength, Mem *mem, int fileF
 		if (serialType == 7)
 		{
 			_assert(sizeof(v) == sizeof(mem->R));
-			_memcpy(&v, &mem->R, sizeof(v));
+			_memcpy((uint8 *)&v, (uint8 *)&mem->R, sizeof(v));
 			SwapMixedEndianFloat(v);
 		}
 		else
@@ -1944,7 +1942,7 @@ __device__ uint32 Vdbe::SerialPut(uint8 *buf, int bufLength, Mem *mem, int fileF
 		_assert(mem->N + ((mem->Flags & MEM_Zero)?mem->u.Zero:0) == (int)SerialTypeLen(serialType));
 		_assert(mem->N <= bufLength);
 		len = mem->N;
-		_memcpy(buf, mem->Z, len);
+		_memcpy(buf, (uint8 *)mem->Z, len);
 		if (mem->Flags & MEM_Zero)
 		{
 			len += mem->u.Zero;
@@ -2015,7 +2013,7 @@ __device__ uint32 Vdbe::SerialGet(const unsigned char *buf, uint32 serialType, M
 		{
 			_assert(sizeof(x) == 8 && sizeof(mem->R) == 8);
 			SwapMixedEndianFloat(x);
-			_memcpy(&mem->R, &x, sizeof(x));
+			_memcpy((uint8 *)&mem->R, (uint8 *)&x, sizeof(x));
 			mem->Flags = (_isnan(mem->R) ? MEM_Null : MEM_Real);
 		}
 		return 8; }
@@ -2067,7 +2065,7 @@ __device__ void Vdbe::RecordUnpack(KeyInfo *keyInfo, int keyLength, const void *
 {
 	const unsigned char *keys = (const unsigned char *)key;
 	Mem *mem = p->Mems;
-	p->Flags = 0;
+	p->Flags = (UNPACKED)0;
 	_assert(_HASALIGNMENT8(mem));
 	uint32 szHdr;
 	uint32 idx = ConvertEx_GetVarint32(keys, szHdr); // Offset in keys[] to read from
@@ -2175,7 +2173,7 @@ __device__ RC Vdbe::IdxRowid(Context *ctx, BtCursor *cur, int64 *rowid)
 	int64 cellKeyLength = 0;
 	RC rc; ASSERTONLY(rc =)Btree::KeySize(cur, &cellKeyLength);
 	_assert(rc == RC_OK); // pCur is always valid so KeySize cannot fail
-	_assert((cellKey & MAX_U32) == (uint64)cellKeyLength);
+	_assert((cellKeyLength & MAX_UTYPE(uint32)) == (uint64)cellKeyLength);
 
 	// Read in the complete content of the index entry
 	Mem m;
@@ -2284,7 +2282,7 @@ __device__ Mem *Vdbe::GetValue(int var, AFF aff)
 		if (r)
 		{
 			MemCopy(r, mem);
-			sqlite3ValueApplyAffinity(r, aff, TEXTENCODE_UTF8);
+			Vdbe::ValueApplyAffinity(r, aff, TEXTENCODE_UTF8);
 			MemStoreType(r);
 		}
 		return r;

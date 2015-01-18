@@ -18,7 +18,7 @@ namespace Core
 		uint32 _set;       // Number of bits that are set - only valid for aHash element.  Max is BITVEC_NINT.  For BITVEC_SZ of 512, this would be 125.
 		uint32 _divisor;   // Number of bits handled by each apSub[] entry.
 		// Should >=0 for apSub element. */
-		// Max iDivisor is max(u32) / BITVEC_NPTR + 1.
+		// Max iDivisor is max(uint32) / BITVEC_NPTR + 1.
 		// For a BITVEC_SZ of 512, this would be 34,359,739.
 		union
 		{

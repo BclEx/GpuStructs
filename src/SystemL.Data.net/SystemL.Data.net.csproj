@@ -78,6 +78,7 @@
     <Content Include="Core+Vdbe\Context.cu.h" />
     <None Include="Core+Vdbe\Backup.cu" />
     <None Include="CompileTime.cu" />
+    <Content Include="_hwtime.h" />
     <Content Include="Core+Vdbe\VdbeInt.cu.h" />
     <Content Include="Core+Vdbe\Vdbe.cu.h" />
     <Content Include="KeywordHash.h" />

@@ -1,6 +1,6 @@
 // func.c
 #include "..\Core+Vdbe.cu.h"
-#include "..\VdbeInt.h"
+#include "..\VdbeInt.cu.h"
 #include <stdlib.h>
 
 namespace Core { namespace Command

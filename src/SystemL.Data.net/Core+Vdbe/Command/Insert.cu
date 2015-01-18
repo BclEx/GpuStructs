@@ -1,6 +1,6 @@
 // insert.c
 #include "..\Core+Vdbe.cu.h"
-#include "..\VdbeInt.h"
+#include "..\VdbeInt.cu.h"
 
 namespace Core { namespace Command
 {

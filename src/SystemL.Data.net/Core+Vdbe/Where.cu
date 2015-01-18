@@ -1,4 +1,4 @@
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
 
 namespace Core
 {
@@ -30,10 +30,12 @@ namespace Core
 		WO_AND = 0x200,			// Two or more AND-connected terms
 		WO_EQUIV = 0x400,       // Of the form A==B, both columns
 		WO_NOOP = 0x800,		// This term does not restrict search space
-
 		WO_ALL = 0xfff,			// Mask of all possible WO_* values
 		WO_SINGLE = 0x0ff,      // Mask of all non-compound WO_* values
 	};
+	__device__ inline WO operator|=(WO a, int b) { return (WO)(a | b); }
+	__device__ inline WO operator|(WO a, WO b) { return (WO)((int)a | (int)b); }
+	__device__ inline WO operator&(WO a, WO b) { return (WO)((int)a & (int)b); }
 
 	enum TERM : uint8
 	{
@@ -50,6 +52,9 @@ namespace Core
 		TERM_VNULL = 0x00,   // Disabled if not using stat3
 #endif
 	};
+	__device__ inline TERM operator|=(TERM a, int b) { return (TERM)(a | b); }
+	__device__ inline TERM operator&=(TERM a, int b) { return (TERM)(a & b); }
+	__device__ inline TERM operator|(TERM a, TERM b) { return (TERM)((int)a | (int)b); }
 
 	struct WhereTerm
 	{
@@ -474,8 +479,8 @@ findTerm_success:
 			Vdbe *reprepare = parse->Reprepare;
 			int column = right->ColumnIdx;
 			val = reprepare->GetValue(column, AFF_NONE);
-			if (val && val->GetType() == TYPE_TEXT)
-				z = (char *)val->GetText();
+			if (val && Vdbe::Value_Type(val) == TYPE_TEXT)
+				z = (char *)Vdbe::Value_Type(val);
 			parse->V->SetVarmask(column);
 			_assert(right->OP == TK_VARIABLE || right->OP == TK_REGISTER);
 		}
@@ -511,7 +516,7 @@ findTerm_success:
 			else
 				z = nullptr;
 		}
-		Vdbe::Mem_Free(val);
+		Vdbe::ValueFree(val);
 		return (z != nullptr);
 	}
 #endif
@@ -564,7 +569,7 @@ findTerm_success:
 		WhereTerm *orTerm; // A Sub-term within the pOrWc
 		Bitmask indexable = ~(Bitmask)0; // Tables that are indexable, satisfying case 2
 		Bitmask chngToIN = ~(Bitmask)0; // Tables that might satisfy case 1
-		for (i = orWc->Terms-1, term = orWc->Slots; i >= 0 && indexable; i--, orTerm++)
+		for (i = orWc->Terms-1, orTerm = orWc->Slots; i >= 0 && indexable; i--, orTerm++)
 		{
 			if ((orTerm->EOperator & WO_SINGLE) == 0)
 			{
@@ -668,7 +673,7 @@ findTerm_success:
 				{
 					// No candidate table+column was found.  This can only occur on the second iteration
 					_assert(j == 1);
-					_assert(IsPowerOfTwo(chngToIN));
+					_assert(_ispoweroftwo(chngToIN));
 					_assert(chngToIN == GetMask(maskSet, cursorId));
 					break;
 				}
@@ -1302,7 +1307,7 @@ findTerm_success:
 		level->Plan.u.Index = index;
 		index->CollNames = (char **)&index[1];
 		index->Columns.data = (int *)&index->CollNames[columns];
-		index->SortOrders = (uint8 *)&index->Columns[columns];
+		index->SortOrders = (SO *)&index->Columns[columns];
 		index->Name = "auto-index";
 		index->Columns.length = columns;
 		index->Table = table;
@@ -1320,7 +1325,7 @@ findTerm_success:
 					idxCols |= mask;
 					index->Columns[n] = term->u.LeftColumn;
 					CollSeq *coll = Expr::BinaryCompareCollSeq(parse, x->Left, x->Right); // Collating sequence to on a column
-					index->CollNames[n] = _ALWAYS(coll) ? coll->Name : "BINARY";
+					index->CollNames[n] = (_ALWAYS(coll) ? coll->Name : "BINARY");
 					n++;
 				}
 			}
@@ -1349,21 +1354,21 @@ findTerm_success:
 		_assert(n == columns);
 
 		// Create the automatic index
-		KeyInfo *keyinfo = sqlite3IndexKeyinfo(parse, index); // Key information for the index
+		KeyInfo *keyinfo = parse->IndexKeyinfo(index); // Key information for the index
 		_assert(level->IdxCur >= 0);
 		v->AddOp4(OP_OpenAutoindex, level->IdxCur, columns+1, 0, (char *)keyinfo, Vdbe::P4T_KEYINFO_HANDOFF);
-		VdbeComment(v, "for %s", table->Name);
+		v->Comment("for %s", table->Name);
 
 		// Fill the automatic index with content
 		int addrTop = v->AddOp1(OP_Rewind, level->TabCur); // Top of the index fill loop
-		int regRecord = parse->GetTempReg(); // Register holding an index record
-		sqlite3GenerateIndexKey(parse, index, level->TabCur, regRecord, 1);
+		int regRecord = Expr::GetTempReg(parse); // Register holding an index record
+		Delete::GenerateIndexKey(parse, index, level->TabCur, regRecord, 1);
 		v->AddOp2(OP_IdxInsert, level->IdxCur, regRecord);
-		v->ChangeP5(OPFLAG_USESEEKRESULT);
+		v->ChangeP5(Vdbe::OPFLAG_USESEEKRESULT);
 		v->AddOp2(OP_Next, level->TabCur, addrTop+1);
-		v->ChangeP5(STMTSTATUS_AUTOINDEX);
+		v->ChangeP5(Vdbe::STMTSTATUS_AUTOINDEX);
 		v->JumpHere(addrTop);
-		parse->ReleaseTempReg(regRecord);
+		Expr::ReleaseTempReg(parse, regRecord);
 
 		// Jump here when skipping the initialization
 		v->JumpHere(addrInit);
@@ -1394,7 +1399,7 @@ findTerm_success:
 		for (i = terms = 0, term = wc->Slots; i < wc->Terms; i++, term++)
 		{
 			if (term->LeftCursor != src->Cursor) continue;
-			_assert(IsPowerOfTwo(term->EOperator & ~WO_EQUIV));
+			_assert(_ispoweroftwo(term->EOperator & ~WO_EQUIV));
 			ASSERTCOVERAGE(term->EOperator & WO_IN);
 			ASSERTCOVERAGE(term->EOperator & WO_ISNULL);
 			if (term->EOperator & WO_ISNULL) continue;
@@ -1439,7 +1444,7 @@ findTerm_success:
 		for (i = j = 0, term = wc->Slots; i < wc->Terms; i++, term++)
 		{
 			if (term->LeftCursor != src->Cursor) continue;
-			_assert(IsPowerOfTwo(term->EOperator & ~WO_EQUIV));
+			_assert(_ispoweroftwo(term->EOperator & ~WO_EQUIV));
 			ASSERTCOVERAGE(term->EOperator & WO_IN);
 			ASSERTCOVERAGE(term->EOperator & WO_ISNULL);
 			if (term->EOperator & WO_ISNULL) continue;
@@ -1472,7 +1477,7 @@ findTerm_success:
 		if (rc != RC_OK)
 		{
 			if (rc == RC_NOMEM) parse->Ctx->MallocFailed = true;
-			else if (!vtable->ErrMsg) parse->ErrorMsg("%s", ErrStr(rc));
+			else if (!vtable->ErrMsg) parse->ErrorMsg("%s", Main::ErrStr(rc));
 			else parse->ErrorMsg("%s", vtable->ErrMsg);
 		}
 		_free(vtable->ErrMsg);
@@ -1570,7 +1575,7 @@ findTerm_success:
 						for (int k = 0; k < idxInfo->OrderBys.length; k++)
 							if (idxInfo->OrderBys[k].Column == idxCons->Column)
 							{
-								sortOrder = idxInfo->OrderBys[k].Desc;
+								sortOrder = (idxInfo->OrderBys[k].Desc ? SO_DESC : SO_ASC);
 								break;
 							}
 					}
@@ -1611,7 +1616,7 @@ findTerm_success:
 		if (!val) return RC_ERROR;
 		tRowcnt n = index->RowEsts[0];
 		IndexSample *samples = index->Samples;
-		TYPE type = sqlite3_value_type(val);
+		TYPE type = Vdbe::Value_Type(val);
 
 		int i;
 		int64 v;
@@ -1619,8 +1624,8 @@ findTerm_success:
 		bool isEq = false;
 		if (type == TYPE_INTEGER)
 		{
-			v = sqlite3_value_int64(val);
-			r = v;
+			v = Vdbe::Value_Int64(val);
+			r = (double)v;
 			for (i = 0; i < index->Samples.length; i++)
 			{
 				if (samples[i].Type == TYPE_NULL) continue;
@@ -1646,7 +1651,7 @@ findTerm_success:
 		}
 		else if (type == TYPE_FLOAT)
 		{
-			r = sqlite3_value_double(val);
+			r = Vdbe::Value_Double(val);
 			double rS;
 			for (i = 0; i < index->Samples.length; i++)
 			{
@@ -1655,7 +1660,7 @@ findTerm_success:
 				if (samples[i].Type == TYPE_FLOAT)
 					rS = samples[i].u.R;
 				else
-					rS = samples[i].u.I;
+					rS = (double)samples[i].u.I;
 				if (rS >= r)
 				{
 					isEq = rS==r;
@@ -1681,21 +1686,21 @@ findTerm_success:
 				const uint8 *z;
 				if (type == TYPE_BLOB)
 				{
-					z = (const uint8 *)sqlite3_value_blob(val);
+					z = (const uint8 *)Vdbe::Value_Blob(val);
 					coll = ctx->DefaultColl;
 					_assert(coll->Encode == TEXTENCODE_UTF8);
 				}
 				else
 				{
-					coll = sqlite3GetCollSeq(parse, TEXTENCODE_UTF8, 0, *index->CollNames);
+					coll = Callback::GetCollSeq(parse, TEXTENCODE_UTF8, 0, *index->CollNames);
 					if (!coll)
 						return RC_ERROR;
-					z = (const uint8 *)sqlite3ValueText(val, coll->Encode);
+					z = (const uint8 *)Vdbe::ValueText(val, coll->Encode);
 					if (!z)
 						return RC_NOMEM;
 					_assert(z && coll && coll->Cmp);
 				}
-				n = sqlite3ValueBytes(val, coll->Encode);
+				n = Vdbe::ValueBytes(val, coll->Encode);
 
 				for (; i < index->Samples.length; i++)
 				{
@@ -1707,7 +1712,7 @@ findTerm_success:
 					if (coll->Encode != TEXTENCODE_UTF8)
 					{
 						int sampleBytes;
-						char *sampleZ = sqlite3Utf8to16(ctx, coll->Encode, samples[i].u.Z, samples[i].Bytes, &sampleBytes);
+						char *sampleZ = Vdbe::Utf8to16(ctx, coll->Encode, samples[i].u.Z, samples[i].Bytes, &sampleBytes);
 						if (!sampleZ)
 						{
 							_assert(ctx->MallocFailed);
@@ -1768,7 +1773,7 @@ findTerm_success:
 			*val = parse->Reprepare->GetValue(varId, aff);
 			return RC_OK;
 		}
-		return sqlite3ValueFromExpr(parse->Ctx, expr, TEXTENCODE_UTF8, aff, pp);
+		return Vdbe::ValueFromExpr(parse->Ctx, expr, TEXTENCODE_UTF8, aff, val);
 	}
 #endif
 
@@ -1793,7 +1798,7 @@ findTerm_success:
 					lowerId = a[0];
 					if ((lower->EOperator & WO_GT) != 0) lowerId += a[1];
 				}
-				sqlite3ValueFree(rangeVal);
+				Vdbe::ValueFree(rangeVal);
 			}
 			if (rc == RC_OK && upper)
 			{
@@ -1805,7 +1810,7 @@ findTerm_success:
 					upperId = a[0];
 					if ((upper->EOperator & WO_LE) != 0) upperId += a[1];
 				}
-				sqlite3ValueFree(rangeVal);
+				Vdbe::ValueFree(rangeVal);
 			}
 			if (rc == RC_OK)
 			{
@@ -1837,7 +1842,7 @@ findTerm_success:
 			if (rc) goto cancel;
 		}
 		else
-			rhs = sqlite3ValueNew(parse->Ctx);
+			rhs = Vdbe::ValueNew(parse->Ctx);
 		if (!rhs) return RC_NOTFOUND;
 		rc = WhereKeyStats(parse, p, rhs, 0, a);
 		if (rc == RC_OK)
@@ -1847,7 +1852,7 @@ findTerm_success:
 		}
 
 cancel:
-		sqlite3ValueFree(rhs);
+		Vdbe::ValueFree(rhs);
 		return rc;
 	}
 
@@ -2331,7 +2336,7 @@ cancel:
 			if (dist && IsDistinctIndex(parse, wc, probe, cursor, p->Distinct, pc.Plan.Eqs) && (pc.Plan.WsFlags & WHERE_COLUMN_IN) == 0)
 			{
 				dist = false;
-				pc.Plan.WsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE|WHERE_DISTINCT;
+				pc.Plan.WsFlags |= WHERE_ROWID_RANGE|WHERE_COLUMN_RANGE|WHERE_DISTINCT_;
 			}
 
 			// If currently calculating the cost of using an index (not the IPK index), determine if all required column data may be obtained without 
@@ -2626,7 +2631,7 @@ cancel:
 			}
 			_assert(x->OP == TK_IN);
 			regId = targetId;
-			IN_INDEX type = FindInIndex(parse, x, nullptr);
+			IN_INDEX type = Expr::FindInIndex(parse, x, nullptr);
 			if (type == IN_INDEX_INDEX_DESC)
 			{
 				ASSERTCOVERAGE(rev);
@@ -2635,14 +2640,14 @@ cancel:
 			int tableId = x->TableIdx;
 			v->AddOp2(rev ? OP_Last : OP_Rewind, tableId, 0);
 			_assert(level->Plan.WsFlags & WHERE_IN_ABLE);
-			if (level->u.in.InLoops.length == 0)
+			if (level->u.in.InLoopsLength == 0)
 				level->AddrNxt = v->MakeLabel();
-			level->u.in.InLoops.length++;
-			level->u.in.InLoops = _tagrelloc_or_free(parse->Ctx, level->u.in.InLoops.data, sizeof(level->u.in.InLoops[0])*level->u.in.InLoops.length);
+			level->u.in.InLoopsLength++;
+			level->u.in.InLoops = (WhereLevel::InLoop *)_tagrealloc_or_free(parse->Ctx, level->u.in.InLoops, sizeof(level->u.in.InLoops[0])*level->u.in.InLoopsLength);
 			WhereLevel::InLoop *in = level->u.in.InLoops;
 			if (in)
 			{
-				in += level->u.in.InLoops.length - 1;
+				in += level->u.in.InLoopsLength - 1;
 				in->Cur = tableId;
 				if (type == IN_INDEX_ROWID)
 					in->AddrInTop = v->AddOp2(OP_Rowid, tableId, regId);
@@ -2652,7 +2657,7 @@ cancel:
 				v->AddOp1(OP_IsNull, regId);
 			}
 			else
-				level->u.in.InLoops.length = 0;
+				level->u.in.InLoopsLength = 0;
 #endif
 		}
 		DisableTerm(level, term);
@@ -2662,7 +2667,7 @@ cancel:
 	__device__ static int CodeAllEqualityTerms(Parse *parse, WhereLevel *level, WhereClause *wc, Bitmask notReady, int extraRegs, char **affsOut)
 	{
 		// This module is only called on query plans that use an index.
-		_assert(level->plan.wsFlags & WHERE_INDEXED);
+		_assert(level->Plan.WsFlags & WHERE_INDEXED);
 		Index *index = level->Plan.u.Index; // The index being used for this loop
 
 		// Figure out how many memory cells we will need then allocate them.
@@ -2671,7 +2676,7 @@ cancel:
 		parse->Mems += regs;
 
 		Vdbe *v = parse->V; // The vm under construction
-		char *affs = _tagstrdup(parse->Ctx, sqlite3IndexAffinityStr(v, index)); // Affinity string to return
+		char *affs = _tagstrdup(parse->Ctx, Insert::IndexAffinityStr(v, index)); // Affinity string to return
 		if (!affs)
 			parse->Ctx->MallocFailed = true;
 
@@ -2682,7 +2687,7 @@ cancel:
 		for (int j = 0; j < eqs; j++)
 		{
 			int k = index->Columns[j];
-			WhereTerm *term = FindTerm(wc, cur, k, notReady, level->Plan.WsFlags, index); // A single constraint term
+			WhereTerm *term = FindTerm(wc, cur, k, notReady, (WO)level->Plan.WsFlags, index); // A single constraint term
 			if (!term) break;
 			// The following true for indices with redundant columns. Ex: CREATE INDEX i1 ON t1(a,b,a); SELECT * FROM t1 WHERE a=0 AND b=0;
 			ASSERTCOVERAGE((term->WtFlags & TERM_CODED) != 0);
@@ -2691,7 +2696,7 @@ cancel:
 			if (r1 != baseId+j)
 				if (regs == 1)
 				{
-					parse->ReleaseTempReg(baseId);
+					Expr::ReleaseTempReg(parse, baseId);
 					baseId = r1;
 				}
 				else
@@ -2713,7 +2718,7 @@ cancel:
 
 #ifndef OMIT_EXPLAIN
 
-	__device__ static void ExplainAppendTerm(Text::StringBuilder *b, int term, const char *columnName, const char *opName)
+	__device__ static void ExplainAppendTerm(TextBuilder *b, int term, const char *columnName, const char *opName)
 	{
 		if (term) b->Append(" AND ", 5);
 		b->Append(columnName, -1);
@@ -2730,9 +2735,9 @@ cancel:
 		int *columns = index->Columns;
 		if (eqs == 0 && (plan->WsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT)) == 0)
 			return nullptr;
-		Text::StringBuilder b;
-		Text::StringBuilder::Init(&b, 0, 0, CORE_MAX_LENGTH);
-		b.Ctx = ctx;
+		TextBuilder b;
+		TextBuilder::Init(&b, 0, 0, CORE_MAX_LENGTH);
+		b.Tag = ctx;
 		b.Append(" (", 2);
 		int i;
 		for (i = 0; i < eqs; i++)
@@ -2758,17 +2763,17 @@ cancel:
 			if ((flags&WHERE_MULTI_OR) || (wctrlFlags&WHERE_ONETABLE_ONLY)) return;
 			bool isSearch = (level->Plan.Eqs > 0 || (flags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT)) != 0 || (wctrlFlags&(WHERE_ORDERBY_MIN|WHERE_ORDERBY_MAX))); // True for a SEARCH. False for SCAN.
 
-			char *b = sqlite3MPrintf(ctx, "%s", isSearch?"SEARCH":"SCAN"); // Text to add to EQP output
+			char *b = _mtagprintf(ctx, "%s", isSearch?"SEARCH":"SCAN"); // Text to add to EQP output
 			if (item->Select)
-				b = sqlite3MAppendf(ctx, b, "%s SUBQUERY %d", b, item->SelectId);
+				b = _mtagappendf(ctx, b, "%s SUBQUERY %d", b, item->SelectId);
 			else
-				b = sqlite3MAppendf(ctx, b, "%s TABLE %s", b, item->Name);
+				b = _mtagappendf(ctx, b, "%s TABLE %s", b, item->Name);
 			if (item->Alias)
-				b = sqlite3MAppendf(ctx, b, "%s AS %s", b, item->Alias);
+				b = _mtagappendf(ctx, b, "%s AS %s", b, item->Alias);
 			if ((flags & WHERE_INDEXED) != 0)
 			{
 				char *where = ExplainIndexRange(ctx, level, item->Table);
-				b = sqlite3MAppendf(ctx, b, "%s USING %s%sINDEX%s%s%s", b,
+				b = _mtagappendf(ctx, b, "%s USING %s%sINDEX%s%s%s", b,
 					((flags & WHERE_TEMP_INDEX) ? "AUTOMATIC " : ""),
 					((flags & WHERE_IDX_ONLY) ? "COVERING " : ""),
 					((flags & WHERE_TEMP_INDEX) ? "" : " "),
@@ -2778,17 +2783,17 @@ cancel:
 			}
 			else if (flags & (WHERE_ROWID_EQ|WHERE_ROWID_RANGE))
 			{
-				b = sqlite3MAppendf(ctx, b, "%s USING INTEGER PRIMARY KEY", b);
-				if (flags&WHERE_ROWID_EQ) b = sqlite3MAppendf(ctx, b, "%s (rowid=?)", b);
-				else if ((flags&WHERE_BOTH_LIMIT) == WHERE_BOTH_LIMIT) b = sqlite3MAppendf(ctx, b, "%s (rowid>? AND rowid<?)", b);
-				else if (flags&WHERE_BTM_LIMIT) b = sqlite3MAppendf(ctx, b, "%s (rowid>?)", b);
-				else if (flags&WHERE_TOP_LIMIT) b = sqlite3MAppendf(ctx, b, "%s (rowid<?)", b);
+				b = _mtagappendf(ctx, b, "%s USING INTEGER PRIMARY KEY", b);
+				if (flags&WHERE_ROWID_EQ) b = _mtagappendf(ctx, b, "%s (rowid=?)", b);
+				else if ((flags&WHERE_BOTH_LIMIT) == WHERE_BOTH_LIMIT) b = _mtagappendf(ctx, b, "%s (rowid>? AND rowid<?)", b);
+				else if (flags&WHERE_BTM_LIMIT) b = _mtagappendf(ctx, b, "%s (rowid>?)", b);
+				else if (flags&WHERE_TOP_LIMIT) b = _mtagappendf(ctx, b, "%s (rowid<?)", b);
 			}
 #ifndef OMIT_VIRTUALTABLE
 			else if ((flags & WHERE_VIRTUALTABLE) != 0)
 			{
 				IIndexInfo *vtableIndex = level->Plan.u.VTableIndex;
-				b = sqlite3MAppendf(ctx, b, "%s VIRTUAL TABLE INDEX %d:%s", b, vtableIndex->IdxNum, vtableIndex->IdxStr);
+				b = _mtagappendf(ctx, b, "%s VIRTUAL TABLE INDEX %d:%s", b, vtableIndex->IdxNum, vtableIndex->IdxStr);
 			}
 #endif
 			int64 rows; // Expected number of rows visited by scan
@@ -2799,7 +2804,7 @@ cancel:
 			}
 			else
 				rows = (int64)level->Plan.Rows;
-			b = sqlite3MAppendf(ctx, b, "%s (~%lld rows)", b, rows);
+			b = _mtagappendf(ctx, b, "%s (~%lld rows)", b, rows);
 			int selectId = parse->SelectId; // Select id (left-most output column)
 			v->AddOp4(OP_Explain, selectId, levelId, fromId, b, Vdbe::P4T_DYNAMIC);
 		}
@@ -2839,7 +2844,7 @@ cancel:
 		{
 			level->LeftJoin = ++parse->Mems;
 			v->AddOp2(OP_Integer, 0, level->LeftJoin);
-			VdbeComment(v, "init LEFT JOIN no-match flag");
+			v->Comment("init LEFT JOIN no-match flag");
 		}
 
 		// Special case of a FROM clause subquery implemented as a co-routine
@@ -2848,7 +2853,7 @@ cancel:
 			int regYield = item->RegReturn;
 			v->AddOp2(OP_Integer, item->AddrFillSub-1, regYield);
 			level->P2 = v->AddOp1(OP_Yield, regYield);
-			VdbeComment(v, "next row of co-routine %s", item->Table->Name);
+			v->Comment("next row of co-routine %s", item->Table->Name);
 			v->AddOp2(OP_If, regYield+1, addrBrk);
 			level->OP = OP_Goto;
 		}
@@ -2864,7 +2869,7 @@ cancel:
 				const IIndexInfo::Constraint *constraints = vtableIndex->Constraints;
 
 				Expr::CachePush(parse);
-				int regId = parse->GetTempRange(constraintsLength+2); // P3 Value for OP_VFilter
+				int regId = Expr::GetTempRange(parse, constraintsLength+2); // P3 Value for OP_VFilter
 				int addrNotFound = level->AddrBrk;
 				for (j = 1; j <= constraintsLength; j++)
 				{
@@ -2901,7 +2906,7 @@ cancel:
 				level->OP = OP_VNext;
 				level->P1 = cur;
 				level->P2 = v->CurrentAddr();
-				parse->ReleaseTempRange(regId, constraintsLength+2);
+				Expr::ReleaseTempRange(parse, regId, constraintsLength+2);
 				Expr::CachePop(parse, 1);
 			}
 			else
@@ -2910,7 +2915,7 @@ cancel:
 				{
 					// Case 1:  We can directly reference a single row using an equality comparison against the ROWID field.  Or
 					// we reference multiple rows using a "rowid IN (...)" construct.
-					releaseRegId = parse->GetTempReg();
+					releaseRegId = Expr::GetTempReg(parse);
 					term = FindTerm(wc, cur, -1, notReady, WO_EQ|WO_IN, 0);
 					_assert(term != nullptr);
 					_assert(term->Expr != nullptr);
@@ -2922,7 +2927,7 @@ cancel:
 					v->AddOp3(OP_NotExists, cur, addrNxt, rowidRegId);
 					Expr::CacheAffinityChange(parse, rowidRegId, 1);
 					Expr::CacheStore(parse, cur, -1, rowidRegId);
-					VdbeComment(v, "pk");
+					v->Comment("pk");
 					level->OP = OP_Noop;
 				}
 				else if (level->Plan.WsFlags & WHERE_ROWID_RANGE)
@@ -2959,9 +2964,9 @@ cancel:
 						int tempId; // Registers for holding the start boundary
 						int r1 = Expr::CodeTemp(parse, x->Right, &tempId); // Registers for holding the start boundary
 						v->AddOp3(_moveOps[x->OP-TK_GT], cur, addrBrk, r1);
-						VdbeComment(v, "pk");
+						v->Comment("pk");
 						Expr::CacheAffinityChange(parse, r1, 1);
-						parse->ReleaseTempReg(tempId);
+						Expr::ReleaseTempReg(parse, tempId);
 						DisableTerm(level, start);
 					}
 					else
@@ -2985,16 +2990,16 @@ cancel:
 					level->P1 = cur;
 					level->P2 = startId;
 					if (!start && !end)
-						level->P5 = STMTSTATUS_FULLSCAN_STEP;
+						level->P5 = Vdbe::STMTSTATUS_FULLSCAN_STEP;
 					else
 						_assert(level->P5 == 0);
 					if (testOp != OP_Noop)
 					{
-						rowidRegId = releaseRegId = parse->GetTempReg();
+						rowidRegId = releaseRegId = Expr::GetTempReg(parse);
 						v->AddOp2(OP_Rowid, cur, rowidRegId);
 						Expr::CacheStore(parse, cur, -1, rowidRegId);
 						v->AddOp3(testOp, memEndValue, addrBrk, rowidRegId);
-						v->ChangeP5(AFF_NUMERIC | SQLITE_JUMPIFNULL);
+						v->ChangeP5(AFF_NUMERIC | AFF_BIT_JUMPIFNULL);
 					}
 				}
 				else if (level->Plan.WsFlags & (WHERE_COLUMN_RANGE|WHERE_COLUMN_EQ))
@@ -3097,7 +3102,7 @@ cancel:
 							if (right->CompareAffinity((AFF)startAffs[eqs]) == AFF_NONE || right->NeedsNoAffinityChange((AFF)startAffs[eqs]))
 								startAffs[eqs] = AFF_NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
 						constraints++;
-						ASSERTCOVERAGE(rangeStart->wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+						ASSERTCOVERAGE(rangeStart->WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
 					}
 					else if (isMinQuery)
 					{
@@ -3131,7 +3136,7 @@ cancel:
 								endAffs[eqs] = AFF_NONE; // Since the comparison is to be performed with no conversions applied to the operands, set the affinity to apply to pRight to AFF_NONE.
 						CodeApplyAffinity(parse, baseId, eqs+1, endAffs);
 						constraints++;
-						ASSERTCOVERAGE(rangeEnd->wtFlags & TERM_VIRTUAL); // EV: R-30575-11662
+						ASSERTCOVERAGE(rangeEnd->WtFlags & TERM_VIRTUAL); // EV: R-30575-11662
 					}
 					_tagfree(parse->Ctx, startAffs);
 					_tagfree(parse->Ctx, endAffs);
@@ -3152,7 +3157,7 @@ cancel:
 
 					// If there are inequality constraints, check that the value of the table column that the inequality contrains is not NULL.
 					// If it is, jump to the next iteration of the loop.
-					int r1 = parse->GetTempReg(); // Temp register
+					int r1 = Expr::GetTempReg(parse); // Temp register
 					ASSERTCOVERAGE(level->Plan.WsFlags & WHERE_BTM_LIMIT);
 					ASSERTCOVERAGE(level->Plan.WsFlags & WHERE_TOP_LIMIT);
 					if ((level->Plan.WsFlags & (WHERE_BTM_LIMIT|WHERE_TOP_LIMIT)) != 0)
@@ -3160,14 +3165,14 @@ cancel:
 						v->AddOp3(OP_Column, idxCur, eqs, r1);
 						v->AddOp2(OP_IsNull, r1, addrCont);
 					}
-					parse->ReleaseTempReg(r1);
+					Expr::ReleaseTempReg(parse, r1);
 
 					// Seek the table cursor, if required
 					DisableTerm(level, rangeStart);
 					DisableTerm(level, rangeEnd);
 					if (!omitTable)
 					{
-						rowidRegId = releaseRegId = parse->GetTempReg();
+						rowidRegId = releaseRegId = Expr::GetTempReg(parse);
 						v->AddOp2(OP_IdxRowid, idxCur, rowidRegId);
 						Expr::CacheStore(parse, cur, -1, rowidRegId);
 						v->AddOp2(OP_Seek, cur, rowidRegId); // Deferred seek
@@ -3179,7 +3184,7 @@ cancel:
 					else level->OP = OP_Next;
 					level->P1 = idxCur;
 					if (level->Plan.WsFlags & WHERE_COVER_SCAN)
-						level->P5 = STMTSTATUS_FULLSCAN_STEP;
+						level->P5 = Vdbe::STMTSTATUS_FULLSCAN_STEP;
 					else
 						_assert(level->P5 == 0);
 				}
@@ -3238,7 +3243,7 @@ cancel:
 						if (winfo->Levels > 1)
 						{
 							int notReadys = winfo->Levels - levelId - 1; // The number of notReady tables
-							orTab = SysEx::StackAllocRaw(parse->Ctx, sizeof(*orTab) + notReadys*sizeof(orTab->Ids[0]));
+							orTab = (SrcList *)_stackalloc(parse->Ctx, sizeof(*orTab) + notReadys*sizeof(orTab->Ids[0]), false);
 							if (!orTab) return notReady;
 							orTab->Allocs = (int16)(notReadys + 1);
 							orTab->Srcs = orTab->Allocs;
@@ -3301,7 +3306,7 @@ cancel:
 									orExpr = andExpr;
 								}
 								// Loop through table entries that match term orTerm.
-								WhereInfo *subWInfo = sqlite3WhereBegin(parse, orTab, orExpr, 0, 0, WHERE_OMIT_OPEN_CLOSE | WHERE_AND_ONLY | WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY, covCur); // Info for single OR-term scan
+								WhereInfo *subWInfo = WhereInfo::Begin(parse, orTab, orExpr, 0, 0, WHERE_OMIT_OPEN_CLOSE | WHERE_AND_ONLY | WHERE_FORCE_TABLE | WHERE_ONETABLE_ONLY, covCur); // Info for single OR-term scan
 								_assert(subWInfo || parse->Errs || parse->Ctx->MallocFailed);
 								if (subWInfo)
 								{
@@ -3334,7 +3339,7 @@ cancel:
 										cov = nullptr;
 
 									// Finish the loop through table entries that match term orTerm.
-									sqlite3WhereEnd(subWInfo);
+									WhereInfo::End(subWInfo);
 								}
 							}
 						}
@@ -3349,21 +3354,21 @@ cancel:
 						v->AddOp2(OP_Goto, 0, level->AddrBrk);
 						v->ResolveLabel(loopBodyId);
 
-						if (winfo->Levels > 1) sqlite3StackFree(parse->Ctx, orTab);
+						if (winfo->Levels > 1) _stackfree(parse->Ctx, orTab);
 						if (!untestedTerms) DisableTerm(level, term);
 					}
 					else
 #endif
 					{
 						// Case 5:  There is no usable index.  We must do a complete scan of the entire table.
-						static const uint8 *_steps[] = { OP_Next, OP_Prev };
-						static const uint8 _starts[] = { OP_Rewind, OP_Last };
+						static const OP _steps[] = { OP_Next, OP_Prev };
+						static const OP _starts[] = { OP_Rewind, OP_Last };
 						_assert(rev == 0 || rev == 1);
 						_assert(omitTable == 0);
 						level->OP = _steps[rev];
 						level->P1 = cur;
 						level->P2 = 1 + v->AddOp2(_starts[rev], cur, addrBrk);
-						level->P5 = STMTSTATUS_FULLSCAN_STEP;
+						level->P5 = Vdbe::STMTSTATUS_FULLSCAN_STEP;
 					}
 		}
 		notReady &= ~GetMask(wc->MaskSet, cur);
@@ -3386,7 +3391,7 @@ cancel:
 			_assert(e != nullptr);
 			if (level->LeftJoin && !ExprHasProperty(e, EP_FromJoin))
 				continue;
-			e->IfFalse(parse, addrCont, SQLITE_JUMPIFNULL);
+			e->IfFalse(parse, addrCont, AFF_BIT_JUMPIFNULL);
 			term->WtFlags |= TERM_CODED;
 		}
 
@@ -3395,7 +3400,7 @@ cancel:
 		{
 			level->AddrFirst = v->CurrentAddr();
 			v->AddOp2(OP_Integer, 1, level->LeftJoin);
-			VdbeComment(v, "record LEFT JOIN hit");
+			v->Comment("record LEFT JOIN hit");
 			Expr::CacheClear(parse);
 			for (term = wc->Slots, j = 0; j < wc->Terms; j++, term++)
 			{
@@ -3408,11 +3413,11 @@ cancel:
 					continue;
 				}
 				_assert(term->Expr);
-				term->Expr->IfFalse(parse, addrCont, SQLITE_JUMPIFNULL);
+				term->Expr->IfFalse(parse, addrCont, AFF_BIT_JUMPIFNULL);
 				term->WtFlags |= TERM_CODED;
 			}
 		}
-		parse->ReleaseTempReg(releaseRegId);
+		Expr::ReleaseTempReg(parse, releaseRegId);
 		return notReady;
 	}
 
@@ -3449,7 +3454,7 @@ cancel:
 	static int _queryPlanIdx = 0; // Next free slow in _query_plan[]
 #endif
 
-	__device__ WhereInfo *Where_Begin(Parse *parse, SrcList *tabList, Expr *where,  ExprList *orderBy, ExprList *distinct, uint16 wctrlFlags, int idxCur)
+	__device__ WhereInfo *WhereInfo::Begin(::Parse *parse, SrcList *tabList, Expr *where,  ExprList *orderBy, ExprList *distinct, WHERE wctrlFlags, int idxCur)
 	{
 		Vdbe *v = parse->V; // The virtual database engine
 		Bitmask notReady; // Cursors that are not yet positioned
@@ -3477,7 +3482,7 @@ cancel:
 		// field (type Bitmask) it must be aligned on an 8-byte boundary on some architectures. Hence the ROUND8() below.
 		Context *ctx = parse->Ctx; // Database connection
 		int bytesWInfo = _ROUND8(sizeof(WhereInfo)+(tabListLength-1)*sizeof(WhereLevel)); // Num. bytes allocated for WhereInfo struct
-		WhereInfo *winfo = (WhereInfo *)_tagalloc(ctx, bytesWInfo +  sizeof(WhereClause) + sizeof(WhereMaskSet), true); // Will become the return value of this function
+		WhereInfo *winfo = (WhereInfo *)_tagalloc2(ctx, bytesWInfo +  sizeof(WhereClause) + sizeof(WhereMaskSet), true); // Will become the return value of this function
 		if (ctx->MallocFailed)
 		{
 			_tagfree(ctx, winfo);
@@ -3496,7 +3501,7 @@ cancel:
 		sWBI.Levels = winfo->Data;
 
 		// Disable the DISTINCT optimization if SQLITE_DistinctOpt is set via sqlite3_test_ctrl(SQLITE_TESTCTRL_OPTIMIZATIONS,...)
-		if (CtxOptimizationDisabled(ctx, SQLITE_DistinctOpt)) distinct = nullptr;
+		if (CtxOptimizationDisabled(ctx, OPTFLAG_DistinctOpt)) distinct = nullptr;
 
 		// Split the WHERE clause into separate subexpressions where each subexpression is separated by an AND operator.
 		WhereClauseInit(sWBI.WC, parse, maskSet, wctrlFlags);
@@ -3506,7 +3511,7 @@ cancel:
 		// Special case: a WHERE clause that is constant.  Evaluate the expression and either jump over all of the code or fall thru.
 		if (where && (tabListLength == 0 || where->IsConstantNotJoin()))
 		{
-			where->IfFalse(parse, winfo->BreakId, SQLITE_JUMPIFNULL);
+			where->IfFalse(parse, winfo->BreakId, AFF_BIT_JUMPIFNULL);
 			where = nullptr;
 		}
 
@@ -3567,9 +3572,8 @@ cancel:
 		WhereLevel *level; // A single level in pWInfo->a[]
 		for (sWBI.i = fromId = 0, level = winfo->Data; sWBI.i < tabListLength; sWBI.i++, level++)
 		{
-
-			int j;                      // For looping over FROM tables
-			int bestJ = -1;             // The value of j
+			int j; // For looping over FROM tables
+			int bestJ = -1; // The value of j
 
 			WhereCost bestPlan; // Most efficient plan seen so far
 			_memset(&bestPlan, 0, sizeof(bestPlan));
@@ -3704,9 +3708,9 @@ cancel:
 			ASSERTCOVERAGE(bestJ > fromId && bestJ < tabListLength-1 && (tabList->Ids[bestJ+1].Jointype & JT_LEFT) != 0);
 			WHERETRACE("*** Optimizer selects table %d (%s) for loop %d with:\n    cost=%.1f, nRow=%.1f, nOBSat=%d, wsFlags=0x%08x\n",
 				bestJ, tabList->Ids[bestJ].Table->Name,
-				level - winfo->a, bestPlan.Cost, bestPlan.Plan.Rows,
+				level - winfo->Data, bestPlan.Cost, bestPlan.Plan.Rows,
 				bestPlan.Plan.OBSats, bestPlan.Plan.WsFlags);
-			if ((bestPlan.Plan.WsFlags & WHERE_DISTINCT) != 0)
+			if ((bestPlan.Plan.WsFlags & WHERE_DISTINCT_) != 0)
 			{
 				_assert(winfo->EDistinct == 0);
 				winfo->EDistinct = WHERE_DISTINCT_ORDERED;
@@ -3765,7 +3769,7 @@ cancel:
 		}
 
 		// Open all tables in the tabList and any indices selected for searching those tables.
-		sqlite3CodeVerifySchema(parse, -1); // Insert the cookie verifier Goto
+		parse->CodeVerifySchema(-1); // Insert the cookie verifier Goto
 		notReady = ~(Bitmask)0;
 		winfo->RowOuts = (double)1;
 		for (ii = 0, level = winfo->Data; ii < tabListLength; ii++, level++)
@@ -3773,7 +3777,7 @@ cancel:
 			SrcList::SrcListItem *tabItem = &tabList->Ids[level->From];
 			Table *table = tabItem->Table; // Table to open
 			winfo->RowOuts *= level->Plan.Rows;
-			int db = sqlite3SchemaToIndex(ctx, table->Schema); // Index of database containing table/index
+			int db = Prepare::SchemaToIndex(ctx, table->Schema); // Index of database containing table/index
 			if ((table->TabFlags & TF_Ephemeral) != 0 || table->Select) { } // Do nothing
 			else
 #ifndef OMIT_VIRTUALTABLE
@@ -3789,7 +3793,7 @@ cancel:
 					if ((level->Plan.WsFlags & WHERE_IDX_ONLY) == 0 && (wctrlFlags & WHERE_OMIT_OPEN_CLOSE) == 0)
 					{
 						int op = (winfo->OkOnePass ? OP_OpenWrite : OP_OpenRead);
-						sqlite3OpenTable(parse, tabItem->Cursor, db, table, op);
+						Insert::OpenTable(parse, tabItem->Cursor, db, table, op);
 						ASSERTCOVERAGE(table->Cols.length == BMS-1);
 						ASSERTCOVERAGE(table->Cols.length == BMS);
 						if (!winfo->OkOnePass && table->Cols.length < BMS)
@@ -3797,12 +3801,12 @@ cancel:
 							Bitmask b = tabItem->ColUsed;
 							int n = 0;
 							for (; b; b = b >> 1, n++) { }
-							v->ChangeP4(v->CurrentAddr()-1, INT_TO_PTR(n), Vdbe::P4T_INT32);
+							v->ChangeP4(v->CurrentAddr()-1, (char *)INT_TO_PTR(n), Vdbe::P4T_INT32);
 							_assert(n <= table->Cols.length);
 						}
 					}
 					else
-						sqlite3TableLock(parse, db, table->Id, 0, table->Name);
+						parse->TableLock(db, table->Id, 0, table->Name);
 #ifndef OMIT_AUTOMATIC_INDEX
 				if ((level->Plan.WsFlags & WHERE_TEMP_INDEX) != 0)
 					ConstructAutomaticIndex(parse, sWBI.WC, tabItem, notReady, level);
@@ -3811,14 +3815,14 @@ cancel:
 					if ((level->Plan.WsFlags & WHERE_INDEXED) != 0)
 					{
 						Index *index = level->Plan.u.Index;
-						KeyInfo *keyInfo = sqlite3IndexKeyinfo(parse, index);
+						KeyInfo *keyInfo = parse->IndexKeyinfo(index);
 						int indexCur = level->IdxCur;
 						_assert(index->Schema == table->Schema);
 						_assert(indexCur >= 0);
 						v->AddOp4(OP_OpenRead, indexCur, index->Id, db, (char *)keyInfo, Vdbe::P4T_KEYINFO_HANDOFF);
-						VdbeComment(v, "%s", index->Name);
+						v->Comment("%s", index->Name);
 					}
-					sqlite3CodeVerifySchema(parse, db);
+					parse->CodeVerifySchema(db);
 					notReady &= ~GetMask(sWBI.WC->MaskSet, tabItem->Cursor);
 		}
 		winfo->TopId = v->CurrentAddr();
@@ -3902,9 +3906,9 @@ whereBeginError:
 		return nullptr;
 	}
 
-	__device__ void Where_End(WhereInfo *winfo)
+	__device__ void WhereInfo::End(WhereInfo *winfo)
 	{
-		Parse *parse = winfo->Parse;
+		::Parse *parse = winfo->Parse;
 		Vdbe *v = parse->V;
 		int i;
 		WhereLevel *level;
@@ -3993,7 +3997,8 @@ whereBeginError:
 					if (op->P1 != level->TabCur) continue;
 					if (op->Opcode == OP_Column)
 					{
-						for (int j = 0; j < idx->Columns.length; j++)
+						int j;
+						for (j = 0; j < idx->Columns.length; j++)
 						{
 							if (op->P2 == idx->Columns[j])
 							{

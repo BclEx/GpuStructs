@@ -1,6 +1,6 @@
 // pragma.c
 #include "..\Core+Vdbe.cu.h"
-#include "..\VdbeInt.h"
+#include "..\VdbeInt.cu.h"
 
 namespace Core { namespace Command
 {
@@ -1159,7 +1159,7 @@ namespace Core { namespace Command
 			// Do an integrity check on each database file
 			for (int i = 0; i < ctx->DBs.length; i++)
 			{
-				if (OMIT_TEMPDB && i == 1) continue;
+				if (E_OMIT_TEMPDB && i == 1) continue;
 				if (db >= 0 && i != db) continue;
 
 				parse->CodeVerifySchema(i);

@@ -293,4 +293,25 @@ namespace Core
         public RC IsError;          // Error code returned by the function.
         public bool SkipFlag;			// Skip skip accumulator loading if true
     }
+
+    //public class Explain
+    //{
+    //    Vdbe Vdbe_;			// Attach the explanation to this Vdbe
+    //    TextBuilder Str;		// The string being accumulated
+    //    int IndentLength;		// Number of elements in aIndent
+    //    ushort[] Indents = new ushort[100];	// Levels of indentation
+    //    char[] ZBase = new char[100];		// Initial space
+    //}
+
+    partial class E
+    {
+#if OMIT_TEMPDB
+        public const int OMIT_TEMPDB = 1;
+#else
+        public const int OMIT_TEMPDB = 0;
+#endif
+        const string MASTER_NAME = "sqlite_master"; // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
+        const string TEMP_MASTER_NAME = "sqlite_temp_master"; // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
+        public string SCHEMA_TABLE(int x) { return (OMIT_TEMPDB == 0 && x == 1 ? TEMP_MASTER_NAME : MASTER_NAME); } // The name of the schema table.
+    }
 }

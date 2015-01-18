@@ -22,6 +22,10 @@ namespace Core
 		SCHEMA_UnresetViews = 0x0002,	// Some views have defined column names
 		SCHEMA_Empty = 0x0004,			// The file is empty (length 0 bytes)
 	};
+	__device__ inline SCHEMA operator|=(SCHEMA a, int b) { return (SCHEMA)(a | b); }
+	__device__ inline SCHEMA operator&=(SCHEMA a, int b) { return (SCHEMA)(a & b); }
+	__device__ inline SCHEMA operator|(SCHEMA a, SCHEMA b) { return (SCHEMA)((int)a | (int)b); }
+	__device__ inline SCHEMA operator&(SCHEMA a, SCHEMA b) { return (SCHEMA)((int)a & (int)b); }
 
 #define DbHasProperty(D,I,P)     (((D)->DBs[I].Schema->Flags&(P))==(P))
 #define DbHasAnyProperty(D,I,P)  (((D)->DBs[I].Schema->Flags&(P))!=0)

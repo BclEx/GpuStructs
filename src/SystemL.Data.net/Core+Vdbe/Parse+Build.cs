@@ -203,7 +203,7 @@ namespace Core
             // All mutexes are required for schema access.  Make sure we hold them.
             Debug.Assert(dbName != null || Btree.HoldsAllMutexes(ctx));
             Table table = null;
-            for (int i = OMIT_TEMPDB; i < ctx.DBs.length; i++)
+            for (int i = E.OMIT_TEMPDB; i < ctx.DBs.length; i++)
             {
                 int j = (i < 2 ? i ^ 1 : i); // Search TEMP before MAIN
                 if (dbName != null && !string.Equals(dbName, ctx.DBs[j].Name, StringComparison.OrdinalIgnoreCase))
@@ -256,7 +256,7 @@ namespace Core
             Debug.Assert(dbName != null || Btree.HoldsAllMutexes(ctx));
             Index p = null;
             int nameLength = name.Length;
-            for (int i = OMIT_TEMPDB; i < ctx.DBs.length; i++)
+            for (int i = E.OMIT_TEMPDB; i < ctx.DBs.length; i++)
             {
                 int j = (i < 2 ? i ^ 1 : i);  // Search TEMP before MAIN
                 Schema schema = ctx.DBs[j].Schema;
@@ -329,7 +329,7 @@ namespace Core
                 Array.Copy(ctx.DBs.data, ctx.DBStatics, 2);
         }
 
-        public void ResetOneSchema(Context ctx, int db)
+        public static void ResetOneSchema(Context ctx, int db)
         {
             Debug.Assert(db < ctx.DBs.length);
             // Case 1:  Reset the single schema identified by iDb
@@ -482,7 +482,7 @@ namespace Core
                 for (db = (ctx.DBs.length - 1); db >= 0; db--)
                 {
                     db2 = ctx.DBs[db];
-                    if ((OMIT_TEMPDB == 0 || db != 1) && nameLength == db2.Name.Length && !string.Equals(db2.Name, name, StringComparison.OrdinalIgnoreCase))
+                    if ((E.OMIT_TEMPDB == 0 || db != 1) && nameLength == db2.Name.Length && !string.Equals(db2.Name, name, StringComparison.OrdinalIgnoreCase))
                         break;
                 }
             }
@@ -555,13 +555,13 @@ namespace Core
             int db = TwoPartName(name1, name2, ref unqual); // Database number to create the table in
             if (db < 0)
                 return;
-            if (!OMIT_TEMPDB && isTemp && name2.length > 0 && db != 1)
+            if (E.OMIT_TEMPDB == 0 && isTemp && name2.length > 0 && db != 1)
             {
                 // If creating a temp table, the name may not be qualified. Unless the database name is "temp" anyway.
                 ErrorMsg("temporary table name must be unqualified");
                 return;
             }
-            if (!OMIT_TEMPDB && isTemp)
+            if (E.OMIT_TEMPDB == 0 && isTemp)
                 db = 1;
             NameToken = unqual;
             Context ctx = Ctx;
@@ -577,15 +577,15 @@ namespace Core
 #if !OMIT_AUTHORIZATION
             //Debug.Assert((isTemp & 1) == isTemp);
             {
-                int code;
+                AUTH code;
                 string dbName = ctx.DBs[db].Name;
-                if (Auth.Check(this, AUTH.INSERT, SCHEMA_TABLE(isTemp), 0, dbName))
+                if (Auth.Check(this, AUTH.INSERT, E.SCHEMA_TABLE(isTemp), 0, dbName))
                     goto begin_table_error;
                 if (isView)
-                    code = (!OMIT_TEMPDB && isTemp ? AUTH.CREATE_TEMP_VIEW : AUTH.CREATE_VIEW);
+                    code = (E.OMIT_TEMPDB == 0 && isTemp ? AUTH.CREATE_TEMP_VIEW : AUTH.CREATE_VIEW);
                 else
-                    code = (!OMIT_TEMPDB && isTemp ? AUTH.CREATE_TEMP_TABLE : AUTH.CREATE_TABLE);
-                if (!isVirtual && Auth.Check(this, code, name, 0, dbName))
+                    code = (E.OMIT_TEMPDB == 0 && isTemp ? AUTH.CREATE_TEMP_TABLE : AUTH.CREATE_TABLE);
+                if (!isVirtual && Auth.Check(this, code, name, null, dbName) != 0)
                     goto begin_table_error;
             }
 #endif
@@ -1517,11 +1517,11 @@ namespace Core
                 string dbName = ctx.aDb[db].zName;
                 if (Auth.Check(this, AUTH.DELETE, tableName, 0, dbName))
                     goto exit_drop_table;
-                int code;
+                AUTH code;
                 string arg2;
                 if (isView)
                 {
-                    code = (!OMIT_TEMPDB && db == 1 ? AUTH.DROP_TEMP_VIEW : AUTH.DROP_VIEW);
+                    code = (!E.OMIT_TEMPDB && db == 1 ? AUTH.DROP_TEMP_VIEW : AUTH.DROP_VIEW);
                     arg2 = 0;
                 }
 #if !OMIT_VIRTUALTABLE
@@ -1533,10 +1533,10 @@ namespace Core
 #endif
                 else
                 {
-                    code = (!OMIT_TEMPDB && db == 1 ? AUTH.DROP_TEMP_TABLE : AUTH.DROP_TABLE);
+                    code = (!E.OMIT_TEMPDB && db == 1 ? AUTH.DROP_TEMP_TABLE : AUTH.DROP_TABLE);
                     arg2 = 0;
                 }
-                if (Auth.Check(this, code, table.Name, arg2, dbName) || Auth.Check(this, AUTH.DELETE, table.Name, 0, dbName))
+                if (Auth.Check(this, code, table.Name, arg2, dbName) || Auth.Check(this, AUTH.DELETE, table.Name, null, dbName))
                     goto exit_drop_table;
             }
 #endif
@@ -2190,8 +2190,8 @@ namespace Core
                 Table table = index.Table;
                 string dbName = ctx.DBs[db].Name;
                 string tableName = E.SCHEMA_TABLE(db);
-                int code = (!OMIT_TEMPDB && db != 0 ? AUTH.DROP_TEMP_INDEX : AUTH.DROP_INDEX);
-                if (Auth.Check(this, AUTH.DELETE, tableName, 0, dbName) || Auth.Check(this, code, index.Name, table.Name, dbName))
+                AUTH code = (!E.OMIT_TEMPDB && db != 0 ? AUTH.DROP_TEMP_INDEX : AUTH.DROP_INDEX);
+                if (Auth.Check(this, AUTH.DELETE, tableName, null, dbName) || Auth.Check(this, code, index.Name, table.Name, dbName))
                     goto exit_drop_index;
             }
 #endif
@@ -2539,7 +2539,7 @@ namespace Core
                 {
                     toplevel.CookieMask |= mask;
                     toplevel.CookieValue[db] = ctx.DBs[db].Schema.SchemaCookie;
-                    if (!OMIT_TEMPDB && db == 1)
+                    if (!E.OMIT_TEMPDB && db == 1)
                         toplevel.OpenTempDatabase();
                 }
             }
@@ -2682,7 +2682,7 @@ namespace Core
             ErrorMsg("unable to identify the object to be reindexed");
         }
 #endif
-        
+
         public KeyInfo IndexKeyinfo(Index index)
         {
             int colLength = index.Columns.length;

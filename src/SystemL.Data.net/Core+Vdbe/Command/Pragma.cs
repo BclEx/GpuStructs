@@ -1168,7 +1168,7 @@ namespace Core.Command
                 for (int i = 0; i < ctx.DBs.length; i++)
                 {
 
-                    if (OMIT_TEMPDB != 0 && i == 1) continue;
+                    if (E.OMIT_TEMPDB != 0 && i == 1) continue;
                     if (db >= 0 && i != db) continue;
 
                     parse.CodeVerifySchema(i);

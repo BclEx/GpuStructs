@@ -1,6 +1,6 @@
 // trigger.c
 #ifndef OMIT_TRIGGER
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
 
 namespace Core
 {
@@ -352,7 +352,7 @@ triggerfinish_cleanup:
 		int nameLength = _strlen30(nameAsString);
 		_assert(dbName != 0 || Btree::BtreeHoldsAllMutexes(ctx));
 		Trigger *trigger = nullptr;
-		for (int i = OMIT_TEMPDB; i < ctx->DBs.length; i++)
+		for (int i = E_OMIT_TEMPDB; i < ctx->DBs.length; i++)
 		{
 			int j = (i < 2 ? i^1 : i); // Search TEMP before MAIN
 			if (dbName && _strcmp(ctx->DBs[j].Name, dbName)) continue;

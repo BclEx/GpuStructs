@@ -1,6 +1,6 @@
 // vtab.c
 #ifndef OMIT_VIRTUALTABLE
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
 
 namespace Core
 {
@@ -439,7 +439,7 @@ namespace Core
 	__device__ RC VTable::CallCreate(Context *ctx, int dbidx, const char *tableName, char **errorOut)
 	{
 		Table *table = Parse::FindTable(ctx, tableName, ctx->DBs[dbidx].Name);
-		_assert(table && (table->TabFlags & TF_Virtual) != 0 && !table->VTable);
+		_assert(table && (table->TabFlags & TF_Virtual) != 0 && !table->VTables);
 
 		// Locate the required virtual table module
 		const char *moduleName = table->ModuleArgs[0];
@@ -479,7 +479,7 @@ namespace Core
 		_assert((table->TabFlags & TF_Virtual) != 0);
 
 		RC rc = RC_OK;
-		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(Parse));
+		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(Parse), false);
 		if (!parse)
 			rc = RC_NOMEM;
 		else
@@ -488,7 +488,7 @@ namespace Core
 			parse->Ctx = ctx;
 			parse->QueryLoops = 1;
 			char *error = nullptr;
-			if (Parse::RunParser(parse, createTableName, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
+			if (parse->RunParser(createTableName, &error) == RC_OK  && parse->NewTable && !ctx->MallocFailed && !parse->NewTable->Select && (parse->NewTable->TabFlags & TF_Virtual) == 0)
 			{
 				if (!table->Cols)
 				{
@@ -694,7 +694,7 @@ namespace Core
 			return def;
 
 		// Create a new ephemeral function definition for the overloaded function
-		FuncDef *newFunc = (FuncDef *)_tagalloc(ctx, sizeof(FuncDef) + _strlen30(def->Name) + 1, true);
+		FuncDef *newFunc = (FuncDef *)_tagalloc2(ctx, sizeof(FuncDef) + _strlen30(def->Name) + 1, true);
 		if (!newFunc) return def;
 		*newFunc = *def;
 		newFunc->Name = (char *)&newFunc[1];
@@ -708,7 +708,7 @@ namespace Core
 	__device__ void VTable::MakeWritable(Parse *parse, Table *table)
 	{
 		_assert(IsVirtual(table));
-		Parse *toplevel = parse->TopLevel();
+		Parse *toplevel = Parse_Toplevel(parse);
 		for (int i = 0; i < toplevel->VTableLocks.length; i++)
 			if (table == toplevel->VTableLocks[i]) return;
 		int newSize = (toplevel->VTableLocks.length + 1) * sizeof(toplevel->VTableLocks[0]);
@@ -744,7 +744,7 @@ namespace Core
 		MutexEx::Enter(ctx->Mutex);
 		switch (op)
 		{
-		case VTABLECONFIG_CONSTRAINT:
+		case VTABLECONFIG_CONSTRAINT: {
 			VTableContext *p = ctx->VTableCtx;
 			if (!p)
 				rc = SysEx_MISUSE_BKPT;
@@ -753,12 +753,12 @@ namespace Core
 				_assert(!p->Table || (p->Table->TabFlags & TF_Virtual) != 0);
 				p->VTable->Constraint = (bool)arg1;
 			}
-			break;
+			break; }
 		default:
 			rc = SysEx_MISUSE_BKPT;
 			break;
 		}
-		if (rc != RC_OK) sqlite3Error(ctx, rc, nullptr);
+		if (rc != RC_OK) Main::Error(ctx, rc, nullptr);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;
 	}

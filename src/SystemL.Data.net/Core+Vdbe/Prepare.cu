@@ -1,4 +1,4 @@
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
 
 namespace Core
 {
@@ -44,7 +44,7 @@ namespace Core
 			ctx->Init.OrphanTrigger = false;
 			Vdbe *stmt;
 #if _DEBUG
-			int rcp = Prepare(ctx, argv[2], -1, &stmt, nullptr);
+			int rcp = Prepare_(ctx, argv[2], -1, &stmt, nullptr);
 #else
 			Prepare(ctx, argv[2], -1, &stmt, nullptr);
 #endif
@@ -61,7 +61,7 @@ namespace Core
 					if (rc == RC_NOMEM)
 						ctx->MallocFailed = true;
 					else if (rc != RC_INTERRUPT && (rc&0xFF) != RC_LOCKED)
-						CorruptSchema(data, argv[0], sqlite3_errmsg(ctx));
+						CorruptSchema(data, argv[0], Main::ErrMsg(ctx));
 				}
 			}
 			stmt->Finalize();
@@ -113,13 +113,13 @@ namespace Core
 		_assert(db >= 0 && db < ctx->DBs.length);
 		_assert(ctx->DBs[db].Schema);
 		_assert(MutexEx::Held(ctx->Mutex));
-		_assert(db == 1 || ctx->DBs[db].Bt.HoldsMutex());
+		_assert(db == 1 || ctx->DBs[db].Bt->HoldsMutex());
 		RC rc;
 		int i;
 
 		// zMasterSchema and zInitScript are set to point at the master schema and initialisation script appropriate for the database being
 		// initialized. zMasterName is the name of the master table.
-		char const *masterSchema = (!OMIT_TEMPDB && db == 1 ? temp_master_schema : master_schema);
+		char const *masterSchema = (!E_OMIT_TEMPDB && db == 1 ? temp_master_schema : master_schema);
 		char const *masterName = SCHEMA_TABLE(db);
 
 		// Construct the schema tables.
@@ -147,7 +147,7 @@ namespace Core
 		Context::DB *dbAsObj = &ctx->DBs[db];
 		if (!dbAsObj->Bt)
 		{
-			if (!OMIT_TEMPDB && _ALWAYS(db == 1))
+			if (!E_OMIT_TEMPDB && _ALWAYS(db == 1))
 				DbSetProperty(ctx, 1, SCHEMA_SchemaLoaded);
 			return RC_OK;
 		}
@@ -161,7 +161,7 @@ namespace Core
 			rc = dbAsObj->Bt->BeginTrans(0);
 			if (rc != RC_OK)
 			{
-				_setstring(errMsg, ctx, "%s", sqlite3ErrStr(rc));
+				_setstring(errMsg, ctx, "%s", Main::ErrStr(rc));
 				goto initone_error_out;
 			}
 			openedTransaction = true;
@@ -230,7 +230,7 @@ namespace Core
 			dbAsObj->Schema->FileFormat = 1;
 		if (dbAsObj->Schema->FileFormat > MAX_FILE_FORMAT)
 		{
-			C._setstring(errMsg, ctx, "unsupported file format");
+			_setstring(errMsg, ctx, "unsupported file format");
 			rc = RC_ERROR;
 			goto initone_error_out;
 		}
@@ -296,7 +296,7 @@ error_out:
 		ctx->Init.Busy = true;
 		for (int i = 0; rc == RC_OK && i < ctx->DBs.length; i++)
 		{
-			if (DbHasProperty(ctx, i, DB_SchemaLoaded) || i == 1) continue;
+			if (DbHasProperty(ctx, i, SCHEMA_SchemaLoaded) || i == 1) continue;
 			rc = InitOne(ctx, i, errMsg);
 			if (rc)
 				ResetOneSchema(ctx, i);
@@ -323,7 +323,7 @@ error_out:
 	__device__ RC Prepare::ReadSchema(Parse *parse)
 	{
 		RC rc = RC_OK;
-		Context *ctx = pParse->Ctx;
+		Context *ctx = parse->Ctx;
 		_assert(MutexEx::Held(ctx->Mutex));
 		if (!ctx->Init.Busy)
 			rc = Init(ctx, &parse->ErrMsg);
@@ -440,7 +440,7 @@ error_out:
 				if (rc)
 				{
 					const char *dbName = ctx->DBs[i].Name;
-					sqlite3Error(ctx, rc, "database schema is locked: %s", dbName);
+					Main::Error(ctx, rc, "database schema is locked: %s", dbName);
 					ASSERTCOVERAGE(ctx->Flags & Context::FLAG_ReadUncommitted);
 					goto end_prepare;
 				}
@@ -458,7 +458,7 @@ error_out:
 			ASSERTCOVERAGE(bytes == maxLen+1);
 			if (bytes > maxLen)
 			{
-				sqlite3Error(ctx, RC_TOOBIG, "statement too long");
+				Main::Error(ctx, RC_TOOBIG, "statement too long");
 				rc = Main::ApiExit(ctx, RC_TOOBIG);
 				goto end_prepare;
 			}
@@ -522,11 +522,11 @@ error_out:
 
 		if (errMsg)
 		{
-			sqlite3Error(ctx, rc, "%s", errMsg);
+			Main::Error(ctx, rc, "%s", errMsg);
 			_tagfree(ctx, errMsg);
 		}
 		else
-			sqlite3Error(ctx, rc, nullptr);
+			Main::Error(ctx, rc, nullptr);
 
 		// Delete any TriggerPrg structures allocated while parsing this statement.
 		while (parse->TriggerPrg)
@@ -547,7 +547,7 @@ end_prepare:
 	{
 		_assert(stmtOut != 0);
 		*stmtOut = nullptr;
-		if (!sqlite3SafetyCheckOk(ctx))
+		if (!Main::SafetyCheckOk(ctx))
 			return SysEx_MISUSE_BKPT;
 		MutexEx::Enter(ctx->Mutex);
 		Btree::EnterAll(ctx);
@@ -608,7 +608,7 @@ end_prepare:
 		// tricky bit is figuring out the pointer to return in *pzTail.
 		_assert(stmtOut);
 		*stmtOut = nullptr;
-		if (!sqlite3SafetyCheckOk(ctx))
+		if (!Main::SafetyCheckOk(ctx))
 			return SysEx_MISUSE_BKPT;
 		MutexEx::Enter(ctx->Mutex);
 		RC rc = RC_OK;
@@ -620,8 +620,8 @@ end_prepare:
 		{
 			// If sqlite3_prepare returns a tail pointer, we calculate the equivalent pointer into the UTF-16 string by counting the unicode
 			// characters between zSql8 and zTail8, and then returning a pointer the same number of characters into the UTF-16 string.
-			int charsParsed = Vdbe::Utf8CharLen(sql8, (int)(tail8 - sql8));
-			*tailOut = (uint8 *)sql + Vdbe::Utf16ByteLen(sql, charsParsed);
+			int charsParsed = _utf8charlength(sql8, (int)(tail8 - sql8));
+			*tailOut = (uint8 *)sql + _utf16bytelength(sql, charsParsed);
 		}
 		_tagfree(ctx, sql8); 
 		rc = Main::ApiExit(ctx, rc);

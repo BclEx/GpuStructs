@@ -61,7 +61,7 @@ namespace Core {
 				rc = RC_ERROR;
 			}
 			else
-				err = _mtagprintf(p->Ctx, "%s", Main::Errmsg(p->Ctx));
+				err = _mtagprintf(p->Ctx, "%s", Main::ErrMsg(p->Ctx));
 		}
 
 		_assert(rc != RC_OK || err == nullptr);
@@ -106,7 +106,7 @@ namespace Core {
 		MutexEx::Enter(ctx->Mutex);
 		Incrblob *blob = (Incrblob *)_tagalloc2(ctx, sizeof(Incrblob), true);
 		if (!blob) goto blob_open_out;
-		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(*parse));
+		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(*parse), false);
 		if (!parse) goto blob_open_out;
 
 		char *err = nullptr;

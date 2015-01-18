@@ -11,7 +11,7 @@ namespace Core
 #ifndef DEFAULT_CACHE_SIZE
 #define DEFAULT_CACHE_SIZE 2000
 #endif
-#define MASTER_ROOT 1
+#define MASTER_ROOT 1 // The root-page of the master database table.
 
 #define PTF_INTKEY    0x01
 #define PTF_ZERODATA  0x02

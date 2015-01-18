@@ -13,7 +13,7 @@ namespace Core
 
         const string FILE_HEADER = "SQLite format 3\0";
         const int DEFAULT_CACHE_SIZE = 2000;
-        const int MASTER_ROOT = 1;
+        const int MASTER_ROOT = 1; // The root-page of the master database table.
 
         const byte PTF_INTKEY = 0x01;
         const byte PTF_ZERODATA = 0x02;

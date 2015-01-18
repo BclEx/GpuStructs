@@ -62,41 +62,41 @@ namespace Core
 		int BusyTimeout;				// Busy handler timeout, in msec
 		int SavepointsLength;			// Number of non-transaction savepoints
 
-//		__device__ inline int InvokeBusyHandler()
-//		{
-//			if (_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
-//				return 0;
-//			int rc = BusyHandler->Func(BusyHandler->Arg, BusyHandler->Busys);
-//			if (rc == 0)
-//				BusyHandler->Busys = -1;
-//			else
-//				BusyHandler->Busys++;
-//			return rc;
-//		}
-//
-//		// HOOKS
-//#if ENABLE_UNLOCK_NOTIFY
-//		__device__ void ConnectionBlocked(BContext *a, BContext *b);
-//		__device__ void ConnectionUnlocked(BContext *a);
-//		__device__ void ConnectionClosed(BContext *a);
-//#else
-//		__device__ static void ConnectionBlocked(BContext *a, BContext *b) { }
-//		//__device__ static void ConnectionUnlocked(BContext *a) { }
-//		//__device__ static void ConnectionClosed(BContext *a) { }
-//#endif
-//
-//		__device__ inline bool TempInMemory()
-//		{
-//			return true;
-//			//if (TEMP_STORE == 1) return (temp_store == 2);
-//			//if (TEMP_STORE == 2) return (temp_store != 1);
-//			//if (TEMP_STORE == 3) return true;
-//			//if (TEMP_STORE < 1 || TEMP_STORE > 3) return false;
-//			//return false;
-//		}
+		//		__device__ inline int InvokeBusyHandler()
+		//		{
+		//			if (_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
+		//				return 0;
+		//			int rc = BusyHandler->Func(BusyHandler->Arg, BusyHandler->Busys);
+		//			if (rc == 0)
+		//				BusyHandler->Busys = -1;
+		//			else
+		//				BusyHandler->Busys++;
+		//			return rc;
+		//		}
+		//
+		//		// HOOKS
+		//#if ENABLE_UNLOCK_NOTIFY
+		//		__device__ void ConnectionBlocked(BContext *a, BContext *b);
+		//		__device__ void ConnectionUnlocked(BContext *a);
+		//		__device__ void ConnectionClosed(BContext *a);
+		//#else
+		//		__device__ static void ConnectionBlocked(BContext *a, BContext *b) { }
+		//		//__device__ static void ConnectionUnlocked(BContext *a) { }
+		//		//__device__ static void ConnectionClosed(BContext *a) { }
+		//#endif
+		//
+		//		__device__ inline bool TempInMemory()
+		//		{
+		//			return true;
+		//			//if (TEMP_STORE == 1) return (temp_store == 2);
+		//			//if (TEMP_STORE == 2) return (temp_store != 1);
+		//			//if (TEMP_STORE == 3) return true;
+		//			//if (TEMP_STORE < 1 || TEMP_STORE > 3) return false;
+		//			//return false;
+		//		}
 	};
-	__device__ BContext::FLAG inline operator|(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a | (int)b); }
-	__device__ BContext::FLAG inline operator&(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a & (int)b); }
-	__device__ BContext::FLAG inline operator|=(BContext::FLAG a, int b) { return (BContext::FLAG)(a | b); }
-	__device__ BContext::FLAG inline operator&=(BContext::FLAG a, int b) { return (BContext::FLAG)(a & b); }
+	__device__ inline BContext::FLAG operator|=(BContext::FLAG a, int b) { return (BContext::FLAG)(a | b); }
+	__device__ inline BContext::FLAG operator&=(BContext::FLAG a, int b) { return (BContext::FLAG)(a & b); }
+	__device__ inline BContext::FLAG operator|(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a | (int)b); }
+	__device__ inline BContext::FLAG operator&(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a & (int)b); }
 }

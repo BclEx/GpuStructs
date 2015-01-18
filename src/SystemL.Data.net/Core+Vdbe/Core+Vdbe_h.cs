@@ -126,31 +126,31 @@ namespace Core
         public Action<object> Destroy;      // Module destructor function
     }
 
-    public interface ITableModule
+    public class ITableModule
     {
         int Version;
-        int Create(Context a, object aux, int argc, string[] argv, VTable[] vtabs, string[] b);
-        int Connect(Context a, object aux, int argc, string[] argv, VTable[] vtabs, string[] b);
-        int BestIndex(VTable vtab, IIndexInfo a);
-        int Disconnect(VTable vtab);
-        int Destroy(VTable vtab);
-        int Open(VTable vtab, IVTableCursor[] cursors);
-        int Close(IVTableCursor a);
-        int Filter(IVTableCursor a, int idxNum, string idxStr, int argc, Mem[] argv);
-        int Next(IVTableCursor a);
-        int Eof(IVTableCursor a);
-        int Column(IVTableCursor a, FuncContext b, int c);
-        int Rowid(IVTableCursor a, long[] rowid);
-        int Update(VTable a, int b, Mem[] c, long[] d);
-        int Begin(IVTable vtab);
-        int Sync(IVTable vtab);
-        int Commit(IVTable vtab);
-        int Rollback(IVTable vtab);
-        int FindFunction(VTable vtab, int argsLength, string name, Action<FuncContext, int, Mem[]> func, object[] args);
-        int Rename(VTable vtab, string new_);
-        int Savepoint(VTable vtab, int a);
-        int Release(VTable vtab, int a);
-        int RollbackTo(VTable vtab, int a);
+        Func<Context, object, int, string[], VTable[], string[], RC> Create;
+        Func<Context, object, int, string[], VTable[], string[]> Connect;
+        Func<VTable, IIndexInfo, RC> BestIndex;
+        Func<VTable, RC> Disconnect;
+        Func<VTable, RC> Destroy;
+        Func<VTable, IVTableCursor[], RC> Open;
+        Func<IVTableCursor, RC> Close;
+        Func<IVTableCursor, int, string, int, Mem[], RC> Filter;
+        Func<IVTableCursor, RC> Next;
+        Func<IVTableCursor, RC> Eof;
+        Func<IVTableCursor, FuncContext, int, RC> Column;
+        Func<IVTableCursor, long[], RC> Rowid;
+        Func<VTable, int, Mem[], long[], RC> Update;
+        Func<IVTable, RC> Begin;
+        Func<IVTable, RC> Sync;
+        Func<IVTable, RC> Commit;
+        Func<IVTable, RC> Rollback;
+        Func<VTable, int, string, Action<FuncContext, int, Mem[]>, object[], RC> FindFunction;
+        Func<VTable, string, RC> Rename;
+        Func<VTable, int, RC> Savepoint;
+        Func<VTable, int, RC> Release;
+        Func<VTable, int, RC> RollbackTo;
     }
 
     public enum INDEX_CONSTRAINT : byte
@@ -401,7 +401,7 @@ namespace Core
         public SrcListItem[] Ids = new SrcListItem[1];		// One entry for each identifier on the list
     }
 
-    public enum WHERE : ushort
+    public enum WHERE : uint
     {
         ORDERBY_NORMAL = 0x0000,	// No-op
         ORDERBY_MIN = 0x0001,		// ORDER BY processing for min() func
@@ -416,7 +416,7 @@ namespace Core
 
     public struct WherePlan
     {
-        public uint WsFlags;        // WHERE_* flags that describe the strategy
+        public WHERE WsFlags;       // WHERE_* flags that describe the strategy
         public ushort Eqs;          // Number of == constraints
         public ushort OBSats;       // Number of ORDER BY terms satisfied
         public double Rows;			// Estimated number of rows (for EQP)

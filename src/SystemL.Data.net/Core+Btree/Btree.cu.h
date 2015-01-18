@@ -33,6 +33,7 @@ namespace Core
 		UNPACKED_PREFIX_SEARCH = 0x04,	// Ignore final (rowid) field
 	};
 	__device__ UNPACKED inline operator|=(UNPACKED a, int b) { return (UNPACKED)(a | b); }
+	__device__ UNPACKED inline operator&=(UNPACKED a, int b) { return (UNPACKED)(a & b); }
 
 	struct UnpackedRecord
 	{
@@ -234,6 +235,5 @@ namespace Core
 	};
 
 	typedef struct Btree::BtLock BtLock;
-	Btree::OPEN __device__ inline operator|=(Btree::OPEN a, int b) { return (Btree::OPEN)((uint8)a | (uint8)b); }
-	//uint8 __device__ inline operator&(Btree::OPEN a, int b) { return ((uint8)a & (uint8)b); }
+	__device__ inline Btree::OPEN operator|=(Btree::OPEN a, int b) { return (Btree::OPEN)(a | b); }
 }

@@ -2,7 +2,6 @@
 #include "Core+Vdbe.cu.h"
 namespace Core
 {
-	struct VdbeOp;
 	struct VTableCursor;
 	struct VdbeSorter;
 	struct RowSet;
@@ -54,12 +53,12 @@ namespace Core
 	{
 		Vdbe *V;					// VM this frame belongs to
 		struct VdbeFrame *Parent;	// Parent of this frame, or NULL if parent is main
-		array_t<VdbeOp> *Ops;		// Program instructions for parent frame
-		array_t<Mem> *Mems;			// Array of memory cells for parent frame
-		array_t<uint8> *OnceFlags;	// Array of OP_Once flags for parent frame
-		array_t<VdbeCursor> **Cursors;	// Array of Vdbe cursors for parent frame
+		array_t<Vdbe::VdbeOp> Ops;	// Program instructions for parent frame
+		array_t<Mem> Mems;			// Array of memory cells for parent frame
+		array_t<uint8> OnceFlags;	// Array of OP_Once flags for parent frame
+		array_t<VdbeCursor*> Cursors;	// Array of Vdbe cursors for parent frame
 		void *Token;				// Copy of SubProgram.token
-		int64 LastRowid;			// Last insert rowid (sqlite3.lastRowid)
+		int64 LastRowID;			// Last insert rowid (sqlite3.lastRowid)
 		int PC;						// Program Counter in parent (calling) frame
 		int ChildMems;				// Number of memory cells for child frame
 		int ChildCursors;			// Number of cursors for child frame
@@ -100,8 +99,11 @@ namespace Core
 		MEM_Zero = 0x0000,
 #endif
 	};
-	MEM __device__ inline operator|=(MEM a, int b) { return (MEM)(a | b); }
-	MEM __device__ inline operator&=(MEM a, int b) { return (MEM)(a & b); }
+	__device__ inline MEM operator|=(MEM a, int b) { return (MEM)(a | b); }
+	__device__ inline MEM operator&=(MEM a, int b) { return (MEM)(a & b); }
+	__device__ inline MEM operator|(MEM a, MEM b) { return (MEM)((int)a | (int)b); }
+	__device__ inline MEM operator&(MEM a, MEM b) { return (MEM)((int)a & (int)b); }
+
 #define MemSetTypeFlag(p, f) (p->Flags = (MEM)((p->Flags&~(MEM_TypeMask|MEM_Zero))|(int)f))
 #ifdef _DEBUG
 #define MemIsValid(M) ((M)->Flags & MEM_Invalid)==0
@@ -130,29 +132,29 @@ namespace Core
 		void (*Del)(void *);	// If not null, call this function to delete Mem.z
 		char *Malloc;			// Dynamic buffer allocated by sqlite3_malloc()
 
-//		inline const void *GetBlob()
-//		{
-//			if (Flags & (MEM_Blob|MEM_Str))
-//			{
-//				sqlite3VdbeMemExpandBlob(p);
-//				Flags &= ~MEM_Str;
-//				Flags |= MEM_Blob;
-//				return (N ? Z : nullptr);
-//			}
-//			return GetText();
-//		}
-//		inline int GetBytes() { return ValueBytes(this, TEXTENCODE_UTF8); }
-//		inline int GetBytes16() { return ValueBytes(this, TEXTENCODE_UTF16NATIVE); }
-//		inline double GetDouble() { return RealValue(this); }
-//		inline int GetInt() { return (int)IntValue(this); }
-//		inline int64 GetInt64(){ return IntValue(this); }
-//		inline const unsigned char *GetText() { return (const unsigned char *)ValueText(this, TEXTENCODE_UTF8); }
-//#ifndef OMIT_UTF16
-//		inline const void *GetText16() { return ValueText(this, TEXTENCODE_UTF16NATIVE); }
-//		inline const void *GetText16be() { return Vdbe::Value_Text(this, TEXTENCODE_UTF16BE); }
-//		inline const void *GetText16le() { return Vdbe::Value_Text(this, TEXTENCODE_UTF16LE); }
-//#endif
-//		inline TYPE GetType() { return Type; }
+		//		inline const void *GetBlob()
+		//		{
+		//			if (Flags & (MEM_Blob|MEM_Str))
+		//			{
+		//				sqlite3VdbeMemExpandBlob(p);
+		//				Flags &= ~MEM_Str;
+		//				Flags |= MEM_Blob;
+		//				return (N ? Z : nullptr);
+		//			}
+		//			return GetText();
+		//		}
+		//		inline int GetBytes() { return ValueBytes(this, TEXTENCODE_UTF8); }
+		//		inline int GetBytes16() { return ValueBytes(this, TEXTENCODE_UTF16NATIVE); }
+		//		inline double GetDouble() { return RealValue(this); }
+		//		inline int GetInt() { return (int)IntValue(this); }
+		//		inline int64 GetInt64(){ return IntValue(this); }
+		//		inline const unsigned char *GetText() { return (const unsigned char *)ValueText(this, TEXTENCODE_UTF8); }
+		//#ifndef OMIT_UTF16
+		//		inline const void *GetText16() { return ValueText(this, TEXTENCODE_UTF16NATIVE); }
+		//		inline const void *GetText16be() { return Vdbe::Value_Text(this, TEXTENCODE_UTF16BE); }
+		//		inline const void *GetText16le() { return Vdbe::Value_Text(this, TEXTENCODE_UTF16LE); }
+		//#endif
+		//		inline TYPE GetType() { return Type; }
 	};
 
 	struct VdbeFunc : public FuncDef
@@ -191,5 +193,14 @@ namespace Core
 #define VDBE_MAGIC_RUN      0xbdf20da3    // VDBE is ready to execute
 #define VDBE_MAGIC_HALT     0x519c2973    // VDBE has completed execution
 #define VDBE_MAGIC_DEAD     0xb606c3c8    // The VDBE has been deallocated
+
+#ifdef OMIT_TEMPDB
+#define E_OMIT_TEMPDB 1
+#else
+#define E_OMIT_TEMPDB 0
+#endif
+#define MASTER_NAME       "sqlite_master" // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
+#define TEMP_MASTER_NAME  "sqlite_temp_master" // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
+#define SCHEMA_TABLE(x)  (!E_OMIT_TEMPDB && (x) == 1 ? TEMP_MASTER_NAME : MASTER_NAME) // The name of the schema table.
 
 }
