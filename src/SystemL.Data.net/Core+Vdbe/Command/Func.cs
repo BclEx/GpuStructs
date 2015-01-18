@@ -1183,7 +1183,7 @@ namespace Core.Command
 
         static void SetLikeOptFlag(Context ctx, string name, FUNC flagVal)
         {
-            FuncDef def = sqlite3FindFunction(ctx, name, name.Length, 2, TEXTENCODE.UTF8, 0);
+            FuncDef def = Callback.FindFunction(ctx, name, name.Length, 2, TEXTENCODE.UTF8, 0);
             if (C._ALWAYS(def != null))
                 def.Flags = flagVal;
         }
@@ -1203,7 +1203,7 @@ namespace Core.Command
             if (expr.OP != TK.FUNCTION || expr.x.List == null || expr.x.List.Exprs != 2)
                 return false;
             Debug.Assert(!E.ExprHasProperty(expr, EP.xIsSelect));
-            FuncDef def = sqlite3FindFunction(ctx, expr.u.Token, expr.u.Token.Length, 2, TEXTENCODE.UTF8, 0);
+            FuncDef def = Callback.FindFunction(ctx, expr.u.Token, expr.u.Token.Length, 2, TEXTENCODE.UTF8, 0);
             if (C._NEVER(def == null) || (def.Flags & FUNC.LIKE) == 0)
                 return false;
             // The memcpy() statement assumes that the wildcard characters are the first three statements in the compareInfo structure.  The asserts() that follow verify that assumption

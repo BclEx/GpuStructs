@@ -177,7 +177,7 @@ namespace Core
 		_assert(table->Index == nullptr);
 
 		Context *ctx = parse->Ctx; // Database connection
-		int db = sqlite3SchemaToIndex(ctx, table->Schema); // The database the table is being created in
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // The database the table is being created in
 		_assert(db >= 0);
 
 		table->TabFlags |= TF_Virtual;
@@ -224,7 +224,7 @@ namespace Core
 		{
 			// Compute the complete text of the CREATE VIRTUAL TABLE statement
 			if (end)
-				parse->NameToken.length = (int)(end->data - parse->NameToken) + end->length;
+				parse->NameToken.length = (int)(end->data - parse->NameToken.data) + end->length;
 			char *stmt = _mtagprintf(ctx, "CREATE VIRTUAL TABLE %T", &parse->NameToken);
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
@@ -232,7 +232,7 @@ namespace Core
 			//
 			// The VM register number pParse->regRowid holds the rowid of an entry in the sqlite_master table tht was created for this vtab
 			// by sqlite3StartTable().
-			int db = Parse::SchemaToIndex(ctx, table->Schema);
+			int db = Prepare::SchemaToIndex(ctx, table->Schema);
 			parse->NestedParse("UPDATE %Q.%s SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q WHERE rowid=#%d",
 				ctx->DBs[db].Name, SCHEMA_TABLE(db),
 				table->Name, table->Name,

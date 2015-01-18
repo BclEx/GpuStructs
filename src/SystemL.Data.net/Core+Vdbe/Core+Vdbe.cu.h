@@ -116,7 +116,7 @@ namespace Core
 		void (*Destroy)(void *);        // Module destructor function
 	};
 
-	class ITableModule //was:sqlite3_module
+	struct ITableModule //was:sqlite3_module
 	{
 	public:
 		int Version;
@@ -224,12 +224,6 @@ namespace Core
 		CONFLICT_FAIL = 3,
 		CONFLICT_ABORT = 4,
 		CONFLICT_REPLACE = 5
-	};
-
-	enum SO : uint8
-	{
-		SO_ASC = 0, // Sort in ascending order
-		SO_DESC = 1, // Sort in ascending order
 	};
 
 	enum TYPE : uint8
@@ -488,6 +482,8 @@ namespace Core
 		NC_IsCheck = 0x04,			// True if resolving names in a CHECK constraint
 		NC_InAggFunc = 0x08,		// True if analyzing arguments to an agg func
 	};
+	__device__ inline NC operator|=(NC a, int b) { return (NC)(a | b); }
+	__device__ inline NC operator&=(NC a, int b) { return (NC)(a & b); }
 
 	struct NameContext
 	{
@@ -514,7 +510,34 @@ namespace Core
 		SF_Materialize = 0x0100,	// Force materialization of views
 		SF_NestedFrom = 0x0200,		// Part of a parenthesized FROM clause
 	};
+	__device__ inline SF operator|=(SF a, int b) { return (SF)(a | b); }
+	__device__ inline SF operator&=(SF a, int b) { return (SF)(a & b); }
 
+	enum SRT : uint8
+	{
+		SRT_Union = 1,				// Store result as keys in an index
+		SRT_Except = 2,				// Remove result from a UNION index
+		SRT_Exists = 3,				// Store 1 if the result is not empty
+		SRT_Discard = 4,			// Do not save the results anywhere
+		// IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
+		SRT_Output = 5,				// Output each row of result
+		SRT_Mem = 6,				// Store result in a memory cell
+		SRT_Set = 7,				// Store results as keys in an index
+		SRT_Table = 8,				// Store result as data with an automatic rowid
+		SRT_EphemTab = 9,			// Create transient tab and store like SRT_Table
+		SRT_Coroutine = 10,			// Generate a single row of result
+	};
+
+	struct SelectDest
+	{
+		SRT Dest;			// How to dispose of the results.  On of SRT_* above.
+		AFF AffSdst;		// Affinity used when eDest==SRT_Set
+		int SDParmId;		// A parameter used by the eDest disposal method
+		int SdstId;			// Base register where results are written
+		int Sdsts;			// Number of registers allocated
+	};
+
+	class Vdbe;
 	struct Select
 	{
 		ExprList *EList;			// The fields of the result
@@ -549,30 +572,7 @@ namespace Core
 		__device__ static void ExplainSelect(Vdbe *v, Select *p);
 	};
 
-	enum SRT : uint8
-	{
-		SRT_Union = 1,				// Store result as keys in an index
-		SRT_Except = 2,				// Remove result from a UNION index
-		SRT_Exists = 3,				// Store 1 if the result is not empty
-		SRT_Discard = 4,			// Do not save the results anywhere
-		// IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
-		SRT_Output = 5,				// Output each row of result
-		SRT_Mem = 6,				// Store result in a memory cell
-		SRT_Set = 7,				// Store results as keys in an index
-		SRT_Table = 8,				// Store result as data with an automatic rowid
-		SRT_EphemTab = 9,			// Create transient tab and store like SRT_Table
-		SRT_Coroutine = 10,			// Generate a single row of result
-	};
-
-#define IgnorableOrderby(x) ((x->Dest)<=SRT_Discard)
-	struct SelectDest
-	{
-		SRT Dest;			// How to dispose of the results.  On of SRT_* above.
-		AFF AffSdst;		// Affinity used when eDest==SRT_Set
-		int SDParmId;		// A parameter used by the eDest disposal method
-		int SdstId;			// Base register where results are written
-		int Sdsts;			// Number of registers allocated
-	};
+#define IgnorableOrderby(x) ((x->Dest) <= SRT_Discard)
 
 #pragma endregion
 
@@ -729,7 +729,7 @@ namespace Core
 		__device__ void IfFalse(Parse *parse, int dest, AFF jumpIfNull);
 		__device__ static int Compare(Expr *a, Expr *b);
 		__device__ static int ListCompare(ExprList *a, ExprList *b);
-		__device__ int FunctionUsesThisSrc(SrcList *srcList);
+		__device__ bool FunctionUsesThisSrc(SrcList *srcList);
 		__device__ static void AnalyzeAggregates(NameContext *nc, Expr *expr);
 		__device__ static void AnalyzeAggList(NameContext *nc, ExprList *list);
 		__device__ static int GetTempReg(Parse *parse);

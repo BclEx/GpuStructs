@@ -138,7 +138,7 @@ namespace Core
 						list = item->Select->EList;
 						for (j = 0; j < list->Exprs; j++)
 						{
-							if (sqlite3MatchSpanName(list->Ids[j].Span, colName, tableName, dbName))
+							if (Walker::MatchSpanName(list->Ids[j].Span, colName, tableName, dbName))
 							{
 								cnt++;
 								cntTab = 2;
@@ -220,13 +220,13 @@ namespace Core
 							break;
 						}
 					}
-					if (colId >= table->Cols.length && sqlite3IsRowid(colName))
+					if (colId >= table->Cols.length && Expr::IsRowid(colName))
 						colId = -1; // IMP: R-44911-55124
 					if (colId < table->Cols.length)
 					{
 						cnt++;
 						if (colId < 0)
-							expr->Affinity = AFF_INTEGER;
+							expr->Aff = AFF_INTEGER;
 						else if (expr->TableIdx == 0)
 						{
 							ASSERTCOVERAGE(colId == 31);
@@ -248,11 +248,11 @@ namespace Core
 #endif
 
 			// Perhaps the name is a reference to the ROWID
-			if (cnt == 0 && cntTab == 1 && sqlite3IsRowid(colName))
+			if (cnt == 0 && cntTab == 1 && Expr::IsRowid(colName))
 			{
 				cnt = 1;
 				expr->ColumnIdx = -1; // IMP: R-44911-55124
-				expr->Affinity = AFF_INTEGER;
+				expr->Aff = AFF_INTEGER;
 			}
 
 			// If the input is of the form Z (not Y.Z or X.Y.Z) then the name Z might refer to an result-set alias.  This happens, for example, when
@@ -395,7 +395,7 @@ lookupname_end:
 		{
 			SrcList *srcList = nc->SrcList;
 			for (int i = 0; i < nc->SrcList->Srcs; i++)
-				_assert(srcList->Ids[i].CursorIdx >= 0 && srcList->Ids[i].CursorIdx < parse->Tabs);
+				_assert(srcList->Ids[i].Cursor >= 0 && srcList->Ids[i].Cursor < parse->Tabs);
 		}
 #endif
 		switch (expr->OP)
@@ -453,10 +453,10 @@ lookupname_end:
 			_assert(!ExprHasProperty(expr, EP_xIsSelect));
 			const char *id = expr->u.Token; // The function name.
 			int idLength = _strlen30(id); // Number of characters in function name
-			FuncDef *def = sqlite3FindFunction(ctx, id, idLength, n, encode, 0); // Information about the function
+			FuncDef *def = Callback::FindFunction(ctx, id, idLength, n, encode, false); // Information about the function
 			if (!def)
 			{
-				def = sqlite3FindFunction(ctx, id, idLength, -2, encode, 0);
+				def = Callback::FindFunction(ctx, id, idLength, -2, encode, false);
 				if (!def)
 					noSuchFunc = true;
 				else
@@ -497,13 +497,13 @@ lookupname_end:
 				nc->Errs++;
 			}
 			if (isAgg) nc->NCFlags &= ~NC_AllowAgg;
-			Walk::ExprList(walker, list);
+			walker->WalkExprList(list);
 			if (isAgg)
 			{
 				NameContext *nc2 = nc;
 				expr->OP = TK_AGG_FUNCTION;
 				expr->OP2 = 0;
-				while (nc2 && !sqlite3FunctionUsesThisSrc(expr, nc2->SrcList))
+				while (nc2 && !expr->FunctionUsesThisSrc(nc2->SrcList))
 				{
 					expr->OP2++;
 					nc2 = nc2->Next;
@@ -527,7 +527,7 @@ lookupname_end:
 				if ((nc->NCFlags & NC_IsCheck) != 0)
 					parse->ErrorMsg("subqueries prohibited in CHECK constraints");
 #endif
-				Walk::Select(walker, expr->x.Select);
+				walker->WalkSelect(expr->x.Select);
 				_assert(nc->Refs >= refs);
 				if (nc->Refs != refs)
 					ExprSetProperty(expr, EP_VarSelect);
@@ -561,7 +561,8 @@ lookupname_end:
 
 	__device__ static int ResolveOrderByTermToExprList(Parse *parse, Select *select, Expr *expr)
 	{
-		_assert(Expr::IsInteger(expr, &i) == 0);
+		int i;
+		_assert(!expr->IsInteger(&i));
 		ExprList *list = select->EList; // The columns of the result set
 		// Resolve all names in the ORDER BY term expression
 		NameContext nc;
@@ -574,11 +575,11 @@ lookupname_end:
 		Context *ctx = parse->Ctx; // Database connection
 		uint8 savedSuppErr = ctx->SuppressErr; // Saved value of db->suppressErr
 		ctx->SuppressErr = 1;
-		bool r = ResolveExprNames(&nc, expr); // Return code from subprocedures
+		bool r = Walker::ResolveExprNames(&nc, expr); // Return code from subprocedures
 		ctx->SuppressErr = savedSuppErr;
 		if (r) return 0;
 		// Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
-		for (int i = 0; i < list->Exprs; i++)
+		for (i = 0; i < list->Exprs; i++)
 			if (Expr::Compare(list->Ids[i].Expr, expr) < 2)
 				return i+1;
 		// If no match, return 0.
@@ -710,9 +711,9 @@ lookupname_end:
 		return false;
 	}
 
-	__device__ static int ResolveOrderGroupBy(NameContext *nc, Select *select, ExprList *orderBy, const char *type)
+	__device__ static bool ResolveOrderGroupBy(NameContext *nc, Select *select, ExprList *orderBy, const char *type)
 	{
-		if (!orderBy) return 0;
+		if (!orderBy) return false;
 		int result = select->EList->Exprs; // Number of terms in the result set
 		Parse *parse = nc->Parse; // Parsing context
 		int i;
@@ -735,7 +736,7 @@ lookupname_end:
 				if (colId < 1 || colId > 0xffff)
 				{
 					ResolveOutOfRangeError(parse, type, i+1, result);
-					return 1;
+					return true;
 				}
 				item->OrderByCol = (uint16)colId;
 				continue;
@@ -743,8 +744,8 @@ lookupname_end:
 
 			// Otherwise, treat the ORDER BY term as an ordinary expression
 			item->OrderByCol = 0;
-			if (ResolveExprNames(nc, expr))
-				return 1;
+			if (Walker::ResolveExprNames(nc, expr))
+				return true;
 			for (int j = 0; j < select->EList->Exprs; j++)
 				if (!Expr::Compare(expr, select->EList->Ids[j].Expr))
 					item->OrderByCol = j+1;
@@ -767,7 +768,7 @@ lookupname_end:
 		// this routine in the correct order.
 		if ((p->SelFlags & SF_Expanded) == 0)
 		{
-			sqlite3SelectPrep(parse, p, outerNC);
+			p->Prep(parse, outerNC);
 			return (parse->Errs || ctx->MallocFailed ? WRC_Abort : WRC_Prune);
 		}
 
@@ -785,7 +786,7 @@ lookupname_end:
 			// Resolve the expressions in the LIMIT and OFFSET clauses. These are not allowed to refer to any names, so pass an empty NameContext.
 			_memset(&nc, 0, sizeof(nc));
 			nc.Parse = parse;
-			if (ResolveExprNames(&nc, p->Limit) || ResolveExprNames(&nc, p->Offset))
+			if (Walker::ResolveExprNames(&nc, p->Limit) || Walker::ResolveExprNames(&nc, p->Offset))
 				return WRC_Abort;
 
 			// Recursively resolve names in all subqueries
@@ -826,7 +827,7 @@ lookupname_end:
 			for (i = 0; i < list->Exprs; i++)
 			{
 				Expr *expr = list->Ids[i].Expr;
-				if (ResolveExprNames(&nc, expr))
+				if (Walker::ResolveExprNames(&nc, expr))
 					return WRC_Abort;
 			}
 
@@ -850,7 +851,7 @@ lookupname_end:
 			//
 			// Minor point: If this is the case, then the expression will be re-evaluated for each reference to it.
 			nc.EList = p->EList;
-			if (ResolveExprNames(&nc, p->Where) || ResolveExprNames(&nc, p->Having))
+			if (Walker::ResolveExprNames(&nc, p->Where) || Walker::ResolveExprNames(&nc, p->Having))
 				return WRC_Abort;
 
 			// The ORDER BY and GROUP BY clauses may not refer to terms in outer queries 
@@ -898,7 +899,7 @@ lookupname_end:
 			parse->Height += expr->Height;
 		}
 #endif
-		uint8 savedHasAgg = nc->NCFlags & NC_HasAgg;
+		bool savedHasAgg = ((nc->NCFlags & NC_HasAgg) != 0);
 		nc->NCFlags &= ~NC_HasAgg;
 		Walker w;
 		w.ExprCallback = ResolveExprStep;

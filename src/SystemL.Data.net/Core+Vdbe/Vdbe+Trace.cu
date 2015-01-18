@@ -124,7 +124,7 @@ namespace Core {
 			Explain *p = (Explain *)_alloc2(sizeof(Explain), true);
 			if (p)
 			{
-				p->Vdbe = vdbe;
+				p->Vdbe_ = vdbe;
 				_free(vdbe->_explain);
 				vdbe->_explain = p;
 				TextBuilder::Init(&p->Str, p->ZBase, sizeof(p->ZBase), CORE_MAX_LENGTH);

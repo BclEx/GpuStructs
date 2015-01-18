@@ -1387,7 +1387,7 @@ namespace Core
 			keyInfo->Fields = (uint16)cols;
 
 			int i;
-			CollSeq **coll; // For looping through pKeyInfo->aColl[]
+			CollSeq **coll; // For looping through keyInfo->aColl[]
 			for (i = 0, coll = keyInfo->Colls; i < cols; i++, coll++)
 			{
 				*coll = MultiSelectCollSeq(parse, p, i);
@@ -2954,14 +2954,6 @@ multi_select_end:
 		else
 		{
 			// This case when there exist aggregate functions or a GROUP BY clause or both
-			int iAMem;          // First Mem address for storing current GROUP BY
-			int iBMem;          // First Mem address for previous GROUP BY
-			int iUseFlag;       // Mem address holding flag indicating that at least one row of the input to the aggregator has been processed
-			int iAbortFlag;     // Mem address which causes query abort if positive
-			int groupBySort;    // Rows come from source in GROUP BY order
-			int sortPTab = 0;   // Pseudotable used to decode sorting results
-			int sortOut = 0;    // Output register from the sorter
-
 			// Remove any and all aliases between the result set and the GROUP BY clause.
 			if (groupBy)
 			{
@@ -3002,218 +2994,178 @@ multi_select_end:
 			if (ctx->MallocFailed) goto select_end;
 
 			// Processing for aggregates with GROUP BY is very different and much more complex than aggregates without a GROUP BY.
+			int amemId; // First Mem address for storing current GROUP BY
+			int bmemId; // First Mem address for previous GROUP BY
+			int useFlagId; // Mem address holding flag indicating that at least one row of the input to the aggregator has been processed
+			int abortFlagId; // Mem address which causes query abort if positive
+			bool groupBySort; // Rows come from source in GROUP BY order
+			int sortPTab = 0; // Pseudotable used to decode sorting results
+			int sortOut = 0; // Output register from the sorter
 			if (groupBy)
 			{
-				KeyInfo *pKeyInfo;  /* Keying information for the group by clause */
-				int j1;             /* A-vs-B comparision jump */
-				int addrOutputRow;  /* Start of subroutine that outputs a result row */
-				int regOutputRow;   /* Return address register for output subroutine */
-				int addrSetAbort;   /* Set the abort flag and return */
-				int addrTopOfLoop;  /* Top of the input loop */
-				int addrSortingIdx; /* The OP_OpenEphemeral for the sorting index */
-				int addrReset;      /* Subroutine for resetting the accumulator */
-				int regReset;       /* Return address register for reset subroutine */
+				// If there is a GROUP BY clause we might need a sorting index to implement it.  Allocate that sorting index now.  If it turns out
+				// that we do not need it after all, the OP_SorterOpen instruction will be converted into a Noop.
+				sAggInfo.SortingIdx = parse->Tabs++;
+				KeyInfo *keyInfo = KeyInfoFromExprList(parse, groupBy); // Keying information for the group by clause
+				int addrSortingIdx = v->AddOp4(OP_SorterOpen, sAggInfo.SortingIdx, sAggInfo.SortingColumns, 0, (char *)keyInfo, Vdbe::P4T_KEYINFO_HANDOFF); // The OP_OpenEphemeral for the sorting index
 
-				/* If there is a GROUP BY clause we might need a sorting index to
-				** implement it.  Allocate that sorting index now.  If it turns out
-				** that we do not need it after all, the OP_SorterOpen instruction
-				** will be converted into a Noop.  
-				*/
-				sAggInfo.sortingIdx = pParse->nTab++;
-				pKeyInfo = keyInfoFromExprList(pParse, pGroupBy);
-				addrSortingIdx = sqlite3VdbeAddOp4(v, OP_SorterOpen, 
-					sAggInfo.sortingIdx, sAggInfo.nSortingColumn, 
-					0, (char*)pKeyInfo, P4_KEYINFO_HANDOFF);
+				// Initialize memory locations used by GROUP BY aggregate processing
+				useFlagId = ++parse->Mems;
+				abortFlagId = ++parse->Mems;
+				int regOutputRow = ++parse->Mems; // Return address register for output subroutine
+				int addrOutputRow = v->MakeLabel(); // Start of subroutine that outputs a result row
+				int regReset = ++parse->Mems; // Return address register for reset subroutine
+				int addrReset = v->MakeLabel(); // Subroutine for resetting the accumulator
+				amemId = parse->Mems + 1;
+				parse->Mems += groupBy->Exprs;
+				bmemId = parse->Mems + 1;
+				parse->Mems += groupBy->Exprs;
+				v->AddOp2(OP_Integer, 0, abortFlagId);
+				v->Comment("clear abort flag");
+				v->AddOp2(OP_Integer, 0, useFlagId);
+				v->Comment("indicate accumulator empty");
+				v->AddOp3(OP_Null, 0, amemId, amemId + groupBy->Exprs - 1);
 
-				/* Initialize memory locations used by GROUP BY aggregate processing
-				*/
-				iUseFlag = ++pParse->nMem;
-				iAbortFlag = ++pParse->nMem;
-				regOutputRow = ++pParse->nMem;
-				addrOutputRow = sqlite3VdbeMakeLabel(v);
-				regReset = ++pParse->nMem;
-				addrReset = sqlite3VdbeMakeLabel(v);
-				iAMem = pParse->nMem + 1;
-				pParse->nMem += pGroupBy->nExpr;
-				iBMem = pParse->nMem + 1;
-				pParse->nMem += pGroupBy->nExpr;
-				sqlite3VdbeAddOp2(v, OP_Integer, 0, iAbortFlag);
-				VdbeComment((v, "clear abort flag"));
-				sqlite3VdbeAddOp2(v, OP_Integer, 0, iUseFlag);
-				VdbeComment((v, "indicate accumulator empty"));
-				sqlite3VdbeAddOp3(v, OP_Null, 0, iAMem, iAMem+pGroupBy->nExpr-1);
+				// Begin a loop that will extract all source rows in GROUP BY order. This might involve two separate loops with an OP_Sort in between, or
+				// it might be a single loop that uses an index to extract information in the right order to begin with.
+				v->AddOp2(OP_Gosub, regReset, addrReset);
+				winfo = Where::Begin(parse, tabList, where_, groupBy, 0, 0, 0);
+				if (!winfo) goto select_end;
+				if (winfo->OBSats == groupBy->Exprs)
+					groupBySort = false; // The optimizer is able to deliver rows in group by order so we do not have to sort.  The OP_OpenEphemeral table will be cancelled later because we still need to use the keyInfo
+				else
+				{
+					// Rows are coming out in undetermined order.  We have to push each row into a sorting index, terminate the first loop,
+					// then loop over the sorting index in order to get the output in sorted order
+					ExplainTempTable(parse, (sDistinct.IsTnct && (p->SelFlags & SF_Distinct) == 0 ? "DISTINCT" : "GROUP BY"));
 
-				/* Begin a loop that will extract all source rows in GROUP BY order.
-				** This might involve two separate loops with an OP_Sort in between, or
-				** it might be a single loop that uses an index to extract information
-				** in the right order to begin with.
-				*/
-				sqlite3VdbeAddOp2(v, OP_Gosub, regReset, addrReset);
-				winfo = sqlite3WhereBegin(pParse, pTabList, pWhere, pGroupBy, 0, 0, 0);
-				if( winfo==0 ) goto select_end;
-				if( winfo->nOBSat==pGroupBy->nExpr ){
-					/* The optimizer is able to deliver rows in group by order so
-					** we do not have to sort.  The OP_OpenEphemeral table will be
-					** cancelled later because we still need to use the pKeyInfo
-					*/
-					groupBySort = 0;
-				}else{
-					/* Rows are coming out in undetermined order.  We have to push
-					** each row into a sorting index, terminate the first loop,
-					** then loop over the sorting index in order to get the output
-					** in sorted order
-					*/
-					int regBase;
-					int regRecord;
-					int nCol;
-					int nGroupBy;
-
-					explainTempTable(pParse, 
-						(sDistinct.isTnct && (p->selFlags&SF_Distinct)==0) ?
-						"DISTINCT" : "GROUP BY");
-
-					groupBySort = 1;
-					nGroupBy = pGroupBy->nExpr;
-					nCol = nGroupBy + 1;
-					j = nGroupBy+1;
-					for(i=0; i<sAggInfo.nColumn; i++){
-						if( sAggInfo.aCol[i].iSorterColumn>=j ){
-							nCol++;
+					groupBySort = true;
+					int groupBys = groupBy->Exprs;
+					int cols = groupBys + 1;
+					j = groupBys+1;
+					for (i = 0; i < sAggInfo.Columns.length; i++)
+					{
+						if (sAggInfo.Columns[i].SorterColumn >= j)
+						{
+							cols++;
 							j++;
 						}
 					}
-					regBase = sqlite3GetTempRange(pParse, nCol);
-					sqlite3ExprCacheClear(pParse);
-					sqlite3ExprCodeExprList(pParse, pGroupBy, regBase, 0);
-					sqlite3VdbeAddOp2(v, OP_Sequence, sAggInfo.sortingIdx,regBase+nGroupBy);
-					j = nGroupBy+1;
-					for(i=0; i<sAggInfo.nColumn; i++){
-						struct AggInfo_col *pCol = &sAggInfo.aCol[i];
-						if( pCol->iSorterColumn>=j ){
+					int regBase = Expr::GetTempRange(parse, cols);
+					Expr::CacheClear(parse);
+					Expr::CodeExprList(parse, groupBy, regBase, 0);
+					v->AddOp2(OP_Sequence, sAggInfo.SortingIdx, regBase + groupBys);
+					j = groupBys + 1;
+					for (i = 0; i < sAggInfo.Columns.length; i++)
+					{
+						AggInfo::AggInfoColumn *col = &sAggInfo.Columns[i];
+						if (col->SorterColumn >= j)
+						{
 							int r1 = j + regBase;
-							int r2;
-
-							r2 = sqlite3ExprCodeGetColumn(pParse, 
-								pCol->pTab, pCol->iColumn, pCol->iTable, r1, 0);
-							if( r1!=r2 ){
-								sqlite3VdbeAddOp2(v, OP_SCopy, r2, r1);
-							}
+							int r2 = Expr::CodeGetColumn(parse, col->Table, col->Column, col->TableID, r1, 0);
+							if (r1 != r2)
+								v->AddOp2(OP_SCopy, r2, r1);
 							j++;
 						}
 					}
-					regRecord = sqlite3GetTempReg(pParse);
-					sqlite3VdbeAddOp3(v, OP_MakeRecord, regBase, nCol, regRecord);
-					sqlite3VdbeAddOp2(v, OP_SorterInsert, sAggInfo.sortingIdx, regRecord);
-					sqlite3ReleaseTempReg(pParse, regRecord);
-					sqlite3ReleaseTempRange(pParse, regBase, nCol);
-					sqlite3WhereEnd(winfo);
-					sAggInfo.sortingIdxPTab = sortPTab = pParse->nTab++;
-					sortOut = sqlite3GetTempReg(pParse);
-					sqlite3VdbeAddOp3(v, OP_OpenPseudo, sortPTab, sortOut, nCol);
-					sqlite3VdbeAddOp2(v, OP_SorterSort, sAggInfo.sortingIdx, addrEnd);
-					VdbeComment((v, "GROUP BY sort"));
-					sAggInfo.useSortingIdx = 1;
-					sqlite3ExprCacheClear(pParse);
+					int regRecord = Expr::GetTempReg(parse);
+					v->AddOp3(OP_MakeRecord, regBase, cols, regRecord);
+					v->AddOp2(OP_SorterInsert, sAggInfo.SortingIdx, regRecord);
+					Expr::ReleaseTempReg(parse, regRecord);
+					Expr::ReleaseTempRange(parse, regBase, cols);
+					Where::End(winfo);
+					sAggInfo.SortingIdxPTab = sortPTab = parse->Tabs++;
+					sortOut = Expr::GetTempReg(parse);
+					v->AddOp3(OP_OpenPseudo, sortPTab, sortOut, cols);
+					v->AddOp2(OP_SorterSort, sAggInfo.SortingIdx, addrEnd);
+					v->Comment("GROUP BY sort");
+					sAggInfo.UseSortingIdx = 1;
+					Expr::CacheClear(parse);
 				}
 
-				/* Evaluate the current GROUP BY terms and store in b0, b1, b2...
-				** (b0 is memory location iBMem+0, b1 is iBMem+1, and so forth)
-				** Then compare the current GROUP BY terms against the GROUP BY terms
-				** from the previous row currently stored in a0, a1, a2...
-				*/
-				addrTopOfLoop = sqlite3VdbeCurrentAddr(v);
-				sqlite3ExprCacheClear(pParse);
-				if( groupBySort ){
-					sqlite3VdbeAddOp2(v, OP_SorterData, sAggInfo.sortingIdx, sortOut);
-				}
-				for(j=0; j<pGroupBy->nExpr; j++){
-					if( groupBySort ){
-						sqlite3VdbeAddOp3(v, OP_Column, sortPTab, j, iBMem+j);
-						if( j==0 ) sqlite3VdbeChangeP5(v, OPFLAG_CLEARCACHE);
-					}else{
-						sAggInfo.directMode = 1;
-						sqlite3ExprCode(pParse, pGroupBy->a[j].pExpr, iBMem+j);
+				// Evaluate the current GROUP BY terms and store in b0, b1, b2... (b0 is memory location bmemId+0, b1 is bmemId+1, and so forth)
+				// Then compare the current GROUP BY terms against the GROUP BY terms from the previous row currently stored in a0, a1, a2...
+				int addrTopOfLoop = v->CurrentAddr(); // Top of the input loop
+				Expr::CacheClear(parse);
+				if (groupBySort)
+					v->AddOp2(OP_SorterData, sAggInfo.SortingIdx, sortOut);
+				for (j = 0; j < groupBy->Exprs; j++)
+				{
+					if (groupBySort)
+					{
+						v->AddOp3(OP_Column, sortPTab, j, bmemId+j);
+						if (j == 0) v->ChangeP5(OPFLAG_CLEARCACHE);
+					}
+					else
+					{
+						sAggInfo.DirectMode = 1;
+						Expr::Code(parse, groupBy->Ids[j].Expr, bmemId+j);
 					}
 				}
-				sqlite3VdbeAddOp4(v, OP_Compare, iAMem, iBMem, pGroupBy->nExpr,
-					(char*)pKeyInfo, P4_KEYINFO);
-				j1 = sqlite3VdbeCurrentAddr(v);
-				sqlite3VdbeAddOp3(v, OP_Jump, j1+1, 0, j1+1);
+				v->AddOp4(OP_Compare, amemId, bmemId, groupBy->Exprs, (char *)keyInfo, Vdbe::P4T_KEYINFO);
+				int j1 = v->CurrentAddr(); // A-vs-B comparision jump
+				v->AddOp3(OP_Jump, j1+1, 0, j1+1);
 
-				/* Generate code that runs whenever the GROUP BY changes.
-				** Changes in the GROUP BY are detected by the previous code
-				** block.  If there were no changes, this block is skipped.
-				**
-				** This code copies current group by terms in b0,b1,b2,...
-				** over to a0,a1,a2.  It then calls the output subroutine
-				** and resets the aggregate accumulator registers in preparation
-				** for the next GROUP BY batch.
-				*/
-				sqlite3ExprCodeMove(pParse, iBMem, iAMem, pGroupBy->nExpr);
-				sqlite3VdbeAddOp2(v, OP_Gosub, regOutputRow, addrOutputRow);
-				VdbeComment((v, "output one row"));
-				sqlite3VdbeAddOp2(v, OP_IfPos, iAbortFlag, addrEnd);
-				VdbeComment((v, "check abort flag"));
-				sqlite3VdbeAddOp2(v, OP_Gosub, regReset, addrReset);
-				VdbeComment((v, "reset accumulator"));
+				// Generate code that runs whenever the GROUP BY changes. Changes in the GROUP BY are detected by the previous code
+				// block.  If there were no changes, this block is skipped.
+				//
+				// This code copies current group by terms in b0,b1,b2,... over to a0,a1,a2.  It then calls the output subroutine
+				// and resets the aggregate accumulator registers in preparation for the next GROUP BY batch.
+				Expr::CodeMove(parse, bmemId, amemId, groupBy->Exprs);
+				v->AddOp2(OP_Gosub, regOutputRow, addrOutputRow);
+				v->Comment("output one row");
+				v->AddOp2(OP_IfPos, abortFlagId, addrEnd);
+				v->Comment("check abort flag");
+				v->AddOp2(OP_Gosub, regReset, addrReset);
+				v->Comment("reset accumulator");
 
-				/* Update the aggregate accumulators based on the content of
-				** the current row
-				*/
-				sqlite3VdbeJumpHere(v, j1);
-				updateAccumulator(pParse, &sAggInfo);
-				sqlite3VdbeAddOp2(v, OP_Integer, 1, iUseFlag);
-				VdbeComment((v, "indicate data in accumulator"));
+				// Update the aggregate accumulators based on the content of the current row
+				v->JumpHere(j1);
+				UpdateAccumulator(parse, &sAggInfo);
+				v->AddOp2(OP_Integer, 1, useFlagId);
+				v->Comment("indicate data in accumulator");
 
-				/* End of the loop
-				*/
-				if( groupBySort ){
-					sqlite3VdbeAddOp2(v, OP_SorterNext, sAggInfo.sortingIdx, addrTopOfLoop);
-				}else{
-					sqlite3WhereEnd(winfo);
-					sqlite3VdbeChangeToNoop(v, addrSortingIdx);
+				// End of the loop
+				if (groupBySort)
+					v->AddOp2(OP_SorterNext, sAggInfo.SortingIdx, addrTopOfLoop);
+				else
+				{
+					Where::End(winfo);
+					v->ChangeToNoop(addrSortingIdx);
 				}
 
-				/* Output the final row of result
-				*/
-				sqlite3VdbeAddOp2(v, OP_Gosub, regOutputRow, addrOutputRow);
-				VdbeComment((v, "output final row"));
+				// Output the final row of result
+				v->AddOp2(OP_Gosub, regOutputRow, addrOutputRow);
+				v->Comment("output final row");
 
-				/* Jump over the subroutines
-				*/
-				sqlite3VdbeAddOp2(v, OP_Goto, 0, addrEnd);
+				// Jump over the subroutines
+				v->AddOp2(OP_Goto, 0, addrEnd);
 
-				/* Generate a subroutine that outputs a single row of the result
-				** set.  This subroutine first looks at the iUseFlag.  If iUseFlag
-				** is less than or equal to zero, the subroutine is a no-op.  If
-				** the processing calls for the query to abort, this subroutine
-				** increments the iAbortFlag memory location before returning in
-				** order to signal the caller to abort.
-				*/
-				addrSetAbort = sqlite3VdbeCurrentAddr(v);
-				sqlite3VdbeAddOp2(v, OP_Integer, 1, iAbortFlag);
-				VdbeComment((v, "set abort flag"));
-				sqlite3VdbeAddOp1(v, OP_Return, regOutputRow);
-				sqlite3VdbeResolveLabel(v, addrOutputRow);
-				addrOutputRow = sqlite3VdbeCurrentAddr(v);
-				sqlite3VdbeAddOp2(v, OP_IfPos, iUseFlag, addrOutputRow+2);
-				VdbeComment((v, "Groupby result generator entry point"));
-				sqlite3VdbeAddOp1(v, OP_Return, regOutputRow);
-				finalizeAggFunctions(pParse, &sAggInfo);
-				sqlite3ExprIfFalse(pParse, pHaving, addrOutputRow+1, SQLITE_JUMPIFNULL);
-				selectInnerLoop(pParse, p, p->pEList, 0, 0, pOrderBy,
-					&sDistinct, pDest,
-					addrOutputRow+1, addrSetAbort);
-				sqlite3VdbeAddOp1(v, OP_Return, regOutputRow);
-				VdbeComment((v, "end groupby result generator"));
+				// Generate a subroutine that outputs a single row of the result set.  This subroutine first looks at the iUseFlag.  If iUseFlag
+				// is less than or equal to zero, the subroutine is a no-op.  If the processing calls for the query to abort, this subroutine
+				// increments the iAbortFlag memory location before returning in order to signal the caller to abort.
+				int addrSetAbort = v->CurrentAddr(); // Set the abort flag and return
+				v->AddOp2(OP_Integer, 1, abortFlagId);
+				v->Comment("set abort flag");
+				v->AddOp1(OP_Return, regOutputRow);
+				v->ResolveLabel(addrOutputRow);
+				addrOutputRow = v->CurrentAddr();
+				v->AddOp2(OP_IfPos, useFlagId, addrOutputRow+2);
+				v->Comment("Groupby result generator entry point");
+				v->AddOp1(OP_Return, regOutputRow);
+				FinalizeAggFunctions(parse, &sAggInfo);
+				if (having != nullptr) having->IfFalse(parse, addrOutputRow+1, AFF_BIT_JUMPIFNULL);
+				SelectInnerLoop(parse, p, p->EList, 0, 0, orderBy, &sDistinct, dest, addrOutputRow+1, addrSetAbort);
+				v->AddOp1(OP_Return, regOutputRow);
+				v->Comment("end groupby result generator");
 
-				/* Generate a subroutine that will reset the group-by accumulator
-				*/
-				sqlite3VdbeResolveLabel(v, addrReset);
-				resetAccumulator(pParse, &sAggInfo);
-				sqlite3VdbeAddOp1(v, OP_Return, regReset);
+				// Generate a subroutine that will reset the group-by accumulator
+				v->ResolveLabel(addrReset);
+				ResetAccumulator(parse, &sAggInfo);
+				v->AddOp1(OP_Return, regReset);
 
-			} /* endif pGroupBy.  Begin aggregate queries without GROUP BY: */
+			}
+			// endif pGroupBy.  Begin aggregate queries without GROUP BY: 
 			else
 			{
 				ExprList *del = nullptr;
@@ -3238,7 +3190,7 @@ multi_select_end:
 
 					// Search for the index that has the least amount of columns. If there is such an index, and it has less columns than the table
 					// does, then we can assume that it consumes less space on disk and will therefore be cheaper to scan to determine the query result.
-					// In this case set iRoot to the root page number of the index b-tree and pKeyInfo to the KeyInfo structure required to navigate the index.
+					// In this case set iRoot to the root page number of the index b-tree and keyInfo to the KeyInfo structure required to navigate the index.
 					//
 					// (2011-04-15) Do not do a full scan of an unordered index.
 					//

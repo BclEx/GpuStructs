@@ -16,7 +16,6 @@ namespace Core
 {
     public partial class Vdbe
     {
-
         #region Preamble
 
 #if DEBUG
@@ -40,12 +39,13 @@ namespace Core
 
         //static int ExpandBlob(Mem P)
         //{
-        //    return (P.flags & MEM_Zero) != 0 ? sqlite3VdbeMemExpandBlob(P) : 0;
+        //    return (P.flags & MEM_Zero) != 0 ? Vdbe.MemExpandBlob(P) : 0;
         //}
 
         #endregion
 
         #region Name2
+
         public static void MemStoreType(Mem mem)
         {
             MEM flags = mem.Flags;
@@ -56,7 +56,7 @@ namespace Core
             else mem.Type = TYPE.BLOB;
         }
 
-        static VdbeCursor allocateCursor(Vdbe p, int curID, int fields, int db, bool isBtreeCursor)
+        static VdbeCursor AllocateCursor(Vdbe p, int curID, int fields, int db, bool isBtreeCursor)
         {
             // Find the memory cell that will be used to store the blob of memory required for this VdbeCursor structure. It is convenient to use a 
             // vdbe memory cell to manage the memory allocation required for a VdbeCursor structure for the following reasons:
@@ -77,6 +77,7 @@ namespace Core
                 p.FreeCursor(p.Cursors[curID]);
                 p.Cursors[curID] = null;
             }
+            //: if (Vdbe.MemGrow(mem, bytes, false) == RC.OK)
             {
                 p.Cursors[curID] = cx = new VdbeCursor();
                 cx.Db = db;
@@ -92,7 +93,7 @@ namespace Core
             return cx;
         }
 
-        static void applyNumericAffinity(Mem rec)
+        static void ApplyNumericAffinity(Mem rec)
         {
             if ((rec.Flags & (MEM.Real | MEM.Int)) == 0)
             {
@@ -101,7 +102,7 @@ namespace Core
                 TEXTENCODE encode = rec.Encode;
                 if ((rec.Flags & MEM.Str) == 0) return;
                 if (!ConvertEx.Atof(rec.Z, ref r, rec.N, encode)) return;
-                if (!ConvertEx.Atoi64(rec.Z, ref i, rec.N, encode))
+                if (ConvertEx.Atoi64(rec.Z, out i, rec.N, encode) == 0)
                 {
                     rec.u.I = i;
                     rec.Flags |= MEM.Int;
@@ -114,7 +115,7 @@ namespace Core
             }
         }
 
-        static void applyAffinity(Mem rec, AFF affinity, TEXTENCODE encode)
+        static void ApplyAffinity(Mem rec, AFF affinity, TEXTENCODE encode)
         {
             if (affinity == AFF.TEXT)
             {
@@ -135,17 +136,17 @@ namespace Core
             else if (affinity != AFF.NONE)
             {
                 Debug.Assert(affinity == AFF.INTEGER || affinity == AFF.REAL || affinity == AFF.NUMERIC);
-                applyNumericAffinity(rec);
+                ApplyNumericAffinity(rec);
                 if ((rec.Flags & MEM.Real) != 0)
                     IntegerAffinity(rec);
             }
         }
 
-        static TYPE sqlite3_value_numeric_type(Mem mem)
+        public static TYPE ValueNumericType(Mem mem)
         {
             if (mem.Type == TYPE.TEXT)
             {
-                applyNumericAffinity(mem);
+                ApplyNumericAffinity(mem);
                 MemStoreType(mem);
             }
             return mem.Type;
@@ -153,16 +154,16 @@ namespace Core
 
         static void ValueApplyAffinity(Mem mem, char affinity, TEXTENCODE encode)
         {
-            applyAffinity(mem, (AFF)affinity, encode);
+            ApplyAffinity(mem, (AFF)affinity, encode);
         }
 
 #if DEBUG
-        static StringBuilder csr = new StringBuilder(100);
-        static void sqlite3VdbeMemPrettyPrint(Mem mem, StringBuilder buf)
+        static StringBuilder _csr = new StringBuilder(100);
+        static readonly string[] _encnames = new string[] { "(X)", "(8)", "(16LE)", "(16BE)" };
+        public static void MemPrettyPrint(Mem mem, StringBuilder buf)
         {
-            string[] encnames = new string[] { "(X)", "(8)", "(16LE)", "(16BE)" };
             buf.Length = 0;
-            csr.Length = 0;
+            _csr.Length = 0;
 
             MEM f = mem.Flags;
             if ((f & MEM.Blob) != 0)
@@ -196,7 +197,7 @@ namespace Core
                     if (z < 32 || z > 126) buf.Append('.');
                     else buf.Append(z);
                 }
-                buf.AppendFormat("]{0}", encnames[(byte)mem.Encode]);
+                buf.AppendFormat("]{0}", _encnames[(byte)mem.Encode]);
                 if ((f & MEM.Zero) != 0)
                     buf.AppendFormat("+{0}z", mem.u.Zero);
             }
@@ -229,11 +230,11 @@ namespace Core
                     buf.Append(c >= 0x20 && c < 0x7f ? (char)c : '.');
                 }
                 buf.Append(']');
-                buf.Append(encnames[(byte)mem.Encode]);
+                buf.Append(_encnames[(byte)mem.Encode]);
             }
         }
 
-        static void memTracePrint(FILE _out, Mem p)
+        static void MemTracePrint(FILE _out, Mem p)
         {
             if ((p.Flags & MEM.Null) != 0) _out.Write(" NULL");
             else if ((p.Flags & (MEM.Int | MEM.Str)) == (MEM.Int | MEM.Str)) _out.Write(" si:%lld", p.u.I);
@@ -250,37 +251,36 @@ namespace Core
                 _out.Write("%s", buf);
             }
         }
-        static void registerTrace(FILE _out, int iReg, Mem p)
+        static void RegisterTrace(FILE _out, int iReg, Mem p)
         {
             _out.Write("reg[%d] = ", iReg);
-            memTracePrint(_out, p);
+            MemTracePrint(_out, p);
             _out.Write("\n");
         }
 
-        static void REGISTER_TRACE(Vdbe p, int R, Mem M) { if (p.Trace != null) registerTrace(p.Trace, R, M); }
+        static void REGISTER_TRACE(Vdbe p, int R, Mem M) { if (p.Trace != null) RegisterTrace(p.Trace, R, M); }
 #else
         static void REGISTER_TRACE(Vdbe p, int R, Mem M) { }
 #endif
 
-
 #if !NDEBUG
-        static int checkSavepointCount(Context db)
+        static int CheckSavepointCount(Context db)
         {
             int n = 0;
-            for (Savepoint p = db.Savepoint; p != null; p = p.Next) n++;
-            Debug.Assert((db.Savepoints + db.IsTransactionSavepoint) == n);
+            for (Savepoint p = db.Savepoints; p != null; p = p.Next) n++;
+            Debug.Assert((db.SavepointsLength + db.IsTransactionSavepoint) == n);
             return 1;
         }
 #else
-        static int checkSavepointCount(Context db) { return 1; }
+        static int CheckSavepointCount(Context db) { return 1; }
 #endif
 
-        static void importVtabErrMsg(Vdbe p, VTable vtab)
+        static void ImportVtabErrMsg(Vdbe p, IVTable vtab)
         {
-            Context db = p.Db;
+            Context db = p.Ctx;
             C._tagfree(db, ref p.ErrMsg);
             p.ErrMsg = vtab.ErrMsg;
-            //C._free(vtab.zErrMsg );
+            C._free(ref vtab.ErrMsg);
             vtab.ErrMsg = null;
         }
 
@@ -5161,7 +5161,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               Debug.Assert( DbHasProperty( db, iDb, DB_SchemaLoaded ) );
               /* Used to be a conditional */
               {
-                zMaster = SCHEMA_TABLE( iDb );
+                zMaster = E.SCHEMA_TABLE( iDb );
                 initData = new InitData();
                 initData.db = db;
                 initData.iDb = pOp.p1;

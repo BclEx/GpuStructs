@@ -181,7 +181,7 @@ namespace Core
             Debug.Assert(table.Index == null);
 
             Context ctx = parse.Ctx; // Database connection
-            int db = sqlite3SchemaToIndex(ctx, table.Schema); // The database the table is being created in
+            int db = Prepare.SchemaToIndex(ctx, table.Schema); // The database the table is being created in
             Debug.Assert(db >= 0);
 
             table.TabFlags |= TF.Virtual;
@@ -236,7 +236,7 @@ namespace Core
                 //
                 // The VM register number pParse->regRowid holds the rowid of an entry in the sqlite_master table tht was created for this vtab
                 // by sqlite3StartTable().
-                int db = sqlite3SchemaToIndex(ctx, table.Schema);
+                int db = Prepare.SchemaToIndex(ctx, table.Schema);
                 parse.NestedParse("UPDATE %Q.%s SET type='table', name=%Q, tbl_name=%Q, rootpage=0, sql=%Q WHERE rowid=#%d",
                   ctx.DBs[db].Name, E.SCHEMA_TABLE(db),
                   table.Name, table.Name,

@@ -6,19 +6,19 @@ namespace Core
 #pragma region Preamble
 
 #ifdef _DEBUG
-#define memAboutToChange(P, M) P->MemAboutToChange(M)
+#define MemAboutToChange(P, M) P->MemAboutToChange(M)
 #else
-#define memAboutToChange(P, M)
+#define MemAboutToChange(P, M)
 #endif
 
 #ifdef TEST
-	__device__ int sqlite3_search_count = 0;
-	__device__ int sqlite3_interrupt_count = 0;
-	__device__ int sqlite3_sort_count = 0;
-	__device__ int sqlite3_max_blobsize = 0;
-	__device__ static void updateMaxBlobsize(Mem *p) { if ((p->Flags & (MEM_Str|MEM_Blob)) != 0 && p->N > sqlite3_max_blobsize) sqlite3_max_blobsize = p->N; }
-	__device__ int sqlite3_found_count = 0;
-#define UPDATE_MAX_BLOBSIZE(P) updateMaxBlobsize(P)
+	__device__ int g_search_count = 0;
+	__device__ int g_interrupt_count = 0;
+	__device__ int g_sort_count = 0;
+	__device__ int g_max_blobsize = 0;
+	__device__ static void UpdateMaxBlobsize(Mem *p) { if ((p->Flags & (MEM_Str|MEM_Blob)) != 0 && p->N > g_max_blobsize) g_max_blobsize = p->N; }
+	__device__ int g_found_count = 0;
+#define UPDATE_MAX_BLOBSIZE(P) UpdateMaxBlobsize(P)
 #else
 #define UPDATE_MAX_BLOBSIZE(P)
 #endif
@@ -41,7 +41,7 @@ namespace Core
 		else mem->Type = TYPE_BLOB;
 	}
 
-	__device__ static VdbeCursor *allocateCursor(Vdbe *p, int curID, int fields, int dbId, bool isBtreeCursor)
+	__device__ static VdbeCursor *AllocateCursor(Vdbe *p, int curID, int fields, int db, bool isBtreeCursor)
 	{
 		// Find the memory cell that will be used to store the blob of memory required for this VdbeCursor structure. It is convenient to use a 
 		// vdbe memory cell to manage the memory allocation required for a VdbeCursor structure for the following reasons:
@@ -67,11 +67,11 @@ namespace Core
 			p->FreeCursor(p->Cursors[curID]);
 			p->Cursors[curID] = nullptr;
 		}
-		if (Vdbe::MemGrow(mem, bytes, 0) == RC_OK)
+		if (Vdbe::MemGrow(mem, bytes, false) == RC_OK)
 		{
 			p->Cursors[curID] = cx = (VdbeCursor *)mem->Z;
 			_memset(cx, 0, sizeof(VdbeCursor));
-			cx->Db = dbId;
+			cx->Db = db;
 			cx->Fields = fields;
 			if (fields)
 				cx->Types = (uint32 *)&mem->Z[_ROUND8(sizeof(VdbeCursor))];
@@ -84,7 +84,7 @@ namespace Core
 		return cx;
 	}
 
-	__device__ static void applyNumericAffinity(Mem *rec)
+	__device__ static void ApplyNumericAffinity(Mem *rec)
 	{
 		if ((rec->Flags & (MEM_Real|MEM_Int)) == 0)
 		{
@@ -106,7 +106,7 @@ namespace Core
 		}
 	}
 
-	__device__ static void applyAffinity(Mem *rec, uint8 affinity, TEXTENCODE encode)
+	__device__ static void ApplyAffinity(Mem *rec, uint8 affinity, TEXTENCODE encode)
 	{
 		if (affinity == AFF_TEXT)
 		{
@@ -118,29 +118,29 @@ namespace Core
 		else if (affinity != AFF_NONE)
 		{
 			_assert(affinity == AFF_INTEGER || affinity == AFF_REAL || affinity == AFF_NUMERIC);
-			applyNumericAffinity(rec);
+			ApplyNumericAffinity(rec);
 			if (rec->Flags & MEM_Real)
 				Vdbe::IntegerAffinity(rec);
 		}
 	}
 
-	__device__ TYPE sqlite3_value_numeric_type(Mem *mem)
+	__device__ TYPE Vdbe::ValueNumericType(Mem *mem)
 	{
 		if (mem->Type == TYPE_TEXT)
 		{
-			applyNumericAffinity(mem);
+			ApplyNumericAffinity(mem);
 			Vdbe::MemStoreType(mem);
 		}
 		return mem->Type;
 	}
 
-	__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
+	__device__ void Vdbe::ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode)
 	{
-		applyAffinity(mem, affinity, encode);
+		ApplyAffinity(mem, affinity, encode);
 	}
 
 #ifdef _DEBUG
-	__constant__ static const char *const encnames[] = {"(X)", "(8)", "(16LE)", "(16BE)"};
+	__constant__ static const char *const _encnames[] = {"(X)", "(8)", "(16LE)", "(16BE)"};
 	__device__ void Vdbe::MemPrettyPrint(Mem *mem, char *buf)
 	{	
 		char *csr = buf;
@@ -183,7 +183,7 @@ namespace Core
 				if (z < 32 || z > 126) *csr++ = '.';
 				else *csr++ = z;
 			}
-			__snprintf(csr, 100, "]%s", encnames[mem->Encode]);
+			__snprintf(csr, 100, "]%s", _encnames[mem->Encode]);
 			csr += _strlen30(csr);
 			if (f & MEM_Zero)
 			{
@@ -222,13 +222,13 @@ namespace Core
 				buf[k++] = (c >= 0x20 && c < 0x7f ? c : '.');
 			}
 			buf[k++] = ']';
-			__snprintf(&buf[k], 100, encnames[mem->Encode]);
+			__snprintf(&buf[k], 100, _encnames[mem->Encode]);
 			k += _strlen30(&buf[k]);
 			buf[k++] = '\0';
 		}
 	}
 
-	__device__ static void memTracePrint(FILE *out, Mem *p)
+	__device__ static void MemTracePrint(FILE *out, Mem *p)
 	{
 		if (p->Flags & MEM_Invalid) _fprintf(out, " undefined");
 		else if (p->Flags & MEM_Null) _fprintf(out, " NULL");
@@ -247,14 +247,14 @@ namespace Core
 		}
 	}
 
-	__device__ static void registerTrace(FILE *out, int reg, Mem *p)
+	__device__ static void RegisterTrace(FILE *out, int reg, Mem *p)
 	{
 		_fprintf(out, "REG[%d] = ", reg);
-		memTracePrint(out, p);
+		MemTracePrint(out, p);
 		_fprintf(out, "\n");
 	}
 
-#define REGISTER_TRACE(R, M) if (p->Trace) registerTrace(p->Trace, R, M)
+#define REGISTER_TRACE(R, M) if (p->Trace) RegisterTrace(p->Trace, R, M)
 #else
 #define REGISTER_TRACE(R, M)
 #endif
@@ -266,7 +266,7 @@ namespace Core
 #define CHECK_FOR_INTERRUPT if (db->u1.IsInterrupted) goto abort_due_to_interrupt;
 
 #ifndef NDEBUG
-	__device__ static int checkSavepointCount(Context *db)
+	__device__ static int CheckSavepointCount(Context *db)
 	{
 		int n = 0;
 		for (Savepoint *p = db->Savepoints; p; p = p->Next) n++;
@@ -275,7 +275,7 @@ namespace Core
 	}
 #endif
 
-	__device__ static void importVtabErrMsg(Vdbe *p, IVTable *vtab)
+	__device__ static void ImportVtabErrMsg(Vdbe *p, IVTable *vtab)
 	{
 		Context *db = p->Db;
 		_tagfree(db, p->ErrMsg);

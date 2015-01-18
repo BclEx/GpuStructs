@@ -841,7 +841,7 @@ namespace Core
             }
 
         primary_key_exit:
-            Expr.ExprListDelete(Ctx, ref list);
+            Expr.ListDelete(Ctx, ref list);
             return;
         }
 
@@ -891,7 +891,7 @@ namespace Core
         public CollSeq LocateCollSeq(string name)
         {
             Context ctx = Ctx;
-            TEXTENCODE encode = Context.CTXENCODE(ctx);
+            TEXTENCODE encode = E.CTXENCODE(ctx);
             bool initbusy = ctx.Init.Busy;
             CollSeq coll = Callback.FindCollSeq(ctx, encode, name, initbusy);
             if (!initbusy && (coll == null || coll.Cmp == null))
@@ -901,13 +901,13 @@ namespace Core
 
         public void ChangeCookie(int db)
         {
-            int r1 = GetTempReg();
+            int r1 = Expr.GetTempReg();
             Context ctx = Ctx;
             Vdbe v = V;
             Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
             v.AddOp2(OP.Integer, ctx.DBs[db].Schema.SchemaCookie + 1, r1);
             v.AddOp3(OP.SetCookie, db, BTREE_SCHEMA_VERSION, r1);
-            ReleaseTempReg(r1);
+            Expr.ReleaseTempReg(r1);
         }
 
         static int IdentLength(string z)
@@ -989,7 +989,7 @@ namespace Core
                 C.ASSERTCOVERAGE(col.Affinity == AFF.INTEGER);
                 C.ASSERTCOVERAGE(col.Affinity == AFF.REAL);
 
-                string type = azType[col.affinity - SQLITE_AFF_TEXT];
+                string type = _createTableStmt_Types[col.Affinity - SQLITE_AFF_TEXT];
                 int typeLength = type.Length;
                 Debug.Assert(col.Affinity == AFF.NONE || col.Affinity == sqlite3AffinityType(type));
                 stmt.Append(type);
@@ -1013,7 +1013,7 @@ namespace Core
                 return;
             Debug.Assert(!ctx.Init.Busy || select == null);
 
-            int db = SchemaToIndex(ctx, table.Schema);
+            int db = Prepare.SchemaToIndex(ctx, table.Schema);
 #if !OMIT_CHECK
             // Resolve names in all CHECK constraint expressions.
             if (table.Check != null)
@@ -1032,8 +1032,8 @@ namespace Core
                 nc.SrcList = src;
                 nc.NCFlags = NC.IsCheck;
                 ExprList list = table.Check; // List of all CHECK constraints
-                for (int i = 0; i < list->Exprs; i++)
-                    if (Resolve.ExprNames(nc, list.Ids[i].Expr))
+                for (int i = 0; i < list.Exprs; i++)
+                    if (Walker.ResolveExprNames(nc, ref list.Ids[i].Expr))
                         return;
             }
 #endif
@@ -1087,18 +1087,18 @@ namespace Core
                     Tabs = 2;
                     SelectDest dest = new SelectDest();
                     Select.DestInit(dest, SRT.Table, 1);
-                    Select.Select(this, select, ref dest);
+                    Select.Select_(this, select, ref dest);
                     v.AddOp1(OP.Close, 1);
                     if (Errs == 0)
                     {
-                        Table selectTable = sqlite3ResultSetOfSelect(pParse, select);
+                        Table selectTable = sqlite3ResultSetOfSelect(parse, select);
                         if (selectTable == null)
                             return;
-                        Debug.Assert(table.Cols == null);
+                        Debug.Assert(table.Cols.data == null);
                         table.Cols.length = selectTable.Cols.length;
                         table.Cols = selectTable.Cols;
                         selectTable.Cols.length = 0;
-                        selectTable.Cols = null;
+                        selectTable.Cols.data = null;
                         DeleteTable(ctx, ref selectTable);
                     }
                 }
@@ -1107,16 +1107,16 @@ namespace Core
                 int n;
                 string stmt; // Text of the CREATE TABLE or CREATE VIEW statement
                 if (select != null)
-                    stmt = createTableStmt(ctx, table);
+                    stmt = CreateTableStmt(ctx, table);
                 else
                 {
                     n = (int)(NameToken.data.Length - end.data.Length) + 1;
-                    stmt = SysEx.Mprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
+                    stmt = C._mtagprintf(ctx, "CREATE %s %.*s", type2, n, NameToken.data);
                 }
 
                 // A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
                 // the information we've collected.
-                object[] args = new[]{ ctx.DBs[db].Name, SCHEMA_TABLE(db),
+                object[] args = new object[]{ ctx.DBs[db].Name, SCHEMA_TABLE(db),
 				    type, table.Name, table.Name, RegRoot, stmt,
 				    RegRowid };
                 NestedParse(pParse,
@@ -1141,7 +1141,7 @@ namespace Core
 #endif
 
                 // Reparse everything to update our internal data structures
-                v.AddParseSchemaOp(ctx, SysEx.Mprintf(ctx, "tbl_name='%q'", table.Name));
+                v.AddParseSchemaOp(ctx, C._mtagprintf(ctx, "tbl_name='%q'", table.Name));
             }
 
 
@@ -1164,7 +1164,7 @@ namespace Core
                 {
                     string name = NameToken.data;
                     Debug.Assert(select == null && cons != null && end != null);
-                    if (cons.z == null)
+                    if (cons.data == null)
                         cons = end;
                     int nameLength = name.Length - cons.data.Length;
                     table.AddColOffset = 13 + nameLength;
@@ -1369,7 +1369,7 @@ namespace Core
             //
             // The "#NNN" in the SQL is a special constant that means whatever value is in register NNN.  See grammar rules associated with the TK_REGISTER
             // token for additional information.
-            object[] args = new[] { parse.Ctx.DBs[db].Name, SCHEMA_TABLE(db), table, r1, r1 };
+            object[] args = new[] { parse.Ctx.DBs[db].Name, E.SCHEMA_TABLE(db), table, r1, r1 };
             parse.NestedParse("UPDATE %Q.%s SET rootpage=%d WHERE #%d AND rootpage=#%d", args);
 #endif
             parse.ReleaseTempReg(r1);
@@ -1472,7 +1472,7 @@ namespace Core
             // Drop all SQLITE_MASTER table and index entries that refer to the table. The program name loops through the master table and deletes
             // every row that refers to a table of the same name as the one being dropped. Triggers are handled separately because a trigger can be
             // created in the temp database that refers to a table in another database.
-            object[] args2 = new[] { dbobj.Name, SCHEMA_TABLE(db), table.Name };
+            object[] args2 = new[] { dbobj.Name, E.SCHEMA_TABLE(db), table.Name };
             NestedParse("DELETE FROM %Q.%s WHERE tbl_name=%Q and type!='trigger'", args2);
             if (!isView && !IsVirtual(table))
                 DestroyTable(this, table);
@@ -1513,7 +1513,7 @@ namespace Core
                 goto exit_drop_table;
 #if !OMIT_AUTHORIZATION
             {
-                string tableName = SCHEMA_TABLE(db);
+                string tableName = E.SCHEMA_TABLE(db);
                 string dbName = ctx.aDb[db].zName;
                 if (Auth.Check(this, AUTH.DELETE, tableName, 0, dbName))
                     goto exit_drop_table;
@@ -1887,7 +1887,7 @@ namespace Core
 #if !OMIT_AUTHORIZATION
             {
                 string dbName = dbobj.Name;
-                if (Auth.Check(this, AUTH.INSERT, SCHEMA_TABLE(db), 0, dbName))
+                if (Auth.Check(this, AUTH.INSERT, E.SCHEMA_TABLE(db), 0, dbName))
                     goto exit_create_index;
                 i = (!OMIT_TEMPDB2 && db == 1 ? AUTH.CREATE_TEMP_INDEX : AUTH.REATE_INDEX);
                 if (Auth.Check(this, i, name, table.Name, dbName))
@@ -2091,7 +2091,7 @@ namespace Core
                     stmt = null;
 
                 // Add an entry in sqlite_master for this index
-                object[] args = new[] { ctx.DBs[db].Name, SCHEMA_TABLE(db),
+                object[] args = new[] { ctx.DBs[db].Name, E.SCHEMA_TABLE(db),
                     index.Name,
                     table.Name,
                     memId,
@@ -2189,7 +2189,7 @@ namespace Core
             {
                 Table table = index.Table;
                 string dbName = ctx.DBs[db].Name;
-                string tableName = SCHEMA_TABLE(db);
+                string tableName = E.SCHEMA_TABLE(db);
                 int code = (!OMIT_TEMPDB && db != 0 ? AUTH.DROP_TEMP_INDEX : AUTH.DROP_INDEX);
                 if (Auth.Check(this, AUTH.DELETE, tableName, 0, dbName) || Auth.Check(this, code, index.Name, table.Name, dbName))
                     goto exit_drop_index;
@@ -2201,7 +2201,7 @@ namespace Core
             if (v != null)
             {
                 BeginWriteOperation(1, db);
-                object[] args = new[] { ctx.DBs[db].Name, SCHEMA_TABLE(db), index.Name };
+                object[] args = new[] { ctx.DBs[db].Name, E.SCHEMA_TABLE(db), index.Name };
                 NestedParse("DELETE FROM %Q.%s WHERE name=%Q AND type='index'", args);
                 ClearStatTables(db, "idx", index.Name);
                 ChangeCookie(db);

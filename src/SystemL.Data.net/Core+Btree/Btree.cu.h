@@ -11,6 +11,12 @@ namespace Core
 	struct BtCursor;
 	struct BtShared;
 
+	enum SO : uint8
+	{
+		SO_ASC = 0, // Sort in ascending order
+		SO_DESC = 1, // Sort in ascending order
+	};
+
 	struct KeyInfo
 	{
 		BContext *Ctx;		// The database connection

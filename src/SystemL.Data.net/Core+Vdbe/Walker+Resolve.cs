@@ -143,7 +143,7 @@ namespace Core
                             list = item.Select.EList;
                             for (j = 0; j < list.Exprs; j++)
                             {
-                                if (sqlite3MatchSpanName(list.Ids[j].Span, colName, tableName, dbName))
+                                if (Walker.MatchSpanName(list.Ids[j].Span, colName, tableName, dbName))
                                 {
                                     cnt++;
                                     cntTab = 2;
@@ -226,7 +226,7 @@ namespace Core
                                 break;
                             }
                         }
-                        if (colId >= table.Cols.length && sqlite3IsRowid(colName))
+                        if (colId >= table.Cols.length && Expr.IsRowid(colName))
                             colId = -1; // IMP: R-44911-55124
                         if (colId < table.Cols.length)
                         {
@@ -254,7 +254,7 @@ namespace Core
 #endif
 
                 // Perhaps the name is a reference to the ROWID
-                if (cnt == 0 && cntTab == 1 && sqlite3IsRowid(colName))
+                if (cnt == 0 && cntTab == 1 && Expr.IsRowid(colName))
                 {
                     cnt = 1;
                     expr.ColumnIdx = -1; // IMP: R-44911-55124
@@ -465,10 +465,10 @@ namespace Core
                         Debug.Assert(!E.ExprHasProperty(expr, EP.xIsSelect));
                         string id = expr.u.Token; // The function name.
                         int idLength = id.Length; // Number of characters in function name
-                        FuncDef def = sqlite3FindFunction(parse.Ctx, id, idLength, n, encode, 0); // Information about the function
+                        FuncDef def = Callback.FindFunction(parse.Ctx, id, idLength, n, encode, false); // Information about the function
                         if (def == null)
                         {
-                            def = sqlite3FindFunction(parse.Ctx, id, idLength, -2, encode, 0);
+                            def = Callback.FindFunction(parse.Ctx, id, idLength, -2, encode, false);
                             if (def == null)
                                 noSuchFunc = true;
                             else
@@ -484,7 +484,7 @@ namespace Core
                             {
                                 if (auth == ARC.DENY)
                                 {
-                                    parse->ErrorMsg("not authorized to use function: %s", def.Name);
+                                    parse.ErrorMsg("not authorized to use function: %s", def.Name);
                                     nc.Errs++;
                                 }
                                 expr.OP = TK.NULL;
@@ -494,7 +494,7 @@ namespace Core
 #endif
                         if (isAgg && (nc.NCFlags & NC.AllowAgg) == 0)
                         {
-                            parse->ErrorMsg("misuse of aggregate function %.*s()", idLength, id);
+                            parse.ErrorMsg("misuse of aggregate function %.*s()", idLength, id);
                             nc.Errs++;
                             isAgg = false;
                         }
@@ -509,13 +509,13 @@ namespace Core
                             nc.Errs++;
                         }
                         if (isAgg) nc.NCFlags &= ~NC.AllowAgg;
-                        Walkler.ExprList(walker, list);
+                        walker.WalkExprList(list);
                         if (isAgg)
                         {
                             NameContext nc2 = nc;
                             expr.OP = TK.AGG_FUNCTION;
                             expr.OP2 = 0;
-                            while (nc2 && !sqlite3FunctionUsesThisSrc(expr, nc2.SrcList))
+                            while (nc2 != null && !expr.FunctionUsesThisSrc(nc2.SrcList))
                             {
                                 expr.OP2++;
                                 nc2 = nc2.Next;
@@ -544,7 +544,7 @@ namespace Core
                             if ((nc.NCFlags & NC.IsCheck) != 0)
                                 parse.ErrorMsg("subqueries prohibited in CHECK constraints");
 #endif
-                            Walker.Select(walker, expr.x.Select);
+                            walker.WalkSelect(expr.x.Select);
                             Debug.Assert(nc.Refs >= refs);
                             if (refs != nc.Refs)
                                 E.ExprSetProperty(expr, EP.VarSelect);
@@ -581,6 +581,7 @@ namespace Core
 
         static int ResolveOrderByTermToExprList(Parse parse, Select select, Expr expr)
         {
+            int i = 0;
             Debug.Assert(!expr.IsInteger(ref i));
             ExprList list = select.EList; // The columns of the result set
             // Resolve all names in the ORDER BY term expression
@@ -593,11 +594,11 @@ namespace Core
             Context ctx = parse.Ctx; // Database connection
             byte savedSuppErr = ctx.SuppressErr; // Saved value of db->suppressErr
             ctx.SuppressErr = 1;
-            bool r = ResolveExprNames(nc, ref expr);
+            bool r = Walker.ResolveExprNames(nc, ref expr);
             ctx.SuppressErr = savedSuppErr;
             if (r) return 0;
             // Try to match the ORDER BY expression against an expression in the result set.  Return an 1-based index of the matching result-set entry.
-            for (int i = 0; i < list.Exprs; i++)
+            for (i = 0; i < list.Exprs; i++)
                 if (Expr.Compare(list.Ids[i].Expr, expr) < 2)
                     return i + 1;
             // If no match, return 0.
@@ -734,9 +735,9 @@ namespace Core
             return false;
         }
 
-        static int ResolveOrderGroupBy(NameContext nc, Select select, ExprList orderBy, string type)
+        static bool ResolveOrderGroupBy(NameContext nc, Select select, ExprList orderBy, string type)
         {
-            if (orderBy == null) return 0;
+            if (orderBy == null) return false;
             int result = select.EList.Exprs; // Number of terms in the result set
             Parse parse = nc.Parse; // Parsing context
             int i;
@@ -760,7 +761,7 @@ namespace Core
                     if (colId < 1 || colId > 0xffff)
                     {
                         ResolveOutOfRangeError(parse, type, i + 1, result);
-                        return 1;
+                        return true;
                     }
                     item.OrderByCol = (ushort)colId;
                     continue;
@@ -768,13 +769,13 @@ namespace Core
 
                 // Otherwise, treat the ORDER BY term as an ordinary expression
                 item.OrderByCol = 0;
-                if (ResolveExprNames(nc, ref expr) != 0)
-                    return 1;
+                if (Walker.ResolveExprNames(nc, ref expr))
+                    return true;
                 for (int j = 0; j < select.EList.Exprs; j++)
                     if (Expr.Compare(expr, select.EList.Ids[j].Expr) == 0)
                         item.OrderByCol = (ushort)(j + 1);
             }
-            return ResolveOrderGroupBy(parse, select, orderBy, type);
+            return Walker.ResolveOrderGroupBy(parse, select, orderBy, type);
         }
 
         static WRC ResolveSelectStep(Walker walker, Select p)
@@ -792,7 +793,7 @@ namespace Core
             // this routine in the correct order.
             if ((p.SelFlags & SF.Expanded) == 0)
             {
-                sqlite3SelectPrep(parse, p, outerNC);
+                p.Prep(parse, outerNC);
                 return (parse.Errs != 0 || ctx.MallocFailed ? WRC.Abort : WRC.Prune);
             }
 
@@ -810,7 +811,7 @@ namespace Core
                 // Resolve the expressions in the LIMIT and OFFSET clauses. These are not allowed to refer to any names, so pass an empty NameContext.
                 nc = new NameContext(); //: _memset(&nc, 0, sizeof(nc));
                 nc.Parse = parse;
-                if (ResolveExprNames(nc, ref p.Limit) != 0 || ResolveExprNames(nc, ref p.Offset) != 0)
+                if (Walker.ResolveExprNames(nc, ref p.Limit) || Walker.ResolveExprNames(nc, ref p.Offset))
                     return WRC.Abort;
 
                 // Recursively resolve names in all subqueries
@@ -851,7 +852,7 @@ namespace Core
                 for (i = 0; i < list.Exprs; i++)
                 {
                     Expr expr = list.Ids[i].Expr;
-                    if (ResolveExprNames(nc, ref expr) != 0)
+                    if (Walker.ResolveExprNames(nc, ref expr))
                         return WRC.Abort;
                 }
 
@@ -875,7 +876,7 @@ namespace Core
                 //
                 // Minor point: If this is the case, then the expression will be re-evaluated for each reference to it.
                 nc.EList = p.EList;
-                if (ResolveExprNames(nc, ref p.Where) != 0 || ResolveExprNames(nc, ref p.Having) != 0)
+                if (Walker.ResolveExprNames(nc, ref p.Where) || Walker.ResolveExprNames(nc, ref p.Having))
                     return WRC.Abort;
 
                 // The ORDER BY and GROUP BY clauses may not refer to terms in outer queries 
@@ -884,15 +885,15 @@ namespace Core
 
                 // Process the ORDER BY clause for singleton SELECT statements. The ORDER BY clause for compounds SELECT statements is handled
                 // below, after all of the result-sets for all of the elements of the compound have been resolved.
-                if (!isCompound && ResolveOrderGroupBy(nc, p, p.OrderBy, "ORDER") != 0)
+                if (!isCompound && Walker.ResolveOrderGroupBy(nc, p, p.OrderBy, "ORDER"))
                     return WRC.Abort;
-                if ( ctx.MallocFailed)
-                  return WRC.Abort;
+                if (ctx.MallocFailed)
+                    return WRC.Abort;
 
                 // Resolve the GROUP BY clause.  At the same time, make sure the GROUP BY clause does not contain aggregate functions.
                 if (groupBy != null)
                 {
-                    if (ResolveOrderGroupBy(nc, p, groupBy, "GROUP") != 0 || ctx.MallocFailed)
+                    if (Walker.ResolveOrderGroupBy(nc, p, groupBy, "GROUP") || ctx.MallocFailed)
                         return WRC.Abort;
                     ExprList.ExprListItem item2;
                     for (i = 0; i < groupBy.Exprs; i++)
@@ -912,7 +913,7 @@ namespace Core
             }
 
             // Resolve the ORDER BY on a compound SELECT after all terms of the compound have been resolved.
-            return ((isCompound && ResolveCompoundOrderBy(parse, leftmost) != 0 ? WRC.Abort : WRC.Prune);
+            return (isCompound && ResolveCompoundOrderBy(parse, leftmost) != 0 ? WRC.Abort : WRC.Prune);
         }
 
         public static bool ResolveExprNames(NameContext nc, ref Expr expr)
@@ -921,19 +922,19 @@ namespace Core
 #if MAX_EXPR_DEPTH
             {
                 Parse parse = nc.Parse;
-                if (Expr.CheckHeight(parse, expr.Height + nc.Parse.Height))
+                if (Expr.CheckHeight(parse, expr.Height + nc.Parse.Height) != 0)
                     return true;
                 parse.Height += expr.Height;
             }
 #endif
-            byte savedHasAgg = ((nc.NCFlags & NC.HasAgg) != 0);
+            bool savedHasAgg = ((nc.NCFlags & NC.HasAgg) != 0);
             nc.NCFlags &= ~NC.HasAgg;
             Walker w = new Walker();
             w.ExprCallback = ResolveExprStep;
             w.SelectCallback = ResolveSelectStep;
             w.Parse = nc.Parse;
             w.u.NC = nc;
-            w.WalkExpr(ref expr);
+            w.WalkExpr(expr);
 #if MAX_EXPR_DEPTH
             nc.Parse.Height -= expr.Height;
 #endif
@@ -941,7 +942,7 @@ namespace Core
                 E.ExprSetProperty(expr, EP.Error);
             if ((nc.NCFlags & NC.HasAgg) != 0)
                 E.ExprSetProperty(expr, EP.Agg);
-            else if (savedHasAgg != 0)
+            else if (savedHasAgg)
                 nc.NCFlags |= NC.HasAgg;
             return E.ExprHasProperty(expr, EP.Error);
         }

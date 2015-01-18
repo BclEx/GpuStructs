@@ -2897,7 +2897,7 @@ no_mem:
 		return WRC_Continue;
 	}
 
-	__device__ int Expr::FunctionUsesThisSrc(SrcList *srcList)
+	__device__ bool Expr::FunctionUsesThisSrc(SrcList *srcList)
 	{
 		_assert(OP == TK_AGG_FUNCTION);
 		Walker w;
@@ -2908,7 +2908,7 @@ no_mem:
 		cnt.Src = srcList;
 		cnt.This = 0;
 		cnt.Other = 0;
-		WalkExprList(&w, x.List);
+		w.WalkExprList(x.List);
 		return (cnt.This > 0 || cnt.Other == 0);
 	}
 

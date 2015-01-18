@@ -578,7 +578,7 @@ namespace Core {
 
 	__device__ RC Vdbe::MemFromBtree(BtCursor *cur, int offset, int amount, bool key, Mem *mem)
 	{
-		_assert(Btree::CursorIsValid(cursor));
+		_assert(Btree::CursorIsValid(cur));
 
 		// Note: the calls to BtreeKeyFetch() and DataFetch() below assert() that both the BtShared and database handle mutexes are held.
 		_assert((mem->Flags & MEM_RowSet) == 0);
@@ -598,7 +598,7 @@ namespace Core {
 			mem->Flags = (MEM)(MEM_Blob | MEM_Dyn | MEM_Term);
 			mem->Encode = (TEXTENCODE)0;
 			mem->Type = TYPE_BLOB;
-			rc = (key ? Btree::Key(cursor, offset, amount, mem->Z) : Btree::Data(cursor, offset, amount, mem->Z));
+			rc = (key ? Btree::Key(cur, offset, amount, mem->Z) : Btree::Data(cur, offset, amount, mem->Z));
 			mem->Z[amount] = 0;
 			mem->Z[amount + 1] = 0;
 			if (rc != RC_OK)

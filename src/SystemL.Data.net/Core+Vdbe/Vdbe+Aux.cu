@@ -106,7 +106,7 @@ __device__ int Vdbe::AddOp3(OP op, int p1, int p2, int p3)
 __device__ int Vdbe::AddOp0(OP op) { return AddOp3(op, 0, 0, 0); }
 __device__ int Vdbe::AddOp1(OP op, int p1) { return AddOp3(op, p1, 0, 0); }
 __device__ int Vdbe::AddOp2(OP op, int p1, int p2) { return AddOp3(op, p1, p2, 0); }
-__device__ int Vdbe::AddOp4(OP op, int p1, int p2, int p3, const char *p4, Vdbe::P4T p4t)
+__device__ int Vdbe::AddOp4(OP op, int p1, int p2, int p3, const char *p4, int p4t)
 {
 	int addr = AddOp3(op, p1, p2, p3);
 	ChangeP4(addr, p4, p4t);
@@ -123,7 +123,7 @@ __device__ void Vdbe::AddParseSchemaOp(int db, char *where_)
 __device__ int Vdbe::AddOp4Int(OP op, int p1, int p2, int p3, int p4)
 {
 	int addr = AddOp3(op, p1, p2, p3);
-	ChangeP4(addr, INT_TO_PTR(p4), Vdbe::P4T_INT32);
+	ChangeP4(addr, (const char *)INT_TO_PTR(p4), Vdbe::P4T_INT32);
 	return addr;
 }
 
@@ -131,10 +131,10 @@ __device__ int Vdbe::MakeLabel()
 {
 	int i = Labels.length++;
 	_assert(Magic == VDBE_MAGIC_INIT);
-	if ((i & (i-1)) == 0) //sky? always
-		p->Labels.data = _tagrealloc_or_free(Ctx, Labels.data, (i*2+1)*sizeof(Labels[0]));
-	if (p->Label.data)
-		p->Label[i] = -1;
+	if ((i & (i-1)) == 0) //? always
+		Labels.data = (int *)_tagrealloc_or_free(Ctx, Labels.data, (i*2+1)*sizeof(Labels[0]));
+	if (Labels.data)
+		Labels[i] = -1;
 	return -1 - i;
 }
 
@@ -157,7 +157,7 @@ __device__ void Vdbe::set_RunOnlyOnce()
 struct VdbeOpIter
 {
 	Vdbe *V;					// Vdbe to iterate through the opcodes of
-	array_t<SubProgram> Subs;	// Array of subprograms
+	array_t<Vdbe::SubProgram> Subs;	// Array of subprograms
 	int Addr;					// Address of next instruction to return
 	int SubId;					// 0 = main program, 1 = first sub-program etc.
 };
@@ -169,7 +169,7 @@ static Vdbe::VdbeOp *OpIterNext(VdbeOpIter *p)
 	{
 		Vdbe *v = p->V;
 		array_t<Vdbe::VdbeOp> ops = (p->SubId == 0 ? v->Ops : p->Subs[p->SubId-1]->Ops);
-		_assert(p->Addr < ops.Length);
+		_assert(p->Addr < ops.length);
 
 		r = &ops[p->Addr];
 		p->Addr++;

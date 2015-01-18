@@ -343,7 +343,7 @@ namespace Core.Command
                     parse.NestedParse(
                         "UPDATE \"%w\".%s SET " +
                             "sql = sqlite_rename_parent(sql, %Q, %Q) " +
-                            "WHERE %s;", dbName, SCHEMA_TABLE(db), tableName, nameAsString, where_);
+                            "WHERE %s;", dbName, E.SCHEMA_TABLE(db), tableName, nameAsString, where_);
                     C._tagfree(ctx, ref where_);
                 }
             }
@@ -510,7 +510,7 @@ namespace Core.Command
                 "UPDATE \"%w\".%s SET " +
                 "sql = substr(sql,1,%d) || ', ' || %Q || substr(sql,%d) " +
                 "WHERE type = 'table' AND name = %Q",
-                dbName, SCHEMA_TABLE(db), newTable.AddColOffset, colDefAsString, newTable.AddColOffset + 1,
+                dbName, E.SCHEMA_TABLE(db), newTable.AddColOffset, colDefAsString, newTable.AddColOffset + 1,
                 tableName);
                 C._tagfree(ctx, ref colDefAsString);
                 ctx.Flags = savedDbFlags;

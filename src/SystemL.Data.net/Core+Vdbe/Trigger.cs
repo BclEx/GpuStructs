@@ -413,7 +413,7 @@ namespace Core
             {
                 AUTH code = AUTH.DROP_TRIGGER;
                 string dbName = ctx.DBs[db].Name;
-                string tableName = SCHEMA_TABLE(db);
+                string tableName = E.SCHEMA_TABLE(db);
                 if (db == 1) code = AUTH.DROP_TEMP_TRIGGER;
                 if (Auth.Check(parse, code, trigger.Name, table.Name, dbName) || Auth.Check(parse, AUTH.DELETE, tableName, null, dbName))
                     return;

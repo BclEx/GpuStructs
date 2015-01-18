@@ -235,12 +235,6 @@ namespace Core
         REPLACE = 5
     }
 
-    public enum SO : byte
-    {
-        ASC = 0, // Sort in ascending order
-        DESC = 1, // Sort in ascending order
-    }
-
     public enum TYPE : byte
     {
         INTEGER = 1,
@@ -543,6 +537,30 @@ namespace Core
         NestedFrom = 0x0200,		// Part of a parenthesized FROM clause
     }
 
+    public enum SRT : byte
+    {
+        Union = 1,				// Store result as keys in an index
+        Except = 2,				// Remove result from a UNION index
+        Exists = 3,				// Store 1 if the result is not empty
+        Discard = 4,			// Do not save the results anywhere
+        // IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
+        Output = 5,             // Output each row of result
+        Mem = 6,                // Store result in a memory cell
+        Set = 7,                // Store results as keys in an index
+        Table = 8,              // Store result as data with an automatic rowid
+        EphemTab = 9,           // Create transient tab and store like SRT_Table
+        Coroutine = 10,         // Generate a single row of result
+    }
+
+    public class SelectDest
+    {
+        public SRT Dest;			// How to dispose of the results.  On of SRT_* above.
+        public AFF AffSdst;		    // Affinity used when eDest==SRT_Set
+        public int SDParmId;		// A parameter used by the eDest disposal method
+        public int SdstId;			// Base register where results are written
+        public int Sdsts;			// Number of registers allocated
+    }
+
     public class Select
     {
         public ExprList EList;			// The fields of the result
@@ -563,32 +581,9 @@ namespace Core
         public Expr Offset;				// OFFSET expression. NULL means not used.
     }
 
-    public enum SRT : byte
-    {
-        Union = 1,				// Store result as keys in an index
-        Except = 2,				// Remove result from a UNION index
-        Exists = 3,				// Store 1 if the result is not empty
-        Discard = 4,			// Do not save the results anywhere
-        // IgnorableOrderby(x) : The ORDER BY clause is ignored for all of the above
-        Output = 5,             // Output each row of result
-        Mem = 6,                // Store result in a memory cell
-        Set = 7,                // Store results as keys in an index
-        Table = 8,              // Store result as data with an automatic rowid
-        EphemTab = 9,           // Create transient tab and store like SRT_Table
-        Coroutine = 10,         // Generate a single row of result
-    }
-
     public static partial class E
     {
         public static bool IgnorableOrderby(this SelectDest x) { return (x.Dest <= SRT.Discard); }
-    }
-    public class SelectDest
-    {
-        public SRT Dest;			// How to dispose of the results.  On of SRT_* above.
-        public AFF AffSdst;		    // Affinity used when eDest==SRT_Set
-        public int SDParmId;		// A parameter used by the eDest disposal method
-        public int SdstId;			// Base register where results are written
-        public int Sdsts;			// Number of registers allocated
     }
 
     #endregion

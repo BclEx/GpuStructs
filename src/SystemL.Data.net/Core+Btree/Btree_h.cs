@@ -4,6 +4,12 @@ using Mem = System.Object;
 using System;
 namespace Core
 {
+    public enum SO : byte
+    {
+        ASC = 0, // Sort in ascending order
+        DESC = 1, // Sort in ascending order
+    }
+
     public class KeyInfo
     {
         public BContext Ctx;		// The database connection

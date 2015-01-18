@@ -179,16 +179,22 @@ namespace Core
 		SubProgram *Programs;	// Linked list of all sub-programs used by VM
 		array_t<uint8> OnceFlags; // Flags for OP_Once
 
+
+		__device__ static void MemStoreType(Mem *mem);
+		__device__ static TYPE ValueNumericType(Mem *mem);
+		__device__ static void ValueApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
+#ifdef _DEBUG
+		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
+#endif
+
+
 		__device__ void PopStack(int);
 		__device__ static int sqlite2BtreeKeyCompare(BtCursor *, const void *, int, int, int *);
 		__device__ static int MemCompare(const Mem *mem1, const Mem *mem2, const CollSeq *coll);
 		__device__ static const char *OpcodeName(int);
 		__device__ int CloseStatement(Vdbe *, int);
-		__device__ static void MemStoreType(Mem *mem);
 		__device__ int CurrentAddr();
-#ifdef _DEBUG
-		__device__ static void MemPrettyPrint(Mem *mem, char *buf);
-#endif
+
 
 #pragma region Vdbe+Api
 		// name1
@@ -326,7 +332,7 @@ namespace Core
 		__device__ int AddOp0(OP op);
 		__device__ int AddOp1(OP op, int p1);
 		__device__ int AddOp2(OP op, int p1, int p2);
-		__device__ int AddOp4(OP op, int p1, int p2, int p3, const char *p4, Vdbe::P4T p4t);
+		__device__ int AddOp4(OP op, int p1, int p2, int p3, const char *p4, int p4t);
 		__device__ void AddParseSchemaOp(int db, char *where_);
 		__device__ int AddOp4Int(OP op, int p1, int p2, int p3, int p4);
 		__device__ int MakeLabel();

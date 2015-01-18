@@ -101,7 +101,7 @@ namespace Core { namespace Command
 			}
 			if (j >= table->Cols.length)
 			{
-				if (sqlite3IsRowid(changes->Ids[i].Name))
+				if (Expr::IsRowid(changes->Ids[i].Name))
 				{
 					chngRowid = true;
 					rowidExpr = changes->Ids[i].Expr;

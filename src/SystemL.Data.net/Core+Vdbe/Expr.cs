@@ -2996,7 +2996,7 @@ namespace Core
             return WRC.Continue;
         }
 
-        public int FunctionUsesThisSrc(SrcList srcList)
+        public bool FunctionUsesThisSrc(SrcList srcList)
         {
             Debug.Assert(OP == TK.AGG_FUNCTION);
             Walker w = new Walker();
@@ -3006,7 +3006,7 @@ namespace Core
             cnt.Src = srcList;
             cnt.This = 0;
             cnt.Other = 0;
-            WalkExprList(w, x.List);
+            w.WalkExprList(x.List);
             return (cnt.This > 0 || cnt.Other == 0);
         }
 

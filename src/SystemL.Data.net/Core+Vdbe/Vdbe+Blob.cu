@@ -119,7 +119,7 @@ namespace Core {
 			err = nullptr;
 
 			Btree::EnterAll(ctx);
-			Table *table = sqlite3LocateTable(parse, 0, tableName, dbName);
+			Table *table = parse->LocateTable(false, tableName, dbName);
 			if (table && IsVirtual(table))
 			{
 				table = nullptr;
@@ -194,7 +194,7 @@ namespace Core {
 			if (blob->Stmt)
 			{
 				Vdbe *v = blob->Stmt;
-				int db = sqlite3SchemaToIndex(ctx, table->Schema);
+				int db = Prepare::SchemaToIndex(ctx, table->Schema);
 				v->AddOpList(_lengthof(_openBlob), _openBlob);
 				// Configure the OP_Transaction
 				v->ChangeP1(0, db);
@@ -253,7 +253,7 @@ blob_open_out:
 			if (blob && blob->Stmt) Vdbe::Finalize(blob->Stmt);
 			_tagfree(ctx, blob);
 		}
-		sqlite3Error(ctx, rc, (err ? "%s" : nullptr), err);
+		Main::Error(ctx, rc, (err ? "%s" : nullptr), err);
 		_tagfree(ctx, err);
 		_stackfree(ctx, parse);
 		rc = Main::ApiExit(ctx, rc);
@@ -288,7 +288,7 @@ blob_open_out:
 		if (n < 0 || offset < 0 || (offset + n) > p->Bytes)
 		{
 			rc = RC_ERROR; // Request is out of range. Return a transient error.
-			sqlite3Error(ctx, RC_ERROR, 0);
+			Main::Error(ctx, RC_ERROR, 0);
 		}
 		else if (!v)
 			rc = RC_ABORT; // If there is no statement handle, then the blob-handle has already been invalidated. Return SQLITE_ABORT in this case.
@@ -346,7 +346,7 @@ blob_open_out:
 			rc = BlobSeekToRow(p, row, &err);
 			if (rc != RC_OK)
 			{
-				sqlite3Error(ctx, rc, (err ? "%s" : nullptr), err);
+				Main::Error(ctx, rc, (err ? "%s" : nullptr), err);
 				_tagfree(ctx, err);
 			}
 			_assert(rc != RC_SCHEMA);
