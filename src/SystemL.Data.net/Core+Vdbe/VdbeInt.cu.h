@@ -104,7 +104,7 @@ namespace Core
 	__device__ inline MEM operator|(MEM a, MEM b) { return (MEM)((int)a | (int)b); }
 	__device__ inline MEM operator&(MEM a, MEM b) { return (MEM)((int)a & (int)b); }
 
-#define MemSetTypeFlag(p, f) (p->Flags = (MEM)((p->Flags&~(MEM_TypeMask|MEM_Zero))|(int)f))
+#define MemSetTypeFlag(p, f) ((p)->Flags = (MEM)(((p)->Flags&~(MEM_TypeMask|MEM_Zero))|(int)f))
 #ifdef _DEBUG
 #define MemIsValid(M) ((M)->Flags & MEM_Invalid)==0
 #endif

@@ -473,7 +473,7 @@ namespace Core
 		__device__ static RC MemMakeWriteable(Mem *mem);
 #ifndef OMIT_INCRBLOB
 		__device__ static RC MemExpandBlob(Mem *mem);
-#define ExpandBlob(P) (((P)->Flags & MEM_Zero)?Vdbe::MemExpandBlob(P):0)
+#define ExpandBlob(P) (((P)->Flags & MEM_Zero)?Vdbe::MemExpandBlob(P):(RC)0)
 #else
 		__device__ inline static RC MemExpandBlob(Mem *mem) { return RC_OK };
 #define ExpandBlob(P) RC_OK

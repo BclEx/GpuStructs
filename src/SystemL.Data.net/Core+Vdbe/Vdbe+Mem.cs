@@ -457,7 +457,7 @@ namespace Core
 #endif
 
         //: #define MEMCELLSIZE (size_t)(&(((Mem *)0)->Malloc)) // Size of struct Mem not including the Mem.zMalloc member.
-        public static void MemShallowCopy(Mem to, Mem from, ushort srcType)
+        public static void MemShallowCopy(Mem to, Mem from, MEM srcType)
         {
             Debug.Assert((from.Flags & MEM.RowSet) == 0);
             MemReleaseExternal(to);
@@ -466,8 +466,8 @@ namespace Core
             if ((from.Flags & MEM.Static) != 0)
             {
                 to.Flags &= ~(MEM.Dyn | MEM.Static | MEM.Ephem);
-                Debug.Assert((MEM)srcType == MEM.Ephem || (MEM)srcType == MEM.Static);
-                to.Flags |= (MEM)srcType;
+                Debug.Assert(srcType == MEM.Ephem || srcType == MEM.Static);
+                to.Flags |= srcType;
             }
         }
 
@@ -606,7 +606,7 @@ namespace Core
                 }
                 else
                 {
-                    mem.Z = (n > 0 && z.Length - offset > n ? z.Substring(offset, n) : z.Substring(offset))
+                    mem.Z = (n > 0 && z.Length - offset > n ? z.Substring(offset, n) : z.Substring(offset));
                     mem.Z_ = null;
                 }
                 mem.Del = null;

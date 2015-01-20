@@ -18,11 +18,11 @@ namespace Core
     {
         #region Preamble
 
-#if DEBUG
-        static void MemAboutToChange(Vdbe P, Mem M) { P.MemPrepareToChange(M); }
-#else
-        static void MemAboutToChange(Vdbe P, Mem M) {}
-#endif
+        //#if DEBUG
+        //        static void MemAboutToChange_(Vdbe P, Mem M) { P.MemAboutToChange(P, M); }
+        //#else
+        //        static void MemAboutToChange_(Vdbe P, Mem M) {}
+        //#endif
 
 #if TEST
         static int g_search_count = 0;
@@ -35,12 +35,7 @@ namespace Core
 #else
         static void UPDATE_MAX_BLOBSIZE(Mem P) { }
 #endif
-        static void Deephemeralize(Mem P) { }
-
-        //static int ExpandBlob(Mem P)
-        //{
-        //    return (P.flags & MEM_Zero) != 0 ? Vdbe.MemExpandBlob(P) : 0;
-        //}
+        //: static void Deephemeralize(Mem P) { }
 
         #endregion
 
@@ -297,11 +292,11 @@ namespace Core
             byte resetSchemaOnFault = 0; // Reset schema after an error if positive
             TEXTENCODE encoding = E.CTXENCODE(ctx); // The database encoding
             Mem[] mems = Mems.data; // Copy of p.mems
-            Mem int1 = null; // 1st input operand
+            Mem in1 = null; // 1st input operand
             Mem in2 = null; // 2nd input operand
             Mem in3 = null; // 3rd input operand
             Mem out_ = null; // Output operand
-            int iCompare = 0;  // Result of last OP_Compare operation
+            int compare = 0;  // Result of last OP_Compare operation
             int[] permutes = null; // Permutation of columns for OP_Compare
             long lastRowid = ctx.LastRowID; // Saved value of the last insert ROWID
 
@@ -316,7 +311,9 @@ namespace Core
             ResultSet = null;
             ctx.BusyHandler.Busys = 0;
             if (ctx.u1.IsInterrupted) goto abort_due_to_interrupt; //CHECK_FOR_INTERRUPT;
+#if !OMIT_TRACE && ENABLE_IOTRACE
             IOTraceSql();
+#endif
 #if !OMIT_PROGRESS_CALLBACK
             bool checkProgress = (ctx.Progress != null); // True if progress callbacks are enabled
             int progressOps = 0; // Opcodes executed since progress callback.
@@ -339,7 +336,7 @@ namespace Core
                 if (ctx.MallocFailed) goto no_mem;
 #if VDBE_PROFILE
                 int origPc = pc; // Program counter at start of opcode
-                ulong start = sqlite3Hwtime(); // CPU clock count at start of opcode
+                ulong start = _hwtime(); // CPU clock count at start of opcode
 #endif
                 op = ops[pc];
 
@@ -388,14 +385,14 @@ namespace Core
 
                 // On any opcode with the "out2-prerelease" tag, free any external allocations out of mem[p2] and set mem[p2] to be
                 // an undefined integer.  Opcodes will either fill in the integer value or convert mem[p2] to a different type.
-                Debug.Assert(op.Opflags == sqlite3OpcodeProperty[op.Opcode]);
+                Debug.Assert(op.Opflags == g_opcodeProperty[op.Opcode]);
                 if ((op.Opflags & OPFLG.OUT2_PRERELEASE) != 0)
                 {
                     Debug.Assert(op.P2 > 0);
                     Debug.Assert(op.P2 <= Mems.length);
                     out_ = mems[op.P2];
                     MemAboutToChange(this, out_);
-                    VdbeMemRelease(out_);
+                    MemRelease(out_);
                     out_.Flags = MEM.Int;
                 }
 
@@ -405,21 +402,21 @@ namespace Core
                 {
                     Debug.Assert(op.P1 > 0);
                     Debug.Assert(op.P1 <= Mems.length);
-                    Debug.Assert(MemIsValid(mems[op.P1]));
+                    Debug.Assert(E.MemIsValid(mems[op.P1]));
                     REGISTER_TRACE(this, op.P1, mems[op.P1]);
                 }
                 if ((op.Opflags & OPFLG.IN2) != 0)
                 {
                     Debug.Assert(op.P2 > 0);
                     Debug.Assert(op.P2 <= Mems.length);
-                    Debug.Assert(MemIsValid(mems[op.P2]));
+                    Debug.Assert(E.MemIsValid(mems[op.P2]));
                     REGISTER_TRACE(this, op.P2, mems[op.P2]);
                 }
                 if ((op.Opflags & OPFLG.IN3) != 0)
                 {
                     Debug.Assert(op.P3 > 0);
                     Debug.Assert(op.P3 <= Mems.length);
-                    Debug.Assert(MemIsValid(mems[op.P3]));
+                    Debug.Assert(E.MemIsValid(mems[op.P3]));
                     REGISTER_TRACE(this, op.P3, mems[op.P3]);
                 }
                 if ((op.Opflags & OPFLG.OUT2) != 0)
@@ -473,12 +470,12 @@ namespace Core
                             // Opcode:  Gosub P1 P2 * * *
                             //
                             // Write the current address onto register P1 and then jump to address P2.
-                            int1 = mems[op.P1];
-                            Debug.Assert((int1.Flags & MEM.Dyn) == 0);
-                            MemAboutToChange(this, int1);
-                            int1.Flags = MEM.Int;
-                            int1.u.I = pc;
-                            REGISTER_TRACE(this, op.P1, int1);
+                            in1 = mems[op.P1];
+                            Debug.Assert((in1.Flags & MEM.Dyn) == 0);
+                            MemAboutToChange(this, in1);
+                            in1.Flags = MEM.Int;
+                            in1.u.I = pc;
+                            REGISTER_TRACE(this, op.P1, in1);
                             pc = op.P2 - 1;
                             break;
                         }
@@ -487,9 +484,9 @@ namespace Core
                             // Opcode:  Return P1 * * * *
                             //
                             // Jump to the next instruction after the address in register P1.
-                            int1 = mems[op.P1];
-                            Debug.Assert((int1.Flags & MEM.Int) != 0);
-                            pc = (int)int1.u.I;
+                            in1 = mems[op.P1];
+                            Debug.Assert((in1.Flags & MEM.Int) != 0);
+                            pc = (int)in1.u.I;
                             break;
                         }
                     case OP.Yield: // in1
@@ -497,12 +494,12 @@ namespace Core
                             // Opcode:  Yield P1 * * * *
                             //
                             // Swap the program counter with the value in register P1.
-                            int1 = mems[op.P1];
-                            Debug.Assert((int1.Flags & MEM.Dyn) == 0);
-                            int1.Flags = MEM.Int;
-                            int pcDest = (int)int1.u.I;
-                            int1.u.I = pc;
-                            REGISTER_TRACE(this, op.P1, int1);
+                            in1 = mems[op.P1];
+                            Debug.Assert((in1.Flags & MEM.Dyn) == 0);
+                            in1.Flags = MEM.Int;
+                            int pcDest = (int)in1.u.I;
+                            in1.u.I = pc;
+                            REGISTER_TRACE(this, op.P1, in1);
                             pc = pcDest;
                             break;
                         }
@@ -562,12 +559,12 @@ namespace Core
                                 Debug.Assert(RC_ != RC.OK);
                                 C._setstring(ref ErrMsg, ctx, "%s", op.P4.Z);
                                 C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
-                                SysEx.LOG(op.P1, "abort at %d in [%s]: %s", pc, Sql_, op.P4.Z);
+                                SysEx.LOG((RC)op.P1, "abort at %d in [%s]: %s", pc, Sql_, op.P4.Z);
                             }
                             else if (RC_ != 0)
                             {
                                 C.ASSERTCOVERAGE(SysEx._GlobalStatics.Log != null);
-                                SysEx.LOG(op.P1, "constraint failed at %d in [%s]", pc, Sql_);
+                                SysEx.LOG((RC)op.P1, "constraint failed at %d in [%s]", pc, Sql_);
                             }
                             rc = Halt();
                             Debug.Assert(rc == RC.BUSY || rc == RC.OK || rc == RC.ERROR);
@@ -671,7 +668,7 @@ namespace Core
                             {
                                 out_++;
                                 MemAboutToChange(this, out_);
-                                VdbeMemRelease(out_);
+                                MemRelease(out_);
                                 out_.Flags = nullFlag;
                                 cnt--;
                             }
@@ -716,24 +713,24 @@ namespace Core
                             Debug.Assert(n > 0 && p1 > 0 && p2 > 0);
                             Debug.Assert(p1 + n <= p2 || p2 + n <= p1);
 
-                            int1 = mems[op.P1];
+                            in1 = mems[op.P1];
                             out_ = mems[op.P2];
                             while (n-- != 0)
                             {
-                                int1 = mems[p1 + op.P3 - n - 1];
+                                in1 = mems[p1 + op.P3 - n - 1];
                                 out_ = mems[p2];
                                 //Debug.Assert(out_ <= mems[Mems.length]);
-                                //Debug.Assert(int1 <= mems[Mems.length]);
-                                Debug.Assert(MemIsValid(int1));
+                                //Debug.Assert(in1 <= mems[Mems.length]);
+                                Debug.Assert(E.MemIsValid(in1));
                                 MemAboutToChange(this, out_);
                                 //byte[] malloc = out_.Malloc; // Holding variable for allocated memory
                                 //out_.Malloc = null;
-                                MemMove(out_, int1);
+                                MemMove(out_, in1);
 #if DEBUG
                                 //if (out_.ScopyFrom >= mems[p1] && out_.ScopyFrom < mems[p1 + op.P3])
                                 //    out_.ScopyFrom += p1 - op.P2;
 #endif
-                                //int1.Malloc = malloc;
+                                //in1.Malloc = malloc;
                                 REGISTER_TRACE(p2++, out_);
                             }
                             break;
@@ -746,15 +743,15 @@ namespace Core
                             //
                             // This instruction makes a deep copy of the value.  A duplicate is made of any string or blob constant.  See also OP_SCopy.
                             int n = op.P3;
-                            int1 = mems[op.P1];
+                            in1 = mems[op.P1];
                             out_ = mems[op.P2];
-                            Debug.Assert(out_ != int1);
+                            Debug.Assert(out_ != in1);
                             int x = 0; // C#
                             while (true)
                             {
-                                int1 = mems[op.P1 + x];
+                                in1 = mems[op.P1 + x];
                                 out_ = mems[op.P2 + x];
-                                MemShallowCopy(out_, int1, MEM.Ephem);
+                                MemShallowCopy(out_, in1, MEM.Ephem);
                                 Deephemeralize(out_);
 #if DEBUG
                                 out_.ScopyFrom = null;
@@ -774,12 +771,12 @@ namespace Core
                             // This instruction makes a shallow copy of the value.  If the value is a string or blob, then the copy is only a pointer to the
                             // original and hence if the original changes so will the copy. Worse, if the original is deallocated, the copy becomes invalid.
                             // Thus the program must guarantee that the original will not change during the lifetime of the copy.  Use OP_Copy to make a complete copy.
-                            int1 = mems[op.P1];
+                            in1 = mems[op.P1];
                             out_ = mems[op.P2];
-                            Debug.Assert(out_ != int1);
-                            MemShallowCopy(out_, int1, MEM.Ephem);
+                            Debug.Assert(out_ != in1);
+                            MemShallowCopy(out_, in1, MEM.Ephem);
 #if DEBUG
-                            if (out_.ScopyFrom == null) out_.ScopyFrom = int1;
+                            if (out_.ScopyFrom == null) out_.ScopyFrom = in1;
 #endif
                             REGISTER_TRACE(op.P2, out_);
                             break;
@@ -825,7 +822,7 @@ namespace Core
                             for (int i = 0; i < op.P2; i++)
                             {
                                 ResultSet[i] = mems[op.P1 + i];
-                                Debug.Assert(MemIsValid(ResultSet[i]));
+                                Debug.Assert(E.MemIsValid(ResultSet[i]));
                                 Deephemeralize(ResultSet[i]);
                                 Debug.Assert((ResultSet[i].Flags & MEM.Ephem) == 0 || (ResultSet[i].Flags & (MEM.Str | MEM.Blob)) == 0);
                                 MemNulTerminate(ResultSet[i]);
@@ -849,19 +846,19 @@ namespace Core
                             //   P3 = P2 || P1
                             //
                             // It is illegal for P1 and P3 to be the same register. Sometimes, if P3 is the same register as P2, the implementation is able to avoid a memcpy().
-                            int1 = mems[op.P1];
+                            in1 = mems[op.P1];
                             in2 = mems[op.P2];
                             out_ = mems[op.P3];
-                            Debug.Assert(int1 != out_);
-                            if (((int1.Flags | in2.Flags) & MEM.Null) != 0)
+                            Debug.Assert(in1 != out_);
+                            if (((in1.Flags | in2.Flags) & MEM.Null) != 0)
                             {
                                 MemSetNull(out_);
                                 break;
                             }
-                            if (ExpandBlob(int1) != 0 || ExpandBlob(in2) != 0) goto no_mem;
-                            if (((int1.Flags & (MEM.Str | MEM.Blob)) == 0) && MemStringify(int1, encoding) != 0) goto no_mem; // Stringify(int1, encoding);
+                            if (E.ExpandBlob(in1) != 0 || E.ExpandBlob(in2) != 0) goto no_mem;
+                            if (((in1.Flags & (MEM.Str | MEM.Blob)) == 0) && MemStringify(in1, encoding) != 0) goto no_mem; // Stringify(in1, encoding);
                             if (((in2.Flags & (MEM.Str | MEM.Blob)) == 0) && MemStringify(in2, encoding) != 0) goto no_mem; // Stringify(in2, encoding);
-                            long bytes = int1.N + in2.N;
+                            long bytes = in1.N + in2.N;
                             if (bytes > ctx.Limits[(int)LIMIT.LENGTH])
                                 goto too_big;
                             E.MemSetTypeFlag(out_, MEM.Str);
@@ -871,29 +868,29 @@ namespace Core
                             //:    _memcpy(out_.Z, in2.Z, in2.N);
                             //:_memcpy(out_.Z[in2.N], in1.Z, in1.N);
                             if (in2.Z != null && in2.Z.Length >= in2.N)
-                                if (int1.Z != null)
-                                    out_.Z = in2.Z.Substring(0, in2.N) + (int1.N < int1.Z.Length ? int1.Z.Substring(0, int1.N) : int1.Z);
+                                if (in1.Z != null)
+                                    out_.Z = in2.Z.Substring(0, in2.N) + (in1.N < in1.Z.Length ? in1.Z.Substring(0, in1.N) : in1.Z);
                                 else
                                 {
-                                    if ((int1.Flags & MEM.Blob) == 0) // String as Blob
+                                    if ((in1.Flags & MEM.Blob) == 0) // String as Blob
                                     {
-                                        StringBuilder sb = new StringBuilder(int1.N);
-                                        for (int i = 0; i < int1.N; i++)
-                                            sb.Append((byte)int1.Z_[i]);
+                                        StringBuilder sb = new StringBuilder(in1.N);
+                                        for (int i = 0; i < in1.N; i++)
+                                            sb.Append((byte)in1.Z_[i]);
                                         out_.Z = in2.Z.Substring(0, in2.N) + sb.ToString();
                                     }
                                     else // UTF-8 Blob
-                                        out_.Z = in2.Z.Substring(0, in2.N) + Encoding.UTF8.GetString(int1.Z_, 0, int1.Z_.Length);
+                                        out_.Z = in2.Z.Substring(0, in2.N) + Encoding.UTF8.GetString(in1.Z_, 0, in1.Z_.Length);
                                 }
                             else
                             {
-                                out_.Z_ = sqlite3Malloc(int1.N + in2.N);
+                                out_.Z_ = C._alloc(in1.N + in2.N);
                                 Buffer.BlockCopy(in2.Z_, 0, out_.Z_, 0, in2.N);
-                                if (int1.Z_ != null)
-                                    Buffer.BlockCopy(int1.Z_, 0, out_.Z_, in2.N, int1.N);
+                                if (in1.Z_ != null)
+                                    Buffer.BlockCopy(in1.Z_, 0, out_.Z_, in2.N, in1.N);
                                 else
-                                    for (int i = 0; i < int1.N; i++)
-                                        out_.Z_[in2.N + i] = (byte)int1.Z[i];
+                                    for (int i = 0; i < in1.N; i++)
+                                        out_.Z_[in2.N + i] = (byte)in1.Z[i];
                             }
                             //out_.Z[byte] = 0;
                             //out_.Z[byte + 1] = 0;
@@ -903,1052 +900,785 @@ namespace Core
                             UPDATE_MAX_BLOBSIZE(out_);
                             break;
                         }
+                    case OP.Add: // same as TK_PLUS, in1, in2, ref3
+                    case OP.Subtract: // same as TK_MINUS, in1, in2, ref3
+                    case OP.Multiply: // same as TK_STAR, in1, in2, ref3
+                    case OP.Divide: // same as TK_SLASH, in1, in2, ref3
+                    case OP.Remainder: // same as TK_REM, in1, in2, ref3
+                        {
+                            // Opcode: Add P1 P2 P3 * *
+                            //
+                            // Add the value in register P1 to the value in register P2 and store the result in register P3.
+                            // If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: Multiply P1 P2 P3 * *
+                            //
+                            //
+                            // Multiply the value in register P1 by the value in register P2 and store the result in register P3.
+                            // If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: Subtract P1 P2 P3 * *
+                            //
+                            // Subtract the value in register P1 from the value in register P2 and store the result in register P3.
+                            // If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: Divide P1 P2 P3 * *
+                            //
+                            // Divide the value in register P1 by the value in register P2 and store the result in register P3 (P3=P2/P1). If the value in 
+                            // register P1 is zero, then the result is NULL. If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: Remainder P1 P2 P3 * *
+                            //
+                            // Compute the remainder after integer division of the value in register P1 by the value in register P2 and store the result in P3.
+                            // If the value in register P2 is zero the result is NULL. If either operand is NULL, the result is NULL.
+                            bool intint; // Started out as two integer operands
+                            long iA; // Integer value of left operand
+                            long iB = 0; // Integer value of right operand
+                            double rA; // Real value of left operand
+                            double rB; // Real value of right operand
+                            in1 = mems[op.P1];
+                            ApplyNumericAffinity(in1);
+                            in2 = mems[op.P2];
+                            ApplyNumericAffinity(in2);
+                            out_ = mems[op.P3];
+                            MEM flags = (in1.Flags | in2.Flags); // Combined MEM_* flags from both inputs
+                            if ((flags & MEM.Null) != 0) goto arithmetic_result_is_null;
+                            bool fp_math = false;
+                            if ((in1.Flags & in2.Flags & MEM.Int) == MEM.Int)
+                            {
+                                iA = in1.u.I;
+                                iB = in2.u.I;
+                                intint = true;
+                                switch (op.Opcode)
+                                {
+                                    case OP.Add: if (MathEx.Add(ref iB, iA)) fp_math = true; break; // goto fp_math
+                                    case OP.Subtract: if (MathEx.Sub(ref iB, iA)) fp_math = true; break; // goto fp_math
+                                    case OP.Multiply: if (MathEx.Mul(ref iB, iA)) fp_math = true; break; // goto fp_math
+                                    case OP.Divide:
+                                        {
+                                            if (iA == 0) goto arithmetic_result_is_null;
+                                            if (iA == -1 && iB == long.MinValue) { fp_math = true; break; } // goto fp_math
+                                            iB /= iA;
+                                            break;
+                                        }
+                                    default:
+                                        {
+                                            if (iA == 0) goto arithmetic_result_is_null;
+                                            if (iA == -1) iA = 1;
+                                            iB %= iA;
+                                            break;
+                                        }
+                                }
+                            }
+                            if (!fp_math)
+                            {
+                                out_.u.I = iB;
+                                E.MemSetTypeFlag(out_, MEM.Int);
+                            }
+                            else
+                            {
+                                //fp_math:
+                                rA = Vdbe.RealValue(in1);
+                                rB = Vdbe.RealValue(in2);
+                                switch (op.Opcode)
+                                {
+                                    case OP.Add: rB += rA; break;
+                                    case OP.Subtract: rB -= rA; break;
+                                    case OP.Multiply: rB *= rA; break;
+                                    case OP.Divide:
+                                        {
+                                            // (double)0 In case of SQLITE_OMIT_FLOATING_POINT...
+                                            if (rA == (double)0) goto arithmetic_result_is_null;
+                                            rB /= rA;
+                                            break;
+                                        }
+                                    default:
+                                        {
+                                            iA = (long)rA;
+                                            iB = (long)rB;
+                                            if (iA == 0) goto arithmetic_result_is_null;
+                                            if (iA == -1) iA = 1;
+                                            rB = (double)(iB % iA);
+                                            break;
+                                        }
+                                }
+#if OMIT_FLOATING_POINT
+                                out_->u.I = rB;
+                                MemSetTypeFlag(out_, MEM.Int);
+#else
+                                if (double.IsNaN(rB))
+                                    goto arithmetic_result_is_null;
+                                out_.R = rB;
+                                E.MemSetTypeFlag(out_, MEM.Real);
+                                if ((flags & MEM.Real) == 0)
+                                    IntegerAffinity(out_);
+#endif
+                            }
+                            break;
+                        arithmetic_result_is_null:
+                            MemSetNull(out_);
+                            break;
+                        }
+                    case OP.CollSeq:
+                        {
+                            // Opcode: CollSeq P1 * * P4
+                            //
+                            // P4 is a pointer to a CollSeq struct. If the next call to a user function or aggregate calls sqlite3GetFuncCollSeq(), this collation sequence will
+                            // be returned. This is used by the built-in min(), max() and nullif() functions.
+                            //
+                            // If P1 is not zero, then it is a register that a subsequent min() or max() aggregate will set to 1 if the current row is not the minimum or
+                            // maximum.  The P1 register is initialized to 0 by this instruction.
+                            //
+                            // The interface used by the implementation of the aforementioned functions to retrieve the collation sequence set by this opcode is not available
+                            // publicly, only to user functions defined in func.c.
+                            Debug.Assert(op.P4Type == Vdbe.P4T.COLLSEQ);
+                            if (op.P1 != 0)
+                                MemSetInt64(mems[op.P1], 0);
+                            break;
+                        }
+                    case OP.Function:
+                        {
+                            // Opcode: Function P1 P2 P3 P4 P5
+                            //
+                            // Invoke a user function (P4 is a pointer to a Function structure that defines the function) with P5 arguments taken from register P2 and
+                            // successors.  The result of the function is stored in register P3. Register P3 must not be one of the function inputs.
+                            //
+                            // P1 is a 32-bit bitmask indicating whether or not each argument to the function was determined to be constant at compile time. If the first
+                            // argument was constant then bit 0 of P1 is set. This is used to determine whether meta data associated with a user function argument using the
+                            // sqlite3_set_auxdata() API may be safely retained until the next invocation of this opcode.
+                            //
+                            // See also: AggStep and AggFinal
+                            int n = op.P5;
+
+                            Mem[] vals = Args;
+                            Debug.Assert(vals != null || n == 0);
+                            Debug.Assert(op.P3 > 0 && op.P3 <= Mems.length);
+                            out_ = mems[op.P3];
+                            MemAboutToChange(this, out_);
+
+                            Debug.Assert(n == 0 || (op.P2 > 0 && op.P2 + n <= Mems.length + 1));
+                            Debug.Assert(op.P3 < op.P2 || op.P3 >= op.P2 + n);
+                            Mem arg;
+                            for (int i = 0; i < n; i++)
+                            {
+                                arg = mems[op.P2 + i];
+                                Debug.Assert(E.MemIsValid(arg));
+                                vals[i] = arg;
+                                Deephemeralize(arg);
+                                MemStoreType(arg);
+                                REGISTER_TRACE(op.P2 + i, arg);
+                            }
+
+                            Debug.Assert(op.P4Type == Vdbe.P4T.FUNCDEF || op.P4Type == Vdbe.P4T.VDBEFUNC);
+                            FuncContext fctx = new FuncContext();
+                            if (op.P4Type == Vdbe.P4T.FUNCDEF)
+                            {
+                                fctx.Func = op.P4.Func;
+                                fctx.VdbeFunc = null;
+                            }
+                            else
+                            {
+                                fctx.VdbeFunc = (VdbeFunc)op.P4.VdbeFunc;
+                                fctx.Func = fctx.VdbeFunc.Func;
+                            }
+
+                            fctx.S.Flags = MEM.Null;
+                            fctx.S.Ctx = ctx;
+                            fctx.S.Del = null;
+                            //: fctx.S.Malloc = null;
+
+                            // The output cell may already have a buffer allocated. Move the pointer to fctx.s so in case the user-function can use
+                            // the already allocated buffer instead of allocating a new one.
+                            MemMove(fctx.S, out_);
+                            E.MemSetTypeFlag(fctx.S, MEM.Null);
+
+                            fctx.IsError = (RC)0;
+                            if ((fctx.Func.Flags & FUNC.NEEDCOLL) != 0)
+                            {
+                                //Debug.Assert(op > ops);
+                                Debug.Assert(ops[pc - 1].P4Type == Vdbe.P4T.COLLSEQ);
+                                Debug.Assert(ops[pc - 1].Opcode == OP.CollSeq);
+                                fctx.Coll = Ops[pc - 1].P4.Coll;
+                            }
+                            ctx.LastRowID = lastRowid;
+                            fctx.Func.Func(fctx, n, vals); // IMP: R-24505-23230
+                            lastRowid = ctx.LastRowID;
+
+                            // If any auxiliary data functions have been called by this user function, immediately call the destructor for any non-static values.
+                            if (fctx.VdbeFunc != null)
+                            {
+                                DeleteAuxData(fctx.VdbeFunc, op.P1);
+                                op.P4.VdbeFunc = fctx.VdbeFunc;
+                                op.P4Type = Vdbe.P4T.VDBEFUNC;
+                            }
+
+                            if (ctx.MallocFailed)
+                            {
+                                // Even though a malloc() has failed, the implementation of the user function may have called an sqlite3_result_XXX() function
+                                // to return a value. The following call releases any resources associated with such a value.
+                                MemRelease(fctx.S);
+                                goto no_mem;
+                            }
+
+                            // If the function returned an error, throw an exception
+                            if (fctx.IsError != 0)
+                            {
+                                C._setstring(ref ErrMsg, ctx, Vdbe.Value_Text(fctx.S));
+                                rc = fctx.IsError;
+                            }
+
+                            // Copy the result of the function into register P3
+                            ChangeEncoding(fctx.S, encoding);
+                            MemMove(out_, fctx.S);
+                            if (MemTooBig(out_))
+                                goto too_big;
 #if false
-          /* Opcode: Add P1 P2 P3 * *
-          **
-          ** Add the value in register P1 to the value in register P2
-          ** and store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: Multiply P1 P2 P3 * *
-          **
-          **
-          ** Multiply the value in register P1 by the value in register P2
-          ** and store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: Subtract P1 P2 P3 * *
-          **
-          ** Subtract the value in register P1 from the value in register P2
-          ** and store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: Divide P1 P2 P3 * *
-          **
-          ** Divide the value in register P1 by the value in register P2
-          ** and store the result in register P3 (P3=P2/P1). If the value in 
-          ** register P1 is zero, then the result is NULL. If either input is 
-          ** NULL, the result is NULL.
-          */
-          /* Opcode: Remainder P1 P2 P3 * *
-          **
-          ** Compute the remainder after integer division of the value in
-          ** register P1 by the value in register P2 and store the result in P3.
-          ** If the value in register P2 is zero the result is NULL.
-          ** If either operand is NULL, the result is NULL.
-          */
-          case OP_Add:                   /* same as TK_PLUS, in1, in2, ref3 */
-          case OP_Subtract:              /* same as TK_MINUS, in1, in2, ref3 */
-          case OP_Multiply:              /* same as TK_STAR, in1, in2, ref3 */
-          case OP_Divide:                /* same as TK_SLASH, in1, in2, ref3 */
-          case OP_Remainder:
-            {           /* same as TK_REM, in1, in2, ref3 */
-              int flags;      /* Combined MEM_* flags from both inputs */
-              i64 iA;         /* Integer value of left operand */
-              i64 iB = 0;     /* Integer value of right operand */
-              double rA;      /* Real value of left operand */
-              double rB;      /* Real value of right operand */
+                            // The app-defined function has done something that as caused this statement to expire.  (Perhaps the function called sqlite3_exec()
+                            // with a CREATE TABLE statement.)
+                            if (Expired) rc = RC.ABORT;
+#endif
+                            REGISTER_TRACE(op.P3, out_);
+                            UPDATE_MAX_BLOBSIZE(out_);
+                            break;
+                        }
 
-              int1 = mems[op.P1];
-              applyNumericAffinity( int1 );
-              in2 = mems[op.P2];
-              applyNumericAffinity( in2 );
-              out_ = mems[op.P3];
-              flags = int1.flags | in2.flags;
-              if ( ( flags & MEM_Null ) != 0 )
-                goto arithmetic_result_is_null;
-              bool fp_math;
-              if ( !( fp_math = !( ( int1.flags & in2.flags & MEM_Int ) == MEM_Int ) ) )
-              {
-                iA = int1.u.i;
-                iB = in2.u.i;
-                switch ( op.opcode )
-                {
-                  case OP_Add:
-                    {
-                      if ( sqlite3AddInt64( ref iB, iA ) != 0 )
-                        fp_math = true; // goto fp_math
-                      break;
-                    }
-                  case OP_Subtract:
-                    {
-                      if ( sqlite3SubInt64( ref iB, iA ) != 0 )
-                        fp_math = true; // goto fp_math
-                      break;
-                    }
-                  case OP_Multiply:
-                    {
-                      if ( sqlite3MulInt64( ref iB, iA ) != 0 )
-                        fp_math = true; // goto fp_math
-                      break;
-                    }
-                  case OP_Divide:
-                    {
-                      if ( iA == 0 )
-                        goto arithmetic_result_is_null;
-                      if ( iA == -1 && iB == SMALLEST_INT64 )
-                      {
-                        fp_math = true; // goto fp_math
-                        break;
-                      }
-                      iB /= iA;
-                      break;
-                    }
-                  default:
-                    {
-                      if ( iA == 0 )
-                        goto arithmetic_result_is_null;
-                      if ( iA == -1 )
-                        iA = 1;
-                      iB %= iA;
-                      break;
-                    }
-                }
-              }
-              if ( !fp_math )
-              {
-                out_.u.i = iB;
-                MemSetTypeFlag( out_, MEM_Int );
-              }
-              else
-              {
-                //fp_math:
-                rA = sqlite3VdbeRealValue( int1 );
-                rB = sqlite3VdbeRealValue( in2 );
-                switch ( op.opcode )
-                {
-                  case OP_Add:
-                    rB += rA;
-                    break;
-                  case OP_Subtract:
-                    rB -= rA;
-                    break;
-                  case OP_Multiply:
-                    rB *= rA;
-                    break;
-                  case OP_Divide:
-                    {
-                      /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-                      if ( rA == (double)0 )
-                        goto arithmetic_result_is_null;
-                      rB /= rA;
-                      break;
-                    }
-                  default:
-                    {
-                      iA = (i64)rA;
-                      iB = (i64)rB;
-                      if ( iA == 0 )
-                        goto arithmetic_result_is_null;
-                      if ( iA == -1 )
-                        iA = 1;
-                      rB = (double)( iB % iA );
-                      break;
-                    }
-                }
-#if SQLITE_OMIT_FLOATING_POINT
-out_->u.i = rB;
-MemSetTypeFlag(out_, MEM_Int);
+
+                    case OP.BitAnd: // same as TK_BITAND, in1, in2, ref3
+                    case OP.BitOr: // same as TK_BITOR, in1, in2, ref3
+                    case OP.ShiftLeft: // same as TK_LSHIFT, in1, in2, ref3
+                    case OP.ShiftRight: // same as TK_RSHIFT, in1, in2, ref3
+                        {
+                            // Opcode: BitAnd P1 P2 P3 * *
+                            //
+                            // Take the bit-wise AND of the values in register P1 and P2 and store the result in register P3.
+                            // If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: BitOr P1 P2 P3 * *
+                            //
+                            // Take the bit-wise OR of the values in register P1 and P2 and store the result in register P3.
+                            // If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: ShiftLeft P1 P2 P3 * *
+                            //
+                            // Shift the integer value in register P2 to the left by the number of bits specified by the integer in register P1.
+                            // Store the result in register P3. If either input is NULL, the result is NULL.
+                            //
+                            // Opcode: ShiftRight P1 P2 P3 * *
+                            //
+                            // Shift the integer value in register P2 to the right by the number of bits specified by the integer in register P1.
+                            // Store the result in register P3. If either input is NULL, the result is NULL.
+                            in1 = mems[op.P1];
+                            in2 = mems[op.P2];
+                            out_ = mems[op.P3];
+                            if (((in1.Flags | in2.Flags) & MEM.Null) != 0)
+                            {
+                                MemSetNull(out_);
+                                break;
+                            }
+                            long iA = IntValue(in2);
+                            long iB = IntValue(in1);
+                            OP op2 = op.Opcode;
+                            if (op2 == OP.BitAnd)
+                                iA &= iB;
+                            else if (op2 == OP.BitOr)
+                                iA |= iB;
+                            else if (iB != 0)
+                            {
+                                Debug.Assert(op2 == OP.ShiftRight || op2 == OP.ShiftLeft);
+
+                                // If shifting by a negative amount, shift in the other direction
+                                if (iB < 0)
+                                {
+                                    Debug.Assert(OP.ShiftRight == OP.ShiftLeft + 1);
+                                    op2 = (OP)(2 * (int)OP.ShiftLeft + 1 - op2);
+                                    iB = (iB > -64 ? -iB : 64);
+                                }
+
+                                if (iB >= 64)
+                                    iA = (iA >= 0 || op2 == OP.ShiftLeft ? 0 : -1);
+                                else
+                                {
+                                    ulong uA;
+                                    if (op2 == OP.ShiftLeft)
+                                        iA = iA << (int)iB; //: uA = (ulong)(iA << 0); //: memcpy(uA, iA, sizeof(uA));
+                                    else
+                                    {
+                                        iA = iA >> (int)iB; //: uA = (ulong)(iA << 0); //: memcpy(uA, iA, sizeof(uA));
+                                        // Sign-extend on a right shift of a negative number
+                                        //:if (iA < 0) uA |= (((0xffffffff) << (byte)32) | 0xffffffff) << (byte)(64 - iB);
+                                    }
+                                    //: iA = (long)(uA << 0); //: memcpy(iA, uA, sizeof(iA));
+                                }
+                            }
+                            out_.u.I = iA;
+                            E.MemSetTypeFlag(out_, MEM.Int);
+                            break;
+                        }
+                    case OP.AddImm: // in1
+                        {
+                            // Opcode: AddImm  P1 P2 * * *
+                            //
+                            // Add the constant P2 to the value in register P1. The result is always an integer.
+                            //
+                            // To force any register to be an integer, just add 0.
+                            in1 = mems[op.P1];
+                            MemAboutToChange(this, in1);
+                            MemIntegerify(in1);
+                            in1.u.I += op.P2;
+                            break;
+                        }
+                    case OP.MustBeInt: // jump, in1
+                        {
+                            // Opcode: MustBeInt P1 P2 * * *
+                            // 
+                            // Force the value in register P1 to be an integer.  If the value in P1 is not an integer and cannot be converted into an integer
+                            // without data loss, then jump immediately to P2, or if P2==0 raise an SQLITE_MISMATCH exception.
+                            in1 = mems[op.P1];
+                            ApplyAffinity(in1, AFF.NUMERIC, encoding);
+                            if ((in1.Flags & MEM.Int) == 0)
+                            {
+                                if (op.P2 == 0)
+                                {
+                                    rc = RC.MISMATCH;
+                                    goto abort_due_to_error;
+                                }
+                                else
+                                    pc = op.P2 - 1;
+                            }
+                            else
+                                E.MemSetTypeFlag(in1, MEM.Int);
+                            break;
+                        }
+#if !OMIT_FLOATING_POINT
+                    case OP.RealAffinity: // in1
+                        {
+                            // Opcode: RealAffinity P1 * * * *
+                            //
+                            // If register P1 holds an integer convert it to a real value.
+                            //
+                            // This opcode is used when extracting information from a column that has REAL affinity.  Such column values may still be stored as
+                            // integers, for space efficiency, but after extraction we want them to have only a real value.
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Int) != 0)
+                                MemRealify(in1);
+                            break;
+                        }
+#endif
+#if !OMIT_CAST
+                    case OP.ToText: // same as TK_TO_TEXT, in1
+                        {
+                            // Opcode: ToText P1 * * * *
+                            //
+                            // Force the value in register P1 to be text. If the value is numeric, convert it to a string using the
+                            // equivalent of printf().  Blob values are unchanged and are afterwards simply interpreted as text.
+                            //
+                            // A NULL value is not changed by this routine.  It remains NULL.
+                            in1 = mems[op.P1];
+                            MemAboutToChange(this, in1);
+                            if ((in1.Flags & MEM.Null) != 0) break;
+                            Debug.Assert(MEM.Str == (MEM)((int)MEM.Blob >> 3));
+                            in1.Flags |= (MEM)((int)(in1.Flags & MEM.Blob) >> 3);
+                            ApplyAffinity(in1, AFF.TEXT, encoding);
+                            rc = E.ExpandBlob(in1);
+                            Debug.Assert((in1.Flags & MEM.Str) != 0 || ctx.MallocFailed);
+                            in1.Flags &= ~(MEM.Int | MEM.Real | MEM.Blob | MEM.Zero);
+                            UPDATE_MAX_BLOBSIZE(in1);
+                            break;
+                        }
+                    case OP.ToBlob: // same as TK_TO_BLOB, in1
+                        {
+                            // Opcode: ToBlob P1 * * * *
+                            //
+                            // Force the value in register P1 to be a BLOB. If the value is numeric, convert it to a string first.
+                            // Strings are simply reinterpreted as blobs with no change to the underlying data.
+                            //
+                            // A NULL value is not changed by this routine.  It remains NULL.
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Null) != 0) break;
+                            if ((in1.Flags & MEM.Blob) == 0)
+                            {
+                                ApplyAffinity(in1, AFF.TEXT, encoding);
+                                Debug.Assert((in1.Flags & MEM.Str) != 0 || ctx.MallocFailed);
+                                E.MemSetTypeFlag(in1, MEM.Blob);
+                            }
+                            else
+                                in1.Flags &= ~(MEM.TypeMask & ~MEM.Blob);
+                            UPDATE_MAX_BLOBSIZE(in1);
+                            break;
+                        }
+                    case OP.ToNumeric: // same as TK_TO_NUMERIC, in1
+                        {
+                            // Opcode: ToNumeric P1 * * * *
+                            //
+                            // Force the value in register P1 to be numeric (either an integer or a floating-point number.)
+                            // If the value is text or blob, try to convert it to an using the equivalent of atoi() or atof() and store 0 if no such conversion is possible.
+                            //
+                            // A NULL value is not changed by this routine.  It remains NULL.
+                            in1 = mems[op.P1];
+                            MemNumerify(in1);
+                            break;
+                        }
+#endif
+                    case OP.ToInt:// same as TK_TO_INT, in1
+                        {
+                            // Opcode: ToInt P1 * * * *
+                            //
+                            // Force the value in register P1 to be an integer.  If The value is currently a real number, drop its fractional part.
+                            // If the value is text or blob, try to convert it to an integer using the equivalent of atoi() and store 0 if no such conversion is possible.
+                            //
+                            // A NULL value is not changed by this routine.  It remains NULL.
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Null) == 0)
+                                MemIntegerify(in1);
+                            break;
+                        }
+#if !OMIT_CAST && !OMIT_FLOATING_POINT
+                    case OP.ToReal: // same as TK_TO_REAL, in1
+                        {
+                            // Opcode: ToReal P1 * * * *
+                            //
+                            // Force the value in register P1 to be a floating point number. If The value is currently an integer, convert it.
+                            // If the value is text or blob, try to convert it to an integer using the equivalent of atoi() and store 0.0 if no such conversion is possible.
+                            //
+                            // A NULL value is not changed by this routine.  It remains NULL.
+                            in1 = mems[op.P1];
+                            MemAboutToChange(this, in1);
+                            if ((in1.Flags & MEM.Null) == 0)
+                                MemRealify(in1);
+                            break;
+                        }
+#endif
+                    case OP.Eq: // same as TK_EQ, jump, in1, in3
+                    case OP.Ne: // same as TK_NE, jump, in1, in3
+                    case OP.Lt: // same as TK_LT, jump, in1, in3
+                    case OP.Le: // same as TK_LE, jump, in1, in3
+                    case OP.Gt: // same as TK_GT, jump, in1, in3
+                    case OP.Ge: // same as TK_GE, jump, in1, in3
+                        {
+                            // Opcode: Lt P1 P2 P3 P4 P5
+                            //
+                            // Compare the values in register P1 and P3.  If reg(P3)<reg(P1) then jump to address P2.  
+                            //
+                            // If the SQLITE_JUMPIFNULL bit of P5 is set and either reg(P1) or reg(P3) is NULL then take the jump.  If the SQLITE_JUMPIFNULL 
+                            // bit is clear then fall through if either operand is NULL.
+                            //
+                            // The SQLITE_AFF_MASK portion of P5 must be an affinity character - SQLITE_AFF_TEXT, SQLITE_AFF_INTEGER, and so forth. An attempt is made 
+                            // to coerce both inputs according to this affinity before the comparison is made. If the SQLITE_AFF_MASK is 0x00, then numeric
+                            // affinity is used. Note that the affinity conversions are stored back into the input registers P1 and P3.  So this opcode can cause
+                            // persistent changes to registers P1 and P3.
+                            //
+                            // Once any conversions have taken place, and neither value is NULL, the values are compared. If both values are blobs then memcmp() is
+                            // used to determine the results of the comparison.  If both values are text, then the appropriate collating function specified in
+                            // P4 is  used to do the comparison.  If P4 is not specified then memcmp() is used to compare text string.  If both values are
+                            // numeric, then a numeric comparison is used. If the two values are of different types, then numbers are considered less than
+                            // strings and strings are considered less than blobs.
+                            //
+                            // If the SQLITE_STOREP2 bit of P5 is set, then do not jump.  Instead, store a boolean result (either 0, or 1, or NULL) in register P2.
+                            //
+                            // If the SQLITE_NULLEQ bit is set in P5, then NULL values are considered equal to one another, provided that they do not have their MEM_Cleared
+                            // bit set.
+                            //
+                            // Opcode: Ne P1 P2 P3 P4 P5
+                            //
+                            // This works just like the Lt opcode except that the jump is taken if the operands in registers P1 and P3 are not equal.  See the Lt opcode for
+                            // additional information.
+                            //
+                            // If SQLITE_NULLEQ is set in P5 then the result of comparison is always either true or false and is never NULL.  If both operands are NULL then the result
+                            // of comparison is false.  If either operand is NULL then the result is true. If neither operand is NULL the result is the same as it would be if
+                            // the SQLITE_NULLEQ flag were omitted from P5.
+                            //
+                            // Opcode: Eq P1 P2 P3 P4 P5
+                            //
+                            // This works just like the Lt opcode except that the jump is taken if the operands in registers P1 and P3 are equal.
+                            // See the Lt opcode for additional information.
+                            //
+                            // If SQLITE_NULLEQ is set in P5 then the result of comparison is always either true or false and is never NULL.  If both operands are NULL then the result
+                            // of comparison is true.  If either operand is NULL then the result is false. If neither operand is NULL the result is the same as it would be if
+                            // the SQLITE_NULLEQ flag were omitted from P5.
+                            //
+                            // Opcode: Le P1 P2 P3 P4 P5
+                            //
+                            // This works just like the Lt opcode except that the jump is taken if the content of register P3 is less than or equal to the content of
+                            // register P1.  See the Lt opcode for additional information.
+                            //
+                            // Opcode: Gt P1 P2 P3 P4 P5
+                            //
+                            // This works just like the Lt opcode except that the jump is taken if the content of register P3 is greater than the content of
+                            // register P1.  See the Lt opcode for additional information.
+                            //
+                            // Opcode: Ge P1 P2 P3 P4 P5
+                            //
+                            // This works just like the Lt opcode except that the jump is taken if the content of register P3 is greater than or equal to the content of
+                            // register P1.  See the Lt opcode for additional information.
+                            in1 = mems[op.P1];
+                            in3 = mems[op.P3];
+                            MEM flags1 = in1.Flags; // Copy of initial value of in1->flags
+                            MEM flags3 = in3.Flags; // Copy of initial value of in3->flags
+                            int res = 0; // Result of the comparison of in1 against in3
+                            if (((flags1 | flags3) & MEM.Null) != 0)
+                            {
+                                // One or both operands are NULL
+                                if (((AFF)op.P5 & AFF.BIT_NULLEQ) != 0)
+                                {
+                                    // If SQLITE_NULLEQ is set (which will only happen if the operator is OP_Eq or OP_Ne) then take the jump or not depending on whether or not both operands are null.
+                                    Debug.Assert(op.Opcode == OP.Eq || op.Opcode == OP.Ne);
+                                    Debug.Assert((flags1 & MEM.Cleared) == 0);
+                                    res = ((flags1 & flags3 & MEM.Null) == 0 ? 1 : 0); // Results are equal/not equal
+                                }
+                                else
+                                {
+                                    // SQLITE_NULLEQ is clear and at least one operand is NULL, then the result is always NULL. The jump is taken if the SQLITE_JUMPIFNULL bit is set.
+                                    if (((AFF)op.P5 & AFF.BIT_STOREP2) != 0)
+                                    {
+                                        out_ = mems[op.P2];
+                                        E.MemSetTypeFlag(out_, MEM.Null);
+                                        REGISTER_TRACE(this, op.P2, out_);
+                                    }
+                                    else if (((AFF)op.P5 & AFF.BIT_JUMPIFNULL) != 0)
+                                        pc = op.P2 - 1;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                // Neither operand is NULL.  Do a comparison.
+                                AFF affinity = ((AFF)op.P5 & AFF.MASK); // Affinity to use for comparison
+                                if (affinity != 0)
+                                {
+                                    ApplyAffinity(in1, affinity, encoding);
+                                    ApplyAffinity(in3, affinity, encoding);
+                                    if (ctx.MallocFailed) goto no_mem;
+                                }
+
+                                Debug.Assert(op.P4Type == Vdbe.P4T.COLLSEQ || op.P4.Coll == null);
+                                E.ExpandBlob(in1);
+                                E.ExpandBlob(in3);
+                                res = MemCompare(in3, in1, op.P4.Coll);
+                            }
+                            switch (op.Opcode)
+                            {
+                                case OP.Eq: res = (res == 0 ? 1 : 0); break;
+                                case OP.Ne: res = (res != 0 ? 1 : 0); break;
+                                case OP.Lt: res = (res < 0 ? 1 : 0); break;
+                                case OP.Le: res = (res <= 0 ? 1 : 0); break;
+                                case OP.Gt: res = (res > 0 ? 1 : 0); break;
+                                default: res = (res >= 0 ? 1 : 0); break;
+                            }
+
+                            if (((AFF)op.P5 & AFF.BIT_STOREP2) != 0)
+                            {
+                                out_ = mems[op.P2];
+                                MemAboutToChange(this, out_);
+                                E.MemSetTypeFlag(out_, MEM.Int);
+                                out_.u.I = res;
+                                REGISTER_TRACE(p, op.P2, out_);
+                            }
+                            else if (res != 0)
+                                pc = op.P2 - 1;
+
+                            // Undo any changes made by applyAffinity() to the input registers.
+                            in1.Flags = (in1.Flags & ~MEM.TypeMask) | (flags1 & MEM.TypeMask);
+                            in3.Flags = (in3.Flags & ~MEM.TypeMask) | (flags3 & MEM.TypeMask);
+                            break;
+                        }
+                    case OP.Permutation:
+                        {
+                            // Opcode: Permutation * * * P4 *
+                            //
+                            // Set the permutation used by the OP_Compare operator to be the array of integers in P4.
+                            //
+                            // The permutation is only valid until the next OP_Compare that has the OPFLAG_PERMUTE bit set in P5. Typically the OP_Permutation should 
+                            // occur immediately prior to the OP_Compare.
+                            Debug.Assert(op.P4Type == Vdbe.P4T.INTARRAY);
+                            Debug.Assert(op.P4.Is != null);
+                            permutes = op.P4.Is;
+                            break;
+                        }
+                    case OP.Compare:
+                        {
+                            // Opcode: Compare P1 P2 P3 P4 P5
+                            //
+                            // Compare two vectors of registers in reg(P1)..reg(P1+P3-1) (call this vector "A") and in reg(P2)..reg(P2+P3-1) ("B").  Save the result of
+                            // the comparison for use by the next OP_Jump instruct.
+                            //
+                            // If P5 has the OPFLAG_PERMUTE bit set, then the order of comparison is determined by the most recent OP_Permutation operator.  If the
+                            // OPFLAG_PERMUTE bit is clear, then register are compared in sequential order.
+                            //
+                            // P4 is a KeyInfo structure that defines collating sequences and sort orders for the comparison.  The permutation applies to registers
+                            // only.  The KeyInfo elements are used sequentially.
+                            //
+                            // The comparison is a sort comparison, so NULLs compare equal, NULLs are less than numbers, numbers are less than strings,
+                            // and strings are less than blobs.
+                            if (((OPFLAG)op.P5 & OPFLAG.PERMUTE) == 0) permutes = null;
+                            int n = op.P3;
+                            KeyInfo keyInfo = op.P4.KeyInfo;
+                            Debug.Assert(n > 0);
+                            Debug.Assert(keyInfo != null);
+                            int p1 = op.P1;
+                            int p2 = op.P2;
+#if DEBUG
+                            if (permutes != null)
+                            {
+                                int k, max = 0;
+                                for (k = 0; k < n; k++) if (permutes[k] > max) max = permutes[k];
+                                Debug.Assert(p1 > 0 && p1 + max <= Mems.length + 1);
+                                Debug.Assert(p2 > 0 && p2 + max <= Mems.length + 1);
+                            }
+                            else
+                            {
+                                Debug.Assert(p1 > 0 && p1 + n <= Mems.length + 1);
+                                Debug.Assert(p2 > 0 && p2 + n <= Mems.length + 1);
+                            }
+#endif
+                            for (int i = 0; i < n; i++)
+                            {
+                                int idx = (permutes != null ? permutes[i] : i);
+                                Debug.Assert(E.MemIsValid(mems[p1 + idx]));
+                                Debug.Assert(E.MemIsValid(mems[p2 + idx]));
+                                REGISTER_TRACE(p1 + idx, mems[p1 + idx]);
+                                REGISTER_TRACE(p2 + idx, mems[p2 + idx]);
+                                Debug.Assert(i < keyInfo.Fields);
+                                CollSeq coll = keyInfo.Colls[i]; // Collating sequence to use on this term
+                                bool rev = keyInfo.SortOrders[i] != 0; // True for DESCENDING sort order
+                                compare = sqlite3MemCompare(mems[p1 + idx], mems[p2 + idx], coll);
+                                if (compare != 0)
+                                {
+                                    if (rev)
+                                        compare = -compare;
+                                    break;
+                                }
+                            }
+                            permutes = null;
+                            break;
+                        }
+                    case OP.Jump: // jump
+                        {
+                            // Opcode: Jump P1 P2 P3 * *
+                            //
+                            // Jump to the instruction at address P1, P2, or P3 depending on whether in the most recent OP_Compare instruction the P1 vector was less than
+                            // equal to, or greater than the P2 vector, respectively.
+                            if (compare < 0) pc = op.P1 - 1;
+                            else if (compare == 0) pc = op.P2 - 1;
+                            else pc = op.P3 - 1;
+                            break;
+                        }
+                    case OP.And: // same as TK_AND, in1, in2, ref3
+                    case OP.Or: // same as TK_OR, in1, in2, ref3
+                        {
+                            // Opcode: And P1 P2 P3 * *
+                            //
+                            // Take the logical AND of the values in registers P1 and P2 and write the result into register P3.
+                            //
+                            // If either P1 or P2 is 0 (false) then the result is 0 even if the other input is NULL.  A NULL and true or two NULLs give
+                            // a NULL output.
+                            //
+                            // Opcode: Or P1 P2 P3 * *
+                            //
+                            // Take the logical OR of the values in register P1 and P2 and store the answer in register P3.
+                            //
+                            // If either P1 or P2 is nonzero (true) then the result is 1 (true) even if the other input is NULL.  A NULL and false or two NULLs
+                            // give a NULL output.
+                            in1 = mems[op.P1];
+                            int v1 = ((in1.Flags & MEM.Null) != 0 ? 2 : (IntValue(in1) != 0 ? 1 : 0)); // Left operand:  0==FALSE, 1==TRUE, 2==UNKNOWN or NULL
+                            in2 = mems[op.P2];
+                            int v2 = ((in2.Flags & MEM.Null) != 0 ? 2 : (IntValue(in2) != 0 ? 1 : 0)); // Right operand: 0==FALSE, 1==TRUE, 2==UNKNOWN or NULL
+                            if (op.Opcode == OP.And)
+                            {
+                                byte[] and_logic = new byte[] { 0, 0, 0, 0, 1, 2, 0, 2, 2 };
+                                v1 = and_logic[v1 * 3 + v2];
+                            }
+                            else
+                            {
+                                byte[] or_logic = new byte[] { 0, 1, 2, 1, 1, 1, 2, 1, 2 };
+                                v1 = or_logic[v1 * 3 + v2];
+                            }
+                            out_ = mems[op.P3];
+                            if (v1 == 2)
+                                E.MemSetTypeFlag(out_, MEM.Null);
+                            else
+                            {
+                                out_.u.I = v1;
+                                E.MemSetTypeFlag(out_, MEM.Int);
+                            }
+                            break;
+                        }
+                    case OP.Not: // same as TK_NOT, in1
+                        {
+                            // Opcode: Not P1 P2 * * *
+                            //
+                            // Interpret the value in register P1 as a boolean value.  Store the boolean complement in register P2.  If the value in register P1 is
+                            // NULL, then a NULL is stored in P2.
+                            in1 = mems[op.P1];
+                            out_ = mems[op.P2];
+                            if ((in1.Flags & MEM.Null) != 0)
+                                MemSetNull(out_);
+                            else
+                                MemSetInt64(out_, IntValue(in1) == 0 ? 1 : 0);
+                            break;
+                        }
+                    case OP.BitNot: // same as TK_BITNOT, in1
+                        {
+                            // Opcode: BitNot P1 P2 * * *
+                            //
+                            // Interpret the content of register P1 as an integer.  Store the ones-complement of the P1 value into register P2.  If P1 holds
+                            // a NULL then store a NULL in P2.
+                            in1 = mems[op.P1];
+                            out_ = mems[op.P2];
+                            if ((in1.Flags & MEM.Null) != 0)
+                                MemSetNull(out_);
+                            else
+                                MemSetInt64(out_, ~IntValue(in1));
+                            break;
+                        }
+                    case OP.If:
+                    case OP.IfNot:
+                        {
+                            // Opcode: If P1 P2 P3 * *
+                            //
+                            // Jump to P2 if the value in register P1 is true.  The value is considered true if it is numeric and non-zero.  If the value
+                            // in P1 is NULL then take the jump if P3 is non-zero.
+                            //
+                            // Opcode: IfNot P1 P2 P3 * *
+                            //
+                            // Jump to P2 if the value in register P1 is False.  The value is considered false if it has a numeric value of zero.  If the value
+                            // in P1 is NULL then take the jump if P3 is zero.
+                            int c;
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Null) != 0)
+                                c = op.P3;
+                            else
+                            {
+#if OMIT_FLOATING_POINT
+                                c = (IntValue(in1) != 0 ? 1 : 0);
 #else
-                if ( sqlite3IsNaN( rB ) )
-                {
-                  goto arithmetic_result_is_null;
-                }
-                out_.r = rB;
-                MemSetTypeFlag( out_, MEM_Real );
-                if ( ( flags & MEM_Real ) == 0 )
-                {
-                  sqlite3VdbeIntegerAffinity( out_ );
-                }
+                                c = (RealValue(in1) != 0.0 ? 1 : 0);
 #endif
-              }
-              break;
-
-arithmetic_result_is_null:
-              sqlite3VdbeMemSetNull( out_ );
-              break;
-            }
-
-          /* Opcode: CollSeq * * P4
-          **
-          ** P4 is a pointer to a CollSeq struct. If the next call to a user function
-          ** or aggregate calls sqlite3GetFuncCollSeq(), this collation sequence will
-          ** be returned. This is used by the built-in min(), max() and nullif()
-          ** functions.
-          **
-          ** The interface used by the implementation of the aforementioned functions
-          ** to retrieve the collation sequence set by this opcode is not available
-          ** publicly, only to user functions defined in func.c.
-          */
-          case OP_CollSeq:
-            {
-              Debug.Assert( op.p4type == P4_COLLSEQ );
-              break;
-            }
-
-          /* Opcode: Function P1 P2 P3 P4 P5
-          **
-          ** Invoke a user function (P4 is a pointer to a Function structure that
-          ** defines the function) with P5 arguments taken from register P2 and
-          ** successors.  The result of the function is stored in register P3.
-          ** Register P3 must not be one of the function inputs.
-          **
-          ** P1 is a 32-bit bitmask indicating whether or not each argument to the
-          ** function was determined to be constant at compile time. If the first
-          ** argument was constant then bit 0 of P1 is set. This is used to determine
-          ** whether meta data associated with a user function argument using the
-          ** sqlite3_set_auxdata() API may be safely retained until the next
-          ** invocation of this opcode.
-          **
-          ** See also: AggStep and AggFinal
-          */
-          case OP_Function:
-            {
-              int i;
-              Mem pArg;
-              sqlite3_context ctx = new sqlite3_context();
-              sqlite3_value[] apVal;
-              int n;
-
-              n = op.p5;
-              apVal = p.apArg;
-              Debug.Assert( apVal != null || n == 0 );
-              Debug.Assert( op.P3 > 0 && op.P3 <= Mems.length );
-              out_ = mems[op.P3];
-              memAboutToChange( p, out_ );
-
-              Debug.Assert( n == 0 || ( op.P2 > 0 && op.P2 + n <= Mems.length + 1 ) );
-              Debug.Assert( op.P3 < op.P2 || op.P3 >= op.P2 + n );
-              //pArg = mems[op.P2];
-              for ( i = 0; i < n; i++ )//, pArg++)
-              {
-                pArg = mems[op.P2 + i];
-                Debug.Assert( memIsValid( pArg ) );
-                apVal[i] = pArg;
-                Deephemeralize( pArg );
-                sqlite3VdbeMemStoreType( pArg );
-                REGISTER_TRACE( p, op.P2 + i, pArg );
-              }
-
-              Debug.Assert( op.p4type == P4_FUNCDEF || op.p4type == P4_VDBEFUNC );
-              if ( op.p4type == P4_FUNCDEF )
-              {
-                ctx.pFunc = op.P4.pFunc;
-                ctx.pVdbeFunc = null;
-              }
-              else
-              {
-                ctx.pVdbeFunc = (VdbeFunc)op.P4.pVdbeFunc;
-                ctx.pFunc = ctx.pVdbeFunc.pFunc;
-              }
-
-              ctx.s.flags = MEM_Null;
-              ctx.s.db = ctx;
-              ctx.s.xDel = null;
-              //ctx.s.zMalloc = null;
-
-              /* The output cell may already have a buffer allocated. Move
-              ** the pointer to ctx.s so in case the user-function can use
-              ** the already allocated buffer instead of allocating a new one.
-              */
-              sqlite3VdbeMemMove( ctx.s, out_ );
-              MemSetTypeFlag( ctx.s, MEM_Null );
-
-              ctx.isError = 0;
-              if ( ( ctx.pFunc.flags & SQLITE_FUNC_NEEDCOLL ) != 0 )
-              {
-                Debug.Assert( pc > 1 );//Debug.Assert(op > aOp);
-                Debug.Assert( p.aOp[pc - 1].p4type == P4_COLLSEQ );//Debug.Assert(op[-1].p4type == P4_COLLSEQ);
-                Debug.Assert( p.aOp[pc - 1].opcode == OP_CollSeq );//Debug.Assert(op[-1].opcode == OP_CollSeq);
-                ctx.pColl = p.aOp[pc - 1].p4.pColl;//ctx.pColl = op[-1].p4.pColl;
-              }
-              ctx.lastRowid = lastRowid;
-              ctx.pFunc.xFunc( ctx, n, apVal );///* IMP: R-24505-23230 */
-              lastRowid = ctx.lastRowid;
-
-              /* If any auxillary data functions have been called by this user function,
-              ** immediately call the destructor for any non-static values.
-              */
-              if ( ctx.pVdbeFunc != null )
-              {
-                sqlite3VdbeDeleteAuxData( ctx.pVdbeFunc, op.P1 );
-                op.P4.pVdbeFunc = ctx.pVdbeFunc;
-                op.p4type = P4_VDBEFUNC;
-              }
-
-              //if ( db->mallocFailed )
-              //{
-              //  /* Even though a malloc() has failed, the implementation of the
-              //  ** user function may have called an sqlite3_result_XXX() function
-              //  ** to return a value. The following call releases any resources
-              //  ** associated with such a value.
-              //  */
-              //  sqlite3VdbeMemRelease( &u.ag.ctx.s );
-              //  goto no_mem;
-              //}
-
-              /* If the function returned an error, throw an exception */
-              if ( ctx.isError != 0 )
-              {
-                C._setstring( ref p.zErrMsg, ctx, sqlite3_value_text( ctx.s ) );
-                rc = ctx.isError;
-              }
-
-              /* Copy the result of the function into register P3 */
-              sqlite3VdbeChangeEncoding( ctx.s, encoding );
-              sqlite3VdbeMemMove( out_, ctx.s );
-              if ( sqlite3VdbeMemTooBig( out_ ) )
-              {
-                goto too_big;
-              }
-#if FALSE
-  /* The app-defined function has done something that as caused this
-  ** statement to expire.  (Perhaps the function called sqlite3_exec()
-  ** with a CREATE TABLE statement.)
-  */
-  if( p.expired ) rc = SQLITE_ABORT;
-#endif
-
-              REGISTER_TRACE( p, op.P3, out_ );
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( out_ );
-#endif
-              break;
-            }
-
-          /* Opcode: BitAnd P1 P2 P3 * *
-          **
-          ** Take the bit-wise AND of the values in register P1 and P2 and
-          ** store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: BitOr P1 P2 P3 * *
-          **
-          ** Take the bit-wise OR of the values in register P1 and P2 and
-          ** store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: ShiftLeft P1 P2 P3 * *
-          **
-          ** Shift the integer value in register P2 to the left by the
-          ** number of bits specified by the integer in register P1.
-          ** Store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          /* Opcode: ShiftRight P1 P2 P3 * *
-          **
-          ** Shift the integer value in register P2 to the right by the
-          ** number of bits specified by the integer in register P1.
-          ** Store the result in register P3.
-          ** If either input is NULL, the result is NULL.
-          */
-          case OP_BitAnd:                 /* same as TK_BITAND, in1, in2, ref3 */
-          case OP_BitOr:                  /* same as TK_BITOR, in1, in2, ref3 */
-          case OP_ShiftLeft:              /* same as TK_LSHIFT, in1, in2, ref3 */
-          case OP_ShiftRight:
-            {           /* same as TK_RSHIFT, in1, in2, ref3 */
-              i64 iA;
-              u64 uA;
-              i64 iB;
-              u8 op;
-
-              int1 = mems[op.P1];
-              in2 = mems[op.P2];
-              out_ = mems[op.P3];
-              if ( ( ( int1.flags | in2.flags ) & MEM_Null ) != 0 )
-              {
-                sqlite3VdbeMemSetNull( out_ );
-                break;
-              }
-              iA = sqlite3VdbeIntValue( in2 );
-              iB = sqlite3VdbeIntValue( int1 );
-              op = op.opcode;
-              if ( op == OP_BitAnd )
-              {
-                iA &= iB;
-              }
-              else if ( op == OP_BitOr )
-              {
-                iA |= iB;
-              }
-              else if ( iB != 0 )
-              {
-                Debug.Assert( op == OP_ShiftRight || op == OP_ShiftLeft );
-
-                /* If shifting by a negative amount, shift in the other direction */
-                if ( iB < 0 )
-                {
-                  Debug.Assert( OP_ShiftRight == OP_ShiftLeft + 1 );
-                  op = (u8)( 2 * OP_ShiftLeft + 1 - op );
-                  iB = iB > ( -64 ) ? -iB : 64;
-                }
-
-                if ( iB >= 64 )
-                {
-                  iA = ( iA >= 0 || op == OP_ShiftLeft ) ? 0 : -1;
-                }
-                else
-                {
-                  //uA = (ulong)(iA << 0); // memcpy( &uA, &iA, sizeof( uA ) );
-                  if ( op == OP_ShiftLeft )
-                  {
-                    iA = iA << (int)iB;
-                  }
-                  else
-                  {
-                    iA = iA >> (int)iB;
-                    /* Sign-extend on a right shift of a negative number */
-                    //if ( iA < 0 )
-                    //  uA |= ( ( (0xffffffff ) << (u8)32 ) | 0xffffffff ) << (u8)( 64 - iB );
-                  }
-                  //iA = (long)( uA << 0 ); //memcpy( &iA, &uA, sizeof( iA ) );
-                }
-              }
-              out_.u.i = iA;
-              MemSetTypeFlag( out_, MEM_Int );
-              break;
-            }
-
-          /* Opcode: AddImm  P1 P2 * * *
-          **
-          ** Add the constant P2 to the value in register P1.
-          ** The result is always an integer.
-          **
-          ** To force any register to be an integer, just add 0.
-          */
-          case OP_AddImm:
-            {            /* in1 */
-              int1 = mems[op.P1];
-              memAboutToChange( p, int1 );
-              sqlite3VdbeMemIntegerify( int1 );
-              int1.u.i += op.P2;
-              break;
-            }
-
-          /* Opcode: MustBeInt P1 P2 * * *
-          **
-          ** Force the value in register P1 to be an integer.  If the value
-          ** in P1 is not an integer and cannot be converted into an integer
-          ** without data loss, then jump immediately to P2, or if P2==0
-          ** raise an SQLITE_MISMATCH exception.
-          */
-          case OP_MustBeInt:
-            {            /* jump, in1 */
-              int1 = mems[op.P1];
-              applyAffinity( int1, SQLITE_AFF_NUMERIC, encoding );
-              if ( ( int1.flags & MEM_Int ) == 0 )
-              {
-                if ( op.P2 == 0 )
-                {
-                  rc = SQLITE_MISMATCH;
-                  goto abort_due_to_error;
-                }
-                else
-                {
-                  pc = op.P2 - 1;
-                }
-              }
-              else
-              {
-                MemSetTypeFlag( int1, MEM_Int );
-              }
-              break;
-            }
-
-#if !SQLITE_OMIT_FLOATING_POINT
-          /* Opcode: RealAffinity P1 * * * *
-**
-** If register P1 holds an integer convert it to a real value.
-**
-** This opcode is used when extracting information from a column that
-** has REAL affinity.  Such column values may still be stored as
-** integers, for space efficiency, but after extraction we want them
-** to have only a real value.
-*/
-          case OP_RealAffinity:
-            {                  /* in1 */
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Int ) != 0 )
-              {
-                sqlite3VdbeMemRealify( int1 );
-              }
-              break;
-            }
-#endif
-
-#if !SQLITE_OMIT_CAST
-          /* Opcode: ToText P1 * * * *
-**
-** Force the value in register P1 to be text.
-** If the value is numeric, convert it to a string using the
-** equivalent of printf().  Blob values are unchanged and
-** are afterwards simply interpreted as text.
-**
-** A NULL value is not changed by this routine.  It remains NULL.
-*/
-          case OP_ToText:
-            {                  /* same as TK_TO_TEXT, in1 */
-              int1 = mems[op.P1];
-              memAboutToChange( p, int1 );
-              if ( ( int1.flags & MEM_Null ) != 0 )
-                break;
-              Debug.Assert( MEM_Str == ( MEM_Blob >> 3 ) );
-              int1.flags |= (u16)( ( int1.flags & MEM_Blob ) >> 3 );
-              applyAffinity( int1, SQLITE_AFF_TEXT, encoding );
-              rc = ExpandBlob( int1 );
-              Debug.Assert( ( int1.flags & MEM_Str ) != 0 /*|| db.mallocFailed != 0 */ );
-              int1.flags = (u16)( int1.flags & ~( MEM_Int | MEM_Real | MEM_Blob | MEM_Zero ) );
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( int1 );
-#endif
-              break;
-            }
-
-          /* Opcode: ToBlob P1 * * * *
-          **
-          ** Force the value in register P1 to be a BLOB.
-          ** If the value is numeric, convert it to a string first.
-          ** Strings are simply reinterpreted as blobs with no change
-          ** to the underlying data.
-          **
-          ** A NULL value is not changed by this routine.  It remains NULL.
-          */
-          case OP_ToBlob:
-            {                  /* same as TK_TO_BLOB, in1 */
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-                break;
-              if ( ( int1.flags & MEM_Blob ) == 0 )
-              {
-                applyAffinity( int1, SQLITE_AFF_TEXT, encoding );
-                Debug.Assert( ( int1.flags & MEM_Str ) != 0 /*|| db.mallocFailed != 0 */ );
-                MemSetTypeFlag( int1, MEM_Blob );
-              }
-              else
-              {
-                int1.flags = (ushort)( int1.flags & ~( MEM_TypeMask & ~MEM_Blob ) );
-              }
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( int1 );
-#endif
-              break;
-            }
-
-          /* Opcode: ToNumeric P1 * * * *
-          **
-          ** Force the value in register P1 to be numeric (either an
-          ** integer or a floating-point number.)
-          ** If the value is text or blob, try to convert it to an using the
-          ** equivalent of atoi() or atof() and store 0 if no such conversion
-          ** is possible.
-          **
-          ** A NULL value is not changed by this routine.  It remains NULL.
-          */
-          case OP_ToNumeric:
-            {                  /* same as TK_TO_NUMERIC, in1 */
-              int1 = mems[op.P1];
-              sqlite3VdbeMemNumerify( int1 );
-              break;
-            }
-#endif // * SQLITE_OMIT_CAST */
-
-          /* Opcode: ToInt P1 * * * *
-**
-** Force the value in register P1 to be an integer.  If
-** The value is currently a real number, drop its fractional part.
-** If the value is text or blob, try to convert it to an integer using the
-** equivalent of atoi() and store 0 if no such conversion is possible.
-**
-** A NULL value is not changed by this routine.  It remains NULL.
-*/
-          case OP_ToInt:
-            {                  /* same as TK_TO_INT, in1 */
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) == 0 )
-              {
-                sqlite3VdbeMemIntegerify( int1 );
-              }
-              break;
-            }
-
-#if !(SQLITE_OMIT_CAST) && !(SQLITE_OMIT_FLOATING_POINT)
-          /* Opcode: ToReal P1 * * * *
-**
-** Force the value in register P1 to be a floating point number.
-** If The value is currently an integer, convert it.
-** If the value is text or blob, try to convert it to an integer using the
-** equivalent of atoi() and store 0.0 if no such conversion is possible.
-**
-** A NULL value is not changed by this routine.  It remains NULL.
-*/
-          case OP_ToReal:
-            {                  /* same as TK_TO_REAL, in1 */
-              int1 = mems[op.P1];
-              memAboutToChange( p, int1 );
-              if ( ( int1.flags & MEM_Null ) == 0 )
-              {
-                sqlite3VdbeMemRealify( int1 );
-              }
-              break;
-            }
-#endif //* !defined(SQLITE_OMIT_CAST) && !defined(SQLITE_OMIT_FLOATING_POINT) */
-
-          /* Opcode: Lt P1 P2 P3 P4 P5
-**
-** Compare the values in register P1 and P3.  If reg(P3)<reg(P1) then
-** jump to address P2.
-**
-** If the SQLITE_JUMPIFNULL bit of P5 is set and either reg(P1) or
-** reg(P3) is NULL then take the jump.  If the SQLITE_JUMPIFNULL
-** bit is clear then fall through if either operand is NULL.
-**
-** The SQLITE_AFF_MASK portion of P5 must be an affinity character -
-** SQLITE_AFF_TEXT, SQLITE_AFF_INTEGER, and so forth. An attempt is made
-** to coerce both inputs according to this affinity before the
-** comparison is made. If the SQLITE_AFF_MASK is 0x00, then numeric
-** affinity is used. Note that the affinity conversions are stored
-** back into the input registers P1 and P3.  So this opcode can cause
-** persistent changes to registers P1 and P3.
-**
-** Once any conversions have taken place, and neither value is NULL,
-** the values are compared. If both values are blobs then memcmp() is
-** used to determine the results of the comparison.  If both values
-** are text, then the appropriate collating function specified in
-** P4 is  used to do the comparison.  If P4 is not specified then
-** memcmp() is used to compare text string.  If both values are
-** numeric, then a numeric comparison is used. If the two values
-** are of different types, then numbers are considered less than
-** strings and strings are considered less than blobs.
-**
-** If the SQLITE_STOREP2 bit of P5 is set, then do not jump.  Instead,
-** store a boolean result (either 0, or 1, or NULL) in register P2.
-*/
-          /* Opcode: Ne P1 P2 P3 P4 P5
-          **
-          ** This works just like the Lt opcode except that the jump is taken if
-          ** the operands in registers P1 and P3 are not equal.  See the Lt opcode for
-          ** additional information.
-          **
-          ** If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
-          ** true or false and is never NULL.  If both operands are NULL then the result
-          ** of comparison is false.  If either operand is NULL then the result is true.
-          ** If neither operand is NULL the result is the same as it would be if
-          ** the SQLITE_NULLEQ flag were omitted from P5.
-          */
-          /* Opcode: Eq P1 P2 P3 P4 P5
-          **
-          ** This works just like the Lt opcode except that the jump is taken if
-          ** the operands in registers P1 and P3 are equal.
-          ** See the Lt opcode for additional information.
-          **
-          ** If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
-          ** true or false and is never NULL.  If both operands are NULL then the result
-          ** of comparison is true.  If either operand is NULL then the result is false.
-          ** If neither operand is NULL the result is the same as it would be if
-          ** the SQLITE_NULLEQ flag were omitted from P5.
-          */
-          /* Opcode: Le P1 P2 P3 P4 P5
-          **
-          ** This works just like the Lt opcode except that the jump is taken if
-          ** the content of register P3 is less than or equal to the content of
-          ** register P1.  See the Lt opcode for additional information.
-          */
-          /* Opcode: Gt P1 P2 P3 P4 P5
-          **
-          ** This works just like the Lt opcode except that the jump is taken if
-          ** the content of register P3 is greater than the content of
-          ** register P1.  See the Lt opcode for additional information.
-          */
-          /* Opcode: Ge P1 P2 P3 P4 P5
-          **
-          ** This works just like the Lt opcode except that the jump is taken if
-          ** the content of register P3 is greater than or equal to the content of
-          ** register P1.  See the Lt opcode for additional information.
-          */
-          case OP_Eq:               /* same as TK_EQ, jump, in1, in3 */
-          case OP_Ne:               /* same as TK_NE, jump, in1, in3 */
-          case OP_Lt:               /* same as TK_LT, jump, in1, in3 */
-          case OP_Le:               /* same as TK_LE, jump, in1, in3 */
-          case OP_Gt:               /* same as TK_GT, jump, in1, in3 */
-          case OP_Ge:
-            {             /* same as TK_GE, jump, in1, in3 */
-              int res = 0;        /* Result of the comparison of int1 against in3 */
-              char affinity;      /* Affinity to use for comparison */
-              u16 flags1;         /* Copy of initial value of int1->flags */
-              u16 flags3;         /* Copy of initial value of in3->flags */
-              int1 = mems[op.P1];
-              in3 = mems[op.P3];
-              flags1 = int1.flags;
-              flags3 = in3.flags;
-              if ( ( ( int1.flags | in3.flags ) & MEM_Null ) != 0 )
-              {
-                /* One or both operands are NULL */
-                if ( ( op.p5 & SQLITE_NULLEQ ) != 0 )
-                {
-                  /* If SQLITE_NULLEQ is set (which will only happen if the operator is
-                  ** OP_Eq or OP_Ne) then take the jump or not depending on whether
-                  ** or not both operands are null.
-                  */
-                  Debug.Assert( op.opcode == OP_Eq || op.opcode == OP_Ne );
-                  res = ( int1.flags & in3.flags & MEM_Null ) == 0 ? 1 : 0;
-                }
-                else
-                {
-                  /* SQLITE_NULLEQ is clear and at least one operand is NULL,
-                  ** then the result is always NULL.
-                  ** The jump is taken if the SQLITE_JUMPIFNULL bit is set.
-                  */
-                  if ( ( op.p5 & SQLITE_STOREP2 ) != 0 )
-                  {
-                    out_ = mems[op.P2];
-                    MemSetTypeFlag( out_, MEM_Null );
-                    REGISTER_TRACE( p, op.P2, out_ );
-                  }
-                  else if ( ( op.p5 & SQLITE_JUMPIFNULL ) != 0 )
-                  {
-                    pc = op.P2 - 1;
-                  }
-                  break;
-                }
-
-              }
-              else
-              {
-                /* Neither operand is NULL.  Do a comparison. */
-                affinity = (char)( op.p5 & SQLITE_AFF_MASK );
-                if ( affinity != '\0' )
-                {
-                  applyAffinity( int1, affinity, encoding );
-                  applyAffinity( in3, affinity, encoding );
-                  //      if ( db.mallocFailed != 0 ) goto no_mem;
-                }
-
-                Debug.Assert( op.p4type == P4_COLLSEQ || op.P4.pColl == null );
-                ExpandBlob( int1 );
-                ExpandBlob( in3 );
-                res = sqlite3MemCompare( in3, int1, op.P4.pColl );
-              }
-              switch ( op.opcode )
-              {
-                case OP_Eq:
-                  res = ( res == 0 ) ? 1 : 0;
-                  break;
-                case OP_Ne:
-                  res = ( res != 0 ) ? 1 : 0;
-                  break;
-                case OP_Lt:
-                  res = ( res < 0 ) ? 1 : 0;
-                  break;
-                case OP_Le:
-                  res = ( res <= 0 ) ? 1 : 0;
-                  break;
-                case OP_Gt:
-                  res = ( res > 0 ) ? 1 : 0;
-                  break;
-                default:
-                  res = ( res >= 0 ) ? 1 : 0;
-                  break;
-              }
-
-              if ( ( op.p5 & SQLITE_STOREP2 ) != 0 )
-              {
-                out_ = mems[op.P2];
-                memAboutToChange( p, out_ );
-                MemSetTypeFlag( out_, MEM_Int );
-                out_.u.i = res;
-                REGISTER_TRACE( p, op.P2, out_ );
-              }
-              else if ( res != 0 )
-              {
-                pc = op.P2 - 1;
-              }
-
-              /* Undo any changes made by applyAffinity() to the input registers. */
-              int1.flags = (u16)( ( int1.flags & ~MEM_TypeMask ) | ( flags1 & MEM_TypeMask ) );
-              in3.flags = (u16)( ( in3.flags & ~MEM_TypeMask ) | ( flags3 & MEM_TypeMask ) );
-              break;
-            }
-
-          /* Opcode: Permutation * * * P4 *
-          **
-          ** Set the permutation used by the OP_Compare operator to be the array
-          ** of integers in P4.
-          **
-          ** The permutation is only valid until the next OP_Permutation, OP_Compare,
-          ** OP_Halt, or OP_ResultRow.  Typically the OP_Permutation should occur
-          ** immediately prior to the OP_Compare.
-          */
-          case OP_Permutation:
-            {
-              Debug.Assert( op.p4type == P4_INTARRAY );
-              Debug.Assert( op.P4.ai != null );
-              permutes = op.P4.ai;
-              break;
-            }
-
-          /* Opcode: Compare P1 P2 P3 P4 *
-          **
-          ** Compare two vectors of registers in reg(P1)..reg(P1+P3-1) (call this
-          ** vector "A") and in reg(P2)..reg(P2+P3-1) ("B").  Save the result of
-          ** the comparison for use by the next OP_Jump instruct.
-          **
-          ** P4 is a KeyInfo structure that defines collating sequences and sort
-          ** orders for the comparison.  The permutation applies to registers
-          ** only.  The KeyInfo elements are used sequentially.
-          **
-          ** The comparison is a sort comparison, so NULLs compare equal,
-          ** NULLs are less than numbers, numbers are less than strings,
-          ** and strings are less than blobs.
-          */
-          case OP_Compare:
-            {
-              int n;
-              int i;
-              int p1;
-              int p2;
-              KeyInfo pKeyInfo;
-              int idx;
-              CollSeq pColl;    /* Collating sequence to use on this term */
-              int bRev;          /* True for DESCENDING sort order */
-
-              n = op.P3;
-              pKeyInfo = op.P4.pKeyInfo;
-              Debug.Assert( n > 0 );
-              Debug.Assert( pKeyInfo != null );
-              p1 = op.P1;
-              p2 = op.P2;
-#if SQLITE_DEBUG
-              if ( aPermute != null )
-              {
-                int k, mx = 0;
-                for ( k = 0; k < n; k++ )
-                  if ( aPermute[k] > mx )
-                    mx = aPermute[k];
-                Debug.Assert( p1 > 0 && p1 + mx <= Mems.length + 1 );
-                Debug.Assert( p2 > 0 && p2 + mx <= Mems.length + 1 );
-              }
-              else
-              {
-                Debug.Assert( p1 > 0 && p1 + n <= Mems.length + 1 );
-                Debug.Assert( p2 > 0 && p2 + n <= Mems.length + 1 );
-              }
-#endif //* SQLITE_DEBUG */
-              for ( i = 0; i < n; i++ )
-              {
-                idx = permutes != null ? permutes[i] : i;
-                Debug.Assert( memIsValid( mems[p1 + idx] ) );
-                Debug.Assert( memIsValid( mems[p2 + idx] ) );
-                REGISTER_TRACE( p, p1 + idx, mems[p1 + idx] );
-                REGISTER_TRACE( p, p2 + idx, mems[p2 + idx] );
-                Debug.Assert( i < pKeyInfo.nField );
-                pColl = pKeyInfo.aColl[i];
-                bRev = pKeyInfo.aSortOrder[i];
-                iCompare = sqlite3MemCompare( mems[p1 + idx], mems[p2 + idx], pColl );
-                if ( iCompare != 0 )
-                {
-                  if ( bRev != 0 )
-                    iCompare = -iCompare;
-                  break;
-                }
-              }
-              permutes = null;
-              break;
-            }
-
-          /* Opcode: Jump P1 P2 P3 * *
-          **
-          ** Jump to the instruction at address P1, P2, or P3 depending on whether
-          ** in the most recent OP_Compare instruction the P1 vector was less than
-          ** equal to, or greater than the P2 vector, respectively.
-          */
-          case OP_Jump:
-            {             /* jump */
-              if ( iCompare < 0 )
-              {
-                pc = op.P1 - 1;
-              }
-              else if ( iCompare == 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              else
-              {
-                pc = op.P3 - 1;
-              }
-              break;
-            }
-          /* Opcode: And P1 P2 P3 * *
-          **
-          ** Take the logical AND of the values in registers P1 and P2 and
-          ** write the result into register P3.
-          **
-          ** If either P1 or P2 is 0 (false) then the result is 0 even if
-          ** the other input is NULL.  A NULL and true or two NULLs give
-          ** a NULL output.
-          */
-          /* Opcode: Or P1 P2 P3 * *
-          **
-          ** Take the logical OR of the values in register P1 and P2 and
-          ** store the answer in register P3.
-          **
-          ** If either P1 or P2 is nonzero (true) then the result is 1 (true)
-          ** even if the other input is NULL.  A NULL and false or two NULLs
-          ** give a NULL output.
-          */
-          case OP_And:              /* same as TK_AND, in1, in2, ref3 */
-          case OP_Or:
-            {             /* same as TK_OR, in1, in2, ref3 */
-              int v1;    /* Left operand:  0==FALSE, 1==TRUE, 2==UNKNOWN or NULL */
-              int v2;    /* Right operand: 0==FALSE, 1==TRUE, 2==UNKNOWN or NULL */
-
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-              {
-                v1 = 2;
-              }
-              else
-              {
-                v1 = ( sqlite3VdbeIntValue( int1 ) != 0 ) ? 1 : 0;
-              }
-              in2 = mems[op.P2];
-              if ( ( in2.flags & MEM_Null ) != 0 )
-              {
-                v2 = 2;
-              }
-              else
-              {
-                v2 = ( sqlite3VdbeIntValue( in2 ) != 0 ) ? 1 : 0;
-              }
-              if ( op.opcode == OP_And )
-              {
-                byte[] and_logic = new byte[] { 0, 0, 0, 0, 1, 2, 0, 2, 2 };
-                v1 = and_logic[v1 * 3 + v2];
-              }
-              else
-              {
-                byte[] or_logic = new byte[] { 0, 1, 2, 1, 1, 1, 2, 1, 2 };
-                v1 = or_logic[v1 * 3 + v2];
-              }
-              out_ = mems[op.P3];
-              if ( v1 == 2 )
-              {
-                MemSetTypeFlag( out_, MEM_Null );
-              }
-              else
-              {
-                out_.u.i = v1;
-                MemSetTypeFlag( out_, MEM_Int );
-              }
-              break;
-            }
-
-          /* Opcode: Not P1 P2 * * *
-          **
-          ** Interpret the value in register P1 as a boolean value.  Store the
-          ** boolean complement in register P2.  If the value in register P1 is
-          ** NULL, then a NULL is stored in P2.
-          */
-          case OP_Not:
-            {                /* same as TK_NOT, in1 */
-              int1 = mems[op.P1];
-              out_ = mems[op.P2];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-              {
-                sqlite3VdbeMemSetNull( out_ );
-              }
-              else
-              {
-                sqlite3VdbeMemSetInt64( out_, sqlite3VdbeIntValue( int1 ) == 0 ? 1 : 0 );
-              }
-              break;
-            }
-
-          /* Opcode: BitNot P1 P2 * * *
-          **
-          ** Interpret the content of register P1 as an integer.  Store the
-          ** ones-complement of the P1 value into register P2.  If P1 holds
-          ** a NULL then store a NULL in P2.
-          */
-          case OP_BitNot:
-            {             /* same as TK_BITNOT, in1 */
-              int1 = mems[op.P1];
-              out_ = mems[op.P2];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-              {
-                sqlite3VdbeMemSetNull( out_ );
-              }
-              else
-              {
-                sqlite3VdbeMemSetInt64( out_, ~sqlite3VdbeIntValue( int1 ) );
-              }
-              break;
-            }
-
-          /* Opcode: If P1 P2 P3 * *
-          **
-          ** Jump to P2 if the value in register P1 is true.  The value
-          ** is considered true if it is numeric and non-zero.  If the value
-          ** in P1 is NULL then take the jump if P3 is true.
-          */
-          /* Opcode: IfNot P1 P2 P3 * *
-          **
-          ** Jump to P2 if the value in register P1 is False.  The value
-          ** is considered true if it has a numeric value of zero.  If the value
-          ** in P1 is NULL then take the jump if P3 is true.
-          */
-          case OP_If:                 /* jump, in1 */
-          case OP_IfNot:
-            {            /* jump, in1 */
-              int c;
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-              {
-                c = op.P3;
-              }
-              else
-              {
-#if SQLITE_OMIT_FLOATING_POINT
-c = sqlite3VdbeIntValue(int1)!=0;
-#else
-                c = ( sqlite3VdbeRealValue( int1 ) != 0.0 ) ? 1 : 0;
-#endif
-                if ( op.opcode == OP_IfNot )
-                  c = ( c == 0 ) ? 1 : 0;
-              }
-              if ( c != 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              break;
-            }
-
-          /* Opcode: IsNull P1 P2 * * *
-          **
-          ** Jump to P2 if the value in register P1 is NULL.
-          */
-          case OP_IsNull:
-            {            /* same as TK_ISNULL, jump, in1 */
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) != 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              break;
-            }
-
-          /* Opcode: NotNull P1 P2 * * *
-          **
-          ** Jump to P2 if the value in register P1 is not NULL.
-          */
-          case OP_NotNull:
-            {            /* same as TK_NOTNULL, jump, in1 */
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_Null ) == 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              break;
-            }
+                                if (op.Opcode == OP.IfNot) c = !c;
+                            }
+                            if (c != 0)
+                                pc = op.P2 - 1;
+                            break;
+                        }
+                    case OP.IsNull: // same as TK_ISNULL, jump, in1
+                        {
+                            // Opcode: IsNull P1 P2 * * *
+                            //
+                            // Jump to P2 if the value in register P1 is NULL.
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Null) != 0)
+                                pc = op.P2 - 1;
+                            break;
+                        }
+                    case OP.NotNull: // same as TK_NOTNULL, jump, in1
+                        {
+                            // Opcode: NotNull P1 P2 * * *
+                            //
+                            // Jump to P2 if the value in register P1 is not NULL.  
+                            in1 = mems[op.P1];
+                            if ((in1.Flags & MEM.Null) == 0)
+                                pc = op.P2 - 1;
+                            break;
+                        }
 
           /* Opcode: Column P1 P2 P3 P4 *
           **
@@ -2071,7 +1801,7 @@ c = sqlite3VdbeIntValue(int1)!=0;
                 Debug.Assert( memIsValid( pReg ) );
                 payloadSize = (uint32)pReg.n;
                 zRec = pReg.zBLOB;
-                pC.cacheStatus = ( op.p5 & OPFLAG_CLEARCACHE ) != 0 ? CACHE_STALE : p.cacheCtr;
+                pC.cacheStatus = ( op.P5 & OPFLAG_CLEARCACHE ) != 0 ? CACHE_STALE : p.cacheCtr;
                 Debug.Assert( payloadSize == 0 || zRec != null );
               }
               else
@@ -2319,7 +2049,7 @@ op_column_out:
               sqlite3_free( ref sMem );
               break;
             }
-
+#if false
           /* Opcode: Affinity P1 P2 * P4 *
           **
           ** Apply affinities to a range of P2 registers starting with P1.
@@ -2336,16 +2066,16 @@ op_column_out:
               zAffinity = op.P4.z;
               Debug.Assert( !String.IsNullOrEmpty( zAffinity ) );
               Debug.Assert( zAffinity.Length <= op.P2 );//zAffinity[op.P2] == 0
-              //int1 = mems[op.P1];
+              //in1 = mems[op.P1];
               for ( int zI = 0; zI < zAffinity.Length; zI++ )// while( (cAff = *(zAffinity++))!=0 ){
               {
                 cAff = zAffinity[zI];
-                int1 = mems[op.P1 + zI];
-                //Debug.Assert( int1 <= p->mems[p->nMem] );
-                Debug.Assert( memIsValid( int1 ) );
-                ExpandBlob( int1 );
-                applyAffinity( int1, cAff, encoding );
-                //int1++;
+                in1 = mems[op.P1 + zI];
+                //Debug.Assert( in1 <= p->mems[p->nMem] );
+                Debug.Assert( memIsValid( in1 ) );
+                ExpandBlob( in1 );
+                applyAffinity( in1, cAff, encoding );
+                //in1++;
               }
               break;
             }
@@ -3121,7 +2851,7 @@ op_column_out:
               {
                 wrFlag = 0;
               }
-              if ( op.p5 != 0 )
+              if ( op.P5 != 0 )
               {
                 Debug.Assert( p2 > 0 );
                 Debug.Assert( p2 <= Mems.length );
@@ -3219,7 +2949,7 @@ op_column_out:
                 goto no_mem;
               pCx.nullRow = true;
               rc = sqlite3BtreeOpen( ctx.pVfs, null, ctx, ref pCx.pBt,
-                                  BTREE_OMIT_JOURNAL | BTREE_SINGLE | op.p5, vfsFlags );
+                                  BTREE_OMIT_JOURNAL | BTREE_SINGLE | op.P5, vfsFlags );
               if ( rc == SQLITE_OK )
               {
                 rc = sqlite3BtreeBeginTrans( pCx.pBt, 1 );
@@ -3252,7 +2982,7 @@ op_column_out:
                   pCx.isTable = true;
                 }
               }
-              pCx.isOrdered = ( op.p5 != BTREE_UNORDERED );
+              pCx.isOrdered = ( op.P5 != BTREE_UNORDERED );
               pCx.isIndex = !pCx.isTable;
               break;
             }
@@ -4124,9 +3854,9 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
                 iKey = op.P3;
               }
 
-              if ( ( op.p5 & OPFLAG_NCHANGE ) != 0 )
+              if ( ( op.P5 & OPFLAG_NCHANGE ) != 0 )
                 p.nChange++;
-              if ( ( op.p5 & OPFLAG_LASTROWID ) != 0 )
+              if ( ( op.P5 & OPFLAG_LASTROWID ) != 0 )
                 ctx.lastRowid = lastRowid = iKey;
               if ( ( pData.flags & MEM_Null ) != 0 )
               {
@@ -4138,7 +3868,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               {
                 Debug.Assert( ( pData.flags & ( MEM_Blob | MEM_Str ) ) != 0 );
               }
-              seekResult = ( ( op.p5 & OPFLAG_USESEEKRESULT ) != 0 ? pC.seekResult : 0 );
+              seekResult = ( ( op.P5 & OPFLAG_USESEEKRESULT ) != 0 ? pC.seekResult : 0 );
               if ( ( pData.flags & MEM_Zero ) != 0 )
               {
                 nZero = pData.u.nZero;
@@ -4150,7 +3880,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               rc = sqlite3BtreeInsert( pC.pCursor, null, iKey,
               pData.zBLOB
               , pData.n, nZero,
-              ( op.p5 & OPFLAG_APPEND ) != 0 ? 1 : 0, seekResult
+              ( op.P5 & OPFLAG_APPEND ) != 0 ? 1 : 0, seekResult
               );
 
               pC.rowidIsValid = false;
@@ -4162,7 +3892,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               {
                 zDb = ctx.aDb[pC.iDb].zName;
                 zTbl = op.P4.z;
-                op = ( ( op.p5 & OPFLAG_ISUPDATE ) != 0 ? SQLITE_UPDATE : SQLITE_INSERT );
+                op = ( ( op.P5 & OPFLAG_ISUPDATE ) != 0 ? SQLITE_UPDATE : SQLITE_INSERT );
                 Debug.Assert( pC.isTable );
                 ctx.xUpdateCallback( ctx.pUpdateArg, op, zDb, zTbl, iKey );
                 Debug.Assert( pC.iDb >= 0 );
@@ -4568,7 +4298,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               if ( ctx.u1.isInterrupted )
                 goto abort_due_to_interrupt; //CHECK_FOR_INTERRUPT;
               Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              Debug.Assert( op.p5 <= ArraySize( p.aCounter ) );
+              Debug.Assert( op.P5 <= ArraySize( p.aCounter ) );
               pC = p.apCsr[op.P1];
               if ( pC == null )
               {
@@ -4589,8 +4319,8 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               if ( res == 0 )
               {
                 pc = op.P2 - 1;
-                if ( op.p5 != 0 )
-                  p.aCounter[op.p5 - 1]++;
+                if ( op.P5 != 0 )
+                  p.aCounter[op.P5 - 1]++;
 #if SQLITE_TEST
 #if !TCLSH
                 sqlite3_search_count++;
@@ -4636,7 +4366,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
                   nKey = in2.n;
                   zKey = ( in2.flags & MEM_Blob ) != 0 ? in2.zBLOB : Encoding.UTF8.GetBytes( in2.z );
                   rc = sqlite3BtreeInsert( pCrsr, zKey, nKey, null, 0, 0, ( op.P3 != 0 ) ? 1 : 0,
-                  ( ( op.p5 & OPFLAG_USESEEKRESULT ) != 0 ? pC.seekResult : 0 )
+                  ( ( op.P5 & OPFLAG_USESEEKRESULT ) != 0 ? pC.seekResult : 0 )
                   );
                   Debug.Assert( !pC.deferredMoveto );
                   pC.cacheStatus = CACHE_STALE;
@@ -4777,11 +4507,11 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               if ( ALWAYS( pC.pCursor != null ) )
               {
                 Debug.Assert( pC.deferredMoveto == false );
-                Debug.Assert( op.p5 == 0 || op.p5 == 1 );
+                Debug.Assert( op.P5 == 0 || op.P5 == 1 );
                 Debug.Assert( op.p4type == P4_INT32 );
                 r.pKeyInfo = pC.pKeyInfo;
                 r.nField = (u16)op.P4.i;
-                if ( op.p5 != 0 )
+                if ( op.P5 != 0 )
                 {
                   r.flags = UNPACKED_INCRKEY | UNPACKED_IGNORE_ROWID;
                 }
@@ -5128,19 +4858,19 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               pnErr = mems[op.P3];
               Debug.Assert( ( pnErr.flags & MEM_Int ) != 0 );
               Debug.Assert( ( pnErr.flags & ( MEM_Str | MEM_Blob ) ) == 0 );
-              int1 = mems[op.P1];
+              in1 = mems[op.P1];
               for ( j = 0; j < nRoot; j++ )
               {
-                aRoot[j] = (int)sqlite3VdbeIntValue( p.mems[op.P1 + j] ); // int1[j]);
+                aRoot[j] = (int)sqlite3VdbeIntValue( p.mems[op.P1 + j] ); // in1[j]);
               }
               aRoot[j] = 0;
-              Debug.Assert( op.p5 < ctx.nDb );
-              Debug.Assert( ( p.btreeMask & ( ( (yDbMask)1 ) << op.p5 ) ) != 0 );
-              z = sqlite3BtreeIntegrityCheck( ctx.aDb[op.p5].pBt, aRoot, nRoot,
+              Debug.Assert( op.P5 < ctx.nDb );
+              Debug.Assert( ( p.btreeMask & ( ( (yDbMask)1 ) << op.P5 ) ) != 0 );
+              z = sqlite3BtreeIntegrityCheck( ctx.aDb[op.P5].pBt, aRoot, nRoot,
               (int)pnErr.u.i, ref nErr );
               sqlite3DbFree( ctx, ref aRoot );
               pnErr.u.i -= nErr;
-              sqlite3VdbeMemSetNull( int1 );
+              sqlite3VdbeMemSetNull( in1 );
               if ( nErr == 0 )
               {
                 Debug.Assert( z == "" );
@@ -5151,12 +4881,12 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               }
               else
               {
-                sqlite3VdbeMemSetStr( int1, z, -1, SQLITE_UTF8, null ); //sqlite3_free );
+                sqlite3VdbeMemSetStr( in1, z, -1, SQLITE_UTF8, null ); //sqlite3_free );
               }
 #if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( int1 );
+              UPDATE_MAX_BLOBSIZE( in1 );
 #endif
-              sqlite3VdbeChangeEncoding( int1, encoding );
+              sqlite3VdbeChangeEncoding( in1, encoding );
               break;
             }
 #endif // * SQLITE_OMIT_INTEGRITY_CHECK */
@@ -5170,16 +4900,16 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
 */
           case OP_RowSetAdd:
             {       /* in1, in2 */
-              int1 = mems[op.P1];
+              in1 = mems[op.P1];
               in2 = mems[op.P2];
               Debug.Assert( ( in2.flags & MEM_Int ) != 0 );
-              if ( ( int1.flags & MEM_RowSet ) == 0 )
+              if ( ( in1.flags & MEM_RowSet ) == 0 )
               {
-                sqlite3VdbeMemSetRowSet( int1 );
-                if ( ( int1.flags & MEM_RowSet ) == 0 )
+                sqlite3VdbeMemSetRowSet( in1 );
+                if ( ( in1.flags & MEM_RowSet ) == 0 )
                   goto no_mem;
               }
-              sqlite3RowSetInsert( int1.u.pRowSet, in2.u.i );
+              sqlite3RowSetInsert( in1.u.pRowSet, in2.u.i );
               break;
             }
           /* Opcode: RowSetRead P1 P2 P3 * *
@@ -5193,13 +4923,13 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               i64 val = 0;
               if ( ctx.u1.isInterrupted )
                 goto abort_due_to_interrupt; //CHECK_FOR_INTERRUPT;
-              int1 = mems[op.P1];
-              if ( ( int1.flags & MEM_RowSet ) == 0
-              || sqlite3RowSetNext( int1.u.pRowSet, ref val ) == 0
+              in1 = mems[op.P1];
+              if ( ( in1.flags & MEM_RowSet ) == 0
+              || sqlite3RowSetNext( in1.u.pRowSet, ref val ) == 0
               )
               {
                 /* The boolean index is empty */
-                sqlite3VdbeMemSetNull( int1 );
+                sqlite3VdbeMemSetNull( in1 );
                 pc = op.P2 - 1;
               }
               else
@@ -5238,7 +4968,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               int iSet;
               int exists;
 
-              int1 = mems[op.P1];
+              in1 = mems[op.P1];
               in3 = mems[op.P3];
               iSet = op.P4.i;
               Debug.Assert( ( in3.flags & MEM_Int ) != 0 );
@@ -5246,10 +4976,10 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               /* If there is anything other than a rowset object in memory cell P1,
               ** delete it now and initialize P1 with an empty rowset
               */
-              if ( ( int1.flags & MEM_RowSet ) == 0 )
+              if ( ( in1.flags & MEM_RowSet ) == 0 )
               {
-                sqlite3VdbeMemSetRowSet( int1 );
-                if ( ( int1.flags & MEM_RowSet ) == 0 )
+                sqlite3VdbeMemSetRowSet( in1 );
+                if ( ( in1.flags & MEM_RowSet ) == 0 )
                   goto no_mem;
               }
 
@@ -5257,7 +4987,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               Debug.Assert( iSet == -1 || iSet >= 0 );
               if ( iSet != 0 )
               {
-                exists = sqlite3RowSetTest( int1.u.pRowSet,
+                exists = sqlite3RowSetTest( in1.u.pRowSet,
                 (u8)( iSet >= 0 ? iSet & 0xf : 0xff ),
                 in3.u.i );
                 if ( exists != 0 )
@@ -5268,7 +4998,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               }
               if ( iSet >= 0 )
               {
-                sqlite3RowSetInsert( int1.u.pRowSet, in3.u.i );
+                sqlite3RowSetInsert( in1.u.pRowSet, in3.u.i );
               }
               break;
             }
@@ -5315,7 +5045,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               ** ON CONFLICT algorithm). SubProgram structures associated with a
               ** single trigger all have the same value for the SubProgram.token 
               ** variable.  */
-              if ( op.p5 != 0 )
+              if ( op.P5 != 0 )
               {
                 t = pProgram.token;
                 for ( pFrame = p.pFrame; pFrame != null && pFrame.token != t; pFrame = pFrame.pParent )
@@ -5524,9 +5254,9 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
 */
           case OP_IfPos:
             {        /* jump, in1 */
-              int1 = mems[op.P1];
-              Debug.Assert( ( int1.flags & MEM_Int ) != 0 );
-              if ( int1.u.i > 0 )
+              in1 = mems[op.P1];
+              Debug.Assert( ( in1.flags & MEM_Int ) != 0 );
+              if ( in1.u.i > 0 )
               {
                 pc = op.P2 - 1;
               }
@@ -5542,9 +5272,9 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
           */
           case OP_IfNeg:
             {        /* jump, in1 */
-              int1 = mems[op.P1];
-              Debug.Assert( ( int1.flags & MEM_Int ) != 0 );
-              if ( int1.u.i < 0 )
+              in1 = mems[op.P1];
+              Debug.Assert( ( in1.flags & MEM_Int ) != 0 );
+              if ( in1.u.i < 0 )
               {
                 pc = op.P2 - 1;
               }
@@ -5561,10 +5291,10 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
           */
           case OP_IfZero:
             {        /* jump, in1 */
-              int1 = mems[op.P1];
-              Debug.Assert( ( int1.flags & MEM_Int ) != 0 );
-              int1.u.i += op.P3;
-              if ( int1.u.i == 0 )
+              in1 = mems[op.P1];
+              Debug.Assert( ( in1.flags & MEM_Int ) != 0 );
+              in1.u.i += op.P3;
+              if ( in1.u.i == 0 )
               {
                 pc = op.P2 - 1;
               }
@@ -5590,7 +5320,7 @@ const int MAX_ROWID = i32.MaxValue;//#   define MAX_ROWID 0x7fffffff
               sqlite3_context ctx = new sqlite3_context();
               sqlite3_value[] apVal;
 
-              n = op.p5;
+              n = op.P5;
               Debug.Assert( n >= 0 );
               //pRec = mems[op.P2];
               apVal = p.apArg;
@@ -6237,8 +5967,8 @@ break;
               Mem[] apArg;
               Mem pX;
 
-              Debug.Assert( op.P2 == 1 || op.p5 == OE_Fail || op.p5 == OE_Rollback
-                     || op.p5 == OE_Abort || op.p5 == OE_Ignore || op.p5 == OE_Replace
+              Debug.Assert( op.P2 == 1 || op.P5 == OE_Fail || op.P5 == OE_Rollback
+                     || op.P5 == OE_Abort || op.P5 == OE_Ignore || op.P5 == OE_Replace
                 );
               pVtab = op.P4.pVtab.pVtab;
               pModule = (sqlite3_module)pVtab.pModule;
@@ -6258,7 +5988,7 @@ break;
                   apArg[i] = pX;
                   //pX++;
                 }
-                ctx.vtabOnConflict = op.p5;
+                ctx.vtabOnConflict = op.P5;
                 rc = pModule.xUpdate( pVtab, nArg, apArg, out rowid );
                 ctx.vtabOnConflict = vtabOnConflict;
                 importVtabErrMsg( p, pVtab );
@@ -6269,13 +5999,13 @@ break;
                 }
                 if ( rc == SQLITE_CONSTRAINT && op.P4.pVtab.bConstraint != 0 )
                 {
-                  if ( op.p5 == OE_Ignore )
+                  if ( op.P5 == OE_Ignore )
                   {
                     rc = SQLITE_OK;
                   }
                   else
                   {
-                    p.errorAction = op.p5 == (u8)OE_Replace ? (u8)OE_Abort : op.p5;
+                    p.errorAction = op.P5 == (u8)OE_Replace ? (u8)OE_Abort : op.P5;
                   }
                 }
                 else
@@ -6357,7 +6087,7 @@ break;
 
 #endif
 
-                    default: // This is really OP_Noop and OP_Explain
+          default: // This is really OP_Noop and OP_Explain
                         {
                             // Opcode: Noop * * * * *
                             //
