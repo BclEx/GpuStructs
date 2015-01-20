@@ -2074,7 +2074,7 @@ namespace Core
             Debug.Assert(mem.Ctx.MallocFailed || (flags & (MEM.Str | MEM.Blob)) != 0);
             int n = mem.N;
             if ((flags & MEM.Zero) != 0)
-                n += mem.u.Zero;
+                n += mem.u.Zeros;
             else if ((flags & MEM.Blob) != 0)
                 n = (mem.Z_ != null ? mem.Z_.Length : (mem.Z != null ? mem.Z.Length : 0));
             else
@@ -2132,7 +2132,7 @@ namespace Core
             // String or blob
             if (serialType >= 12)
             {
-                Debug.Assert(mem.N + ((mem.Flags & MEM.Zero) != 0 ? mem.u.Zero : 0) == (int)SerialTypeLen(serialType)); // TO DO -- PASS TESTS WITH THIS ON
+                Debug.Assert(mem.N + ((mem.Flags & MEM.Zero) != 0 ? mem.u.Zeros : 0) == (int)SerialTypeLen(serialType)); // TO DO -- PASS TESTS WITH THIS ON
                 Debug.Assert(mem.N <= bufLength);
                 len = (uint)mem.N;
                 if (len != 0)
@@ -2143,7 +2143,7 @@ namespace Core
                         Buffer.BlockCopy(Encoding.UTF8.GetBytes(mem.Z), 0, buf, offset, (int)len); //: _memcpy(buf, mem->Z, len);
                 if ((mem.Flags & MEM.Zero) != 0)
                 {
-                    len += (uint)mem.u.Zero;
+                    len += (uint)mem.u.Zeros;
                     Debug.Assert(bufLength >= 0);
                     if (len > (uint)bufLength)
                         len = (uint)bufLength;

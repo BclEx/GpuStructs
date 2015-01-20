@@ -201,7 +201,7 @@ namespace Core
         // Virtual table implementations will typically add additional fields
     }
 
-    public struct IVTableCursor
+    public class IVTableCursor
     {
         VTable IVTable;		// Virtual table of this cursor
         // Virtual table implementations will typically add additional fields

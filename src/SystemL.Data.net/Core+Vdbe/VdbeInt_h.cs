@@ -138,7 +138,7 @@ namespace Core
         public struct u_t
         {
             public long I;              // Integer value used when MEM_Int is set in flags
-            public int Zero;            // Used when bit MEM_Zero is set in flags
+            public int Zeros;            // Used when bit MEM_Zero is set in flags
             public FuncDef Def;         // Used only when flags==MEM_Agg
             public RowSet RowSet;       // Used only when flags==MEM_RowSet
             public VdbeFrame Frame;     // Used when flags==MEM_Frame

@@ -1701,7 +1701,7 @@ arithmetic_result_is_null:
 							c->Rows = nullptr;
 					}
 					// The following assert is true in all cases except when the database file has been corrupted externally.
-					//assert( rec!=0 || avail>=payloadSize || avail>=9 );
+					//_assert(rec != 0 || avail >= payloadSize || avail >= 9);
 					uint32 offset; // Offset into the data
 					int sizeHdr = ConvertEx_GetVarint32((uint8 *)data, offset); // Size of the header size field at start of record
 
@@ -1753,9 +1753,7 @@ arithmetic_result_is_null:
 								idx++;
 							}
 							else
-							{
 								idx += ConvertEx::GetVarint32(idx, &t);
-							}
 							types[i] = t;
 							uint32 sizeField = SerialTypeLen(t); // Number of bytes in the content of a field
 							offset += sizeField;
@@ -1766,12 +1764,10 @@ arithmetic_result_is_null:
 							}
 						}
 						else
-						{
 							// If i is less that nField, then there are fewer fields in this record than SetNumColumns indicated there are columns in the
 							// table. Set the offset for any extra columns not present in the record to 0. This tells code below to store the default value
 							// for the column instead of deserializing a value from the record.
 							offsets[i] = 0;
-						}
 					}
 					MemRelease(&sMem);
 					sMem.Flags = MEM_Null;
@@ -1849,8 +1845,6 @@ op_column_out:
 				UPDATE_MAX_BLOBSIZE(dest);
 				REGISTER_TRACE(op->P3, dest);
 				break; }
-#if 0
-
 			case OP_Affinity: {
 				// Opcode: Affinity P1 P2 * P4 *
 				//
@@ -1858,270 +1852,213 @@ op_column_out:
 				//
 				// P4 is a string that is P2 characters long. The nth character of the string indicates the column affinity that should be used for the nth
 				// memory cell in the range.
-				const char *zAffinity;   /* The affinity to be applied */
-				char cAff;               /* A single character of affinity */
-
-				zAffinity = op->P4.z;
-				assert( zAffinity!=0 );
-				assert( zAffinity[op->P2]==0 );
+				const char *affinity = op->P4.Z; // The affinity to be applied
+				_assert(affinity);
+				_assert(affinity[op->P2] == 0);
 				in1 = &mems[op->P1];
-				while( (cAff = *(zAffinity++))!=0 ){
-					assert( in1 <= &p->mems[Mems.length] );
-					assert( memIsValid(in1) );
+				char aff; // A single character of affinity
+				while ((aff = *(affinity++)) != 0)
+				{
+					_assert(in1 <= &mems[Mems.length]);
+					_assert(MemIsValid(in1));
 					ExpandBlob(in1);
-					applyAffinity(in1, cAff, encoding);
+					ApplyAffinity(in1, cAff, encoding);
 					in1++;
 				}
-				break;
-							  }
-
-							  /* Opcode: MakeRecord P1 P2 P3 P4 *
-							  **
-							  ** Convert P2 registers beginning with P1 into the [record format]
-							  ** use as a data record in a database table or as a key
-							  ** in an index.  The OP_Column opcode can decode the record later.
-							  **
-							  ** P4 may be a string that is P2 characters long.  The nth character of the
-							  ** string indicates the column affinity that should be used for the nth
-							  ** field of the index key.
-							  **
-							  ** The mapping from character to affinity is given by the SQLITE_AFF_
-							  ** macros defined in sqliteInt.h.
-							  **
-							  ** If P4 is NULL then all index fields have the affinity NONE.
-							  */
+				break; }
 			case OP_MakeRecord: {
-				u8 *zNewRecord;        /* A buffer to hold the data for the new record */
-				Mem *pRec;             /* The new record */
-				u64 nData;             /* Number of bytes of data space */
-				int nHdr;              /* Number of bytes of header space */
-				i64 nByte;             /* Data space required for this record */
-				int nZero;             /* Number of zero bytes at the end of the record */
-				int nVarint;           /* Number of bytes in a varint */
-				uint32 serial_type;       /* Type field */
-				Mem *pData0;           /* First field to be combined into the record */
-				Mem *pLast;            /* Last field of the record */
-				int nField;            /* Number of fields in the record */
-				char *zAffinity;       /* The affinity string for the record */
-				int file_format;       /* File format to use for encoding */
-				int i;                 /* Space used in zNewRecord[] */
-				int len;               /* Length of a field */
+				// Opcode: MakeRecord P1 P2 P3 P4 *
+				//
+				// Convert P2 registers beginning with P1 into the [record format] use as a data record in a database table or as a key
+				// in an index.  The OP_Column opcode can decode the record later.
+				//
+				// P4 may be a string that is P2 characters long.  The nth character of the string indicates the column affinity that should be used for the nth
+				// field of the index key.
+				//
+				// The mapping from character to affinity is given by the SQLITE_AFF_ macros defined in sqliteInt.h.
+				//
+				// If P4 is NULL then all index fields have the affinity NONE.
 
-				/* Assuming the record contains N fields, the record format looks
-				** like this:
-				**
-				** ------------------------------------------------------------------------
-				** | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
-				** ------------------------------------------------------------------------
-				**
-				** Data(0) is taken from register P1.  Data(1) comes from register P1+1
-				** and so froth.
-				**
-				** Each type field is a varint representing the serial type of the 
-				** corresponding data element (see sqlite3VdbeSerialType()). The
-				** hdr-size field is also a varint which is the offset from the beginning
-				** of the record to data0.
-				*/
-				nData = 0;         /* Number of bytes of data space */
-				nHdr = 0;          /* Number of bytes of header space */
-				nZero = 0;         /* Number of zero bytes at the end of the record */
-				nField = op->P1;
-				zAffinity = op->P4.z;
-				assert( nField>0 && op->P2>0 && op->P2+nField<=Mems.length+1 );
-				pData0 = &mems[nField];
-				nField = op->P2;
-				pLast = &pData0[nField-1];
-				file_format = p->minWriteFileFormat;
+				// Assuming the record contains N fields, the record format looks like this:
+				//
+				// ------------------------------------------------------------------------
+				// | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
+				// ------------------------------------------------------------------------
+				//
+				// Data(0) is taken from register P1.  Data(1) comes from register P1+1 and so froth.
+				//
+				// Each type field is a varint representing the serial type of the corresponding data element (see sqlite3VdbeSerialType()). The
+				// hdr-size field is also a varint which is the offset from the beginning of the record to data0.
+				uint64 dataLength = 0; // Number of bytes of data space
+				int hdrLength = 0; // Number of bytes of header space
+				int zeros = 0; // Number of zero bytes at the end of the record
+				int fields = op->P1; // Number of fields in the record
+				char *affinity = op->P4.Z; // The affinity string for the record
+				_assert(fields > 0 && op->P2 > 0 && op->P2 + fields <= Mems.length+1);
+				Mem *data0 = &mems[fields]; // First field to be combined into the record
+				fields = op->P2;
+				Mem *last = &data0[fields-1]; // Last field of the record
+				int fileFormat = MinWriteFileFormat; // File format to use for encoding
 
-				/* Identify the output register */
-				assert( op->P3<op->P1 || op->P3>=op->P1+op->P2 );
+				// Identify the output register
+				_assert(op->P3 < op->P1 || op->P3 >= op->P1 + op->P2);
 				out_ = &mems[op->P3];
-				memAboutToChange(p, out_);
+				MemAboutToChange(this, out_);
 
-				/* Loop through the elements that will make up the record to figure
-				** out how much space is required for the new record.
-				*/
-				for(pRec=pData0; pRec<=pLast; pRec++){
-					assert( memIsValid(pRec) );
-					if( zAffinity ){
-						applyAffinity(pRec, zAffinity[pRec-pData0], encoding);
-					}
-					if( pRec->flags&MEM_Zero && pRec->n>0 ){
-						sqlite3VdbeMemExpandBlob(pRec);
-					}
-					serial_type = sqlite3VdbeSerialType(pRec, file_format);
-					len = sqlite3VdbeSerialTypeLen(serial_type);
-					nData += len;
-					nHdr += sqlite3VarintLen(serial_type);
-					if( pRec->flags & MEM_Zero ){
-						/* Only pure zero-filled BLOBs can be input to this Opcode.
-						** We do not allow blobs with a prefix and a zero-filled tail. */
-						nZero += pRec->u.nZero;
-					}else if( len ){
-						nZero = 0;
-					}
+				// Loop through the elements that will make up the record to figure out how much space is required for the new record.
+				uint32 serialType; // Type field
+				Mem *rec; // The new record
+				for (rec = data0; rec <= last; rec++)
+				{
+					_assert(MemIsValid(rec));
+					if (affinity)
+						ApplyAffinity(rec, affinity[rec - data0], encoding);
+					if (rec->Flags & MEM_Zero && rec->N > 0)
+						MemExpandBlob(rec);
+					serialType = SerialType(rec, fileFormat);
+					int len = SerialTypeLen(serialType); // Length of a field
+					dataLength += len;
+					hdrLength += CovertEx::VarintLength(serialType);
+					if (rec->Flags & MEM_Zero)
+						zeros += rec->u.Zero; // Only pure zero-filled BLOBs can be input to this Opcode. We do not allow blobs with a prefix and a zero-filled tail.
+					else if (len)
+						zeros = 0;
 				}
 
-				/* Add the initial header varint and total the size */
-				nHdr += nVarint = sqlite3VarintLen(nHdr);
-				if( nVarint<sqlite3VarintLen(nHdr) ){
-					nHdr++;
-				}
-				nByte = nHdr+nData-nZero;
-				if( nByte>ctx->aLimit[SQLITE_LIMIT_LENGTH] ){
+				// Add the initial header varint and total the size
+				int varintLength; // Number of bytes in a varint
+				hdrLength += varintLength = ConvertEx::VarintLen(hdrLength);
+				if (varintLength < ConvertEx::VarintLength(hdrLength))
+					hdrLength++;
+				int64 bytes = hdrLength+dataLength-zeros; // Data space required for this record
+				if (bytes > ctx->Limits[LIMIT_LENGTH])
 					goto too_big;
-				}
 
-				/* Make sure the output register has a buffer large enough to store 
-				** the new record. The output register (op->P3) is not allowed to
-				** be one of the input registers (because the following call to
-				** sqlite3VdbeMemGrow() could clobber the value before it is used).
-				*/
-				if( sqlite3VdbeMemGrow(out_, (int)nByte, 0) ){
+				// Make sure the output register has a buffer large enough to store the new record. The output register (op->P3) is not allowed to
+				// be one of the input registers (because the following call to sqlite3VdbeMemGrow() could clobber the value before it is used).
+				if (MemGrow(out_, (int)bytes, 0))
 					goto no_mem;
-				}
-				zNewRecord = (u8 *)out_->z;
+				uint8 *newRecord = (uint8 *)out_->Z; // A buffer to hold the data for the new record
 
-				/* Write the record */
-				i = putVarint32(zNewRecord, nHdr);
-				for(pRec=pData0; pRec<=pLast; pRec++){
-					serial_type = sqlite3VdbeSerialType(pRec, file_format);
-					i += putVarint32(&zNewRecord[i], serial_type);      /* serial type */
+				// Write the record
+				int i = ConvertEx_PutVarint32(newRecord, hdrLength); // Space used in zNewRecord[]
+				for (rec = data0; rec <= last; rec++)
+				{
+					serialType = SerialType(rec, fileFormat);
+					i += ConvertEx_PutVarint32(&newRecord[i], serialType); // serial type
 				}
-				for(pRec=pData0; pRec<=pLast; pRec++){  /* serial data */
-					i += sqlite3VdbeSerialPut(&zNewRecord[i], (int)(nByte-i), pRec,file_format);
-				}
-				assert( i==nByte );
+				for (rec = data0; rec <= last; rec++) // serial data
+					i += SerialPut(&newRecord[i], (int)(bytes-i), rec, fileFormat);
+				_assert(i == bytes);
 
-				assert( op->P3>0 && op->P3<=Mems.length );
-				out_->n = (int)nByte;
-				out_->flags = MEM_Blob | MEM_Dyn;
-				out_->xDel = 0;
-				if( nZero ){
-					out_->u.nZero = nZero;
-					out_->flags |= MEM_Zero;
+				_assert(op->P3 > 0 && op->P3 <= Mems.length);
+				out_->N = (int)bytes;
+				out_->Flags = MEM_Blob | MEM_Dyn;
+				out_->Del = nullptr;
+				if (zeros)
+				{
+					out_->u.Zeros = zeros;
+					out_->Flags |= MEM_Zero;
 				}
-				out_->enc = SQLITE_UTF8;  /* In case the blob is ever converted to text */
+				out_->Encode = TEXTENCODE_UTF8; // In case the blob is ever converted to text
 				REGISTER_TRACE(op->P3, out_);
 				UPDATE_MAX_BLOBSIZE(out_);
-				break;
-								}
-
-								/* Opcode: Count P1 P2 * * *
-								**
-								** Store the number of entries (an integer value) in the table or index 
-								** opened by cursor P1 in register P2
-								*/
-#ifndef SQLITE_OMIT_BTREECOUNT
-			case OP_Count: {         /* out2-prerelease */
-				i64 nEntry;
-				BtCursor *pCrsr;
-
-				pCrsr = p->apCsr[op->P1]->pCursor;
-				if( ALWAYS(pCrsr) ){
-					rc = sqlite3BtreeCount(pCrsr, &nEntry);
-				}else{
-					nEntry = 0;
-				}
-				out_->u.i = nEntry;
-				break;
-						   }
+				break; }
+#ifndef OMIT_BTREECOUNT
+			case OP_Count: { // out2-prerelease
+				// Opcode: Count P1 P2 * * *
+				//
+				// Store the number of entries (an integer value) in the table or index opened by cursor P1 in register P2
+				int64 entrys;
+				BtCursor *crsr = Cursors[op->P1]->Cursor;
+				if (_ALWAYS(crsr))
+					rc = Btree::Count(crsr, &entrys);
+				else
+					entrys = 0;
+				out_->u.I = entrys;
+				break; }
 #endif
-
-						   /* Opcode: Savepoint P1 * * P4 *
-						   **
-						   ** Open, release or rollback the savepoint named by parameter P4, depending
-						   ** on the value of P1. To open a new savepoint, P1==0. To release (commit) an
-						   ** existing savepoint, P1==1, or to rollback an existing savepoint P1==2.
-						   */
 			case OP_Savepoint: {
-				int p1;                         /* Value of P1 operand */
-				char *zName;                    /* Name of savepoint */
+				// Opcode: Savepoint P1 * * P4 *
+				//
+				// Open, release or rollback the savepoint named by parameter P4, depending on the value of P1. To open a new savepoint, P1==0. To release (commit) an
+				// existing savepoint, P1==1, or to rollback an existing savepoint P1==2.
 				int nName;
-				Savepoint *pNew;
 				Savepoint *pSavepoint;
 				Savepoint *pTmp;
 				int iSavepoint;
 				int ii;
 
-				p1 = op->P1;
-				zName = op->P4.z;
+				int p1 = op->P1; // Value of P1 operand
+				char *name = op->P4.Z; // Name of savepoint
 
-				/* Assert that the p1 parameter is valid. Also that if there is no open
-				** transaction, then there cannot be any savepoints. 
-				*/
-				assert( ctx->pSavepoint==0 || ctx->autoCommit==0 );
-				assert( p1==SAVEPOINT_BEGIN||p1==SAVEPOINT_RELEASE||p1==SAVEPOINT_ROLLBACK );
-				assert( ctx->pSavepoint || ctx->isTransactionSavepoint==0 );
-				assert( checkSavepointCount(ctx) );
+				// Assert that the p1 parameter is valid. Also that if there is no open transaction, then there cannot be any savepoints. 
+				_assert(ctx->Savepoint == 0 || ctx->AutoCommit == 0);
+				_assert(p1 == SAVEPOINT_BEGIN || p1 == SAVEPOINT_RELEASE || p1 == SAVEPOINT_ROLLBACK);
+				_assert(ctx->Savepoint || ctx->IsTransactionSavepoint == 0);
+				_assert(CheckSavepointCount(ctx));
 
-				if( p1==SAVEPOINT_BEGIN ){
-					if( ctx->writeVdbeCnt>0 ){
-						/* A new savepoint cannot be created if there are active write 
-						** statements (i.e. open read/write incremental blob handles).
-						*/
-						_setstring(&p->zErrMsg, ctx, "cannot open savepoint - "
-							"SQL statements in progress");
-						rc = SQLITE_BUSY;
-					}else{
-						nName = sqlite3Strlen30(zName);
-
-#ifndef SQLITE_OMIT_VIRTUALTABLE
-						/* This call is Ok even if this savepoint is actually a transaction
-						** savepoint (and therefore should not prompt xSavepoint()) callbacks.
-						** If this is a transaction savepoint being opened, it is guaranteed
-						** that the ctx->aVTrans[] array is empty.  */
-						assert( ctx->autoCommit==0 || ctx->nVTrans==0 );
-						rc = sqlite3VtabSavepoint(ctx, SAVEPOINT_BEGIN,
-							ctx->nStatement+ctx->nSavepoint);
-						if( rc!=SQLITE_OK ) goto abort_due_to_error;
+				if (p1 == SAVEPOINT_BEGIN)
+				{
+					if (ctx->WriteVdbeCnt > 0)
+					{
+						// A new savepoint cannot be created if there are active write statements (i.e. open read/write incremental blob handles).
+						_setstring(&p->zErrMsg, ctx, "cannot open savepoint - SQL statements in progress");
+						rc = RC_BUSY;
+					}
+					else
+					{
+						nameLength = _strlen30(name);
+#ifndef OMIT_VIRTUALTABLE
+						// This call is Ok even if this savepoint is actually a transaction savepoint (and therefore should not prompt xSavepoint()) callbacks.
+						// If this is a transaction savepoint being opened, it is guaranteed that the ctx->aVTrans[] array is empty.
+						_assert(ctx->AutoCommit == 0 || ctx->VTrans == 0);
+						rc = sqlite3VtabSavepoint(ctx, SAVEPOINT_BEGIN, ctx->Statements + ctx->Savepoints);
+						if (rc != RC_OK) goto abort_due_to_error;
 #endif
+						// Create a new savepoint structure.
+						Savepoint *newSavepoint = (Savepoint *)_tagalloc(ctx, sizeof(Savepoint)+nameLength+1);
+						if (newSavepoint)
+						{
+							newSavepoint->Name = (char *)&newSavepoint[1];
+							_memcpy(newSavepoint->Name, name, nameLength+1);
 
-						/* Create a new savepoint structure. */
-						pNew = sqlite3DbMallocRaw(ctx, sizeof(Savepoint)+nName+1);
-						if( pNew ){
-							pNew->zName = (char *)&pNew[1];
-							memcpy(pNew->zName, zName, nName+1);
-
-							/* If there is no open transaction, then mark this as a special
-							** "transaction savepoint". */
-							if( ctx->autoCommit ){
-								ctx->autoCommit = 0;
-								ctx->isTransactionSavepoint = 1;
-							}else{
-								ctx->nSavepoint++;
+							// If there is no open transaction, then mark this as a special "transaction savepoint".
+							if (ctx->AutoCommit)
+							{
+								ctx->AutoCommit = 0;
+								ctx->IsTransactionSavepoint = 1;
 							}
+							else
+								ctx->Savepoints++;
 
-							/* Link the new savepoint into the database handle's list. */
-							pNew->pNext = ctx->pSavepoint;
-							ctx->pSavepoint = pNew;
-							pNew->nDeferredCons = ctx->nDeferredCons;
+							// Link the new savepoint into the database handle's list.
+							newSavepoint->Next = ctx->Savepoint;
+							ctx->Savepoint = newSavepoint;
+							newSavepoint->DeferredCons = ctx->DeferredCons;
 						}
 					}
-				}else{
-					iSavepoint = 0;
+				}
+				else
+				{
+					savepointId = 0;
 
-					/* Find the named savepoint. If there is no such savepoint, then an
-					** an error is returned to the user.  */
-					for(
-						pSavepoint = ctx->pSavepoint; 
-						pSavepoint && sqlite3StrICmp(pSavepoint->zName, zName);
-					pSavepoint = pSavepoint->pNext
-						){
-							iSavepoint++;
+					// Find the named savepoint. If there is no such savepoint, then an an error is returned to the user.
+					for (savepoint = ctx->Savepoint; savepoint && _strcmp(savepoint->Name, name); savepoint = savepoint->Next)
+						savepointId++;
+					if (!savepoint)
+					{
+						_setstring(&ErrMsg, ctx, "no such savepoint: %s", name);
+						rc = RC_ERROR;
 					}
-					if( !pSavepoint ){
-						_setstring(&p->zErrMsg, ctx, "no such savepoint: %s", zName);
-						rc = SQLITE_ERROR;
-					}else if( ctx->writeVdbeCnt>0 && p1==SAVEPOINT_RELEASE ){
-						/* It is not possible to release (commit) a savepoint if there are 
-						** active write statements.
-						*/
-						_setstring(&p->zErrMsg, ctx, 
-							"cannot release savepoint - SQL statements in progress"
-							);
-						rc = SQLITE_BUSY;
-					}else{
+					else if (ctx->WriteVdbeCnt > 0 && p1 == SAVEPOINT_RELEASE)
+					{
+						// It is not possible to release (commit) a savepoint if there are active write statements.
+						_setstring(&p->zErrMsg, ctx, "cannot release savepoint - SQL statements in progress");
+						rc = RC_BUSY;
+					}
+					else
+					{
 
 						/* Determine whether or not this is a transaction savepoint. If so,
 						** and this is a RELEASE command, then the current transaction 
@@ -2192,8 +2129,10 @@ op_column_out:
 					}
 				}
 
-				break;
-							   }
+				break; }
+
+#if 0
+
 
 							   /* Opcode: AutoCommit P1 P2 * * *
 							   **

@@ -98,12 +98,12 @@ namespace Core
 #endif
                             b.AppendFormat("'%.*q'", var.N, var.Z);
                     }
-                    else if ((var.Flags & MEM.Zero) != 0) b.AppendFormat("zeroblob(%d)", var.u.Zero);
+                    else if ((var.Flags & MEM.Zero) != 0) b.AppendFormat("zeroblob(%d)", var.u.Zeros);
                     else
                     {
                         Debug.Assert((var.Flags & MEM.Blob) != 0);
                         b.Append("x'", 2);
-                        for (int i = 0; i < var.N; i++) b.AppendFormat("%02x", var.u.Zero[i] & 0xff);
+                        for (int i = 0; i < var.N; i++) b.AppendFormat("%02x", var.u.Zeros[i] & 0xff);
                         b.Append("'", 1);
                     }
                 }

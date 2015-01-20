@@ -194,7 +194,7 @@ namespace Core
                 }
                 buf.AppendFormat("]{0}", _encnames[(byte)mem.Encode]);
                 if ((f & MEM.Zero) != 0)
-                    buf.AppendFormat("+{0}z", mem.u.Zero);
+                    buf.AppendFormat("+{0}z", mem.u.Zeros);
             }
             else if ((f & MEM.Str) != 0)
             {
@@ -1679,559 +1679,432 @@ namespace Core
                                 pc = op.P2 - 1;
                             break;
                         }
+                    case OP.Column:
+                        {
+                            // Opcode: Column P1 P2 P3 P4 P5
+                            //
+                            // Interpret the data that cursor P1 points to as a structure built using the MakeRecord instruction.  (See the MakeRecord opcode for additional
+                            // information about the format of the data.)  Extract the P2-th column from this record.  If there are less that (P2+1) 
+                            // values in the record, extract a NULL.
+                            //
+                            // The value extracted is stored in register P3.
+                            //
+                            // If the column contains fewer than P2 fields, then extract a NULL.  Or, if the P4 argument is a P4_MEM use the value of the P4 argument as
+                            // the result.
+                            //
+                            // If the OPFLAG_CLEARCACHE bit is set on P5 and P1 is a pseudo-table cursor, then the cache of the cursor is reset prior to extracting the column.
+                            // The first OP_Column against a pseudo-table after the value of the content register has changed should have this bit set.
+                            //
+                            // If the OPFLAG_LENGTHARG and OPFLAG_TYPEOFARG bits are set on P5 when the result is guaranteed to only be used as the argument of a length()
+                            // or typeof() function, respectively.  The loading of large blobs can be skipped for length() and all content loading can be skipped for typeof().
+                            int p1 = op.P1; // P1 value of the opcode
+                            int p2 = op.P2; // column number to retrieve
 
-          /* Opcode: Column P1 P2 P3 P4 *
-          **
-          ** Interpret the data that cursor P1 points to as a structure built using
-          ** the MakeRecord instruction.  (See the MakeRecord opcode for additional
-          ** information about the format of the data.)  Extract the P2-th column
-          ** from this record.  If there are less that (P2+1)
-          ** values in the record, extract a NULL.
-          **
-          ** The value extracted is stored in register P3.
-          **
-          ** If the column contains fewer than P2 fields, then extract a NULL.  Or,
-          ** if the P4 argument is a P4_MEM use the value of the P4 argument as
-          ** the result.
-          **
-          ** If the OPFLAG_CLEARCACHE bit is set on P5 and P1 is a pseudo-table cursor,
-          ** then the cache of the cursor is reset prior to extracting the column.
-          ** The first OP_Column against a pseudo-table after the value of the content
-          ** register has changed should have this bit set.
-          */
-          case OP_Column:
-            {
-              uint32 payloadSize;   /* Number of bytes in the record */
-              i64 payloadSize64; /* Number of bytes in the record */
-              int p1;            /* P1 value of the opcode */
-              int p2;            /* column number to retrieve */
-              VdbeCursor pC;     /* The VDBE cursor */
-              byte[] zRec;       /* Pointer to complete record-data */
-              BtCursor pCrsr;    /* The BTree cursor */
-              uint32[] aType;       /* aType[i] holds the numeric type of the i-th column */
-              uint32[] aOffset;     /* aOffset[i] is offset to start of data for i-th column */
-              int nField;        /* number of fields in the record */
-              int len;           /* The length of the serialized data for the column */
-              int i;             /* Loop counter */
-              byte[] zData = null;/* Part of the record being decoded */
-              Mem pDest;         /* Where to write the extracted value */
-              Mem sMem = null;   /* For storing the record being decoded */
-              int zIdx;          /* Index into header */
-              int zEndHdr;       /* Pointer to first byte after the header */
-              uint32 offset;        /* Offset into the data */
-              uint32 szField = 0;   /* Number of bytes in the content of a field */
-              int szHdr;         /* Size of the header size field at start of record */
-              int avail;         /* Number of bytes of available data */
-              Mem pReg;          /* PseudoTable input register */
+                            payloadSize = 0;
+                            payloadSize64 = 0;
+                            offset = 0;
 
-              p1 = op.P1;
-              p2 = op.P2;
-              pC = null;
+                            Mem sMem = C._alloc(sMem); // For storing the record being decoded
+                            Debug.Assert(p1 < Cursors.length);
+                            Debug.Assert(op.P3 > 0 && op.P3 <= Mems.length);
+                            Mem dest = mems[op.P3]; // Where to write the extracted value
+                            MemAboutToChange(this, dest);
 
-              payloadSize = 0;
-              payloadSize64 = 0;
-              offset = 0;
+                            E.MemSetTypeFlag(dest, MEM.Null);
 
-              sMem = sqlite3Malloc( sMem );
-              //  memset(&sMem, 0, sizeof(sMem));
-              Debug.Assert( p1 < p.nCursor );
-              Debug.Assert( op.P3 > 0 && op.P3 <= Mems.length );
-              pDest = mems[op.P3];
-              memAboutToChange( p, pDest );
-              MemSetTypeFlag( pDest, MEM_Null );
-              zRec = null;
 
-              /* This block sets the variable payloadSize to be the total number of
-              ** bytes in the record.
-              **
-              ** zRec is set to be the complete text of the record if it is available.
-              ** The complete record text is always available for pseudo-tables
-              ** If the record is stored in a cursor, the complete record text
-              ** might be available in the  pC.aRow cache.  Or it might not be.
-              ** If the data is unavailable,  zRec is set to NULL.
-              **
-              ** We also compute the number of columns in the record.  For cursors,
-              ** the number of columns is stored in the VdbeCursor.nField element.
-              */
-              pC = p.apCsr[p1];
-              Debug.Assert( pC != null );
-#if !SQLITE_OMIT_VIRTUALTABLE
-              Debug.Assert( pC.pVtabCursor == null );
+                            // This block sets the variable payloadSize to be the total number of bytes in the record.
+                            //
+                            // zRec is set to be the complete text of the record if it is available. The complete record text is always available for pseudo-tables
+                            // If the record is stored in a cursor, the complete record text might be available in the  pC->aRow cache.  Or it might not be.
+                            // If the data is unavailable,  zRec is set to NULL.
+                            //
+                            // We also compute the number of columns in the record.  For cursors, the number of columns is stored in the VdbeCursor.Fields element.
+                            VdbeCursor c = Cursors[p1]; // The VDBE cursor
+                            Debug.Assert(c != null);
+#if !OMIT_VIRTUALTABLE
+                            Debug.Assert(c.VtabCursor == null);
 #endif
-              pCrsr = pC.pCursor;
-              if ( pCrsr != null )
-              {
-                /* The record is stored in a B-Tree */
-                rc = sqlite3VdbeCursorMoveto( pC );
-                if ( rc != 0 )
-                  goto abort_due_to_error;
-                if ( pC.nullRow )
-                {
-                  payloadSize = 0;
-                }
-                else if ( ( pC.cacheStatus == p.cacheCtr ) && ( pC.aRow != -1 ) )
-                {
-                  payloadSize = pC.payloadSize;
-                  zRec = sqlite3Malloc( (int)payloadSize );
-                  Buffer.BlockCopy( pCrsr.info.pCell, pC.aRow, zRec, 0, (int)payloadSize );
-                }
-                else if ( pC.isIndex )
-                {
-                  Debug.Assert( sqlite3BtreeCursorIsValid( pCrsr ) );
-                  rc = sqlite3BtreeKeySize( pCrsr, ref payloadSize64 );
-                  Debug.Assert( rc == SQLITE_OK );   /* True because of CursorMoveto() call above */
-                  /* sqlite3BtreeParseCellPtr() uses getVarint32() to extract the
-                  ** payload size, so it is impossible for payloadSize64 to be
-                  ** larger than 32 bits. */
-                  Debug.Assert( ( (u64)payloadSize64 & SQLITE_MAX_U32 ) == (u64)payloadSize64 );
-                  payloadSize = (uint32)payloadSize64;
-                }
-                else
-                {
-                  Debug.Assert( sqlite3BtreeCursorIsValid( pCrsr ) );
-                  rc = sqlite3BtreeDataSize( pCrsr, ref payloadSize );
-                  Debug.Assert( rc == SQLITE_OK );   /* DataSize() cannot fail */
-                }
-              }
-              else if ( pC.pseudoTableReg > 0 )
-              {
-                /* The record is the sole entry of a pseudo-table */
-                pReg = mems[pC.pseudoTableReg];
-                Debug.Assert( ( pReg.flags & MEM_Blob ) != 0 );
-                Debug.Assert( memIsValid( pReg ) );
-                payloadSize = (uint32)pReg.n;
-                zRec = pReg.zBLOB;
-                pC.cacheStatus = ( op.P5 & OPFLAG_CLEARCACHE ) != 0 ? CACHE_STALE : p.cacheCtr;
-                Debug.Assert( payloadSize == 0 || zRec != null );
-              }
-              else
-              {
-                /* Consider the row to be NULL */
-                payloadSize = 0;
-              }
+                            Btree.BtCursor crsr = c.Cursor; // The BTree cursor
+                            uint payloadSize; // Number of bytes in the record
+                            long payloadSize64; // Number of bytes in the record
+                            byte[] rec; // Pointer to complete record-data
+                            if (crsr != null)
+                            {
+                                // The record is stored in a B-Tree
+                                rc = CursorMoveto(c);
+                                if (rc != 0) goto abort_due_to_error;
+                                if (c.NullRow)
+                                    payloadSize = 0;
+                                else if ((c.CacheStatus == CacheCtr) && (c.Rows != -1))
+                                {
+                                    payloadSize = (uint)c.PayloadSize;
+                                    rec = C._alloc((int)payloadSize);
+                                    Buffer.BlockCopy(crsr.Info.Cell, c.Rows, rec, 0, (int)payloadSize);
+                                }
+                                else if (c.IsIndex)
+                                {
+                                    Debug.Assert(Btree.CursorIsValid(crsr));
+                                    rc = Btree.KeySize(crsr, ref payloadSize64);
+                                    Debug.Assert(rc == RC.OK); // True because of CursorMoveto() call above
+                                    // sqlite3BtreeParseCellPtr() uses getVarint32() to extract the payload size, so it is impossible for payloadSize64 to be larger than 32 bits.
+                                    Debug.Assert(((ulong)payloadSize64 & uint.MaxValue) == (ulong)payloadSize64);
+                                    payloadSize = (uint)payloadSize64;
+                                }
+                                else
+                                {
+                                    Debug.Assert(Btree.CursorIsValid(crsr));
+                                    rc = Btree.DataSize(crsr, ref payloadSize);
+                                    Debug.Assert(rc == RC.OK); // DataSize() cannot fail
+                                }
+                            }
+                            else if (C._ALWAYS(c.PseudoTableReg > 0))
+                            {
+                                reg = mems[c.PseudoTableReg]; // PseudoTable input register
+                                if (c.MultiPseudo)
+                                {
+                                    MemShallowCopy(dest, reg + p2, MEM.Ephem);
+                                    Deephemeralize(dest);
+                                    goto op_column_out;
+                                }
+                                Debug.Assert((reg.Flags & MEM.Blob) != 0);
+                                Debug.Assert(E.MemIsValid(reg));
+                                payloadSize = (uint)reg.N;
+                                rec = reg.Z_;
+                                c.CacheStatus = (((OPFLAG)op.P5 & OPFLAG.CLEARCACHE) != 0 ? CACHE_STALE : CacheCtr);
+                                Debug.Assert(payloadSize == 0 || rec != null);
+                            }
+                            else
+                                payloadSize = 0; // Consider the row to be NULL
 
-              /* If payloadSize is 0, then just store a NULL */
-              if ( payloadSize == 0 )
-              {
-                Debug.Assert( ( pDest.flags & MEM_Null ) != 0 );
-                goto op_column_out;
-              }
-              Debug.Assert( ctx.aLimit[SQLITE_LIMIT_LENGTH] >= 0 );
-              if ( payloadSize > (uint32)ctx.aLimit[SQLITE_LIMIT_LENGTH] )
-              {
-                goto too_big;
-              }
+                            // If payloadSize is 0, then just store a NULL.  This can happen because of nullRow or because of a corrupt database.
+                            if (payloadSize == 0)
+                            {
+                                E.MemSetTypeFlag(dest, MEM.Null);
+                                goto op_column_out;
+                            }
+                            Debug.Assert(ctx.Limits[(int)LIMIT.LENGTH] >= 0);
+                            if (payloadSize > (uint)ctx.Limits[(int)LIMIT.LENGTH])
+                                goto too_big;
 
-              nField = pC.nField;
-              Debug.Assert( p2 < nField );
+                            int fields = c.Fields; // number of fields in the record
+                            Debug.Assert(p2 < fields);
 
-              /* Read and parse the table header.  Store the results of the parse
-              ** into the record header cache fields of the cursor.
-              */
-              aType = pC.aType;
-              if ( pC.cacheStatus == p.cacheCtr )
-              {
-                aOffset = pC.aOffset;
-              }
-              else
-              {
-                Debug.Assert( aType != null );
-                avail = 0;
-                //pC.aOffset = aOffset = aType[nField];
-                aOffset = new uint32[nField];
-                pC.aOffset = aOffset;
-                pC.payloadSize = payloadSize;
-                pC.cacheStatus = p.cacheCtr;
+                            // Read and parse the table header.  Store the results of the parse into the record header cache fields of the cursor.
+                            uint[] types = c.Types; // aType[i] holds the numeric type of the i-th column
+                            uint[] offsets; // aOffset[i] is offset to start of data for i-th column
+                            byte[] data = null;// Part of the record being decoded
+                            int len; // The length of the serialized data for the column
+                            uint t; // A type code from the record header
+                            if (c.CacheStatus == CacheCtr)
+                                offsets = c.Offsets;
+                            else
+                            {
+                                Debug.Assert(types != null);
+                                int avail = 0; // Number of bytes of available data
+                                c.Offsets = offsets = new uint[fields];
+                                c.PayloadSize = (yDbMask)payloadSize;
+                                c.CacheStatus = CacheCtr;
 
-                /* Figure out how many bytes are in the header */
-                if ( zRec != null )
-                {
-                  zData = zRec;
-                }
-                else
-                {
-                  if ( pC.isIndex )
-                  {
-                    zData = sqlite3BtreeKeyFetch( pCrsr, ref avail, ref pC.aRow );
-                  }
-                  else
-                  {
-                    zData = sqlite3BtreeDataFetch( pCrsr, ref avail, ref pC.aRow );
-                  }
-                  /* If KeyFetch()/DataFetch() managed to get the entire payload,
-                  ** save the payload in the pC.aRow cache.  That will save us from
-                  ** having to make additional calls to fetch the content portion of
-                  ** the record.
-                  */
-                  Debug.Assert( avail >= 0 );
-                  if ( payloadSize <= (uint32)avail )
-                  {
-                    zRec = zData;
-                    //pC.aRow = zData;
-                  }
-                  else
-                  {
-                    pC.aRow = -1; //pC.aRow = null;
-                  }
-                }
-                /* The following Debug.Assert is true in all cases accept when
-                ** the database file has been corrupted externally.
-                **    Debug.Assert( zRec!=0 || avail>=payloadSize || avail>=9 ); */
-                szHdr = getVarint32( zData, out offset );
+                                // Figure out how many bytes are in the header
+                                if (rec != null)
+                                    data = rec;
+                                else
+                                {
+                                    data = (c.IsIndex ? Btree.KeyFetch(crsr, ref avail, out c.Rows) : Btree.DataFetch(crsr, ref avail, out c.Rows));
+                                    // If KeyFetch()/DataFetch() managed to get the entire payload, save the payload in the pC->aRow cache.  That will save us from
+                                    // having to make additional calls to fetch the content portion of the record.
+                                    Debug.Assert(avail >= 0);
+                                    if (payloadSize <= (uint)avail)
+                                    {
+                                        rec = data;
+                                        //c.Rows = data;
+                                    }
+                                    else
+                                        c.Rows = -1; //: c.Rows = null;
+                                }
+                                // The following assert is true in all cases except when the database file has been corrupted externally.
+                                //Debug.Assert(rec != 0 || avail >= payloadSize || avail >= 9);
+                                uint offset; // Offset into the data
+                                int sizeHdr = ConvertEx_GetVarint32(data, out offset); // Size of the header size field at start of record
 
-                /* Make sure a corrupt database has not given us an oversize header.
-                ** Do this now to avoid an oversize memory allocation.
-                **
-                ** Type entries can be between 1 and 5 bytes each.  But 4 and 5 byte
-                ** types use so much data space that there can only be 4096 and 32 of
-                ** them, respectively.  So the maximum header length results from a
-                ** 3-byte type for each of the maximum of 32768 columns plus three
-                ** extra bytes for the header length itself.  32768*3 + 3 = 98307.
-                */
-                if ( offset > 98307 )
-                {
-                  rc = SQLITE_CORRUPT_BKPT();
-                  goto op_column_out;
-                }
+                                // Make sure a corrupt database has not given us an oversize header. Do this now to avoid an oversize memory allocation.
+                                //
+                                // Type entries can be between 1 and 5 bytes each.  But 4 and 5 byte types use so much data space that there can only be 4096 and 32 of
+                                // them, respectively.  So the maximum header length results from a 3-byte type for each of the maximum of 32768 columns plus three
+                                // extra bytes for the header length itself.  32768*3 + 3 = 98307.
+                                if (offset > 98307)
+                                {
+                                    rc = SysEx.CORRUPT_BKPT();
+                                    goto op_column_out;
+                                }
 
-                /* Compute in len the number of bytes of data we need to read in order
-                ** to get nField type values.  offset is an upper bound on this.  But
-                ** nField might be significantly less than the true number of columns
-                ** in the table, and in that case, 5*nField+3 might be smaller than offset.
-                ** We want to minimize len in order to limit the size of the memory
-                ** allocation, especially if a corrupt database file has caused offset
-                ** to be oversized. Offset is limited to 98307 above.  But 98307 might
-                ** still exceed Robson memory allocation limits on some configurations.
-                ** On systems that cannot tolerate large memory allocations, nField*5+3
-                ** will likely be much smaller since nField will likely be less than
-                ** 20 or so.  This insures that Robson memory allocation limits are
-                ** not exceeded even for corrupt database files.
-                */
-                len = nField * 5 + 3;
-                if ( len > (int)offset )
-                  len = (int)offset;
+                                // Compute in len the number of bytes of data we need to read in order to get nField type values.  offset is an upper bound on this.  But
+                                // nField might be significantly less than the true number of columns in the table, and in that case, 5*nField+3 might be smaller than offset.
+                                // We want to minimize len in order to limit the size of the memory allocation, especially if a corrupt database file has caused offset
+                                // to be oversized. Offset is limited to 98307 above.  But 98307 might still exceed Robson memory allocation limits on some configurations.
+                                // On systems that cannot tolerate large memory allocations, nField*5+3 will likely be much smaller since nField will likely be less than
+                                // 20 or so.  This insures that Robson memory allocation limits are not exceeded even for corrupt database files.
+                                len = fields * 5 + 3;
+                                if (len > (int)offset) len = (int)offset;
 
-                /* The KeyFetch() or DataFetch() above are fast and will get the entire
-                ** record header in most cases.  But they will fail to get the complete
-                ** record header if the record header does not fit on a single page
-                ** in the B-Tree.  When that happens, use sqlite3VdbeMemFromBtree() to
-                ** acquire the complete header text.
-                */
-                if ( zRec == null && avail < len )
-                {
-                  sMem.db = null;
-                  sMem.flags = 0;
-                  rc = sqlite3VdbeMemFromBtree( pCrsr, 0, len, pC.isIndex, sMem );
-                  if ( rc != SQLITE_OK )
-                  {
-                    goto op_column_out;
-                  }
-                  zData = sMem.zBLOB;
-                }
-                zEndHdr = len;// zData[len];
-                zIdx = szHdr;// zData[szHdr];
+                                // The KeyFetch() or DataFetch() above are fast and will get the entire record header in most cases.  But they will fail to get the complete
+                                // record header if the record header does not fit on a single page in the B-Tree.  When that happens, use sqlite3VdbeMemFromBtree() to
+                                // acquire the complete header text.
+                                if (rec == null && avail < len)
+                                {
+                                    sMem.Flags = 0;
+                                    sMem.Ctx = null;
+                                    rc = MemFromBtree(crsr, 0, len, c.IsIndex, sMem);
+                                    if (rc != RC.OK)
+                                        goto op_column_out;
+                                    data = sMem.Z_;
+                                }
+                                int endHdr = len; //: data[len]; // Pointer to first byte after the header
+                                int idx = sizeHdr; //: data[sizeHdr]; // Index into header
 
-                /* Scan the header and use it to fill in the aType[] and aOffset[]
-                ** arrays.  aType[i] will contain the type integer for the i-th
-                ** column and aOffset[i] will contain the offset from the beginning
-                ** of the record to the start of the data for the i-th column
-                */
-                for ( i = 0; i < nField; i++ )
-                {
-                  if ( zIdx < zEndHdr )
-                  {
-                    aOffset[i] = offset;
-                    zIdx += getVarint32( zData, zIdx, out aType[i] );//getVarint32(zIdx, aType[i]);
-                    szField = sqlite3VdbeSerialTypeLen( aType[i] );
-                    offset += szField;
-                    if ( offset < szField )
-                    {  /* True if offset overflows */
-                      zIdx = int.MaxValue;  /* Forces SQLITE_CORRUPT return below */
-                      break;
-                    }
-                  }
-                  else
-                  {
-                    /* If i is less that nField, then there are less fields in this
-                    ** record than SetNumColumns indicated there are columns in the
-                    ** table. Set the offset for any extra columns not present in
-                    ** the record to 0. This tells code below to store a NULL
-                    ** instead of deserializing a value from the record.
-                    */
-                    aOffset[i] = 0;
-                  }
-                }
-                sqlite3VdbeMemRelease( sMem );
-                sMem.flags = MEM_Null;
 
-                /* If we have read more header data than was contained in the header,
-                ** or if the end of the last field appears to be past the end of the
-                ** record, or if the end of the last field appears to be before the end
-                ** of the record (when all fields present), then we must be dealing
-                ** with a corrupt database.
-                */
-                if ( ( zIdx > zEndHdr ) || ( offset > payloadSize )
-                || ( zIdx == zEndHdr && offset != payloadSize ) )
-                {
-                  rc = SQLITE_CORRUPT_BKPT();
-                  goto op_column_out;
-                }
-              }
+                                Mem reg;          // PseudoTable input register
 
-              /* Get the column information. If aOffset[p2] is non-zero, then
-              ** deserialize the value from the record. If aOffset[p2] is zero,
-              ** then there are not enough fields in the record to satisfy the
-              ** request.  In this case, set the value NULL or to P4 if P4 is
-              ** a pointer to a Mem object.
-              */
-              if ( aOffset[p2] != 0 )
-              {
-                Debug.Assert( rc == SQLITE_OK );
-                if ( zRec != null )
-                {
-                  sqlite3VdbeMemReleaseExternal( pDest );
-                  sqlite3VdbeSerialGet( zRec, (int)aOffset[p2], aType[p2], pDest );
-                }
-                else
-                {
-                  len = (int)sqlite3VdbeSerialTypeLen( aType[p2] );
-                  sqlite3VdbeMemMove( sMem, pDest );
-                  rc = sqlite3VdbeMemFromBtree( pCrsr, (int)aOffset[p2], len, pC.isIndex, sMem );
-                  if ( rc != SQLITE_OK )
-                  {
-                    goto op_column_out;
-                  }
-                  zData = sMem.zBLOB;
-                  sMem.zBLOB = null;
-                  sqlite3VdbeSerialGet( zData, aType[p2], pDest );
-                }
-                pDest.enc = encoding;
-              }
-              else
-              {
-                if ( op.p4type == P4_MEM )
-                {
-                  sqlite3VdbeMemShallowCopy( pDest, op.P4.pMem, MEM_Static );
-                }
-                else
-                {
-                  Debug.Assert( ( pDest.flags & MEM_Null ) != 0 );
-                }
-              }
 
-              /* If we dynamically allocated space to hold the data (in the
-              ** sqlite3VdbeMemFromBtree() call above) then transfer control of that
-              ** dynamically allocated space over to the pDest structure.
-              ** This prevents a memory copy.
-              */
-              //if ( sMem.zMalloc != null )
-              //{
-              //  Debug.Assert( sMem.z == sMem.zMalloc);
-              //  Debug.Assert( sMem.xDel == null );
-              //  Debug.Assert( ( pDest.flags & MEM_Dyn ) == 0 );
-              //  Debug.Assert( ( pDest.flags & ( MEM_Blob | MEM_Str ) ) == 0 || pDest.z == sMem.z );
-              //  pDest.flags &= ~( MEM_Ephem | MEM_Static );
-              //  pDest.flags |= MEM_Term;
-              //  pDest.z = sMem.z;
-              //  pDest.zMalloc = sMem.zMalloc;
-              //}
+                                // Scan the header and use it to fill in the aType[] and aOffset[] arrays.  aType[i] will contain the type integer for the i-th
+                                // column and aOffset[i] will contain the offset from the beginning of the record to the start of the data for the i-th column
+                                for (int i = 0; i < fields; i++)
+                                {
+                                    if (idx < endHdr)
+                                    {
+                                        offsets[i] = offset;
+                                        if (data[i] < 0x80)
+                                        {
+                                            t = types[i];
+                                            idx++;
+                                        }
+                                        else
+                                            idx += ConvertEx.GetVarint32(data, idx, out types[i]);
+                                        uint sizeField = SerialTypeLen(t); // Number of bytes in the content of a field
+                                        types[i] = t;
+                                        offset += sizeField;
+                                        if (offset < sizeField)
+                                        {
+                                            idx = int.MaxValue; // Forces SQLITE_CORRUPT return below
+                                            break;
+                                        }
+                                    }
+                                    else
+                                        // If i is less that nField, then there are fewer fields in this record than SetNumColumns indicated there are columns in the
+                                        // table. Set the offset for any extra columns not present in the record to 0. This tells code below to store the default value
+                                        // for the column instead of deserializing a value from the record.
+                                        offsets[i] = 0;
+                                }
+                                MemRelease(sMem);
+                                sMem.Flags = MEM.Null;
 
-              rc = sqlite3VdbeMemMakeWriteable( pDest );
+                                // If we have read more header data than was contained in the header, or if the end of the last field appears to be past the end of the
+                                // record, or if the end of the last field appears to be before the end of the record (when all fields present), then we must be dealing 
+                                // with a corrupt database.
+                                if ((idx > endHdr) || (offset > payloadSize) || (idx == endHdr && offset != payloadSize))
+                                {
+                                    rc = SysEx.CORRUPT_BKPT();
+                                    goto op_column_out;
+                                }
+                            }
 
-op_column_out:
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( pDest );
-#endif
-              REGISTER_TRACE( p, op.P3, pDest );
-              if ( zData != null && zData != zRec )
-                sqlite3_free( ref zData );
-              //sqlite3_free( ref zRec );
-              sqlite3_free( ref sMem );
-              break;
-            }
-#if false
-          /* Opcode: Affinity P1 P2 * P4 *
-          **
-          ** Apply affinities to a range of P2 registers starting with P1.
-          **
-          ** P4 is a string that is P2 characters long. The nth character of the
-          ** string indicates the column affinity that should be used for the nth
-          ** memory cell in the range.
-          */
-          case OP_Affinity:
-            {
-              string zAffinity;        /* The affinity to be applied */
-              char cAff;               /* A single character of affinity */
+                            // Get the column information. If aOffset[p2] is non-zero, then deserialize the value from the record. If aOffset[p2] is zero,
+                            // then there are not enough fields in the record to satisfy the request.  In this case, set the value NULL or to P4 if P4 is
+                            // a pointer to a Mem object.
+                            if (offsets[p2] != 0)
+                            {
+                                Debug.Assert(rc == RC.OK);
+                                if (rec != null)
+                                {
+                                    MemReleaseExternal(dest);
+                                    SerialGet(rec, (int)offsets[p2], types[p2], dest);
+                                }
+                                else
+                                {
+                                    // This branch happens only when the row overflows onto multiple pages
+                                    t = types[p2];
+                                    if (((OPFLAG)op.P5 & (OPFLAG.LENGTHARG | OPFLAG.TYPEOFARG)) != 0 && ((t >= 12 && (t & 1) == 0) || ((OPFLAG)op.P5 & OPFLAG.TYPEOFARG) != 0))
+                                    {
+                                        // Content is irrelevant for the typeof() function and for the length(X) function if X is a blob.  So we might as well use
+                                        // bogus content rather than reading content from disk.  NULL works for text and blob and whatever is in the payloadSize64 variable
+                                        // will work for everything else.
+                                        data = (t < 12 ? payloadSize64 : null);
+                                    }
+                                    else
+                                    {
+                                        len = (int)SerialTypeLen(types[p2]);
+                                        MemMove(sMem, dest);
+                                        rc = MemFromBtree(crsr, (int)offsets[p2], len, c.IsIndex, sMem);
+                                        if (rc != RC.OK)
+                                            goto op_column_out;
+                                        data = sMem.Z_;
+                                        sMem.Z_ = null;
+                                    }
+                                    SerialGet(data, types[p2], dest);
+                                }
+                                dest.Encode = encoding;
+                            }
+                            else
+                            {
+                                if (op.P4Type == Vdbe.P4T.MEM)
+                                    MemShallowCopy(dest, op.P4.Mem, MEM.Static);
+                                else
+                                    Debug.Assert((dest.Flags & MEM.Null) != 0);
+                            }
 
-              zAffinity = op.P4.z;
-              Debug.Assert( !String.IsNullOrEmpty( zAffinity ) );
-              Debug.Assert( zAffinity.Length <= op.P2 );//zAffinity[op.P2] == 0
-              //in1 = mems[op.P1];
-              for ( int zI = 0; zI < zAffinity.Length; zI++ )// while( (cAff = *(zAffinity++))!=0 ){
-              {
-                cAff = zAffinity[zI];
-                in1 = mems[op.P1 + zI];
-                //Debug.Assert( in1 <= p->mems[p->nMem] );
-                Debug.Assert( memIsValid( in1 ) );
-                ExpandBlob( in1 );
-                applyAffinity( in1, cAff, encoding );
-                //in1++;
-              }
-              break;
-            }
+                            // If we dynamically allocated space to hold the data (in the sqlite3VdbeMemFromBtree() call above) then transfer control of that
+                            // dynamically allocated space over to the pDest structure. This prevents a memory copy.
+                            if (sMem.Malloc != null)
+                            {
+                                Debug.Assert(sMem.Z == sMem.Malloc);
+                                Debug.Assert(sMem.Del == null);
+                                Debug.Assert((dest.Flags & MEM.Dyn) == 0);
+                                Debug.Assert((dest.Flags & (MEM.Blob | MEM.Str)) == 0 || dest.Z == sMem.Z);
+                                dest.Flags &= ~(MEM.Ephem | MEM.Static);
+                                dest.Flags |= MEM.Term;
+                                dest.Z = sMem.Z;
+                                dest.Malloc = sMem.Malloc;
+                            }
+                            rc = MemMakeWriteable(dest);
 
-          /* Opcode: MakeRecord P1 P2 P3 P4 *
-          **
-          ** Convert P2 registers beginning with P1 into the [record format]
-          ** use as a data record in a database table or as a key
-          ** in an index.  The OP_Column opcode can decode the record later.
-          **
-          ** P4 may be a string that is P2 characters long.  The nth character of the
-          ** string indicates the column affinity that should be used for the nth
-          ** field of the index key.
-          **
-          ** The mapping from character to affinity is given by the SQLITE_AFF_
-          ** macros defined in sqliteInt.h.
-          **
-          ** If P4 is NULL then all index fields have the affinity NONE.
-          */
-          case OP_MakeRecord:
-            {
-              byte[] zNewRecord;     /* A buffer to hold the data for the new record */
-              Mem pRec;              /* The new record */
-              u64 nData;             /* Number of bytes of data space */
-              int nHdr;              /* Number of bytes of header space */
-              i64 nByte;             /* Data space required for this record */
-              int nZero;             /* Number of zero bytes at the end of the record */
-              int nVarint;           /* Number of bytes in a varint */
-              uint32 serial_type;       /* Type field */
-              //Mem pData0;            /* First field to be combined into the record */
-              //Mem pLast;             /* Last field of the record */
-              int nField;            /* Number of fields in the record */
-              string zAffinity;      /* The affinity string for the record */
-              int file_format;       /* File format to use for encoding */
-              int i;                 /* Space used in zNewRecord[] */
-              int len;               /* Length of a field */
-              /* Assuming the record contains N fields, the record format looks
-              ** like this:
-              **
-              ** ------------------------------------------------------------------------
-              ** | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 |
-              ** ------------------------------------------------------------------------
-              **
-              ** Data(0) is taken from register P1.  Data(1) comes from register P1+1
-              ** and so froth.
-              **
-              ** Each type field is a varint representing the serial type of the
-              ** corresponding data element (see sqlite3VdbeSerialType()). The
-              ** hdr-size field is also a varint which is the offset from the beginning
-              ** of the record to data0.
-              */
+                        op_column_out:
+                            UPDATE_MAX_BLOBSIZE(dest);
+                            REGISTER_TRACE(op.P3, dest);
+                            break;
+                        }
+                    case OP.Affinity:
+                        {
+                            // Opcode: Affinity P1 P2 * P4 *
+                            //
+                            // Apply affinities to a range of P2 registers starting with P1.
+                            //
+                            // P4 is a string that is P2 characters long. The nth character of the string indicates the column affinity that should be used for the nth
+                            // memory cell in the range.
+                            string affinity = op.P4.Z; // The affinity to be applied
+                            Debug.Assert(affinity == null);
+                            Debug.Assert(affinity.Length <= op.P2); //: affinity[op.P2] == 0
+                            //in1 = mems[op.P1];
+                            char aff; // A single character of affinity
+                            for (int a = 0; a < affinity.Length; a++)
+                            {
+                                aff = affinity[a];
+                                in1 = mems[op.P1 + a];
+                                //Debug.Assert(in1 <= mems[Mems.length]);
+                                Debug.Assert(MemIsValid(in1));
+                                E.ExpandBlob(in1);
+                                ApplyAffinity(in1, aff, encoding);
+                                //: in1++;
+                            }
+                            break;
+                        }
+                    case OP.MakeRecord:
+                        {
+                            // Opcode: MakeRecord P1 P2 P3 P4 *
+                            //
+                            // Convert P2 registers beginning with P1 into the [record format] use as a data record in a database table or as a key
+                            // in an index.  The OP_Column opcode can decode the record later.
+                            //
+                            // P4 may be a string that is P2 characters long.  The nth character of the string indicates the column affinity that should be used for the nth
+                            // field of the index key.
+                            //
+                            // The mapping from character to affinity is given by the SQLITE_AFF_ macros defined in sqliteInt.h.
+                            //
+                            // If P4 is NULL then all index fields have the affinity NONE.
 
-              nData = 0;         /* Number of bytes of data space */
-              nHdr = 0;          /* Number of bytes of header space */
-              nZero = 0;         /* Number of zero bytes at the end of the record */
-              nField = op.P1;
-              zAffinity = ( op.P4.z == null || op.P4.z.Length == 0 ) ? "" : op.P4.z;
-              Debug.Assert( nField > 0 && op.P2 > 0 && op.P2 + nField <= Mems.length + 1 );
-              //pData0 = mems[nField];
-              nField = op.P2;
-              //pLast =  pData0[nField - 1];
-              file_format = p.minWriteFileFormat;
+                            // Assuming the record contains N fields, the record format looks like this:
+                            //
+                            // ------------------------------------------------------------------------
+                            // | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
+                            // ------------------------------------------------------------------------
+                            //
+                            // Data(0) is taken from register P1.  Data(1) comes from register P1+1 and so froth.
+                            //
+                            // Each type field is a varint representing the serial type of the corresponding data element (see sqlite3VdbeSerialType()). The
+                            // hdr-size field is also a varint which is the offset from the beginning of the record to data0.           
+                            ulong dataLength = 0; // Number of bytes of data space
+                            int hdrLength = 0; // Number of bytes of header space
+                            int zeros = 0; // Number of zero bytes at the end of the record
+                            int fields = op.P1; // Number of fields in the record
+                            string affinity = (op.P4.Z == null || op.P4.Z.Length == 0 ? string.Empty : op.P4.Z); // The affinity string for the record
+                            Debug.Assert(fields > 0 && op.P2 > 0 && op.P2 + fields <= Mems.length + 1);
+                            //Mem data0 = mems[fields]; // First field to be combined into the record
+                            fields = op.P2;
+                            //Mem last = data0[fields - 1]; // Last field of the record
+                            int fileFormat = MinWriteFileFormat; // File format to use for encoding
 
-              /* Identify the output register */
-              Debug.Assert( op.P3 < op.P1 || op.P3 >= op.P1 + op.P2 );
-              out_ = mems[op.P3];
-              memAboutToChange( p, out_ );
+                            // Identify the output register
+                            Debug.Assert(op.P3 < op.P1 || op.P3 >= op.P1 + op.P2);
+                            out_ = mems[op.P3];
+                            MemAboutToChange(this, out_);
 
-              /* Loop through the elements that will make up the record to figure
-              ** out how much space is required for the new record.
-              */
-              //for (pRec = pData0; pRec <= pLast; pRec++)
-              for ( int pD0 = 0; pD0 < nField; pD0++ )
-              {
-                pRec = p.mems[op.P1 + pD0];
-                Debug.Assert( memIsValid( pRec ) );
-                if ( pD0 < zAffinity.Length && zAffinity[pD0] != '\0' )
-                {
-                  applyAffinity( pRec, (char)zAffinity[pD0], encoding );
-                }
-                if ( ( pRec.flags & MEM_Zero ) != 0 && pRec.n > 0 )
-                {
-                  sqlite3VdbeMemExpandBlob( pRec );
-                }
-                serial_type = sqlite3VdbeSerialType( pRec, file_format );
-                len = (int)sqlite3VdbeSerialTypeLen( serial_type );
-                nData += (u64)len;
-                nHdr += sqlite3VarintLen( serial_type );
-                if ( ( pRec.flags & MEM_Zero ) != 0 )
-                {
-                  /* Only pure zero-filled BLOBs can be input to this Opcode.
-                  ** We do not allow blobs with a prefix and a zero-filled tail. */
-                  nZero += pRec.u.nZero;
-                }
-                else if ( len != 0 )
-                {
-                  nZero = 0;
-                }
-              }
+                            // Loop through the elements that will make up the record to figure out how much space is required for the new record.
+                            uint serialType; // Type field
+                            Mem rec; // The new record
+                            for (int recIdx = 0; recIdx < fields; recIdx++)
+                            {
+                                rec = mems[op.P1 + recIdx];
+                                Debug.Assert(E.MemIsValid(rec));
+                                if (recIdx < affinity.Length && affinity[recIdx] != '\0')
+                                    ApplyAffinity(rec, (AFF)affinity[recIdx], encoding);
+                                if ((rec.Flags & MEM.Zero) != 0 && rec.N > 0)
+                                    MemExpandBlob(rec);
+                                serialType = SerialType(rec, fileFormat);
+                                int len = (int)SerialTypeLen(serialType); // Length of a field
+                                dataLength += (ulong)len;
+                                hdrLength += ConvertEx.GetVarintLength(serialType);
+                                if ((rec.Flags & MEM.Zero) != 0)
+                                    zeros += rec.u.Zeros; // Only pure zero-filled BLOBs can be input to this Opcode. We do not allow blobs with a prefix and a zero-filled tail.
+                                else if (len != 0)
+                                    zeros = 0;
+                            }
 
-              /* Add the initial header varint and total the size */
-              nHdr += nVarint = sqlite3VarintLen( (u64)nHdr );
-              if ( nVarint < sqlite3VarintLen( (u64)nHdr ) )
-              {
-                nHdr++;
-              }
-              nByte = (i64)( (u64)nHdr + nData - (u64)nZero );
-              if ( nByte > ctx.aLimit[SQLITE_LIMIT_LENGTH] )
-              {
-                goto too_big;
-              }
+                            // Add the initial header varint and total the size
+                            int varintLength; // Number of bytes in a varint
+                            hdrLength += varintLength = ConvertEx.GetVarintLength((ulong)hdrLength);
+                            if (varintLength < ConvertEx.GetVarintLength((ulong)hdrLength))
+                                hdrLength++;
+                            long bytes = (long)((ulong)hdrLength + dataLength - (ulong)zeros); // Data space required for this record
+                            if (bytes > ctx.Limits[(int)LIMIT.LENGTH])
+                                goto too_big;
 
-              /* Make sure the output register has a buffer large enough to store
-              ** the new record. The output register (op.P3) is not allowed to
-              ** be one of the input registers (because the following call to
-              ** sqlite3VdbeMemGrow() could clobber the value before it is used).
-              */
-              //if ( sqlite3VdbeMemGrow( out_, (int)nByte, 0 ) != 0 )
-              //{
-              //  goto no_mem;
-              //}
-              zNewRecord = sqlite3Malloc( (int)nByte );// (u8 )out_.z;
+                            // Make sure the output register has a buffer large enough to store the new record. The output register (op->P3) is not allowed to
+                            // be one of the input registers (because the following call to sqlite3VdbeMemGrow() could clobber the value before it is used).
+                            if (MemGrow(out_, (int)bytes, 0) != 0)
+                                goto no_mem;
+                            byte[] newRecord = C._Alloc((int)bytes); // A buffer to hold the data for the new record
 
-              /* Write the record */
-              i = putVarint32( zNewRecord, nHdr );
-              for ( int pD0 = 0; pD0 < nField; pD0++ )//for (pRec = pData0; pRec <= pLast; pRec++)
-              {
-                pRec = p.mems[op.P1 + pD0];
-                serial_type = sqlite3VdbeSerialType( pRec, file_format );
-                i += putVarint32( zNewRecord, i, (int)serial_type );      /* serial type */
-              }
-              for ( int pD0 = 0; pD0 < nField; pD0++ )//for (pRec = pData0; pRec <= pLast; pRec++)
-              {  /* serial data */
-                pRec = p.mems[op.P1 + pD0];
-                i += (int)sqlite3VdbeSerialPut( zNewRecord, i, (int)nByte - i, pRec, file_format );
-              }
-              //TODO -- Remove this  for testing Debug.Assert( i == nByte );
+                            // Write the record
+                            int i = ConvertEx._PutVarint32(newRecord, hdrLength); // Space used in zNewRecord[]
+                            for (int recIdx = 0; recIdx < fields; recIdx++)
+                            {
+                                rec = mems[op.P1 + recIdx];
+                                serialType = SerialType(rec, fileFormat);
+                                i += ConvertEx._PutVarint32(newRecord, i, (int)serialType); // serial type
+                            }
+                            for (int recIdx = 0; recIdx < fields; recIdx++)
+                            {
+                                rec = mems[op.P1 + recIdx]; // serial data
+                                i += (int)SerialPut(newRecord, i, (int)bytes - i, rec, fileFormat);
+                            }
+                            Debug.Assert(i == bytes);
 
-              Debug.Assert( op.P3 > 0 && op.P3 <= Mems.length );
-              out_.zBLOB = zNewRecord;
-              out_.z = null;
-              out_.n = (int)nByte;
-              out_.flags = MEM_Blob | MEM_Dyn;
-              out_.xDel = null;
-              if ( nZero != 0 )
-              {
-                out_.u.nZero = nZero;
-                out_.flags |= MEM_Zero;
-              }
-              out_.enc = SQLITE_UTF8;  /* In case the blob is ever converted to text */
-              REGISTER_TRACE( p, op.P3, out_ );
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( out_ );
-#endif
-              break;
-            }
+                            Debug.Assert(op.P3 > 0 && op.P3 <= Mems.length);
+                            out_.Z_ = newRecord;
+                            out_.Z = null;
+                            out_.N = (int)bytes;
+                            out_.Flags = MEM.Blob | MEM.Dyn;
+                            out_.Del = null;
+                            if (zeros != 0)
+                            {
+                                out_.u.Zeros = zeros;
+                                out_.Flags |= MEM.Zero;
+                            }
+                            out_.Encode = TEXTENCODE.UTF8; // In case the blob is ever converted to text
+                            REGISTER_TRACE(op.P3, out_);
+                            UPDATE_MAX_BLOBSIZE(out_);
+                            break;
+                        }
 
           /* Opcode: Count P1 P2 * * *
           **
@@ -2457,6 +2330,8 @@ op_column_out:
 
               break;
             }
+
+#if false
 
           /* Opcode: AutoCommit P1 P2 * * *
           **
