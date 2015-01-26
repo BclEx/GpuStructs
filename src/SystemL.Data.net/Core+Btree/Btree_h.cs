@@ -53,7 +53,7 @@ namespace Core
 
     public partial class Btree
     {
-        const int N_BTREE_META = 10;
+        public const int N_BTREE_META = 10;
         const AUTOVACUUM DEFAULT_AUTOVACUUM = AUTOVACUUM.NONE;
 
         public enum AUTOVACUUM : byte

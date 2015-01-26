@@ -738,7 +738,7 @@ namespace Core
                 case TYPE.BLOB:
                     {
                         if ((value.Flags & MEM.Zero) != 0)
-                            rc = Bind_Zeroblob(p, i, value.u.Zero);
+                            rc = Bind_Zeroblob(p, i, value.u.Zeros);
                         else
                             rc = Bind_Blob(p, i, value.ZBLOB, value.N, DESTRUCTOR_TRANSIENT);
                         break;

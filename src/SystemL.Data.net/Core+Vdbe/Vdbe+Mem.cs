@@ -102,7 +102,7 @@ namespace Core
                 Debug.Assert((mem.Flags & MEM.RowSet) == 0);
                 Debug.Assert(mem.Ctx == null || MutexEx.Held(mem.Ctx.Mutex));
                 // Set nByte to the number of bytes required to store the expanded blob.
-                int bytes = mem.N + mem.u.Zero;
+                int bytes = mem.N + mem.u.Zeros;
                 if (bytes <= 0)
                     bytes = 1;
                 if (MemGrow(mem, bytes, true) != 0)
@@ -110,7 +110,7 @@ namespace Core
                 //: _memset(&mem->Z[mem->N], 0, mem->u.Zero);
                 mem.Z_ = Encoding.UTF8.GetBytes(mem.Z);
                 mem.Z = null;
-                mem.N += (int)mem.u.Zero;
+                mem.N += (int)mem.u.Zeros;
                 mem.u.I = 0;
                 mem.Flags &= ~(MEM.Zero | MEM.Static | MEM.Ephem | MEM.Term);
                 mem.Flags |= MEM.Dyn;
@@ -374,7 +374,7 @@ namespace Core
             mem.Type = TYPE.BLOB;
             mem.N = 0;
             if (n < 0) n = 0;
-            mem.u.Zero = n;
+            mem.u.Zeros = n;
             mem.Encode = TEXTENCODE.UTF8;
 #if OMIT_INCRBLOB
             MemGrow(mem, n, 0);
@@ -432,7 +432,7 @@ namespace Core
             {
                 int n = mem.N;
                 if ((mem.Flags & MEM.Zero) != 0)
-                    n += mem.u.Zero;
+                    n += mem.u.Zeros;
                 return n > mem.Ctx.Limits[(int)LIMIT.LENGTH];
             }
             return false;
@@ -912,7 +912,7 @@ namespace Core
         static int ValueBytes(Mem mem, TEXTENCODE encode)
         {
             if ((mem.Flags & MEM.Blob) != 0 || ValueText(mem, encode) != null)
-                return ((mem.Flags & MEM.Zero) != 0 ? mem.N + mem.u.Zero : (mem.Z == null ? mem.Z_.Length : mem.N));
+                return ((mem.Flags & MEM.Zero) != 0 ? mem.N + mem.u.Zeros : (mem.Z == null ? mem.Z_.Length : mem.N));
             return 0;
         }
 

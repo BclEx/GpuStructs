@@ -236,4 +236,5 @@ namespace Core
 
 	typedef struct Btree::BtLock BtLock;
 	__device__ inline Btree::OPEN operator|=(Btree::OPEN a, int b) { return (Btree::OPEN)(a | b); }
+	__device__ inline Btree::OPEN operator|(Btree::OPEN a, Btree::OPEN b) { return (Btree::OPEN)((int)a | (int)b); }
 }

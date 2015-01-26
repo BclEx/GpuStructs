@@ -128,29 +128,29 @@ namespace Core
 
     public class ITableModule
     {
-        int Version;
-        Func<Context, object, int, string[], VTable[], string[], RC> Create;
-        Func<Context, object, int, string[], VTable[], string[]> Connect;
-        Func<VTable, IIndexInfo, RC> BestIndex;
-        Func<VTable, RC> Disconnect;
-        Func<VTable, RC> Destroy;
-        Func<VTable, IVTableCursor[], RC> Open;
-        Func<IVTableCursor, RC> Close;
-        Func<IVTableCursor, int, string, int, Mem[], RC> Filter;
-        Func<IVTableCursor, RC> Next;
-        Func<IVTableCursor, RC> Eof;
-        Func<IVTableCursor, FuncContext, int, RC> Column;
-        Func<IVTableCursor, long[], RC> Rowid;
-        Func<VTable, int, Mem[], long[], RC> Update;
-        Func<IVTable, RC> Begin;
-        Func<IVTable, RC> Sync;
-        Func<IVTable, RC> Commit;
-        Func<IVTable, RC> Rollback;
-        Func<VTable, int, string, Action<FuncContext, int, Mem[]>, object[], RC> FindFunction;
-        Func<VTable, string, RC> Rename;
-        Func<VTable, int, RC> Savepoint;
-        Func<VTable, int, RC> Release;
-        Func<VTable, int, RC> RollbackTo;
+        public int Version;
+        public Func<Context, object, int, string[], VTable[], string[], RC> Create;
+        public Func<Context, object, int, string[], VTable[], string[]> Connect;
+        public Func<VTable, IIndexInfo, RC> BestIndex;
+        public Func<VTable, RC> Disconnect;
+        public Func<VTable, RC> Destroy;
+        public Func<VTable, IVTableCursor[], RC> Open;
+        public Func<IVTableCursor, RC> Close;
+        public Func<IVTableCursor, int, string, int, Mem[], RC> Filter;
+        public Func<IVTableCursor, RC> Next;
+        public Func<IVTableCursor, RC> Eof;
+        public Func<IVTableCursor, FuncContext, int, RC> Column;
+        public Func<IVTableCursor, long[], RC> Rowid;
+        public Func<VTable, int, Mem[], long[], RC> Update;
+        public Func<IVTable, RC> Begin;
+        public Func<IVTable, RC> Sync;
+        public Func<IVTable, RC> Commit;
+        public Func<IVTable, RC> Rollback;
+        public Func<VTable, int, string, Action<FuncContext, int, Mem[]>, object[], RC> FindFunction;
+        public Func<VTable, string, RC> Rename;
+        public Func<VTable, int, RC> Savepoint;
+        public Func<VTable, int, RC> Release;
+        public Func<VTable, int, RC> RollbackTo;
     }
 
     public enum INDEX_CONSTRAINT : byte
@@ -201,9 +201,9 @@ namespace Core
         // Virtual table implementations will typically add additional fields
     }
 
-    public struct IVTableCursor
+    public class IVTableCursor
     {
-        VTable IVTable;		// Virtual table of this cursor
+        public VTable IVTable;		// Virtual table of this cursor
         // Virtual table implementations will typically add additional fields
     }
 

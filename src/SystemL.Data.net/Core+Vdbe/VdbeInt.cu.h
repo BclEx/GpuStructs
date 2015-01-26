@@ -1,5 +1,6 @@
 // vdbeint.h
 #include "Core+Vdbe.cu.h"
+#include "..\Core+Btree\BtreeInt.cu.h"
 namespace Core
 {
 	struct VTableCursor;
@@ -116,7 +117,7 @@ namespace Core
 		double R;				// Real value
 		union {
 			int64 I;            // Integer value used when MEM_Int is set in flags
-			int Zero;			// Used when bit MEM_Zero is set in flags
+			int Zeros;			// Used when bit MEM_Zero is set in flags
 			FuncDef *Def;		// Used only when flags==MEM_Agg
 			RowSet *RowSet;		// Used only when flags==MEM_RowSet
 			VdbeFrame *Frame;	// Used when flags==MEM_Frame
