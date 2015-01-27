@@ -3065,541 +3065,418 @@ op_column_out:
 				}
 				out_->u.I = v;
 				break; }
-
-#if 0
-							  /* Opcode: Insert P1 P2 P3 P4 P5
-							  **
-							  ** Write an entry into the table of cursor P1.  A new entry is
-							  ** created if it doesn't already exist or the data for an existing
-							  ** entry is overwritten.  The data is the value MEM_Blob stored in register
-							  ** number P2. The key is stored in register P3. The key must
-							  ** be a MEM_Int.
-							  **
-							  ** If the OPFLAG_NCHANGE flag of P5 is set, then the row change count is
-							  ** incremented (otherwise not).  If the OPFLAG_LASTROWID flag of P5 is set,
-							  ** then rowid is stored for subsequent return by the
-							  ** sqlite3_last_insert_rowid() function (otherwise it is unmodified).
-							  **
-							  ** If the OPFLAG_USESEEKRESULT flag of P5 is set and if the result of
-							  ** the last seek operation (OP_NotExists) was a success, then this
-							  ** operation will not attempt to find the appropriate row before doing
-							  ** the insert but will instead overwrite the row that the cursor is
-							  ** currently pointing to.  Presumably, the prior OP_NotExists opcode
-							  ** has already positioned the cursor correctly.  This is an optimization
-							  ** that boosts performance by avoiding redundant seeks.
-							  **
-							  ** If the OPFLAG_ISUPDATE flag is set, then this opcode is part of an
-							  ** UPDATE operation.  Otherwise (if the flag is clear) then this opcode
-							  ** is part of an INSERT operation.  The difference is only important to
-							  ** the update hook.
-							  **
-							  ** Parameter P4 may point to a string containing the table-name, or
-							  ** may be NULL. If it is not NULL, then the update-hook 
-							  ** (sqlite3.xUpdateCallback) is invoked following a successful insert.
-							  **
-							  ** (WARNING/TODO: If P1 is a pseudo-cursor and P2 is dynamically
-							  ** allocated, then ownership of P2 is transferred to the pseudo-cursor
-							  ** and register P2 becomes ephemeral.  If the cursor is changed, the
-							  ** value of register P2 will then change.  Make sure this does not
-							  ** cause any problems.)
-							  **
-							  ** This instruction only works on tables.  The equivalent instruction
-							  ** for indices is OP_IdxInsert.
-							  */
-							  /* Opcode: InsertInt P1 P2 P3 P4 P5
-							  **
-							  ** This works exactly like OP_Insert except that the key is the
-							  ** integer value P3, not the value of the integer stored in register P3.
-							  */
 			case OP_Insert: 
 			case OP_InsertInt: {
-				Mem *pData;       /* MEM cell holding data for the record to be inserted */
-				Mem *pKey;        /* MEM cell holding key  for the record */
-				i64 iKey;         /* The integer ROWID or key for the record to be inserted */
-				VdbeCursor *cur;   /* Cursor to table into which insert is written */
-				int nZero;        /* Number of zero-bytes to append */
-				int seekResult;   /* Result of prior seek or 0 if no USESEEKRESULT flag */
-				const char *zDb;  /* database name - used by the update hook */
-				const char *zTbl; /* Table name - used by the opdate hook */
-				int op;           /* Opcode for update hook: SQLITE_UPDATE or SQLITE_INSERT */
+				// Opcode: Insert P1 P2 P3 P4 P5
+				//
+				// Write an entry into the table of cursor P1.  A new entry is created if it doesn't already exist or the data for an existing
+				// entry is overwritten.  The data is the value MEM_Blob stored in register number P2. The key is stored in register P3. The key must
+				// be a MEM_Int.
+				//
+				// If the OPFLAG_NCHANGE flag of P5 is set, then the row change count is incremented (otherwise not).  If the OPFLAG_LASTROWID flag of P5 is set,
+				// then rowid is stored for subsequent return by the sqlite3_last_insert_rowid() function (otherwise it is unmodified).
+				//
+				// If the OPFLAG_USESEEKRESULT flag of P5 is set and if the result of the last seek operation (OP_NotExists) was a success, then this
+				// operation will not attempt to find the appropriate row before doing the insert but will instead overwrite the row that the cursor is
+				// currently pointing to.  Presumably, the prior OP_NotExists opcode has already positioned the cursor correctly.  This is an optimization
+				// that boosts performance by avoiding redundant seeks.
+				//
+				// If the OPFLAG_ISUPDATE flag is set, then this opcode is part of an UPDATE operation.  Otherwise (if the flag is clear) then this opcode
+				// is part of an INSERT operation.  The difference is only important to the update hook.
+				//
+				// Parameter P4 may point to a string containing the table-name, or may be NULL. If it is not NULL, then the update-hook 
+				// (sqlite3.xUpdateCallback) is invoked following a successful insert.
+				//
+				// (WARNING/TODO: If P1 is a pseudo-cursor and P2 is dynamically allocated, then ownership of P2 is transferred to the pseudo-cursor
+				// and register P2 becomes ephemeral.  If the cursor is changed, the value of register P2 will then change.  Make sure this does not
+				// cause any problems.)
+				//
+				// This instruction only works on tables.  The equivalent instruction for indices is OP_IdxInsert.
+				//
+				// Opcode: InsertInt P1 P2 P3 P4 P5
+				//
+				// This works exactly like OP_Insert except that the key is the integer value P3, not the value of the integer stored in register P3.
+				Mem *data = &mems[op->P2]; // MEM cell holding data for the record to be inserted
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				_assert(MemIsValid(data));
+				VdbeCursor *cur = Cursors[op->P1]; // Cursor to table into which insert is written
+				_assert(cur != nullptr);
+				_assert(cur->Cursor != nullptr);
+				_assert(cur->PseudoTableReg == 0);
+				_assert(cur->IsTable);
+				REGISTER_TRACE(op->P2, data);
 
-				pData = &mems[op->P2];
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				assert( memIsValid(pData) );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				assert( cur->pCursor!=0 );
-				assert( cur->pseudoTableReg==0 );
-				assert( cur->isTable );
-				REGISTER_TRACE(op->P2, pData);
-
-				if( op->opcode==OP_Insert ){
-					pKey = &mems[op->P3];
-					assert( pKey->flags & MEM_Int );
-					assert( memIsValid(pKey) );
-					REGISTER_TRACE(op->P3, pKey);
-					iKey = pKey->u.i;
-				}else{
-					assert( op->opcode==OP_InsertInt );
-					iKey = op->P3;
+				int64 keyId; // The integer ROWID or key for the record to be inserted
+				if (op->Opcode == OP_Insert)
+				{
+					Mem *key = &mems[op->P3]; // MEM cell holding key  for the record
+					_assert(key->Flags & MEM_Int);
+					_assert(MemIsValid(key));
+					REGISTER_TRACE(op->P3, key);
+					keyId = key->u.I;
+				}
+				else
+				{
+					_assert(op->Opcode == OP_InsertInt);
+					keyId = op->P3;
 				}
 
-				if( op->P5 & OPFLAG_NCHANGE ) p->nChange++;
-				if( op->P5 & OPFLAG_LASTROWID ) ctx->lastRowid = lastRowid = iKey;
-				if( pData->flags & MEM_Null ){
-					pData->z = 0;
-					pData->n = 0;
-				}else{
-					assert( pData->flags & (MEM_Blob|MEM_Str) );
+				if (op->P5 & OPFLAG_NCHANGE) Changes++;
+				if (op->P5 & OPFLAG_LASTROWID) ctx->LastRowID = lastRowid = keyId;
+				if (data->Flags & MEM_Null)
+				{
+					data->Z = nullptr;
+					data->N = 0;
 				}
-				seekResult = ((op->P5 & OPFLAG_USESEEKRESULT) ? cur->seekResult : 0);
-				if( pData->flags & MEM_Zero ){
-					nZero = pData->u.nZero;
-				}else{
-					nZero = 0;
-				}
-				sqlite3BtreeSetCachedRowid(cur->pCursor, 0);
-				rc = sqlite3BtreeInsert(cur->pCursor, 0, iKey,
-					pData->z, pData->n, nZero,
-					op->P5 & OPFLAG_APPEND, seekResult
-					);
-				cur->rowidIsValid = 0;
-				cur->deferredMoveto = 0;
-				cur->cacheStatus = CACHE_STALE;
+				else
+					_assert(data->Flags & (MEM_Blob|MEM_Str));
+				int seekResult = ((op->P5 & OPFLAG_USESEEKRESULT) ? cur->SeekResult : 0); // Result of prior seek or 0 if no USESEEKRESULT flag
+				int zeros = (data->flags & MEM_Zero ? data->u.Zeros : 0); // Number of zero-bytes to append
+				Btree::SetCachedRowid(cur->Cursor, 0);
+				rc = Btree::Insert(cur->Cursor, 0, keyId, data->Z, data->N, zeros, op->P5 & OPFLAG_APPEND, seekResult);
+				cur->RowidIsValid = false;
+				cur->deferredMoveto = false;
+				cur->CacheStatus = CACHE_STALE;
 
-				/* Invoke the update-hook if required. */
-				if( rc==SQLITE_OK && ctx->xUpdateCallback && op->P4.z ){
-					zDb = ctx->aDb[cur->iDb].zName;
-					zTbl = op->P4.z;
-					op = ((op->P5 & OPFLAG_ISUPDATE) ? SQLITE_UPDATE : SQLITE_INSERT);
-					assert( cur->isTable );
-					ctx->xUpdateCallback(ctx->pUpdateArg, op, zDb, zTbl, iKey);
-					assert( cur->iDb>=0 );
+				// Invoke the update-hook if required.
+				if (rc == RC_OK && ctx->UpdateCallback && op->P4.Z)
+				{
+					const char *dbName = ctx->DBs[cur->Db].Name; // database name - used by the update hook
+					const char *tableName = op->P4.Z; // Table name - used by the opdate hook
+					int op2 = ((op->P5 & OPFLAG_ISUPDATE) ? AUTH_UPDATE : AUTH_INSERT); // Opcode for update hook: SQLITE_UPDATE or SQLITE_INSERT
+					assert(cur->IsTable);
+					ctx->UpdateCallback(ctx->UpdateArg, op2, dbName, tableName, keyId);
+					_assert(cur->Db >= 0);
 				}
-				break;
-							   }
-
-							   /* Opcode: Delete P1 P2 * P4 *
-							   **
-							   ** Delete the record at which the P1 cursor is currently pointing.
-							   **
-							   ** The cursor will be left pointing at either the next or the previous
-							   ** record in the table. If it is left pointing at the next record, then
-							   ** the next Next instruction will be a no-op.  Hence it is OK to delete
-							   ** a record from within an Next loop.
-							   **
-							   ** If the OPFLAG_NCHANGE flag of P2 is set, then the row change count is
-							   ** incremented (otherwise not).
-							   **
-							   ** P1 must not be pseudo-table.  It has to be a real table with
-							   ** multiple rows.
-							   **
-							   ** If P4 is not NULL, then it is the name of the table that P1 is
-							   ** pointing to.  The update hook will be invoked, if it exists.
-							   ** If P4 is not NULL then the P1 cursor must have been positioned
-							   ** using OP_NotFound prior to invoking this opcode.
-							   */
+				break; }
 			case OP_Delete: {
-				i64 iKey;
-				VdbeCursor *cur;
+				// Opcode: Delete P1 P2 * P4 *
+				//
+				// Delete the record at which the P1 cursor is currently pointing.
+				//
+				// The cursor will be left pointing at either the next or the previous record in the table. If it is left pointing at the next record, then
+				// the next Next instruction will be a no-op.  Hence it is OK to delete a record from within an Next loop.
+				//
+				// If the OPFLAG_NCHANGE flag of P2 is set, then the row change count is incremented (otherwise not).
+				//
+				// P1 must not be pseudo-table.  It has to be a real table with multiple rows.
+				//
+				// If P4 is not NULL, then it is the name of the table that P1 is pointing to.  The update hook will be invoked, if it exists.
+				// If P4 is not NULL then the P1 cursor must have been positioned using OP_NotFound prior to invoking this opcode.
+				int64 keyId = 0;
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur);
+				_assert(cur->Cursor); // Only valid for real tables, no pseudotables
 
-				iKey = 0;
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				assert( cur->pCursor!=0 );  /* Only valid for real tables, no pseudotables */
-
-				/* If the update-hook will be invoked, set iKey to the rowid of the
-				** row being deleted.
-				*/
-				if( ctx->xUpdateCallback && op->P4.z ){
-					assert( cur->isTable );
-					assert( cur->rowidIsValid );  /* lastRowid set by previous OP_NotFound */
-					iKey = cur->lastRowid;
+				// If the update-hook will be invoked, set keyId to the rowid of the row being deleted.
+				if (ctx->UpdateCallback && op->P4.Z)
+				{
+					_assert(cur->IsTable);
+					_assert(cur->RowidIsValid); // lastRowid set by previous OP_NotFound
+					keyId = cur->LastRowID;
 				}
 
-				/* The OP_Delete opcode always follows an OP_NotExists or OP_Last or
-				** OP_Column on the same table without any intervening operations that
-				** might move or invalidate the cursor.  Hence cursor cur is always pointing
-				** to the row to be deleted and the sqlite3VdbeCursorMoveto() operation
-				** below is always a no-op and cannot fail.  We will run it anyhow, though,
-				** to guard against future changes to the code generator.
-				**/
-				assert( cur->deferredMoveto==0 );
-				rc = sqlite3VdbeCursorMoveto(cur);
-				if( NEVER(rc!=SQLITE_OK) ) goto abort_due_to_error;
+				// The OP_Delete opcode always follows an OP_NotExists or OP_Last or OP_Column on the same table without any intervening operations that
+				// might move or invalidate the cursor.  Hence cursor cur is always pointing to the row to be deleted and the sqlite3VdbeCursorMoveto() operation
+				// below is always a no-op and cannot fail.  We will run it anyhow, though, to guard against future changes to the code generator.
+				_assert(!cur->DeferredMoveto);
+				rc = CursorMoveto(cur);
+				if (_NEVER(rc != RC_OK)) goto abort_due_to_error;
 
-				sqlite3BtreeSetCachedRowid(cur->pCursor, 0);
-				rc = sqlite3BtreeDelete(cur->pCursor);
-				cur->cacheStatus = CACHE_STALE;
+				Btree::SetCachedRowid(cur->Cursor, 0);
+				rc = Btree::Delete(cur->Cursor);
+				cur->CacheStatus = CACHE_STALE;
 
-				/* Invoke the update-hook if required. */
-				if( rc==SQLITE_OK && ctx->xUpdateCallback && op->P4.z ){
-					const char *zDb = ctx->aDb[cur->iDb].zName;
-					const char *zTbl = op->P4.z;
-					ctx->xUpdateCallback(ctx->pUpdateArg, SQLITE_DELETE, zDb, zTbl, iKey);
-					assert( cur->iDb>=0 );
+				// Invoke the update-hook if required.
+				if (rc == RC_OK && ctx->UpdateCallback && op->P4.Z)
+				{
+					const char *dbName = ctx->DBs[cur->Db].Name;
+					const char *tableName = op->P4.Z;
+					ctx->UpdateCallback(ctx->UpdateArg, AUTH_DELETE, dbName, tableName, keyId);
+					_assert(cur->Db >= 0);
 				}
-				if( op->P2 & OPFLAG_NCHANGE ) p->nChange++;
-				break;
-							}
-							/* Opcode: ResetCount * * * * *
-							**
-							** The value of the change counter is copied to the database handle
-							** change counter (returned by subsequent calls to sqlite3_changes()).
-							** Then the VMs internal change counter resets to 0.
-							** This is used by trigger programs.
-							*/
+				if (op->P2 & OPFLAG_NCHANGE) Changes++;
+				break; }
 			case OP_ResetCount: {
-				sqlite3VdbeSetChanges(ctx, p->nChange);
-				p->nChange = 0;
-				break;
-								}
-
-								/* Opcode: SorterCompare P1 P2 P3
-								**
-								** P1 is a sorter cursor. This instruction compares the record blob in 
-								** register P3 with the entry that the sorter cursor currently points to.
-								** If, excluding the rowid fields at the end, the two records are a match,
-								** fall through to the next instruction. Otherwise, jump to instruction P2.
-								*/
+				// Opcode: ResetCount * * * * *
+				//
+				// The value of the change counter is copied to the database handle change counter (returned by subsequent calls to sqlite3_changes()).
+				// Then the VMs internal change counter resets to 0. This is used by trigger programs.
+				SetChanges(ctx, Changes);
+				Changes = 0;
+				break; }
 			case OP_SorterCompare: {
-				VdbeCursor *cur;
-				int res;
-
-				cur = p->apCsr[op->P1];
-				assert( isSorter(cur) );
+				// Opcode: SorterCompare P1 P2 P3
+				//
+				// P1 is a sorter cursor. This instruction compares the record blob in register P3 with the entry that the sorter cursor currently points to.
+				// If, excluding the rowid fields at the end, the two records are a match, fall through to the next instruction. Otherwise, jump to instruction P2.
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(IsSorter(cur));
 				in3 = &mems[op->P3];
-				rc = sqlite3VdbeSorterCompare(cur, in3, &res);
-				if( res ){
+				int res;
+				rc = SorterCompare(cur, in3, &res);
+				if (res)
 					pc = op->P2-1;
-				}
-				break;
-								   };
-
-								   /* Opcode: SorterData P1 P2 * * *
-								   **
-								   ** Write into register P2 the current sorter data for sorter cursor P1.
-								   */
+				break; };
 			case OP_SorterData: {
-				VdbeCursor *cur;
-
+				// Opcode: SorterData P1 P2 * * *
+				//
+				// Write into register P2 the current sorter data for sorter cursor P1.
 				out_ = &mems[op->P2];
-				cur = p->apCsr[op->P1];
-				assert( cur->isSorter );
-				rc = sqlite3VdbeSorterRowkey(cur, out_);
-				break;
-								}
-
-								/* Opcode: RowData P1 P2 * * *
-								**
-								** Write into register P2 the complete row data for cursor P1.
-								** There is no interpretation of the data.  
-								** It is just copied onto the P2 register exactly as 
-								** it is found in the database file.
-								**
-								** If the P1 cursor must be pointing to a valid row (not a NULL row)
-								** of a real table, not a pseudo-table.
-								*/
-								/* Opcode: RowKey P1 P2 * * *
-								**
-								** Write into register P2 the complete row key for cursor P1.
-								** There is no interpretation of the data.  
-								** The key is copied onto the P3 register exactly as 
-								** it is found in the database file.
-								**
-								** If the P1 cursor must be pointing to a valid row (not a NULL row)
-								** of a real table, not a pseudo-table.
-								*/
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur->IsSorter);
+				rc = SorterRowkey(cur, out_);
+				break; }
 			case OP_RowKey:
 			case OP_RowData: {
-				VdbeCursor *cur;
-				BtCursor *crsr;
-				uint32 n;
-				i64 n64;
-
+				// Opcode: RowData P1 P2 * * *
+				//
+				// Write into register P2 the complete row data for cursor P1. There is no interpretation of the data.  
+				// It is just copied onto the P2 register exactly as it is found in the database file.
+				//
+				// If the P1 cursor must be pointing to a valid row (not a NULL row) of a real table, not a pseudo-table.
+				//
+				// Opcode: RowKey P1 P2 * * *
+				//
+				// Write into register P2 the complete row key for cursor P1. There is no interpretation of the data.  
+				// The key is copied onto the P3 register exactly as it is found in the database file.
+				//
+				// If the P1 cursor must be pointing to a valid row (not a NULL row) of a real table, not a pseudo-table.
 				out_ = &mems[op->P2];
-				memAboutToChange(p, out_);
+				MemAboutToChange(this, out_);
 
-				/* Note that RowKey and RowData are really exactly the same instruction */
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur->isSorter==0 );
-				assert( cur->isTable || op->opcode!=OP_RowData );
-				assert( cur->isIndex || op->opcode==OP_RowData );
-				assert( cur!=0 );
-				assert( cur->nullRow==0 );
-				assert( cur->pseudoTableReg==0 );
-				assert( cur->pCursor!=0 );
-				crsr = cur->pCursor;
-				assert( sqlite3BtreeCursorIsValid(crsr) );
+				// Note that RowKey and RowData are really exactly the same instruction
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(!cur->IsSorter);
+				_assert(cur->IsTable || op->Opcode != OP_RowData);
+				_assert(cur->IsIndex || op->Opcode == OP_RowData);
+				_assert(cur != 0);
+				_assert(!cur->NullRow);
+				_assert(!cur->PseudoTableReg);
+				_assert(cur->Cursor);
+				BtCursor *crsr = cur->Cursor;
+				_assert(Btree::CursorIsValid(crsr));
 
-				/* The OP_RowKey and OP_RowData opcodes always follow OP_NotExists or
-				** OP_Rewind/Op_Next with no intervening instructions that might invalidate
-				** the cursor.  Hence the following sqlite3VdbeCursorMoveto() call is always
-				** a no-op and can never fail.  But we leave it in place as a safety.
-				*/
-				assert( cur->deferredMoveto==0 );
-				rc = sqlite3VdbeCursorMoveto(cur);
-				if( NEVER(rc!=SQLITE_OK) ) goto abort_due_to_error;
+				// The OP_RowKey and OP_RowData opcodes always follow OP_NotExists or OP_Rewind/Op_Next with no intervening instructions that might invalidate
+				// the cursor.  Hence the following sqlite3VdbeCursorMoveto() call is always a no-op and can never fail.  But we leave it in place as a safety.
+				_assert(!cur->DeferredMoveto);
+				rc = CursorMoveto(cur);
+				if (_NEVER(rc != RC_OK)) goto abort_due_to_error;
 
-				if( cur->isIndex ){
-					assert( !cur->isTable );
-					VVA_ONLY(rc =) sqlite3BtreeKeySize(crsr, &n64);
-					assert( rc==SQLITE_OK );    /* True because of CursorMoveto() call above */
-					if( n64>ctx->aLimit[SQLITE_LIMIT_LENGTH] ){
+				uint32 n;
+				int64 n64;
+				if (cur->IsIndex)
+				{
+					_assert(!cur->IsTable);
+					ASSERTONLY(rc =) Btree::KeySize(crsr, &n64);
+					_assert(rc == RC_OK); // True because of CursorMoveto() call above
+					if (n64 > ctx->Limits[LIMIT_LENGTH])
 						goto too_big;
-					}
 					n = (uint32)n64;
-				}else{
-					VVA_ONLY(rc =) sqlite3BtreeDataSize(crsr, &n);
-					assert( rc==SQLITE_OK );    /* DataSize() cannot fail */
-					if( n>(uint32)ctx->aLimit[SQLITE_LIMIT_LENGTH] ){
+				}
+				else
+				{
+					ASSERTONLY(rc =) Btree::DataSize(crsr, &n);
+					_assert(rc == RC_OK); // DataSize() cannot fail
+					if (n > (uint32)ctx->Limits[LIMIT_LENGTH])
 						goto too_big;
-					}
 				}
-				if( sqlite3VdbeMemGrow(out_, n, 0) ){
+				if (MemGrow(out_, n, false))
 					goto no_mem;
-				}
-				out_->n = n;
+				out_->N = n;
 				MemSetTypeFlag(out_, MEM_Blob);
-				if( cur->isIndex ){
-					rc = sqlite3BtreeKey(crsr, 0, n, out_->z);
-				}else{
-					rc = sqlite3BtreeData(crsr, 0, n, out_->z);
-				}
-				out_->enc = SQLITE_UTF8;  /* In case the blob is ever cast to text */
+				rc = (cur->IsIndex ? Btree::Key(crsr, 0, n, out_->Z) : Btree::Data(crsr, 0, n, out_->Z));
+				out_->Encode = TEXTENCODE_UTF8; // In case the blob is ever cast to text
 				UPDATE_MAX_BLOBSIZE(out_);
-				break;
-							 }
-
-							 /* Opcode: Rowid P1 P2 * * *
-							 **
-							 ** Store in register P2 an integer which is the key of the table entry that
-							 ** P1 is currently point to.
-							 **
-							 ** P1 can be either an ordinary table or a virtual table.  There used to
-							 ** be a separate OP_VRowid opcode for use with virtual tables, but this
-							 ** one opcode now works for both table types.
-							 */
-			case OP_Rowid: {                 /* out2-prerelease */
-				VdbeCursor *cur;
-				i64 v;
-				sqlite3_vtab *pVtab;
-				const sqlite3_module *module;
-
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				assert( cur->pseudoTableReg==0 || cur->nullRow );
-				if( cur->nullRow ){
-					out_->flags = MEM_Null;
+				break; }
+			case OP_Rowid: { // out2-prerelease
+				// Opcode: Rowid P1 P2 * * *
+				//
+				// Store in register P2 an integer which is the key of the table entry that P1 is currently point to.
+				//
+				// P1 can be either an ordinary table or a virtual table.  There used to be a separate OP_VRowid opcode for use with virtual tables, but this
+				// one opcode now works for both table types.
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur );
+				_assert(cur->PseudoTableReg == 0 || cur->NullRow);
+				int64 v;
+				if (cur->NullRow)
+				{
+					out_->Flags = MEM_Null;
 					break;
-				}else if( cur->deferredMoveto ){
+				}
+				else if (cur->DeferredMoveto)
+				{
 					v = cur->movetoTarget;
-#ifndef SQLITE_OMIT_VIRTUALTABLE
-				}else if( cur->pVtabCursor ){
-					pVtab = cur->pVtabCursor->pVtab;
-					module = pVtab->module;
-					assert( module->xRowid );
-					rc = module->xRowid(cur->pVtabCursor, &v);
-					importVtabErrMsg(p, pVtab);
-#endif /* SQLITE_OMIT_VIRTUALTABLE */
-				}else{
-					assert( cur->pCursor!=0 );
-					rc = sqlite3VdbeCursorMoveto(cur);
-					if( rc ) goto abort_due_to_error;
-					if( cur->rowidIsValid ){
-						v = cur->lastRowid;
-					}else{
-						rc = sqlite3BtreeKeySize(cur->pCursor, &v);
-						assert( rc==SQLITE_OK );  /* Always so because of CursorMoveto() above */
+#ifndef OMIT_VIRTUALTABLE
+				}
+				else if (cur->VtabCursor)
+				{
+					IVTable *vtable = cur->VtabCursor->IVTable;
+					const ITableModule *module = vtable->IModule;
+					_assert(module->Rowid);
+					rc = module->Rowid(cur->VtabCursor, &v);
+					ImportVtabErrMsg(this, vtable);
+#endif
+				}
+				else
+				{
+					_assert(cur->Cursor);
+					rc = CursorMoveto(cur);
+					if (rc) goto abort_due_to_error;
+					if (cur->RowidIsValid)
+						v = cur->LastRowID;
+					else
+					{
+						rc = Btree::KeySize(cur->Cursor, &v);
+						_assert(rc == RC_OK); // Always so because of CursorMoveto() above
 					}
 				}
-				out_->u.i = v;
-				break;
-						   }
-
-						   /* Opcode: NullRow P1 * * * *
-						   **
-						   ** Move the cursor P1 to a null row.  Any OP_Column operations
-						   ** that occur while the cursor is on the null row will always
-						   ** write a NULL.
-						   */
+				out_->u.I = v;
+				break; }
 			case OP_NullRow: {
-				VdbeCursor *cur;
-
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				cur->nullRow = 1;
-				cur->rowidIsValid = 0;
-				assert( cur->pCursor || cur->pVtabCursor );
-				if( cur->pCursor ){
-					sqlite3BtreeClearCursor(cur->pCursor);
-				}
-				break;
-							 }
-
-							 /* Opcode: Last P1 P2 * * *
-							 **
-							 ** The next use of the Rowid or Column or Next instruction for P1 
-							 ** will refer to the last entry in the database table or index.
-							 ** If the table or index is empty and P2>0, then jump immediately to P2.
-							 ** If P2 is 0 or if the table or index is not empty, fall through
-							 ** to the following instruction.
-							 */
-			case OP_Last: {        /* jump */
-				VdbeCursor *cur;
-				BtCursor *crsr;
-				int res;
-
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				crsr = cur->pCursor;
-				res = 0;
-				if( ALWAYS(crsr!=0) ){
-					rc = sqlite3BtreeLast(crsr, &res);
-				}
-				cur->nullRow = (u8)res;
-				cur->deferredMoveto = 0;
-				cur->rowidIsValid = 0;
-				cur->cacheStatus = CACHE_STALE;
-				if( op->P2>0 && res ){
+				// Opcode: NullRow P1 * * * *
+				//
+				// Move the cursor P1 to a null row.  Any OP_Column operations that occur while the cursor is on the null row will always write a NULL.
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur);
+				cur->NullRow = true;
+				cur->RowidIsValid = false;
+				_assert(cur->Cursor || cur->VtabCursor);
+				if (cur->Cursor)
+					Btree::ClearCursor(cur->Cursor);
+				break; }
+			case OP_Last: { // jump
+				// Opcode: Last P1 P2 * * *
+				//
+				// The next use of the Rowid or Column or Next instruction for P1 will refer to the last entry in the database table or index.
+				// If the table or index is empty and P2>0, then jump immediately to P2. If P2 is 0 or if the table or index is not empty, fall through
+				// to the following instruction.
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur);
+				BtCursor *crsr = cur->Cursor;
+				int res = 0;
+				if (_ALWAYS(crsr != nullptr))
+					rc = Btree::Last(crsr, &res);
+				cur->NullRow = (res != 0);
+				cur->DeferredMoveto = false;
+				cur->RowidIsValid = false;
+				cur->CacheStatus = CACHE_STALE;
+				if (op->P2 > 0 && res)
 					pc = op->P2 - 1;
-				}
-				break;
-						  }
-
-
-						  /* Opcode: Sort P1 P2 * * *
-						  **
-						  ** This opcode does exactly the same thing as OP_Rewind except that
-						  ** it increments an undocumented global variable used for testing.
-						  **
-						  ** Sorting is accomplished by writing records into a sorting index,
-						  ** then rewinding that index and playing it back from beginning to
-						  ** end.  We use the OP_Sort opcode instead of OP_Rewind to do the
-						  ** rewinding so that the global variable will be incremented and
-						  ** regression tests can determine whether or not the optimizer is
-						  ** correctly optimizing out sorts.
-						  */
-			case OP_SorterSort:    /* jump */
-			case OP_Sort: {        /* jump */
-#ifdef SQLITE_TEST
-				sqlite3_sort_count++;
-				sqlite3_search_count--;
+				break; }
+			case OP_SorterSort: // jump
+			case OP_Sort: { // jump
+				// Opcode: Sort P1 P2 * * *
+				//
+				// This opcode does exactly the same thing as OP_Rewind except that it increments an undocumented global variable used for testing.
+				//
+				// Sorting is accomplished by writing records into a sorting index, then rewinding that index and playing it back from beginning to
+				// end.  We use the OP_Sort opcode instead of OP_Rewind to do the rewinding so that the global variable will be incremented and
+				// regression tests can determine whether or not the optimizer is correctly optimizing out sorts.
+#ifdef TEST
+				f_sort_count++;
+				f_search_count--;
 #endif
-				p->aCounter[SQLITE_STMTSTATUS_SORT-1]++;
-				/* Fall through into OP_Rewind */
-						  }
-						  /* Opcode: Rewind P1 P2 * * *
-						  **
-						  ** The next use of the Rowid or Column or Next instruction for P1 
-						  ** will refer to the first entry in the database table or index.
-						  ** If the table or index is empty and P2>0, then jump immediately to P2.
-						  ** If P2 is 0 or if the table or index is not empty, fall through
-						  ** to the following instruction.
-						  */
-			case OP_Rewind: {        /* jump */
-				VdbeCursor *cur;
-				BtCursor *crsr;
-				int res;
-
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				cur = p->apCsr[op->P1];
-				assert( cur!=0 );
-				assert( cur->isSorter==(op->opcode==OP_SorterSort) );
-				res = 1;
-				if( isSorter(cur) ){
-					rc = sqlite3VdbeSorterRewind(ctx, cur, &res);
-				}else{
-					crsr = cur->pCursor;
-					assert( crsr );
-					rc = sqlite3BtreeFirst(crsr, &res);
-					cur->atFirst = res==0 ?1:0;
-					cur->deferredMoveto = 0;
+				Counters[STMTSTATUS_SORT-1]++;
+				// Fall through into OP_Rewind
+						  } 
+			case OP_Rewind: { // jump
+				// Opcode: Rewind P1 P2 * * *
+				//
+				// The next use of the Rowid or Column or Next instruction for P1 will refer to the first entry in the database table or index.
+				// If the table or index is empty and P2>0, then jump immediately to P2. If P2 is 0 or if the table or index is not empty, fall through
+				// to the following instruction.
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				VdbeCursor *cur = Cursors[op->P1];
+				_assert(cur);
+				_assert(cur->IsSorter == (op->Opcode == OP_SorterSort));
+				int res = 1;
+				if (IsSorter(cur))
+					rc = SorterRewind(ctx, cur, &res);
+				else
+				{
+					BtCursor *crsr = cur->Cursor;
+					_assert(crsr);
+					rc = Btree:First(crsr, &res);
+					cur->AtFirst = (res == 0);
+					cur->DeferredMoveto = false;
 					cur->cacheStatus = CACHE_STALE;
-					cur->rowidIsValid = 0;
+					cur->RowidIsValid = false;
 				}
-				cur->nullRow = (u8)res;
-				assert( op->P2>0 && op->P2<p->nOp );
-				if( res ){
+				cur->NullRow = (res != 0);
+				_assert(op->P2 > 0 && op->P2 < Ops.length);
+				if (res)
 					pc = op->P2 - 1;
-				}
-				break;
-							}
-
-							/* Opcode: Next P1 P2 * P4 P5
-							**
-							** Advance cursor P1 so that it points to the next key/data pair in its
-							** table or index.  If there are no more key/value pairs then fall through
-							** to the following instruction.  But if the cursor advance was successful,
-							** jump immediately to P2.
-							**
-							** The P1 cursor must be for a real table, not a pseudo-table.
-							**
-							** P4 is always of type P4T_ADVANCE. The function pointer points to
-							** sqlite3BtreeNext().
-							**
-							** If P5 is positive and the jump is taken, then event counter
-							** number P5-1 in the prepared statement is incremented.
-							**
-							** See also: Prev
-							*/
-							/* Opcode: Prev P1 P2 * * P5
-							**
-							** Back up cursor P1 so that it points to the previous key/data pair in its
-							** table or index.  If there is no previous key/value pairs then fall through
-							** to the following instruction.  But if the cursor backup was successful,
-							** jump immediately to P2.
-							**
-							** The P1 cursor must be for a real table, not a pseudo-table.
-							**
-							** P4 is always of type P4T_ADVANCE. The function pointer points to
-							** sqlite3BtreePrevious().
-							**
-							** If P5 is positive and the jump is taken, then event counter
-							** number P5-1 in the prepared statement is incremented.
-							*/
-			case OP_SorterNext:    /* jump */
-			case OP_Prev:          /* jump */
-			case OP_Next: {        /* jump */
-				VdbeCursor *cur;
-				int res;
-
+				break; }
+			case OP_SorterNext: // jump
+			case OP_Prev: // jump
+			case OP_Next: { // jump
+				// Opcode: Next P1 P2 * P4 P5
+							//
+							// Advance cursor P1 so that it points to the next key/data pair in its table or index.  If there are no more key/value pairs then fall through
+							// to the following instruction.  But if the cursor advance was successful, jump immediately to P2.
+							//
+							// The P1 cursor must be for a real table, not a pseudo-table.
+							//
+							// P4 is always of type P4T_ADVANCE. The function pointer points to sqlite3BtreeNext().
+							//
+							// If P5 is positive and the jump is taken, then event counter number P5-1 in the prepared statement is incremented.
+							//
+							// See also: Prev
+							//
+							// Opcode: Prev P1 P2 * * P5
+							//
+							// Back up cursor P1 so that it points to the previous key/data pair in its table or index.  If there is no previous key/value pairs then fall through
+							// to the following instruction.  But if the cursor backup was successful, jump immediately to P2.
+							//
+							// The P1 cursor must be for a real table, not a pseudo-table.
+							//
+							// P4 is always of type P4T_ADVANCE. The function pointer points to sqlite3BtreePrevious().
+							//
+							// If P5 is positive and the jump is taken, then event counter number P5-1 in the prepared statement is incremented.
 				CHECK_FOR_INTERRUPT;
-				assert( op->P1>=0 && op->P1<p->nCursor );
-				assert( op->P5<=ArraySize(p->aCounter) );
-				cur = p->apCsr[op->P1];
-				if( cur==0 ){
-					break;  /* See ticket #2273 */
+				_assert(op->P1 >= 0 && op->P1 < Cursors.length);
+				_assert(op->P5 <= _lengthof(Counters.data));
+				VdbeCursor *cur = Cursors[op->P1];
+				if (cur)
+					break; // See ticket #2273
+				_assert(cur->IsSorter == (op->Opcode == OP_SorterNext));
+				int res;
+				if (IsSorter(cur))
+				{
+					_assert(op->Opcode == OP_SorterNext);
+					rc = SorterNext(ctx, cur, &res);
 				}
-				assert( cur->isSorter==(op->opcode==OP_SorterNext) );
-				if( isSorter(cur) ){
-					assert( op->opcode==OP_SorterNext );
-					rc = sqlite3VdbeSorterNext(ctx, cur, &res);
-				}else{
+				else
+				{
 					res = 1;
-					assert( cur->deferredMoveto==0 );
-					assert( cur->pCursor );
-					assert( op->opcode!=OP_Next || op->P4.xAdvance==sqlite3BtreeNext );
-					assert( op->opcode!=OP_Prev || op->P4.xAdvance==sqlite3BtreePrevious );
-					rc = op->P4.xAdvance(cur->pCursor, &res);
+					_assert(!cur->DeferredMoveto);
+					_assert(cur->Cursor);
+					_assert(op->Opcode != OP_Next || op->P4.Advance == Btree::Next_);
+					_assert(op->Opcode != OP_Prev || op->P4.Advance == Btree::Previous);
+					rc = op->P4.Advance(cur->Cursor, &res);
 				}
-				cur->nullRow = (u8)res;
-				cur->cacheStatus = CACHE_STALE;
-				if( res==0 ){
+				cur->NullRow = (res != 0);
+				cur->CacheStatus = CACHE_STALE;
+				if (res == 0)
+				{
 					pc = op->P2 - 1;
-					if( op->P5 ) p->aCounter[op->P5-1]++;
-#ifdef SQLITE_TEST
-					sqlite3_search_count++;
+					if (op->P5) Counters[op->P5-1]++;
+#ifdef TEST
+					g_search_count++;
 #endif
 				}
-				cur->rowidIsValid = 0;
-				break;
-						  }
+				cur->RowidIsValid = false;
+				break; }
+
+#if 0
+#pragma region Index
 
 						  /* Opcode: IdxInsert P1 P2 P3 * P5
 						  **
@@ -3782,6 +3659,7 @@ op_column_out:
 				}
 				break;
 						   }
+#pragma endregion
 
 						   /* Opcode: Destroy P1 P2 P3 * *
 						   **
@@ -4803,8 +4681,8 @@ op_column_out:
 				//
 				// P4 is a pointer to a virtual table object, an sqlite3_vtab structure. P1 is a cursor number.  This opcode opens a cursor to the virtual
 				// table and stores that cursor in P1.
-				VTable *vtable = op->P4.VTable->IVTable;
-				ITableModule *module = (ITableModule *)vtable->Module;
+				IVTable *vtable = op->P4.VTable->IVTable;
+				ITableModule *module = (ITableModule *)vtable->IModule;
 				_assert(vtable && module);
 				IVTableCursor *vtabCursor = nullptr;
 				rc = module->Open(vtable, &vtabCursor);
@@ -4812,14 +4690,14 @@ op_column_out:
 				if (rc == RC_OK)
 				{
 					// Initialize sqlite3_vtab_cursor base class
-					vtabCursor->Vtable = vtable;
+					vtabCursor->IVTable = vtable;
 
 					// Initialize vdbe cursor object
 					VdbeCursor *cur = AllocateCursor(this, op->P1, 0, -1, false);
 					if (cur)
 					{
 						cur->VtabCursor = vtabCursor;
-						cur->Module = vtabCursor->Vtab->Module;
+						cur->IModule = vtabCursor->IVTable->IModule;
 					}
 					else
 					{
@@ -4848,8 +4726,8 @@ op_column_out:
 				_assert(MemIsValid(query));
 				REGISTER_TRACE(op->P3, query);
 				_assert(cur->VtabCursor);
-				sqlite3_vtab_cursor *vtabCursor = cur->VtabCursor;
-				sqlite3_vtab *vtable = vtabCursor->IVTable;
+				IVTableCursor *vtabCursor = cur->VtabCursor;
+				IVTable *vtable = vtabCursor->IVTable;
 				const ITableModule *module = vtable->IModule;
 
 				// Grab the index number and argc parameters
@@ -4869,7 +4747,7 @@ op_column_out:
 					InVtabMethod = 1;
 					rc = module->Filter(vtabCursor, queryLength, op->P4.Z, argsLength, args);
 					InVtabMethod = 0;
-					ImportVtabErrMsg(p, vtable);
+					ImportVtabErrMsg(this, vtable);
 					if (rc == RC_OK)
 						res = module->Eof(vtabCursor);
 
@@ -4883,8 +4761,8 @@ op_column_out:
 				//
 				// Store the value of the P2-th column of the row of the virtual-table that the P1 cursor is pointing to into register P3.
 				VdbeCursor *cur = Cursors[op->P1];
-				assert(cur->pVtabCursor);
-				assert(op->P3 > 0 && op->P3 <= Mems.length);
+				_assert(cur->VtabCursor);
+				_assert(op->P3 > 0 && op->P3 <= Mems.length);
 				Mem *dest = &mems[op->P3];
 				MemAboutToChange(this, dest);
 				if (cur->NullRow)
@@ -4892,9 +4770,9 @@ op_column_out:
 					MemSetNull(dest);
 					break;
 				}
-				sqlite3_vtab *vtable = cur->VtabCursor->Vtable;
-				const sqlite3_module *module = vtable->Module;
-				assert(module->Column);
+				IVTable *vtable = cur->VtabCursor->IVTable;
+				const ITableModule *module = vtable->IModule;
+				_assert(module->Column);
 				FuncContext sContext;
 				_memset(&sContext, 0, sizeof(sContext));
 
@@ -4909,7 +4787,7 @@ op_column_out:
 					rc = sContext.IsError;
 
 				// Copy the result of the function to the P3 register. We do this regardless of whether or not an error occurred to ensure any
-				// dynamic allocation in sContext.s (a Mem struct) is  released.
+				// dynamic allocation in sContext.s (a Mem struct) is released.
 				ChangeEncoding(&sContext.S, encoding);
 				MemMove(dest, &sContext.S);
 				REGISTER_TRACE(op->P3, dest);
@@ -4928,8 +4806,8 @@ op_column_out:
 				_assert(cur->VtabCursor);
 				if (cur->NullRow)
 					break;
-				sqlite3_vtab *vtable = cur->VtabCursor->Vtable;
-				const sqlite3_module *module = vtable->Module;
+				IVTable *vtable = cur->VtabCursor->IVTable;
+				const ITableModule *module = vtable->IModule;
 				_assert(module->Next);
 
 				// Invoke the xNext() method of the module. There is no way for the underlying implementation to return an error if one occurs during
@@ -4941,6 +4819,7 @@ op_column_out:
 				ImportVtabErrMsg(this, vtable);
 				if (rc == RC_OK)
 					res = module->Eof(cur->VtabCursor);
+
 				if (!res)
 					pc = op->P2 - 1; // If there is data, jump to P2
 				break; }
@@ -4949,9 +4828,9 @@ op_column_out:
 				//
 				// P4 is a pointer to a virtual table object, an sqlite3_vtab structure. This opcode invokes the corresponding xRename method. The value
 				// in register P1 is passed as the zName argument to the xRename method.
-				sqlite3_vtab *vtable = op->P4.Vtable->Vtable;
+				IVTable *vtable = op->P4.VTable->IVTable;
 				Mem *name = &mems[op->P1];
-				_assert(vtable->Module->Rename);
+				_assert(vtable->IModule->Rename);
 				_assert(MemIsValid(name));
 				REGISTER_TRACE(op->P1, name);
 				_assert(name->Flags & MEM_Str);
@@ -4961,7 +4840,7 @@ op_column_out:
 				rc = ChangeEncoding(name, TEXTENCODE_UTF8);
 				if (rc == RC_OK)
 				{
-					rc = vtable->Module->Rename(vtable, name->Z);
+					rc = vtable->IModule->Rename(vtable, name->Z);
 					ImportVtabErrMsg(this, vtable);
 					Expired = false;
 				}
@@ -4983,13 +4862,13 @@ op_column_out:
 				// P1 is a boolean flag. If it is set to true and the xUpdate call is successful, then the value returned by sqlite3_last_insert_rowid() 
 				// is set to the value of the rowid for the row just inserted.
 				_assert(op->P2 == 1 || op->P5 == OE_Fail || op->P5 == OE_Rollback || op->P5 == OE_Abort || op->P5 == OE_Ignore || op->P5 == OE_Replace);
-				sqlite3_vtab *vtable = op->P4.Vtable->Vtable;
-				sqlite3_module *module = (sqlite3_module *)vtable->Module;
+				IVTable *vtable = op->P4.VTable->IVTable;
+				ITableModule *module = (ITableModule *)vtable->IModule;
 				int argsLength = op->P2;
 				_assert(op->P4Type == Vdbe::P4T_VTAB);
 				if (_ALWAYS(module->Update))
 				{
-					OE vtabOnConflict = ctx->VtabOnConflict;
+					uint8 vtabOnConflict = ctx->VTableOnConflict;
 					Mem **args = Args;
 					Mem *x = &mems[op->P3];
 					for (int i = 0; i < argsLength; i++)
@@ -5000,22 +4879,22 @@ op_column_out:
 						args[i] = x;
 						x++;
 					}
-					ctx->VtabOnConflict = op->P5;
+					ctx->VTableOnConflict = op->P5;
 					int64 rowid;
 					rc = module->Update(vtable, argsLength, args, &rowid);
-					ctx->VtabOnConflict = vtabOnConflict;
+					ctx->VTableOnConflict = vtabOnConflict;
 					ImportVtabErrMsg(this, vtable);
 					if (rc == RC_OK && op->P1)
 					{
 						_assert(argsLength > 1 && args[0] && (args[0]->Flags & MEM_Null));
-						ctx->LastRowid = lastRowid = rowid;
+						ctx->LastRowID = lastRowid = rowid;
 					}
-					if ((rc&0xff) == SQLITE_CONSTRAINT && op->P4.Vtable->Constraint)
+					if ((rc&0xff) == RC_CONSTRAINT && op->P4.VTable->Constraint)
 					{
 						if (op->P5 == OE_Ignore)
-							rc = SQLITE_OK;
+							rc = RC_OK;
 						else
-							ErrorAction = (op->P5 == OE_Replace ? OE_Abort : op->P5);
+							ErrorAction = (op->P5 == OE_Replace ? OE_Abort : (OE)op->P5);
 					}
 					else
 						Changes++;
@@ -5029,7 +4908,7 @@ op_column_out:
 				// Opcode: Pagecount P1 P2 * * *
 				//
 				// Write the current number of pages in database P1 to memory cell P2.
-				out_->u.I = Btree::LastPage(ctx->DBs[op->P1].Bt);
+				out_->u.I = ctx->DBs[op->P1].Bt->LastPage();
 				break; }
 			case OP_MaxPgcnt: { // out2-prerelease
 				// Opcode: MaxPgcnt P1 P2 P3 * *
@@ -5042,10 +4921,10 @@ op_column_out:
 				unsigned int newMax = 0;
 				if (op->P3)
 				{
-					newMax = Btree::LastPage(bt);
+					newMax = bt->LastPage();
 					if (newMax < (unsigned)op->P3) newMax = (unsigned)op->P3;
 				}
-				out_->u.I = Btree::MaxPageCount(bt, newMax);
+				out_->u.I = bt->MaxPageCount(newMax);
 				break; }
 #endif
 #ifndef OMIT_TRACE

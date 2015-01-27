@@ -38,9 +38,9 @@ namespace Core
 
         public enum STMTSTATUS : byte
         {
-            STMTSTATUS_FULLSCAN_STEP = 1,
-            STMTSTATUS_SORT = 2,
-            STMTSTATUS_AUTOINDEX = 3,
+            FULLSCAN_STEP = 1,
+            SORT = 2,
+            AUTOINDEX = 3,
         }
 
         public enum P4T : sbyte

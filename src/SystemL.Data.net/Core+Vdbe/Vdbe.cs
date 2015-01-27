@@ -2680,9 +2680,6 @@ namespace Core
                             Cursors[op.P1] = null;
                             break;
                         }
-
-
-
                     case OP.SeekLt: // jump, in3
                     case OP.SeekLe: // jump, in3
                     case OP.SeekGe: // jump, in3
@@ -3231,525 +3228,441 @@ namespace Core
                             out_.u.I = (long)v;
                             break;
                         }
+                    case OP.Insert:
+                    case OP.InsertInt:
+                        {
+                            // Opcode: Insert P1 P2 P3 P4 P5
+                            //
+                            // Write an entry into the table of cursor P1.  A new entry is created if it doesn't already exist or the data for an existing
+                            // entry is overwritten.  The data is the value MEM_Blob stored in register number P2. The key is stored in register P3. The key must
+                            // be a MEM_Int.
+                            //
+                            // If the OPFLAG_NCHANGE flag of P5 is set, then the row change count is incremented (otherwise not).  If the OPFLAG_LASTROWID flag of P5 is set,
+                            // then rowid is stored for subsequent return by the sqlite3_last_insert_rowid() function (otherwise it is unmodified).
+                            //
+                            // If the OPFLAG_USESEEKRESULT flag of P5 is set and if the result of the last seek operation (OP_NotExists) was a success, then this
+                            // operation will not attempt to find the appropriate row before doing the insert but will instead overwrite the row that the cursor is
+                            // currently pointing to.  Presumably, the prior OP_NotExists opcode has already positioned the cursor correctly.  This is an optimization
+                            // that boosts performance by avoiding redundant seeks.
+                            //
+                            // If the OPFLAG_ISUPDATE flag is set, then this opcode is part of an UPDATE operation.  Otherwise (if the flag is clear) then this opcode
+                            // is part of an INSERT operation.  The difference is only important to the update hook.
+                            //
+                            // Parameter P4 may point to a string containing the table-name, or may be NULL. If it is not NULL, then the update-hook 
+                            // (sqlite3.xUpdateCallback) is invoked following a successful insert.
+                            //
+                            // (WARNING/TODO: If P1 is a pseudo-cursor and P2 is dynamically allocated, then ownership of P2 is transferred to the pseudo-cursor
+                            // and register P2 becomes ephemeral.  If the cursor is changed, the value of register P2 will then change.  Make sure this does not
+                            // cause any problems.)
+                            //
+                            // This instruction only works on tables.  The equivalent instruction for indices is OP_IdxInsert.
+                            //
+                            // Opcode: InsertInt P1 P2 P3 P4 P5
+                            //
+                            // This works exactly like OP_Insert except that the key is the integer value P3, not the value of the integer stored in register P3.
+                            Mem data = mems[op.P2]; // MEM cell holding data for the record to be inserted
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            Debug.Assert(E.MemIsValid(data));
+                            VdbeCursor cur = Cursors[op.P1]; // Cursor to table into which insert is written
+                            Debug.Assert(cur != null);
+                            Debug.Assert(cur.Cursor != null);
+                            Debug.Assert(cur.PseudoTableReg == 0);
+                            Debug.Assert(cur.IsTable);
+                            REGISTER_TRACE(op.P2, data);
 
+                            long keyId; // The integer ROWID or key for the record to be inserted
+                            if (op.Opcode == OP.Insert)
+                            {
+                                Mem key = mems[op.P3]; // MEM cell holding key  for the record
+                                Debug.Assert((key.Flags & MEM.Int) != 0);
+                                Debug.Assert(E.MemIsValid(key));
+                                REGISTER_TRACE(op.P3, key);
+                                keyId = key.u.I;
+                            }
+                            else
+                            {
+                                Debug.Assert(op.Opcode == OP.InsertInt);
+                                keyId = op.P3;
+                            }
+
+                            if (((OPFLAG)op.P5 & OPFLAG.NCHANGE) != 0) Changes++;
+                            if (((OPFLAG)op.P5 & OPFLAG.LASTROWID) != 0) ctx.LastRowID = lastRowid = keyId;
+                            if ((data.Flags & MEM.Null) != 0)
+                            {
+                                data.Z_ = null;
+                                data.Z = null;
+                                data.N = 0;
+                            }
+                            else
+                                Debug.Assert((data.Flags & (MEM.Blob | MEM.Str)) != 0);
+                            int seekResult = (((OPFLAG)op.P5 & OPFLAG.USESEEKRESULT) != 0 ? cur.SeekResult : 0); // Result of prior seek or 0 if no USESEEKRESULT flag
+                            int zeros = ((data.Flags & MEM.Zero) != 0 ? data.u.Zeros : 0); // Number of zero-bytes to append
+                            rc = Btree.Insert(cur.Cursor, null, keyId, data.Z_, data.N, zeros, ((OPFLAG)op.P5 & OPFLAG.APPEND) != 0 ? 1 : 0, seekResult);
+                            cur.RowidIsValid = false;
+                            cur.DeferredMoveto = false;
+                            cur.CacheStatus = CACHE_STALE;
+
+                            // Invoke the update-hook if required.
+                            if (rc == RC.OK && ctx.UpdateCallback != null && op.P4.Z != null)
+                            {
+                                string dbName = ctx.DBs[cur.Db].Name; // database name - used by the update hook
+                                string tableName = op.P4.Z; // Table name - used by the opdate hook
+                                int op2 = (((OPFLAG)op.P5 & OPFLAG.ISUPDATE) != 0 ? AUTH.UPDATE : AUTH.INSERT); // Opcode for update hook: SQLITE_UPDATE or SQLITE_INSERT
+                                Debug.Assert(cur.IsTable);
+                                ctx.UpdateCallback(ctx.UpdateArg, op2, dbName, tableName, keyId);
+                                Debug.Assert(cur.Db >= 0);
+                            }
+                            break;
+                        }
+                    case OP.Delete:
+                        {
+                            // Opcode: Delete P1 P2 * P4 *
+                            //
+                            // Delete the record at which the P1 cursor is currently pointing.
+                            //
+                            // The cursor will be left pointing at either the next or the previous record in the table. If it is left pointing at the next record, then
+                            // the next Next instruction will be a no-op.  Hence it is OK to delete a record from within an Next loop.
+                            //
+                            // If the OPFLAG_NCHANGE flag of P2 is set, then the row change count is incremented (otherwise not).
+                            //
+                            // P1 must not be pseudo-table.  It has to be a real table with multiple rows.
+                            //
+                            // If P4 is not NULL, then it is the name of the table that P1 is pointing to.  The update hook will be invoked, if it exists.
+                            // If P4 is not NULL then the P1 cursor must have been positioned using OP_NotFound prior to invoking this opcode.
+                            long keyId = 0;
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur != null);
+                            Debug.Assert(cur.Cursor != null); // Only valid for real tables, no pseudotables
+
+                            // If the update-hook will be invoked, set iKey to the rowid of the row being deleted.
+                            if (ctx.UpdateCallback != null && op.P4.Z != null)
+                            {
+                                Debug.Assert(cur.IsTable);
+                                Debug.Assert(cur.RowidIsValid); // lastRowid set by previous OP_NotFound
+                                keyId = cur.LastRowid;
+                            }
+
+                            // The OP_Delete opcode always follows an OP_NotExists or OP_Last or OP_Column on the same table without any intervening operations that
+                            // might move or invalidate the cursor.  Hence cursor cur is always pointing to the row to be deleted and the sqlite3VdbeCursorMoveto() operation
+                            // below is always a no-op and cannot fail.  We will run it anyhow, though, to guard against future changes to the code generator.
+                            Debug.Assert(!cur.DeferredMoveto);
+                            rc = CursorMoveto(cur);
+                            if (C._NEVER(rc != RC.OK)) goto abort_due_to_error;
+
+                            Btree.SetCachedRowid(cur.Cursor, 0);
+                            rc = Btree.Delete(cur.Cursor);
+                            cur.CacheStatus = CACHE_STALE;
+
+                            // Invoke the update-hook if required.
+                            if (rc == RC.OK && ctx.UpdateCallback != null && op.P4.Z != null)
+                            {
+                                string dbName = ctx.DBs[cur.Db].Name;
+                                string tableName = op.P4.Z;
+                                ctx.UpdateCallback(ctx.UpdateArg, AUTH.DELETE, dbName, tableName, keyId);
+                                Debug.Assert(cur.Db >= 0);
+                            }
+                            if (((OPFLAG)op.P2 & OPFLAG.NCHANGE) != 0) Changes++;
+                            break;
+                        }
+                    case OP.ResetCount:
+                        {
+                            // Opcode: ResetCount * * * * *
+                            //
+                            // The value of the change counter is copied to the database handle change counter (returned by subsequent calls to sqlite3_changes()).
+                            // Then the VMs internal change counter resets to 0. This is used by trigger programs.
+                            SetChanges(ctx, Changes);
+                            Changes = 0;
+                            break;
+                        }
+                    case OP.SorterCompare:
+                        {
+                            // Opcode: SorterCompare P1 P2 P3
+                            //
+                            // P1 is a sorter cursor. This instruction compares the record blob in register P3 with the entry that the sorter cursor currently points to.
+                            // If, excluding the rowid fields at the end, the two records are a match, fall through to the next instruction. Otherwise, jump to instruction P2.
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(IsSorter(cur));
+                            in3 = mems[op.P3];
+                            int res;
+                            rc = SorterCompare(cur, in3, ref res);
+                            if (res != 0)
+                                pc = op.P2 - 1;
+                            break;
+                        };
+                    case OP.SorterData:
+                        {
+                            // Opcode: SorterData P1 P2 * * *
+                            //
+                            // Write into register P2 the current sorter data for sorter cursor P1.
+                            out_ = mems[op.P2];
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur.IsSorter);
+                            rc = SorterRowkey(cur, out_);
+                            break;
+                        }
+                    case OP.RowKey:
+                    case OP.RowData:
+                        {
+                            // Opcode: RowData P1 P2 * * *
+                            //
+                            // Write into register P2 the complete row data for cursor P1. There is no interpretation of the data.  
+                            // It is just copied onto the P2 register exactly as it is found in the database file.
+                            //
+                            // If the P1 cursor must be pointing to a valid row (not a NULL row) of a real table, not a pseudo-table.
+                            //
+                            // Opcode: RowKey P1 P2 * * *
+                            //
+                            // Write into register P2 the complete row key for cursor P1. There is no interpretation of the data.  
+                            // The key is copied onto the P3 register exactly as it is found in the database file.
+                            //
+                            // If the P1 cursor must be pointing to a valid row (not a NULL row) of a real table, not a pseudo-table.
+                            out_ = mems[op.P2];
+                            MemAboutToChange(this, out_);
+
+                            // Note that RowKey and RowData are really exactly the same instruction
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(!cur.IsSorter);
+                            Debug.Assert(cur.IsTable || op.Opcode == OP.RowKey);
+                            Debug.Assert(cur.IsIndex || op.Opcode == OP.RowData);
+                            Debug.Assert(cur != null);
+                            Debug.Assert(!cur.NullRow);
+                            Debug.Assert(cur.PseudoTableReg == false);
+                            Debug.Assert(cur.Cursor != null);
+                            Btree.BtCursor crsr = cur.Cursor;
+                            Debug.Assert(Btree.CursorIsValid(crsr));
+
+                            // The OP_RowKey and OP_RowData opcodes always follow OP_NotExists or OP_Rewind/Op_Next with no intervening instructions that might invalidate
+                            // the cursor.  Hence the following sqlite3VdbeCursorMoveto() call is always a no-op and can never fail.  But we leave it in place as a safety.
+                            Debug.Assert(!cur.DeferredMoveto);
+                            rc = CursorMoveto(cur);
+                            if (C._NEVER(rc != RC.OK)) goto abort_due_to_error;
+
+                            uint n = 0;
+                            long n64 = 0;
+                            if (cur.IsIndex)
+                            {
+                                Debug.Assert(!cur.IsTable);
+                                rc = Btree.KeySize(crsr, ref n64);
+                                Debug.Assert(rc == RC.OK); // True because of CursorMoveto() call above
+                                if (n64 > ctx.Limits[(int)LIMIT.LENGTH])
+                                    goto too_big;
+                                n = (uint)n64;
+                            }
+                            else
+                            {
+                                rc = Btree.DataSize(crsr, ref n);
+                                Debug.Assert(rc == RC.OK); // DataSize() cannot fail
+                                if (n > (uint)ctx.Limits[(int)LIMIT.LENGTH])
+                                    goto too_big;
+                            }
+                            if (MemGrow(out_, (int)n, false) != 0)
+                                goto no_mem;
+                            out_.N = (int)n;
+                            E.MemSetTypeFlag(out_, MEM.Blob);
+                            rc = (cur.IsIndex ? Btree.Key(crsr, 0, n, (out_.Z_ = C._alloc((int)n))) : Btree.Data(crsr, 0, (uint)n, (out_.Z_ = C._alloc((int)crsr.Info.Data))));
+                            out_.Encode = TEXTENCODE.UTF8; // In case the blob is ever cast to text
+                            UPDATE_MAX_BLOBSIZE(out_);
+                            break;
+                        }
+                    case OP.Rowid: // out2-prerelease
+                        {
+                            // Opcode: Rowid P1 P2 * * *
+                            //
+                            // Store in register P2 an integer which is the key of the table entry that P1 is currently point to.
+                            //
+                            // P1 can be either an ordinary table or a virtual table.  There used to be a separate OP_VRowid opcode for use with virtual tables, but this
+                            // one opcode now works for both table types.
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur != null);
+                            Debug.Assert(cur.PseudoTableReg == 0 || cur.NullRow);
+                            long v = 0;
+                            if (cur.NullRow)
+                            {
+                                out_.Flags = MEM.Null;
+                                break;
+                            }
+                            else if (cur.DeferredMoveto)
+                            {
+                                v = cur.MovetoTarget;
+#if !OMIT_VIRTUALTABLE
+                            }
+                            else if (cur.VtabCursor != null)
+                            {
+                                IVTable vtable = cur.VtabCursor.IVTable;
+                                ITableModule module = vtable.IModule;
+                                Debug.Assert(module.Rowid != null);
+                                rc = module.Rowid(cur.VtabCursor, out v);
+                                ImportVtabErrMsg(this, vtable);
+#endif
+                            }
+                            else
+                            {
+                                Debug.Assert(cur.Cursor != null);
+                                rc = CursorMoveto(cur);
+                                if (rc != 0) goto abort_due_to_error;
+                                if (cur.RowidIsValid)
+                                    v = cur.LastRowid;
+                                else
+                                {
+                                    rc = Btree.KeySize(cur.Cursor, ref v);
+                                    Debug.Assert(rc == RC.OK); // Always so because of CursorMoveto() abov
+                                }
+                            }
+                            out_.u.I = (long)v;
+                            break;
+                        }
+                    case OP.NullRow:
+                        {
+                            // Opcode: NullRow P1 * * * *
+                            //
+                            // Move the cursor P1 to a null row.  Any OP_Column operations that occur while the cursor is on the null row will always write a NULL.
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur != null);
+                            cur.NullRow = true;
+                            cur.RowidIsValid = false;
+                            if (cur.Cursor != null)
+                                Btree.ClearCursor(cur.Cursor);
+                            break;
+                        }
+                    case OP.Last: // jump
+                        {
+                            // Opcode: Last P1 P2 * * *
+                            //
+                            // The next use of the Rowid or Column or Next instruction for P1 will refer to the last entry in the database table or index.
+                            // If the table or index is empty and P2>0, then jump immediately to P2. If P2 is 0 or if the table or index is not empty, fall through
+                            // to the following instruction.
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur != null);
+                            Debug.Assert(cur.IsSorter == (op.Opcode == OP.SorterSort));
+                            Btree.BtCursor crsr = cur.Cursor;
+                            int res = 0;
+                            if (C._ALWAYS(crsr != null))
+                                rc = Btree.Last(crsr, ref res);
+                            cur.NullRow = (res == 1);
+                            cur.DeferredMoveto = false;
+                            cur.RowidIsValid = false;
+                            cur.CacheStatus = CACHE_STALE;
+                            if (op.P2 > 0 && res != 0)
+                                pc = op.P2 - 1;
+                            break;
+                        }
+                    case OP.SorterSort: // jump
+                    case OP.Sort: // jump
+                        {
+                            // Opcode: Sort P1 P2 * * *
+                            //
+                            // This opcode does exactly the same thing as OP_Rewind except that it increments an undocumented global variable used for testing.
+                            //
+                            // Sorting is accomplished by writing records into a sorting index, then rewinding that index and playing it back from beginning to
+                            // end.  We use the OP_Sort opcode instead of OP_Rewind to do the rewinding so that the global variable will be incremented and
+                            // regression tests can determine whether or not the optimizer is correctly optimizing out sorts.
+#if TEST
+                            g_sort_count++;
+                            g_search_count--;
+#endif
+                            Counters[(int)STMTSTATUS.SORT - 1]++;
+                            // Fall through into OP_Rewind
+                            goto case OP.Rewind;
+                        }
+                    case OP.Rewind: // jump
+                        {
+                            // Opcode: Rewind P1 P2 * * *
+                            //
+                            // The next use of the Rowid or Column or Next instruction for P1 will refer to the first entry in the database table or index.
+                            // If the table or index is empty and P2>0, then jump immediately to P2. If P2 is 0 or if the table or index is not empty, fall through
+                            // to the following instruction.
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur != null);
+                            int res = 1;
+                            if (IsSorter(cur))
+                                rc = SorterRewind(ctx, cur, ref res);
+                            else
+                            {
+                                Btree.BtCursor crsr = cur.Cursor;
+                                Debug.Assert(crsr != null);
+                                rc = Btree.First(crsr, ref res);
+                                cur.AtFirst = (res == 0);
+                                cur.DeferredMoveto = false;
+                                cur.CacheStatus = CACHE_STALE;
+                                cur.RowidIsValid = false;
+                            }
+                            cur.NullRow = (res != 0);
+                            Debug.Assert(op.P2 > 0 && op.P2 < Ops.length);
+                            if (res != 0)
+                                pc = op.P2 - 1;
+                            break;
+                        }
+                    case OP.SorterNext: // jump
+                    case OP.Prev: // jump
+                    case OP.Next: // jump
+                        {
+                            // Opcode: Next P1 P2 * P4 P5
+                            //
+                            // Advance cursor P1 so that it points to the next key/data pair in its table or index.  If there are no more key/value pairs then fall through
+                            // to the following instruction.  But if the cursor advance was successful, jump immediately to P2.
+                            //
+                            // The P1 cursor must be for a real table, not a pseudo-table.
+                            //
+                            // P4 is always of type P4T_ADVANCE. The function pointer points to sqlite3BtreeNext().
+                            //
+                            // If P5 is positive and the jump is taken, then event counter number P5-1 in the prepared statement is incremented.
+                            //
+                            // See also: Prev
+                            //
+                            // Opcode: Prev P1 P2 * * P5
+                            //
+                            // Back up cursor P1 so that it points to the previous key/data pair in its table or index.  If there is no previous key/value pairs then fall through
+                            // to the following instruction.  But if the cursor backup was successful, jump immediately to P2.
+                            //
+                            // The P1 cursor must be for a real table, not a pseudo-table.
+                            //
+                            // P4 is always of type P4T_ADVANCE. The function pointer points to sqlite3BtreePrevious().
+                            //
+                            // If P5 is positive and the jump is taken, then event counter number P5-1 in the prepared statement is incremented.
+                            CHECK_FOR_INTERRUPT;
+                            Debug.Assert(op.P1 >= 0 && op.P1 < Cursors.length);
+                            Debug.Assert(op.P5 <= Counters.Length);
+                            VdbeCursor cur = Cursors[op.P1];
+                            if (cur == null)
+                                break; // See ticket #2273
+                            Debug.Assert(cur.IsSorter == (op.Opcode == OP.SorterNext));
+                            int res;
+                            if (IsSorter(cur))
+                            {
+                                Debug.Assert(op.Opcode == OP.SorterNext);
+                                rc = SorterNext(ctx, cur, ref res);
+                            }
+                            else
+                            {
+                                res = 1;
+                                Debug.Assert(!cur.DeferredMoveto);
+                                Debug.Assert(cur.Cursor != null);
+                                Debug.Assert(op.Opcode != OP.Next || op.P4.Advance == Btree.Next_);
+                                Debug.Assert(op.Opcode != OP.Prev || op.P4.Advance == Btree.Previous);
+                                rc = op.P4.Advance(cur.Cursor, res);
+                            }
+                            cur.NullRow = (res != 0);
+                            cur.CacheStatus = CACHE_STALE;
+                            if (res == 0)
+                            {
+                                pc = op.P2 - 1;
+                                if (op.P5) Counters[op.P5 - 1]++;
+#if TEST
+                                g_search_count++;
+#endif
+                            }
+                            cur.RowidIsValid = false;
+                            break;
+                        }
 
 #if false
-          case OP_Insert:
-          case OP_InsertInt:
-            {
-              Mem pData;        /* MEM cell holding data for the record to be inserted */
-              Mem pKey;         /* MEM cell holding key  for the record */
-              i64 iKey;         /* The integer ROWID or key for the record to be inserted */
-              VdbeCursor pC;    /* Cursor to table into which insert is written */
-              int nZero;        /* Number of zero-bytes to append */
-              int seekResult;   /* Result of prior seek or 0 if no USESEEKRESULT flag */
-              string zDb;       /* database name - used by the update hook */
-              string zTbl;      /* Table name - used by the opdate hook */
-              int op;           /* Opcode for update hook: SQLITE_UPDATE or SQLITE_INSERT */
-
-              pData = mems[op.P2];
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              Debug.Assert( memIsValid( pData ) );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              Debug.Assert( pC.pCursor != null );
-              Debug.Assert( pC.pseudoTableReg == 0 );
-              Debug.Assert( pC.isTable );
-              REGISTER_TRACE( p, op.P2, pData );
-
-              if ( op.opcode == OP_Insert )
-              {
-                pKey = mems[op.P3];
-                Debug.Assert( ( pKey.flags & MEM_Int ) != 0 );
-                Debug.Assert( memIsValid( pKey ) );
-                REGISTER_TRACE( p, op.P3, pKey );
-                iKey = pKey.u.i;
-              }
-              else
-              {
-                Debug.Assert( op.opcode == OP_InsertInt );
-                iKey = op.P3;
-              }
-
-              if ( ( op.P5 & OPFLAG_NCHANGE ) != 0 )
-                p.nChange++;
-              if ( ( op.P5 & OPFLAG_LASTROWID ) != 0 )
-                ctx.lastRowid = lastRowid = iKey;
-              if ( ( pData.flags & MEM_Null ) != 0 )
-              {
-                sqlite3_free( ref pData.zBLOB );
-                pData.z = null;
-                pData.n = 0;
-              }
-              else
-              {
-                Debug.Assert( ( pData.flags & ( MEM_Blob | MEM_Str ) ) != 0 );
-              }
-              seekResult = ( ( op.P5 & OPFLAG_USESEEKRESULT ) != 0 ? pC.seekResult : 0 );
-              if ( ( pData.flags & MEM_Zero ) != 0 )
-              {
-                nZero = pData.u.nZero;
-              }
-              else
-              {
-                nZero = 0;
-              }
-              rc = sqlite3BtreeInsert( pC.pCursor, null, iKey,
-              pData.zBLOB
-              , pData.n, nZero,
-              ( op.P5 & OPFLAG_APPEND ) != 0 ? 1 : 0, seekResult
-              );
-
-              pC.rowidIsValid = false;
-              pC.deferredMoveto = false;
-              pC.cacheStatus = CACHE_STALE;
-
-              /* Invoke the update-hook if required. */
-              if ( rc == SQLITE_OK && ctx.xUpdateCallback != null && op.P4.z != null )
-              {
-                zDb = ctx.aDb[pC.iDb].zName;
-                zTbl = op.P4.z;
-                op = ( ( op.P5 & OPFLAG_ISUPDATE ) != 0 ? SQLITE_UPDATE : SQLITE_INSERT );
-                Debug.Assert( pC.isTable );
-                ctx.xUpdateCallback( ctx.pUpdateArg, op, zDb, zTbl, iKey );
-                Debug.Assert( pC.iDb >= 0 );
-              }
-              break;
-            }
-
-          /* Opcode: Delete P1 P2 * P4 *
-          **
-          ** Delete the record at which the P1 cursor is currently pointing.
-          **
-          ** The cursor will be left pointing at either the next or the previous
-          ** record in the table. If it is left pointing at the next record, then
-          ** the next Next instruction will be a no-op.  Hence it is OK to delete
-          ** a record from within an Next loop.
-          **
-          ** If the OPFLAG_NCHANGE flag of P2 is set, then the row change count is
-          ** incremented (otherwise not).
-          **
-          ** P1 must not be pseudo-table.  It has to be a real table with
-          ** multiple rows.
-          **
-          ** If P4 is not NULL, then it is the name of the table that P1 is
-          ** pointing to.  The update hook will be invoked, if it exists.
-          ** If P4 is not NULL then the P1 cursor must have been positioned
-          ** using OP_NotFound prior to invoking this opcode.
-          */
-          case OP_Delete:
-            {
-              i64 iKey;
-              VdbeCursor pC;
-
-              iKey = 0;
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              Debug.Assert( pC.pCursor != null );  /* Only valid for real tables, no pseudotables */
-
-              /* If the update-hook will be invoked, set iKey to the rowid of the
-              ** row being deleted.
-              */
-              if ( ctx.xUpdateCallback != null && op.P4.z != null )
-              {
-                Debug.Assert( pC.isTable );
-                Debug.Assert( pC.rowidIsValid );  /* lastRowid set by previous OP_NotFound */
-                iKey = pC.lastRowid;
-              }
-
-              /* The OP_Delete opcode always follows an OP_NotExists or OP_Last or
-              ** OP_Column on the same table without any intervening operations that
-              ** might move or invalidate the cursor.  Hence cursor pC is always pointing
-              ** to the row to be deleted and the sqlite3VdbeCursorMoveto() operation
-              ** below is always a no-op and cannot fail.  We will run it anyhow, though,
-              ** to guard against future changes to the code generator.
-              **/
-              Debug.Assert( pC.deferredMoveto == false );
-              rc = sqlite3VdbeCursorMoveto( pC );
-              if ( NEVER( rc != SQLITE_OK ) )
-                goto abort_due_to_error;
-              sqlite3BtreeSetCachedRowid( pC.pCursor, 0 );
-              rc = sqlite3BtreeDelete( pC.pCursor );
-              pC.cacheStatus = CACHE_STALE;
-
-              /* Invoke the update-hook if required. */
-              if ( rc == SQLITE_OK && ctx.xUpdateCallback != null && op.P4.z != null )
-              {
-                string zDb = ctx.aDb[pC.iDb].zName;
-                string zTbl = op.P4.z;
-                ctx.xUpdateCallback( ctx.pUpdateArg, SQLITE_DELETE, zDb, zTbl, iKey );
-                Debug.Assert( pC.iDb >= 0 );
-              }
-              if ( ( op.P2 & OPFLAG_NCHANGE ) != 0 )
-                p.nChange++;
-              break;
-            }
-
-          /* Opcode: ResetCount P1 * *
-          **
-          ** The value of the change counter is copied to the database handle
-          ** change counter (returned by subsequent calls to sqlite3_changes()).
-          ** Then the VMs internal change counter resets to 0.
-          ** This is used by trigger programs.
-          */
-          case OP_ResetCount:
-            {
-              sqlite3VdbeSetChanges( ctx, p.nChange );
-              p.nChange = 0;
-              break;
-            }
-
-          /* Opcode: RowData P1 P2 * * *
-          **
-          ** Write into register P2 the complete row data for cursor P1.
-          ** There is no interpretation of the data.
-          ** It is just copied onto the P2 register exactly as
-          ** it is found in the database file.
-          **
-          ** If the P1 cursor must be pointing to a valid row (not a NULL row)
-          ** of a real table, not a pseudo-table.
-          */
-          /* Opcode: RowKey P1 P2 * * *
-          **
-          ** Write into register P2 the complete row key for cursor P1.
-          ** There is no interpretation of the data.
-          ** The key is copied onto the P3 register exactly as
-          ** it is found in the database file.
-          **
-          ** If the P1 cursor must be pointing to a valid row (not a NULL row)
-          ** of a real table, not a pseudo-table.
-          */
-          case OP_RowKey:
-          case OP_RowData:
-            {
-              VdbeCursor pC;
-              BtCursor crsr;
-              uint32 n;
-              i64 n64;
-
-              n = 0;
-              n64 = 0;
-
-              out_ = mems[op.P2];
-              memAboutToChange( p, out_ );
-
-              /* Note that RowKey and RowData are really exactly the same instruction */
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC.isTable || op.opcode == OP_RowKey );
-              Debug.Assert( pC.isIndex || op.opcode == OP_RowData );
-              Debug.Assert( pC != null );
-              Debug.Assert( pC.nullRow == false );
-              Debug.Assert( pC.pseudoTableReg == 0 );
-              Debug.Assert( pC.pCursor != null );
-              crsr = pC.pCursor;
-              Debug.Assert( sqlite3BtreeCursorIsValid( crsr ) );
-
-              /* The OP_RowKey and OP_RowData opcodes always follow OP_NotExists or
-              ** OP_Rewind/Op_Next with no intervening instructions that might invalidate
-              ** the cursor.  Hence the following sqlite3VdbeCursorMoveto() call is always
-              ** a no-op and can never fail.  But we leave it in place as a safety.
-              */
-              Debug.Assert( pC.deferredMoveto == false );
-              rc = sqlite3VdbeCursorMoveto( pC );
-              if ( NEVER( rc != SQLITE_OK ) )
-                goto abort_due_to_error;
-              if ( pC.isIndex )
-              {
-                Debug.Assert( !pC.isTable );
-                rc = sqlite3BtreeKeySize( crsr, ref n64 );
-                Debug.Assert( rc == SQLITE_OK );    /* True because of CursorMoveto() call above */
-                if ( n64 > ctx.aLimit[SQLITE_LIMIT_LENGTH] )
-                {
-                  goto too_big;
-                }
-                n = (uint32)n64;
-              }
-              else
-              {
-                rc = sqlite3BtreeDataSize( crsr, ref n );
-                Debug.Assert( rc == SQLITE_OK );    /* DataSize() cannot fail */
-                if ( n > (uint32)ctx.aLimit[SQLITE_LIMIT_LENGTH] )
-                {
-                  goto too_big;
-                }
-                if ( sqlite3VdbeMemGrow( out_, (int)n, 0 ) != 0 )
-                {
-                  goto no_mem;
-                }
-              }
-              out_.n = (int)n;
-              if ( pC.isIndex )
-              {
-                out_.zBLOB = sqlite3Malloc( (int)n );
-                rc = sqlite3BtreeKey( crsr, 0, n, out_.zBLOB );
-              }
-              else
-              {
-                out_.zBLOB = sqlite3Malloc( (int)crsr.info.nData );
-                rc = sqlite3BtreeData( crsr, 0, (uint32)n, out_.zBLOB );
-              }
-              MemSetTypeFlag( out_, MEM_Blob );
-              out_.enc = SQLITE_UTF8;  /* In case the blob is ever cast to text */
-#if SQLITE_TEST
-              UPDATE_MAX_BLOBSIZE( out_ );
-#endif
-              break;
-            }
-
-          /* Opcode: Rowid P1 P2 * * *
-          **
-          ** Store in register P2 an integer which is the key of the table entry that
-          ** P1 is currently point to.
-          **
-          ** P1 can be either an ordinary table or a virtual table.  There used to
-          ** be a separate OP_VRowid opcode for use with virtual tables, but this
-          ** one opcode now works for both table types.
-          */
-          case OP_Rowid:
-            {                 /* out2-prerelease */
-              VdbeCursor pC;
-              i64 v;
-              sqlite3_vtab pVtab;
-              sqlite3_module pModule;
-
-              v = 0;
-
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              Debug.Assert( pC.pseudoTableReg == 0 );
-              if ( pC.nullRow )
-              {
-                out_.flags = MEM_Null;
-                break;
-              }
-              else if ( pC.deferredMoveto )
-              {
-                v = pC.movetoTarget;
-#if !SQLITE_OMIT_VIRTUALTABLE
-              }
-              else if ( pC.pVtabCursor!=null )
-              {
-                pVtab = pC.pVtabCursor.pVtab;
-                pModule = pVtab.pModule;
-                Debug.Assert( pModule.xRowid != null );
-                rc = pModule.xRowid( pC.pVtabCursor, out v );
-                importVtabErrMsg( p, pVtab );
-#endif //* SQLITE_OMIT_VIRTUALTABLE */
-              }
-              else
-              {
-                Debug.Assert( pC.pCursor != null );
-                rc = sqlite3VdbeCursorMoveto( pC );
-                if ( rc != 0 )
-                  goto abort_due_to_error;
-                if ( pC.rowidIsValid )
-                {
-                  v = pC.lastRowid;
-                }
-                else
-                {
-                  rc = sqlite3BtreeKeySize( pC.pCursor, ref v );
-                  Debug.Assert( rc == SQLITE_OK );  /* Always so because of CursorMoveto() above */
-                }
-              }
-              out_.u.i = (long)v;
-              break;
-            }
-
-          /* Opcode: NullRow P1 * * * *
-          **
-          ** Move the cursor P1 to a null row.  Any OP_Column operations
-          ** that occur while the cursor is on the null row will always
-          ** write a NULL.
-          */
-          case OP_NullRow:
-            {
-              VdbeCursor pC;
-
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              pC.nullRow = true;
-              pC.rowidIsValid = false;
-              if ( pC.pCursor != null )
-              {
-                sqlite3BtreeClearCursor( pC.pCursor );
-              }
-              break;
-            }
-
-          /* Opcode: Last P1 P2 * * *
-          **
-          ** The next use of the Rowid or Column or Next instruction for P1
-          ** will refer to the last entry in the database table or index.
-          ** If the table or index is empty and P2>0, then jump immediately to P2.
-          ** If P2 is 0 or if the table or index is not empty, fall through
-          ** to the following instruction.
-          */
-          case OP_Last:
-            {        /* jump */
-              VdbeCursor pC;
-              BtCursor crsr;
-              int res = 0;
-
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              crsr = pC.pCursor;
-              if ( crsr == null )
-              {
-                res = 1;
-              }
-              else
-              {
-                rc = sqlite3BtreeLast( crsr, ref res );
-              }
-              pC.nullRow = res == 1 ? true : false;
-              pC.deferredMoveto = false;
-              pC.rowidIsValid = false;
-              pC.cacheStatus = CACHE_STALE;
-              if ( op.P2 > 0 && res != 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              break;
-            }
-
-
-          /* Opcode: Sort P1 P2 * * *
-          **
-          ** This opcode does exactly the same thing as OP_Rewind except that
-          ** it increments an undocumented global variable used for testing.
-          **
-          ** Sorting is accomplished by writing records into a sorting index,
-          ** then rewinding that index and playing it back from beginning to
-          ** end.  We use the OP_Sort opcode instead of OP_Rewind to do the
-          ** rewinding so that the global variable will be incremented and
-          ** regression tests can determine whether or not the optimizer is
-          ** correctly optimizing out sorts.
-          */
-          case OP_Sort:
-            {        /* jump */
-#if SQLITE_TEST
-#if !TCLSH
-              sqlite3_sort_count++;
-              sqlite3_search_count--;
-#else
-              sqlite3_sort_count.iValue++;
-              sqlite3_search_count.iValue--;
-#endif
-#endif
-              p.aCounter[SQLITE_STMTSTATUS_SORT - 1]++;
-              /* Fall through into OP_Rewind */
-              goto case OP_Rewind;
-            }
-          /* Opcode: Rewind P1 P2 * * *
-          **
-          ** The next use of the Rowid or Column or Next instruction for P1
-          ** will refer to the first entry in the database table or index.
-          ** If the table or index is empty and P2>0, then jump immediately to P2.
-          ** If P2 is 0 or if the table or index is not empty, fall through
-          ** to the following instruction.
-          */
-          case OP_Rewind:
-            {        /* jump */
-              VdbeCursor pC;
-              BtCursor crsr;
-              int res = 0;
-
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              pC = p.apCsr[op.P1];
-              Debug.Assert( pC != null );
-              res = 1;
-              if ( ( crsr = pC.pCursor ) != null )
-              {
-                rc = sqlite3BtreeFirst( crsr, ref res );
-                pC.atFirst = res == 0 ? true : false;
-                pC.deferredMoveto = false;
-                pC.cacheStatus = CACHE_STALE;
-                pC.rowidIsValid = false;
-              }
-              pC.nullRow = res == 1 ? true : false;
-              Debug.Assert( op.P2 > 0 && op.P2 < p.nOp );
-              if ( res != 0 )
-              {
-                pc = op.P2 - 1;
-              }
-              break;
-            }
-
-          /* Opcode: Next P1 P2 * * P5
-          **
-          ** Advance cursor P1 so that it points to the next key/data pair in its
-          ** table or index.  If there are no more key/value pairs then fall through
-          ** to the following instruction.  But if the cursor advance was successful,
-          ** jump immediately to P2.
-          **
-          ** The P1 cursor must be for a real table, not a pseudo-table.
-          **
-          ** See also: Prev
-          */
-          /* Opcode: Prev P1 P2 * * *
-          **
-          ** Back up cursor P1 so that it points to the previous key/data pair in its
-          ** table or index.  If there is no previous key/value pairs then fall through
-          ** to the following instruction.  But if the cursor backup was successful,
-          ** jump immediately to P2.
-          **
-          ** The P1 cursor must be for a real table, not a pseudo-table.
-          **
-          ** If P5 is positive and the jump is taken, then event counter
-          ** number P5-1 in the prepared statement is incremented.
-          **
-          */
-          case OP_Prev:          /* jump */
-          case OP_Next:
-            {        /* jump */
-              VdbeCursor pC;
-              BtCursor crsr;
-              int res;
-
-              if ( ctx.u1.isInterrupted )
-                goto abort_due_to_interrupt; //CHECK_FOR_INTERRUPT;
-              Debug.Assert( op.P1 >= 0 && op.P1 < p.nCursor );
-              Debug.Assert( op.P5 <= ArraySize( p.aCounter ) );
-              pC = p.apCsr[op.P1];
-              if ( pC == null )
-              {
-                break;  /* See ticket #2273 */
-              }
-              crsr = pC.pCursor;
-              if ( crsr == null )
-              {
-                pC.nullRow = true;
-                break;
-              }
-              res = 1;
-              Debug.Assert( !pC.deferredMoveto );
-              rc = op.opcode == OP_Next ? sqlite3BtreeNext( crsr, ref res ) :
-              sqlite3BtreePrevious( crsr, ref res );
-              pC.nullRow = res == 1 ? true : false;
-              pC.cacheStatus = CACHE_STALE;
-              if ( res == 0 )
-              {
-                pc = op.P2 - 1;
-                if ( op.P5 != 0 )
-                  p.aCounter[op.P5 - 1]++;
-#if SQLITE_TEST
-#if !TCLSH
-                sqlite3_search_count++;
-#else
-                sqlite3_search_count.iValue++;
-#endif
-#endif
-              }
-              pC.rowidIsValid = false;
-              break;
-            }
-
+                    #region Index
           /* Opcode: IdxInsert P1 P2 P3 * P5
           **
           ** Register P2 holds an SQL index key made using the
@@ -3961,6 +3874,7 @@ namespace Core
               }
               break;
             }
+                    #endregion
 
           /* Opcode: Destroy P1 P2 P3 * *
           **
@@ -5087,8 +5001,8 @@ break;
                             //
                             // P4 is a pointer to a virtual table object, an sqlite3_vtab structure. P1 is a cursor number.  This opcode opens a cursor to the virtual
                             // table and stores that cursor in P1.
-                            VTable vtable = op.P4.VTable.IVTable;
-                            ITableModule module = (ITableModule)vtable.Module;
+                            IVTable vtable = op.P4.VTable.IVTable;
+                            ITableModule module = (ITableModule)vtable.IModule;
                             Debug.Assert(vtable != null && module != null);
                             IVTableCursor vtabCursor;
                             rc = module.Open(vtable, out vtabCursor);
@@ -5096,14 +5010,14 @@ break;
                             if (rc == RC.OK)
                             {
                                 // Initialize sqlite3_vtab_cursor base class
-                                vtabCursor.VTable = vtable;
+                                vtabCursor.IVTable = vtable;
 
                                 // Initialise vdbe cursor object
                                 VdbeCursor cur = AllocateCursor(this, op.P1, 0, -1, false);
                                 if (cur != null)
                                 {
                                     cur.VtabCursor = vtabCursor;
-                                    cur.IModule = vtabCursor.IVTable.Module;
+                                    cur.IModule = vtabCursor.IVTable.IModule;
                                 }
                                 else
                                 {
@@ -5135,8 +5049,8 @@ break;
                             REGISTER_TRACE(op.P3, query);
                             Debug.Assert(cur.VtabCursor != null);
                             IVTableCursor vtabCursor = cur.VtabCursor;
-                            VTable vtable = vtabCursor.IVTable;
-                            ITableModule module = vtable.Module;
+                            IVTable vtable = vtabCursor.IVTable;
+                            ITableModule module = vtable.IModule;
 
                             // Grab the index number and argc parameters
                             Debug.Assert((query.Flags & MEM.Int) != 0 && argc.Flags == MEM.Int);
@@ -5186,147 +5100,132 @@ break;
                             Debug.Assert(module.Column != null);
                             FuncContext sContext = new FuncContext();
 
-                            /* The output cell may already have a buffer allocated. Move
-                            ** the current contents to sContext.s so in case the user-function
-                            ** can use the already allocated buffer instead of allocating a
-                            ** new one.
-                            */
-                            sqlite3VdbeMemMove(sContext.s, dest);
-                            MemSetTypeFlag(sContext.s, MEM_Null);
+                            // The output cell may already have a buffer allocated. Move the current contents to sContext.s so in case the user-function 
+                            // can use the already allocated buffer instead of allocating a new one.
+                            MemMove(sContext.S, dest);
+                            E.MemSetTypeFlag(sContext.S, MEM.Null);
 
-                            rc = module.xColumn(cur.pVtabCursor, sContext, op.P2);
-                            importVtabErrMsg(p, vtable);
+                            rc = module.Column(cur.VtabCursor, sContext, op.P2);
+                            ImportVtabErrMsg(this, vtable);
+                            if (sContext.IsError != 0)
+                                rc = sContext.IsError;
 
-                            if (sContext.isError != 0)
-                            {
-                                rc = sContext.isError;
-                            }
-
-                            /* Copy the result of the function to the P3 register. We
-                            ** do this regardless of whether or not an error occurred to ensure any
-                            ** dynamic allocation in sContext.s (a Mem struct) is  released.
-                            */
-                            sqlite3VdbeChangeEncoding(sContext.s, encoding);
-                            sqlite3VdbeMemMove(dest, sContext.s);
-                            REGISTER_TRACE(p, op.P3, dest);
+                            // Copy the result of the function to the P3 register. We do this regardless of whether or not an error occurred to ensure any
+                            // dynamic allocation in sContext.s (a Mem struct) is released.
+                            ChangeEncoding(sContext.S, encoding);
+                            MemMove(dest, sContext.S);
+                            REGISTER_TRACE(op.P3, dest);
                             UPDATE_MAX_BLOBSIZE(dest);
-                            if (sqlite3VdbeMemTooBig(dest))
-                            {
+
+                            if (MemTooBig(dest))
                                 goto too_big;
-                            }
                             break;
                         }
                     case OP.VNext: // jump
                         {
-                            sqlite3_vtab pVtab;
-                            sqlite3_module pModule;
-                            int res;
-                            VdbeCursor pCur;
-
-                            res = 0;
-                            pCur = p.apCsr[op.P1];
-                            Debug.Assert(pCur.pVtabCursor != null);
-                            if (pCur.nullRow)
-                            {
+                            // Opcode: VNext P1 P2 * * *
+                            //
+                            // Advance virtual table P1 to the next row in its result set and jump to instruction P2.  Or, if the virtual table has reached
+                            // the end of its result set, then fall through to the next instruction.
+                            int res = 0;
+                            VdbeCursor cur = Cursors[op.P1];
+                            Debug.Assert(cur.VtabCursor != null);
+                            if (cur.NullRow)
                                 break;
-                            }
-                            pVtab = pCur.pVtabCursor.pVtab;
-                            pModule = pVtab.pModule;
-                            Debug.Assert(pModule.xNext != null);
+                            IVTable vtable = cur.VtabCursor.IVTable;
+                            ITableModule module = vtable.IModule;
+                            Debug.Assert(module.Next != null);
 
-                            /* Invoke the xNext() method of the module. There is no way for the
-                            ** underlying implementation to return an error if one occurs during
-                            ** xNext(). Instead, if an error occurs, true is returned (indicating that
-                            ** data is available) and the error code returned when xColumn or
-                            ** some other method is next invoked on the save virtual table cursor.
-                            */
-                            p.inVtabMethod = 1;
-                            rc = pModule.xNext(pCur.pVtabCursor);
-                            p.inVtabMethod = 0;
-                            importVtabErrMsg(p, pVtab);
-                            if (rc == SQLITE_OK)
-                            {
-                                res = pModule.xEof(pCur.pVtabCursor);
-                            }
+                            // Invoke the xNext() method of the module. There is no way for the underlying implementation to return an error if one occurs during
+                            // xNext(). Instead, if an error occurs, true is returned (indicating that data is available) and the error code returned when xColumn or
+                            // some other method is next invoked on the save virtual table cursor.
+                            InVtabMethod = 1;
+                            rc = module.Next(cur.VtabCursor);
+                            InVtabMethod = 0;
+                            ImportVtabErrMsg(this, vtable);
+                            if (rc == RC.OK)
+                                res = module.Eof(cur.VtabCursor);
 
-                            if (0 == res)
+                            if (res == 0)
+                                pc = op.P2 - 1;// If there is data, jump to P2
+                            break;
+                        }
+                    case OP.VRename:
+                        {
+                            // Opcode: VRename P1 * * P4 *
+                            //
+                            // P4 is a pointer to a virtual table object, an sqlite3_vtab structure. This opcode invokes the corresponding xRename method. The value
+                            // in register P1 is passed as the zName argument to the xRename method.
+                            IVTable vtable = op.P4.VTable.IVTable;
+                            Mem name = mems[op.P1];
+                            Debug.Assert(vtable.IModule.Rename != null);
+                            Debug.Assert(E.MemIsValid(name));
+                            REGISTER_TRACE(op.P1, name);
+                            Debug.Assert((name.Flags & MEM.Str) != 0);
+                            rc = ChangeEncoding(name, TEXTENCODE.UTF8);
+                            if (rc == RC.OK)
                             {
-                                /* If there is data, jump to P2 */
-                                pc = op.P2 - 1;
+                                rc = vtable.IModule.Rename(vtable, name.Z);
+                                ImportVtabErrMsg(this, vtable);
+                                Expired = false;
                             }
                             break;
                         }
-                    case OP_VRename:
+                    case OP.VUpdate:
                         {
-                            sqlite3_vtab pVtab;
-                            Mem pName;
-
-                            pVtab = op.P4.pVtab.pVtab;
-                            pName = mems[op.P1];
-                            Debug.Assert(pVtab.pModule.xRename != null);
-                            Debug.Assert(memIsValid(pName));
-                            REGISTER_TRACE(p, op.P1, pName);
-                            Debug.Assert((pName.flags & MEM_Str) != 0);
-                            rc = pVtab.pModule.xRename(pVtab, pName.z);
-                            importVtabErrMsg(p, pVtab);
-                            p.expired = false;
-                            break;
-                        }
-                    case OP_VUpdate:
-                        {
-                            sqlite3_vtab pVtab;
-                            sqlite3_module pModule;
-                            int nArg;
-                            int i;
-                            sqlite_int64 rowid = 0;
-                            Mem[] apArg;
-                            Mem pX;
-
-                            Debug.Assert(op.P2 == 1 || op.P5 == OE_Fail || op.P5 == OE_Rollback
-                                   || op.P5 == OE_Abort || op.P5 == OE_Ignore || op.P5 == OE_Replace
-                              );
-                            pVtab = op.P4.pVtab.pVtab;
-                            pModule = (sqlite3_module)pVtab.pModule;
-                            nArg = op.P2;
-                            Debug.Assert(op.p4type == P4_VTAB);
-                            if (ALWAYS(pModule.xUpdate))
+                            // Opcode: VUpdate P1 P2 P3 P4 *
+                            //
+                            // P4 is a pointer to a virtual table object, an sqlite3_vtab structure. This opcode invokes the corresponding xUpdate method. P2 values
+                            // are contiguous memory cells starting at P3 to pass to the xUpdate invocation. The value in register (P3+P2-1) corresponds to the 
+                            // p2th element of the argv array passed to xUpdate.
+                            //
+                            // The xUpdate method will do a DELETE or an INSERT or both. The argv[0] element (which corresponds to memory cell P3)
+                            // is the rowid of a row to delete.  If argv[0] is NULL then no deletion occurs.  The argv[1] element is the rowid of the new 
+                            // row.  This can be NULL to have the virtual table select the new rowid for itself.  The subsequent elements in the array are 
+                            // the values of columns in the new row.
+                            //
+                            // If P2==1 then no insert is performed.  argv[0] is the rowid of a row to delete.
+                            //
+                            // P1 is a boolean flag. If it is set to true and the xUpdate call is successful, then the value returned by sqlite3_last_insert_rowid() 
+                            // is set to the value of the rowid for the row just inserted.
+                            Debug.Assert(op.P2 == 1 || (OE)op.P5 == OE.Fail || (OE)op.P5 == OE.Rollback || (OE)op.P5 == OE.Abort || (OE)op.P5 == OE.Ignore || (OE)op.P5 == OE.Replace);
+                            IVTable vtable = op.P4.VTable.IVTable;
+                            ITableModule module = (ITableModule)vtable.IModule;
+                            int argsLength = op.P2;
+                            Debug.Assert(op.P4Type == Vdbe.P4T.VTAB);
+                            if (C._ALWAYS(module.Update))
                             {
-                                u8 vtabOnConflict = ctx.vtabOnConflict;
-                                apArg = p.apArg;
-                                //pX = mems[op.P3];
-                                for (i = 0; i < nArg; i++)
+                                byte vtabOnConflict = ctx.VTableOnConflict;
+                                Mem[] args = Args;
+                                Mem x; //: x = mems[op.P3];
+                                for (int i = 0; i < argsLength; i++)
                                 {
-                                    pX = mems[op.P3 + i];
-                                    Debug.Assert(memIsValid(pX));
-                                    memAboutToChange(p, pX);
-                                    sqlite3VdbeMemStoreType(pX);
-                                    apArg[i] = pX;
-                                    //pX++;
+                                    x = mems[op.P3 + i];
+                                    Debug.Assert(E.MemIsValid(x));
+                                    MemAboutToChange(this, x);
+                                    MemStoreType(x);
+                                    args[i] = x;
+                                    //: x++;
                                 }
-                                ctx.vtabOnConflict = op.P5;
-                                rc = pModule.xUpdate(pVtab, nArg, apArg, out rowid);
-                                ctx.vtabOnConflict = vtabOnConflict;
-                                importVtabErrMsg(p, pVtab);
-                                if (rc == SQLITE_OK && op.P1 != 0)
+                                ctx.VTableOnConflict = op.P5;
+                                long rowid = 0;
+                                rc = module.Update(vtable, argsLength, args, out rowid);
+                                ctx.VTableOnConflict = vtabOnConflict;
+                                ImportVtabErrMsg(p, vtable);
+                                if (rc == RC.OK && op.P1 != 0)
                                 {
-                                    Debug.Assert(nArg > 1 && apArg[0] != null && (apArg[0].flags & MEM_Null) != 0);
-                                    ctx.lastRowid = lastRowid = rowid;
+                                    Debug.Assert(argsLength > 1 && args[0] != null && (args[0].Flags & MEM.Null) != 0);
+                                    ctx.LastRowID = lastRowid = rowid;
                                 }
-                                if (rc == SQLITE_CONSTRAINT && op.P4.pVtab.bConstraint != 0)
+                                if ((RC)(rc & 0xff) == RC.CONSTRAINT && op.P4.VTable.Constraint)
                                 {
-                                    if (op.P5 == OE_Ignore)
-                                    {
-                                        rc = SQLITE_OK;
-                                    }
+                                    if ((OE)op.P5 == OE.Ignore)
+                                        rc = RC.OK;
                                     else
-                                    {
-                                        p.errorAction = op.P5 == (u8)OE_Replace ? (u8)OE_Abort : op.P5;
-                                    }
+                                        ErrorAction = ((OE)op.P5 == OE.Replace ? OE.Abort : (OE)op.P5);
                                 }
                                 else
-                                {
-                                    p.nChange++;
-                                }
+                                    Changes++;
                             }
                             break;
                         }
@@ -5339,7 +5238,7 @@ break;
                             // Opcode: Pagecount P1 P2 * * *
                             //
                             // Write the current number of pages in database P1 to memory cell P2.
-                            out_.u.I = Btree.LastPage(ctx.DBs[op.P1].Bt);
+                            out_.u.I = ctx.DBs[op.P1].Bt.LastPage();
                             break;
                         }
                     case OP.MaxPgcnt: // out2-prerelease
@@ -5354,10 +5253,10 @@ break;
                             long newMax = 0;
                             if (op.P3 != 0)
                             {
-                                newMax = Btree.LastPage(bt);
+                                newMax = bt.LastPage();
                                 if (newMax < op.P3) newMax = op.P3;
                             }
-                            out_.u.I = (long)Btree.MaxPageCount(bt, (int)newMax);
+                            out_.u.I = (long)bt.MaxPageCount((int)newMax);
                             break;
                         }
 #endif

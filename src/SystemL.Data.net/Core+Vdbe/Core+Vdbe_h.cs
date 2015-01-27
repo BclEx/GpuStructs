@@ -203,7 +203,7 @@ namespace Core
 
     public class IVTableCursor
     {
-        public VTable IVTable;		// Virtual table of this cursor
+        public IVTable IVTable;		    // Virtual table of this cursor
         // Virtual table implementations will typically add additional fields
     }
 
