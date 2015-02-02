@@ -1,7 +1,7 @@
 // alter.c
 #pragma region OMIT_ALTERTABLE
 #ifndef OMIT_ALTERTABLE
-#include "..\Core+Vdbe.cu.h"
+#include "..\VdbeInt.cu.h"
 
 namespace Core { namespace Command
 {
@@ -396,7 +396,7 @@ namespace Core { namespace Command
 		ReloadTableSchema(parse, table, nameAsString);
 
 exit_rename_table:
-		Expr::SrcListDelete(ctx, src);
+		Parse::SrcListDelete(ctx, src);
 		_tagfree(ctx, nameAsString);
 		ctx->Flags = savedDbFlags;
 	}
@@ -473,7 +473,7 @@ exit_rename_table:
 		if (dflt)
 		{
 			Mem *val;
-			if (Mem_FromExpr(ctx, dflt, TEXTENCODE_UTF8, AFF_NONE, &val))
+			if (Vdbe::ValueFromExpr(ctx, dflt, TEXTENCODE_UTF8, AFF_NONE, &val))
 			{
 				ctx->MallocFailed = true;
 				return;
@@ -483,7 +483,7 @@ exit_rename_table:
 				parse->ErrorMsg("Cannot add a column with non-constant default");
 				return;
 			}
-			Mem_Free(val);
+			Vdbe::ValueFree(val);
 		}
 
 		// Modify the CREATE TABLE statement.
@@ -552,7 +552,7 @@ exit_rename_table:
 		newTable->Cols.length = table->Cols.length;
 		_assert(newTable->Cols.length > 0);
 		int allocs = (((newTable->Cols.length-1)/8)*8)+8;
-		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newtable->Cols.length < 8);
+		_assert(allocs >= newTable->Cols.length && allocs%8 == 0 && allocs - newTable->Cols.length < 8);
 		newTable->Cols.data = (Column *)_tagalloc2(ctx, sizeof(Column)*allocs, true);
 		newTable->Name = _mtagprintf(ctx, "sqlite_altertab_%s", table->Name);
 		if (!newTable->Cols || !newTable->Name)
@@ -581,7 +581,7 @@ exit_rename_table:
 		parse->ChangeCookie(db);
 
 exit_begin_add_column:
-		sqlite3SrcListDelete(ctx, src);
+		Parse::SrcListDelete(ctx, src);
 		return;
 	}
 } }

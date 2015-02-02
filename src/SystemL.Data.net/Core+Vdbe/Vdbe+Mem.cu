@@ -91,13 +91,13 @@ namespace Core {
 			_assert((mem->Flags & MEM_RowSet) == 0);
 			_assert(!mem->Ctx || MutexEx::Held(mem->Ctx->Mutex));
 			// Set nByte to the number of bytes required to store the expanded blob.
-			int bytes = mem->N + mem->u.Zero;
+			int bytes = mem->N + mem->u.Zeros;
 			if (bytes <= 0)
 				bytes = 1;
 			if (MemGrow(mem, bytes, true))
 				return RC_NOMEM;
-			_memset(&mem->Z[mem->N], 0, mem->u.Zero);
-			mem->N += mem->u.Zero;
+			_memset(&mem->Z[mem->N], 0, mem->u.Zeros);
+			mem->N += mem->u.Zeros;
 			mem->Flags &= ~(MEM_Zero | MEM_Term);
 		}
 		return RC_OK;
@@ -323,7 +323,7 @@ namespace Core {
 		mem->Type = TYPE_BLOB;
 		mem->N = 0;
 		if (n < 0) n = 0;
-		mem->u.Zero = n;
+		mem->u.Zeros = n;
 		mem->Encode = TEXTENCODE_UTF8;
 #ifdef OMIT_INCRBLOB
 		MemGrow(mem, n, 0);
@@ -383,7 +383,7 @@ namespace Core {
 		{
 			int n = mem->N;
 			if (mem->Flags & MEM_Zero)
-				n += mem->u.Zero;
+				n += mem->u.Zeros;
 			return (n > mem->Ctx->Limits[LIMIT_LENGTH]);
 		}
 		return false; 
@@ -766,7 +766,7 @@ no_mem:
 	__device__ int Vdbe::ValueBytes(Mem *mem, TEXTENCODE encode)
 	{
 		if ((mem->Flags & MEM_Blob) != 0 || ValueText(mem, encode))
-			return (mem->Flags & MEM_Zero ? mem->N + mem->u.Zero : mem->N);
+			return (mem->Flags & MEM_Zero ? mem->N + mem->u.Zeros : mem->N);
 		return 0;
 	}
 

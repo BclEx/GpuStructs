@@ -29,7 +29,7 @@ namespace Core
         internal const int ROWSET_ENTRY_PER_CHUNK = 63; //#define ROWSET_ENTRY_PER_CHUNK \ ((ROWSET_ALLOCATION_SIZE-8)/sizeof(struct RowSetEntry))
 
         public RowSetChunk Chunk;             // List of all chunk allocations
-        public Context Db;                    // The database connection
+        public Context Ctx;                    // The database connection
         public RowSetEntry Entry;             // List of entries using pRight
         public RowSetEntry Last;              // Last entry on the pEntry list
         public RowSetEntry[] Fresh;           // Source of new entry objects
@@ -38,10 +38,10 @@ namespace Core
         public ROWSET Flags;                 // True if pEntry is sorted
         public byte Batch;                    // Current insert batch
 
-        public RowSet(Context db, int n)
+        public RowSet(Context ctx, int n)
         {
             Chunk = null;
-            Db = db;
+            Ctx = ctx;
             Entry = null;
             Last = null;
             Fresh = new RowSetEntry[n];
@@ -51,19 +51,19 @@ namespace Core
             Batch = 0;
         }
 
-        static RowSet sqlite3RowSetInit(Context db, object space, uint n)
+        public static RowSet RowSet_Init(Context ctx, object space, uint n)
         {
-            RowSet p = new RowSet(db, (int)n);
+            RowSet p = new RowSet(ctx, (int)n);
             return p;
         }
 
-        static void sqlite3RowSetClear(RowSet p)
+        public static void RowSet_Clear(RowSet p)
         {
             RowSetChunk chunk, nextChunk;
             for (chunk = p.Chunk; chunk != null; chunk = nextChunk)
             {
                 nextChunk = chunk.NextChunk;
-                C._tagfree(p.Db, ref chunk);
+                C._tagfree(p.Ctx, ref chunk);
             }
             p.Chunk = null;
             p.FreshLength = 0;
@@ -73,7 +73,7 @@ namespace Core
             p.Flags = ROWSET.SORTED;
         }
 
-        static RowSetEntry rowSetEntryAlloc(RowSet p)
+        static RowSetEntry RowSetEntryAlloc(RowSet p)
         {
             Debug.Assert(p != null);
             if (p.FreshLength == 0)
@@ -90,12 +90,12 @@ namespace Core
             return p.Fresh[p.Fresh.Length - p.FreshLength] = new RowSetEntry();
         }
 
-        static void sqlite3RowSetInsert(RowSet p, long rowid)
+        public static void RowSet_Insert(RowSet p, long rowid)
         {
             // This routine is never called after sqlite3RowSetNext()
             Debug.Assert(p != null && (p.Flags & ROWSET.NEXT) == 0);
 
-            RowSetEntry entry = rowSetEntryAlloc(p); // The new entry
+            RowSetEntry entry = RowSetEntryAlloc(p); // The new entry
             if (entry == null) return;
             entry.V = rowid;
             entry.Right = null;
@@ -111,7 +111,7 @@ namespace Core
             p.Last = entry;
         }
 
-        static RowSetEntry rowSetEntryMerge(RowSetEntry a, RowSetEntry b)
+        static RowSetEntry RowSetEntryMerge(RowSetEntry a, RowSetEntry b)
         {
             RowSetEntry head = new RowSetEntry();
             RowSetEntry tail = head;
@@ -147,7 +147,7 @@ namespace Core
             return head.Right;
         }
 
-        static RowSetEntry rowSetEntrySort(RowSetEntry p)
+        static RowSetEntry RowSetEntrySort(RowSetEntry p)
         {
             uint i;
             RowSetEntry next; RowSetEntry[] buckets = new RowSetEntry[40];
@@ -157,7 +157,7 @@ namespace Core
                 p.Right = null;
                 for (i = 0; buckets[i] != null; i++)
                 {
-                    p = rowSetEntryMerge(buckets[i], p);
+                    p = RowSetEntryMerge(buckets[i], p);
                     buckets[i] = null;
                 }
                 buckets[i] = p;
@@ -165,29 +165,29 @@ namespace Core
             }
             p = null;
             for (i = 0; i < buckets.Length; i++)
-                p = rowSetEntryMerge(p, buckets[i]);
+                p = RowSetEntryMerge(p, buckets[i]);
             return p;
         }
 
-        static void rowSetTreeToList(RowSetEntry parent, ref RowSetEntry first, ref RowSetEntry last)
+        static void RowSetTreeToList(RowSetEntry parent, ref RowSetEntry first, ref RowSetEntry last)
         {
             Debug.Assert(parent != null);
             if (parent.Left != null)
             {
                 RowSetEntry p = new RowSetEntry();
-                rowSetTreeToList(parent.Left, ref first, ref p);
+                RowSetTreeToList(parent.Left, ref first, ref p);
                 p.Right = parent;
             }
             else
                 first = parent;
             if (parent.Right != null)
-                rowSetTreeToList(parent.Right, ref parent.Right, ref last);
+                RowSetTreeToList(parent.Right, ref parent.Right, ref last);
             else
                 last = parent;
             Debug.Assert((last).Right == null);
         }
 
-        static RowSetEntry rowSetNDeepTree(ref RowSetEntry list, int depth)
+        static RowSetEntry RowSetNDeepTree(ref RowSetEntry list, int depth)
         {
             if (list == null)
                 return null;
@@ -200,17 +200,17 @@ namespace Core
                 p.Left = p.Right = null;
                 return p;
             }
-            left = rowSetNDeepTree(ref list, depth - 1);
+            left = RowSetNDeepTree(ref list, depth - 1);
             p = list;
             if (p == null)
                 return left;
             p.Left = left;
             list = p.Right;
-            p.Right = rowSetNDeepTree(ref list, depth - 1);
+            p.Right = RowSetNDeepTree(ref list, depth - 1);
             return p;
         }
 
-        static RowSetEntry rowSetListToTree(RowSetEntry list)
+        static RowSetEntry RowSetListToTree(RowSetEntry list)
         {
             Debug.Assert(list != null);
             RowSetEntry p = list; // Current tree root
@@ -222,29 +222,29 @@ namespace Core
                 p = list;
                 list = p.Right;
                 p.Left = left;
-                p.Right = rowSetNDeepTree(ref list, depth);
+                p.Right = RowSetNDeepTree(ref list, depth);
             }
             return p;
         }
 
-        static void rowSetToList(RowSet p)
+        static void RowSetToList(RowSet p)
         {
             // This routine is called only once
             Debug.Assert(p != null && (p.Flags & ROWSET.NEXT) == 0);
             if ((p.Flags & ROWSET.SORTED) == 0)
-                p.Entry = rowSetEntrySort(p.Entry);
+                p.Entry = RowSetEntrySort(p.Entry);
             // While this module could theoretically support it, sqlite3RowSetNext() is never called after sqlite3RowSetText() for the same RowSet.  So
             // there is never a forest to deal with.  Should this change, simply remove the assert() and the #if 0.
             Debug.Assert(p.Forest == null);
             p.Flags |= ROWSET.NEXT; // Verify this routine is never called again
         }
 
-        static bool sqlite3RowSetNext(RowSet p, ref long rowid)
+        public static bool RowSet_Next(RowSet p, ref long rowid)
         {
             Debug.Assert(p != null);
 
             // Merge the forest into a single sorted list on first call
-            if ((p.Flags & ROWSET.NEXT) == 0) rowSetToList(p);
+            if ((p.Flags & ROWSET.NEXT) == 0) RowSetToList(p);
 
             // Return the next entry on the list
             if (p.Entry != null)
@@ -252,13 +252,13 @@ namespace Core
                 rowid = p.Entry.V;
                 p.Entry = p.Entry.Right;
                 if (p.Entry == null)
-                    sqlite3RowSetClear(p);
+                    RowSet_Clear(p);
                 return true;
             }
             return false;
         }
 
-        static bool sqlite3RowSetTest(RowSet rowSet, byte batch, long rowid)
+        public static bool RowSet_Test(RowSet rowSet, byte batch, long rowid)
         {
             // This routine is never called after sqlite3RowSetNext()
             Debug.Assert(rowSet != null && (rowSet.Flags & ROWSET.NEXT) == 0);
@@ -272,31 +272,31 @@ namespace Core
                 {
                     RowSetEntry prevTree = rowSet.Forest;
                     if ((rowSet.Flags & ROWSET.SORTED) == 0)
-                        p = rowSetEntrySort(p);
+                        p = RowSetEntrySort(p);
                     for (tree = rowSet.Forest; tree != null; tree = tree.Right)
                     {
                         prevTree = tree.Right;
                         if (tree.Left == null)
                         {
-                            tree.Left = rowSetListToTree(p);
+                            tree.Left = RowSetListToTree(p);
                             break;
                         }
                         else
                         {
                             RowSetEntry aux = new RowSetEntry(), tail = new RowSetEntry();
-                            rowSetTreeToList(tree.Left, ref aux, ref tail);
+                            RowSetTreeToList(tree.Left, ref aux, ref tail);
                             tree.Left = null;
-                            p = rowSetEntryMerge(aux, p);
+                            p = RowSetEntryMerge(aux, p);
                         }
                     }
                     if (tree == null)
                     {
-                        prevTree = tree = rowSetEntryAlloc(rowSet);
+                        prevTree = tree = RowSetEntryAlloc(rowSet);
                         if (tree != null)
                         {
                             tree.V = 0;
                             tree.Right = null;
-                            tree.Left = rowSetListToTree(p);
+                            tree.Left = RowSetListToTree(p);
                         }
                     }
                     rowSet.Entry = null;

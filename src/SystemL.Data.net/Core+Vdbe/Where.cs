@@ -1093,14 +1093,14 @@ namespace Core
         {
             if (!WhereTrace) return;
             for (int i = 0; i < p.Constraints.length; i++)
-                sqlite3DebugPrintf("  constraint[%d]: col=%d termid=%d op=%d usabled=%d\n",
+                _dprintf("  constraint[%d]: col=%d termid=%d op=%d usabled=%d\n",
                 i,
                 p.Constraints[i].Column,
                 p.Constraints[i].TermOffset,
                 p.Constraints[i].OP,
                 p.Constraints[i].Usable);
             for (int i = 0; i < p.OrderBys.length; i++)
-                sqlite3DebugPrintf("  orderby[%d]: col=%d desc=%d\n",
+                _dprintf("  orderby[%d]: col=%d desc=%d\n",
                 i,
                 p.OrderBys[i].Column,
                 p.OrderBys[i].Desc);
@@ -1109,14 +1109,14 @@ namespace Core
         {
             if (!WhereTrace) return;
             for (int i = 0; i < p.Constraints.length; i++)
-                sqlite3DebugPrintf("  usage[%d]: argvIdx=%d omit=%d\n",
+                _dprintf("  usage[%d]: argvIdx=%d omit=%d\n",
                 i,
                 p.ConstraintUsages[i].ArgvIndex,
                 p.ConstraintUsages[i].Omit);
-            sqlite3DebugPrintf("  idxNum=%d\n", p.IdxNum);
-            sqlite3DebugPrintf("  idxStr=%s\n", p.IdxStr);
-            sqlite3DebugPrintf("  orderByConsumed=%d\n", p.OrderByConsumed);
-            sqlite3DebugPrintf("  estimatedCost=%g\n", p.EstimatedCost);
+            _dprintf("  idxNum=%d\n", p.IdxNum);
+            _dprintf("  idxStr=%s\n", p.IdxStr);
+            _dprintf("  orderByConsumed=%d\n", p.OrderByConsumed);
+            _dprintf("  estimatedCost=%g\n", p.EstimatedCost);
         }
 #else
         static void TRACE_IDX_INPUTS(IIndexInfo p) { }

@@ -300,14 +300,14 @@ zulu_time:
 		MutexEx::Enter(mutex);
 		tm *x = localtime(t);
 #ifndef OMIT_BUILTIN_TEST
-		if (_localtimeFault) x = nullptr;
+		if (SysEx_GlobalStatics.LocaltimeFault) x = nullptr;
 #endif
 		if (x) *tm_ = *x;
 		MutexEx::Leave(mutex);
 		rc = (x == nullptr);
 #else
 #ifndef OMIT_BUILTIN_TEST
-		if (_localtimeFault) return 1;
+		if (SysEx_GlobalStatics.LocaltimeFault) return 1;
 #endif
 #if defined(HAVE_LOCALTIME_R) && HAVE_LOCALTIME_R
 		rc = (localtime_r(t, tm_) == 0);
@@ -372,10 +372,10 @@ zulu_time:
 		RC rc = RC_ERROR;
 		int n;
 		double r;
-		char *z, zBuf[30];
-		z = zBuf;
+		char *z, buf[30];
+		z = buf;
 		for (n = 0; n < _lengthof(buf)-1 && mod[n]; n++)
-			z[n] = (char)_toLower[(uint8)mod[n]];
+			z[n] = (char)_tolower((uint8)mod[n]);
 		z[n] = 0;
 		switch (z[0])
 		{
@@ -480,10 +480,10 @@ zulu_time:
 				_memset(&tx, 0, sizeof(tx));
 				if (ParseHhMmSs(z2, &tx)) break;
 				ComputeJD(&tx);
-				tx.iJD -= 43200000;
-				int64 day = tx.iJD/86400000;
-				tx.iJD -= day*86400000;
-				if (z[0] == '-') tx.iJD = -tx.iJD;
+				tx.JD -= 43200000;
+				int64 day = tx.JD/86400000;
+				tx.JD -= day*86400000;
+				if (z[0] == '-') tx.JD = -tx.JD;
 				ComputeJD(p);
 				ClearYMD_HMS_TZ(p);
 				p->JD += tx.JD;
@@ -566,7 +566,7 @@ zulu_time:
 		if (!IsDate(fctx, argc, argv, &x))
 		{
 			ComputeJD(&x);
-			Vdbe::Result_Double(fctx, x.iJD/86400000.0);
+			Vdbe::Result_Double(fctx, x.JD/86400000.0);
 		}
 	}
 
@@ -612,7 +612,7 @@ zulu_time:
 		uint64 n;
 		size_t i, j;
 		char *z;
-		const char *fmt = (const char *)Mem_Text(argv[0]);
+		const char *fmt = (const char *)Vdbe::Value_Text(argv[0]);
 		char buf[100];
 		if (!fmt || IsDate(fctx, argc-1, argv+1, &x)) return;
 		Context *ctx = Vdbe::Context_Ctx(fctx);
@@ -715,8 +715,8 @@ zulu_time:
 					__snprintf(&z[j], 20, "%.16g", x.JD/86400000.0);
 					j += _strlen30(&z[j]);
 					break; }
-				case 'm': __snprintf(3, &z[j], 3, "%02d", x.M); j+=2; break;
-				case 'M': __snprintf(3, &z[j], 3, "%02d", x.m); j+=2; break;
+				case 'm': __snprintf(&z[j], 3, "%02d", x.M); j+=2; break;
+				case 'M': __snprintf(&z[j], 3, "%02d", x.m); j+=2; break;
 				case 's': {
 					__snprintf(&z[j], 30, "%lld", (int64)(x.JD/1000 - 21086676*(int64)10000));
 					j += _strlen30(&z[j]);

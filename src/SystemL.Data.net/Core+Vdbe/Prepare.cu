@@ -258,13 +258,13 @@ namespace Core
 			_tagfree(ctx, sql);
 #ifndef OMIT_ANALYZE
 			if (rc == RC_OK)
-				sqlite3AnalysisLoad(ctx, db);
+				Analyze::AnalysisLoad(ctx, db);
 #endif
 		}
 		if (ctx->MallocFailed)
 		{
 			rc = RC_NOMEM;
-			Main::ResetAllSchemasOfConnection(ctx);
+			Parse::ResetAllSchemasOfConnection(ctx);
 		}
 		if (rc == RC_OK || (ctx->Flags&Context::FLAG_RecoveryMode))
 		{

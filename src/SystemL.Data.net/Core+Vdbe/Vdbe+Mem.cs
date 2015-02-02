@@ -107,7 +107,7 @@ namespace Core
                     bytes = 1;
                 if (MemGrow(mem, bytes, true) != 0)
                     return RC.NOMEM;
-                //: _memset(&mem->Z[mem->N], 0, mem->u.Zero);
+                //: _memset(&mem->Z[mem->N], 0, mem->u.Zeros);
                 mem.Z_ = Encoding.UTF8.GetBytes(mem.Z);
                 mem.Z = null;
                 mem.N += (int)mem.u.Zeros;

@@ -32,8 +32,9 @@ namespace Core
 		UNPACKED_PREFIX_MATCH = 0x02,	// A prefix match is considered OK
 		UNPACKED_PREFIX_SEARCH = 0x04,	// Ignore final (rowid) field
 	};
-	__device__ UNPACKED inline operator|=(UNPACKED a, int b) { return (UNPACKED)(a | b); }
-	__device__ UNPACKED inline operator&=(UNPACKED a, int b) { return (UNPACKED)(a & b); }
+	__device__ inline UNPACKED operator|=(UNPACKED a, int b) { return (UNPACKED)(a | b); }
+	__device__ inline UNPACKED operator&=(UNPACKED a, int b) { return (UNPACKED)(a & b); }
+	__device__ inline UNPACKED operator|(UNPACKED a, UNPACKED b) { return (UNPACKED)((int)a | (int)b); }
 
 	struct UnpackedRecord
 	{

@@ -84,6 +84,7 @@ namespace Core
         // Needed for C# Implementation
         public Mem[] _ChildMems;        // Array of memory cells for child frame
         public VdbeCursor[] _ChildCursors; // Array of cursors for child frame
+        public byte[] _ChildOnceFlags; // Array of onceflags for child frame
     }
     //#define VdbeFrameMem(p) ((Mem )&((u8 )p)[ROUND8(sizeof(VdbeFrame))])
 

@@ -1217,7 +1217,7 @@ namespace Core
         //        }
 
         //#if DEBUG || TRACE
-        //        static void sqlite3DebugPrintf(string zFormat, params va_list[] ap)
+        //        static void _dprintf(string zFormat, params va_list[] ap)
         //        {
         //            //va_list ap;
         //            lock (lock_va_list)

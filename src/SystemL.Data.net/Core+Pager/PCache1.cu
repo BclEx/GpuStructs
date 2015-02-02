@@ -90,7 +90,7 @@ namespace Core
 #pragma endregion
 
 	__device__ static _WSD PCacheGlobal g_pcache1;
-	#define _pcache1 _GLOBAL(PCacheGlobal, g_pcache1))
+	#define _pcache1 _GLOBAL(PCacheGlobal, g_pcache1)
 
 #pragma region Page Allocation
 

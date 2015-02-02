@@ -1341,7 +1341,7 @@ end_playback:
 
 		// Also store the SQLite version number in bytes 96..99 and in bytes 92..95 store the change counter for which the version number is valid.
 		ConvertEx::Put4(((uint8 *)pg->Data) + 92, change_counter);
-		ConvertEx::Put4(((uint8 *)pg->Data) + 96, SysEx_VERSION_NUMBER);
+		ConvertEx::Put4(((uint8 *)pg->Data) + 96, CORE_VERSION_NUMBER);
 	}
 
 #ifndef OMIT_WAL

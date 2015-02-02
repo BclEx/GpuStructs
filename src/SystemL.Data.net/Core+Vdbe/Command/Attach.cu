@@ -12,7 +12,7 @@ namespace Core { namespace Command
 		{
 			if (expr->OP != TK_ID)
 			{
-				rc = sqlite3ResolveExprNames(name, expr);
+				rc = (Walker::ResolveExprNames(name, expr) ? RC_OK : RC_ERROR);
 				if (rc == RC_OK && !expr->IsConstant())
 				{
 					name->Parse->ErrorMsg("invalid name: \"%s\"", expr->u.Token);
@@ -27,9 +27,9 @@ namespace Core { namespace Command
 
 	__device__ static void AttachFunc(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		const char *file = (const char *)Mem_Text(argv[0]);
-		const char *name = (const char *)Mem_Text(argv[1]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		const char *file = (const char *)Vdbe::Value_Text(argv[0]);
+		const char *name = (const char *)Vdbe::Value_Text(argv[1]);
 		if (!file) file = "";
 		if (!name) name = "";
 
@@ -37,16 +37,16 @@ namespace Core { namespace Command
 		//     * Too many attached databases,
 		//     * Transaction currently open
 		//     * Specified database name already being used.
-		RC rc = 0;
+		RC rc = (RC)0;
 		char *errDyn = nullptr;
 		if (ctx->DBs.length >= ctx->Limits[LIMIT_ATTACHED]+2)
 		{
-			errDyn = _mprintf(ctx, "too many attached databases - max %d", ctx->Limits[LIMIT_ATTACHED]);
+			errDyn = _mtagprintf(ctx, "too many attached databases - max %d", ctx->Limits[LIMIT_ATTACHED]);
 			goto attach_error;
 		}
 		if (!ctx->AutoCommit)
 		{
-			errDyn = _mprintf(ctx, "cannot ATTACH database within transaction");
+			errDyn = _mtagprintf(ctx, "cannot ATTACH database within transaction");
 			goto attach_error;
 		}
 		for (int i = 0; i < ctx->DBs.length; i++)
@@ -55,14 +55,14 @@ namespace Core { namespace Command
 			_assert(z && name);
 			if (!_strcmp(z, name))
 			{
-				errDyn = _mprintf(ctx, "database %s is already in use", name);
+				errDyn = _mtagprintf(ctx, "database %s is already in use", name);
 				goto attach_error;
 			}
 		}
 
 		// Allocate the new entry in the ctx->aDb[] array and initialize the schema hash tables.
 		Context::DB *newDB;
-		if (ctx->DBs.data == ctx->DbStatics)
+		if (ctx->DBs.data == ctx->DBStatics)
 		{
 			newDB = (Context::DB *)_tagalloc(ctx, sizeof(ctx->DBs[0])*3);
 			if (!newDB) return;
@@ -82,11 +82,11 @@ namespace Core { namespace Command
 		VSystem *vfs;
 		char *path = nullptr;
 		char *err = nullptr;
-		rc = sqlite3ParseUri(ctx->Vfs->Name, file, &flags, &vfs, &path, &err);
+		rc = VSystem::ParseUri(ctx->Vfs->Name, file, &flags, &vfs, &path, &err);
 		if (rc != RC_OK)
 		{
 			if (rc == RC_NOMEM) ctx->MallocFailed = true;
-			sqlite3_result_error(fctx, err, -1);
+			Vdbe::Result_Error(fctx, err, -1);
 			_free(err);
 			return;
 		}
@@ -98,16 +98,16 @@ namespace Core { namespace Command
 		if (rc == RC_CONSTRAINT)
 		{
 			rc = RC_ERROR;
-			errDyn = _mprintf(ctx, "database is already attached");
+			errDyn = _mtagprintf(ctx, "database is already attached");
 		}
 		else if (rc == RC_OK)
 		{
-			newDB->Schema = sqlite3SchemaGet(ctx, newDB->Bt);
+			newDB->Schema = Callback::SchemaGet(ctx, newDB->Bt);
 			if (!newDB->Schema)
 				rc = RC_NOMEM;
 			else if (newDB->Schema->FileFormat && newDB->Schema->Encode != CTXENCODE(ctx))
 			{
-				errDyn = _mprintf(ctx, "attached databases must use the same text encoding as main database");
+				errDyn = _mtagprintf(ctx, "attached databases must use the same text encoding as main database");
 				rc = RC_ERROR;
 			}
 			Pager *pager = newDB->Bt->get_Pager();
@@ -126,7 +126,7 @@ namespace Core { namespace Command
 		{
 			int keyLength;
 			char *key;
-			TYPE t = sqlite3_value_type(argv[2]);
+			TYPE t = Vdbe::Value_Type(argv[2]);
 			switch (t)
 			{
 			case TYPE_INTEGER:
@@ -137,8 +137,8 @@ namespace Core { namespace Command
 
 			case TYPE_TEXT:
 			case TYPE_BLOB:
-				keyLength = Mem_Bytes(argv[2]);
-				key = (char *)Mem_Blob(argv[2]);
+				keyLength = Vdbe::Value_Bytes(argv[2]);
+				key = (char *)Vdbe::Value_Blob(argv[2]);
 				rc = sqlite3CodecAttach(ctx, ctx->DBs.length-1, key, keyLength);
 				break;
 
@@ -157,7 +157,7 @@ namespace Core { namespace Command
 		if (rc == RC_OK)
 		{
 			Btree::EnterAll(ctx);
-			rc = sqlite3Init(ctx, &errDyn);
+			rc = Prepare::Init(ctx, &errDyn);
 			Btree::LeaveAll(ctx);
 		}
 		if (rc)
@@ -170,16 +170,16 @@ namespace Core { namespace Command
 				ctx->DBs[db].Bt = nullptr;
 				ctx->DBs[db].Schema = nullptr;
 			}
-			sqlite3ResetAllSchemasOfConnection(ctx);
+			Parse::ResetAllSchemasOfConnection(ctx);
 			ctx->DBs.length = db;
 			if (rc == RC_NOMEM || rc == RC_IOERR_NOMEM)
 			{
 				ctx->MallocFailed = true;
 				_tagfree(ctx, errDyn);
-				errDyn = _mprintf(ctx, "out of memory");
+				errDyn = _mtagprintf(ctx, "out of memory");
 			}
 			else if (errDyn == nullptr)
-				errDyn = _mprintf(ctx, "unable to open database: %s", file);
+				errDyn = _mtagprintf(ctx, "unable to open database: %s", file);
 			goto attach_error;
 		}
 		return;
@@ -188,16 +188,16 @@ attach_error:
 		// Return an error if we get here
 		if (errDyn)
 		{
-			sqlite3_result_error(fctx, errDyn, -1);
+			Vdbe::Result_Error(fctx, errDyn, -1);
 			_tagfree(ctx, errDyn);
 		}
-		if (rc) sqlite3_result_error_code(fctx, rc);
+		if (rc) Vdbe::Result_ErrorCode(fctx, rc);
 	}
 
 	__device__ static void DetachFunc(FuncContext *fctx, int NotUsed, Mem **argv)
 	{
-		Context *ctx = sqlite3_context_db_handle(fctx);
-		const char *name = (const char *)Mem_Text(argv[0]);
+		Context *ctx = Vdbe::Context_Ctx(fctx);
+		const char *name = (const char *)Vdbe::Value_Text(argv[0]);
 		if (!name) name = "";
 		char err[128];
 
@@ -211,32 +211,32 @@ attach_error:
 		}
 		if (i >= ctx->DBs.length)
 		{
-			_snprintf(sizeof(err), err, "no such database: %s", name);
+			__snprintf(err, sizeof(err), "no such database: %s", name);
 			goto detach_error;
 		}
 		if (i < 2)
 		{
-			_snprintf(sizeof(err), err, "cannot detach database %s", name);
+			__snprintf(err, sizeof(err), "cannot detach database %s", name);
 			goto detach_error;
 		}
 		if (!ctx->AutoCommit)
 		{
-			_snprintf(sizeof(err), err, "cannot DETACH database within transaction");
+			__snprintf(err, sizeof(err), "cannot DETACH database within transaction");
 			goto detach_error;
 		}
 		if (db->Bt->IsInReadTrans() || db->Bt->IsInBackup())
 		{
-			_snprintf(sizeof(err), err, "database %s is locked", name);
+			__snprintf(err, sizeof(err), "database %s is locked", name);
 			goto detach_error;
 		}
 		db->Bt->Close();
 		db->Bt = nullptr;
 		db->Schema = nullptr;
-		sqlite3ResetAllSchemasOfConnection(ctx);
+		Parse::ResetAllSchemasOfConnection(ctx);
 		return;
 
 detach_error:
-		sqlite3_result_error(fctx, err, -1);
+		Vdbe::Result_Error(fctx, err, -1);
 	}
 
 
@@ -291,10 +291,10 @@ attach_end:
 	__device__ static const FuncDef _detachFuncDef = {
 		1,					// nArg
 		TEXTENCODE_UTF8,    // iPrefEnc
-		0,					// flags
+		(FUNC)0,			// flags
 		0,					// pUserData
 		0,					// pNext
-		detachFunc,			// xFunc
+		DetachFunc,			// xFunc
 		0,					// xStep
 		0,                // xFinalize
 		"sqlite_detach",  // zName
@@ -309,10 +309,10 @@ attach_end:
 	__device__ static const FuncDef _attachFuncDef = {
 		3,					// nArg
 		TEXTENCODE_UTF8,	// iPrefEnc
-		0,					// flags
+		(FUNC)0,			// flags
 		0,					// pUserData
 		0,					// pNext
-		attachFunc,			// xFunc
+		AttachFunc,			// xFunc
 		0,					// xStep
 		0,					// xFinalize
 		"sqlite_attach",	// zName

@@ -1876,7 +1876,7 @@ __device__ uint32 Vdbe::SerialType(Mem *mem, int fileFormat)
 	_assert(mem->Ctx->MallocFailed || flags & (MEM_Str|MEM_Blob));
 	int n = mem->N;
 	if (flags & MEM_Zero)
-		n += mem->u.Zero;
+		n += mem->u.Zeros;
 	_assert(n >= 0);
 	return ((n*2) + 12 + ((flags & MEM_Str) != 0));
 }
@@ -1939,13 +1939,13 @@ __device__ uint32 Vdbe::SerialPut(uint8 *buf, int bufLength, Mem *mem, int fileF
 	// String or blob
 	if (serialType >= 12)
 	{
-		_assert(mem->N + ((mem->Flags & MEM_Zero)?mem->u.Zero:0) == (int)SerialTypeLen(serialType));
+		_assert(mem->N + ((mem->Flags & MEM_Zero)?mem->u.Zeros:0) == (int)SerialTypeLen(serialType));
 		_assert(mem->N <= bufLength);
 		len = mem->N;
 		_memcpy(buf, (uint8 *)mem->Z, len);
 		if (mem->Flags & MEM_Zero)
 		{
-			len += mem->u.Zero;
+			len += mem->u.Zeros;
 			assert(bufLength >= 0);
 			if (len > (uint32)bufLength)
 				len = (uint32)bufLength;

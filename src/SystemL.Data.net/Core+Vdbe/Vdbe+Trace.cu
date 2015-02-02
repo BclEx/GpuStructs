@@ -97,7 +97,7 @@ namespace Core {
 #endif
 						b.AppendFormat("'%.*q'", var->N, var->Z);
 				}
-				else if (var->Flags & MEM_Zero) b.AppendFormat("zeroblob(%d)", var->u.Zero);
+				else if (var->Flags & MEM_Zero) b.AppendFormat("zeroblob(%d)", var->u.Zeros);
 				else
 				{
 					_assert(var->Flags & MEM_Blob);

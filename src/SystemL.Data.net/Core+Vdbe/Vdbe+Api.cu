@@ -690,7 +690,7 @@ __device__ RC Bind_Value(Vdbe *p, int i, const Mem *value)
 		break; }
 	case TYPE_BLOB: {
 		if (value->Flags & MEM_Zero)
-			rc = Vdbe::Bind_Zeroblob(p, i, value->u.Zero);
+			rc = Vdbe::Bind_Zeroblob(p, i, value->u.Zeros);
 		else
 			rc = Vdbe::Bind_Blob(p, i, value->Z, value->N, DESTRUCTOR_TRANSIENT);
 		break; }

@@ -28,22 +28,22 @@ namespace Core
 
 	struct RowSet
 	{
-		RowSetChunk *Chunk;		// List of all chunk allocations
-		Context *Db;					// The database connection
-		RowSetEntry *Entry;		// List of entries using pRight
-		RowSetEntry *Last;		// Last entry on the pEntry list
-		array_t<RowSetEntry> Fresh;  // Source of new entry objects
+		RowSetChunk *Chunk;			// List of all chunk allocations
+		Context *Ctx;				// The database connection
+		RowSetEntry *Entry;			// List of entries using pRight
+		RowSetEntry *Last;			// Last entry on the pEntry list
+		array_t<RowSetEntry> Fresh; // Source of new entry objects
 		RowSetEntry *Forest;		// List of binary trees of entries
-		ROWSET Flags;                    // Various flags
-		uint8 Batch;                    // Current insert batch
+		ROWSET Flags;               // Various flags
+		uint8 Batch;                // Current insert batch
 	};
 
-	__device__ RowSet *RowSet_Init(Context *db, void *space, unsigned int n)
+	__device__ RowSet *RowSet_Init(Context *ctx, void *space, unsigned int n)
 	{
 		_assert(n >= _ROUND8(sizeof(RowSet **)));
 		RowSet *p = (RowSet *)space;
 		p->Chunk = nullptr;
-		p->Db = db;
+		p->Ctx = ctx;
 		p->Entry = nullptr;
 		p->Last = nullptr;
 		p->Forest = nullptr;
@@ -60,7 +60,7 @@ namespace Core
 		for (chunk = p->Chunk; chunk; chunk = nextChunk)
 		{
 			nextChunk = chunk->NextChunk;
-			_tagfree(p->Db, chunk);
+			_tagfree(p->Ctx, chunk);
 		}
 		p->Chunk = nullptr;
 		p->Fresh.length = 0;
@@ -70,12 +70,12 @@ namespace Core
 		p->Flags = ROWSET_SORTED;
 	}
 
-	__device__ static RowSetEntry *rowSetEntryAlloc(RowSet *p)
+	__device__ static RowSetEntry *RowSetEntryAlloc(RowSet *p)
 	{
 		_assert(p);
 		if (!p->Fresh.length)
 		{
-			RowSetChunk *newChunk = (RowSetChunk *)_tagalloc(p->Db, sizeof(*newChunk));
+			RowSetChunk *newChunk = (RowSetChunk *)_tagalloc(p->Ctx, sizeof(*newChunk));
 			if (!newChunk)
 				return nullptr;
 			newChunk->NextChunk = p->Chunk;
@@ -92,7 +92,7 @@ namespace Core
 		// This routine is never called after sqlite3RowSetNext()
 		_assert(p && (p->Flags & ROWSET_NEXT) == 0);
 
-		RowSetEntry *entry = rowSetEntryAlloc(p); // The new entry
+		RowSetEntry *entry = RowSetEntryAlloc(p); // The new entry
 		if (!entry) return;
 		entry->V = rowid;
 		entry->Right = nullptr;
@@ -108,7 +108,7 @@ namespace Core
 		p->Last = entry;
 	}
 
-	__device__ static RowSetEntry *rowSetEntryMerge(RowSetEntry *a, RowSetEntry *b)
+	__device__ static RowSetEntry *RowSetEntryMerge(RowSetEntry *a, RowSetEntry *b)
 	{
 		RowSetEntry head;
 		RowSetEntry *tail = &head;
@@ -144,7 +144,7 @@ namespace Core
 		return head.Right;
 	}
 
-	__device__ static RowSetEntry *rowSetEntrySort(RowSetEntry *p)
+	__device__ static RowSetEntry *RowSetEntrySort(RowSetEntry *p)
 	{
 		unsigned int i;
 		RowSetEntry *next, *buckets[40];
@@ -155,7 +155,7 @@ namespace Core
 			p->Right = nullptr;
 			for (i = 0; buckets[i]; i++)
 			{
-				p = rowSetEntryMerge(buckets[i], p);
+				p = RowSetEntryMerge(buckets[i], p);
 				buckets[i] = nullptr;
 			}
 			buckets[i] = p;
@@ -163,29 +163,29 @@ namespace Core
 		}
 		p = nullptr;
 		for (i = 0; i < _lengthof(buckets); i++)
-			p = rowSetEntryMerge(p, buckets[i]);
+			p = RowSetEntryMerge(p, buckets[i]);
 		return p;
 	}
 
-	__device__ static void rowSetTreeToList(RowSetEntry *parent, RowSetEntry **first, RowSetEntry **last)
+	__device__ static void RowSetTreeToList(RowSetEntry *parent, RowSetEntry **first, RowSetEntry **last)
 	{
 		_assert(parent);
 		if (parent->Left)
 		{
 			RowSetEntry *p;
-			rowSetTreeToList(parent->Left, first, &p);
+			RowSetTreeToList(parent->Left, first, &p);
 			p->Right = parent;
 		}
 		else
 			*first = parent;
 		if (parent->Right)
-			rowSetTreeToList(parent->Right, &parent->Right, last);
+			RowSetTreeToList(parent->Right, &parent->Right, last);
 		else
 			*last = parent;
 		_assert(!(*last)->Right);
 	}
 
-	__device__ static RowSetEntry *rowSetNDeepTree(RowSetEntry **list, int depth)
+	__device__ static RowSetEntry *RowSetNDeepTree(RowSetEntry **list, int depth)
 	{
 		if (!*list)
 			return nullptr;
@@ -198,17 +198,17 @@ namespace Core
 			p->Left = p->Right = nullptr;
 			return p;
 		}
-		left = rowSetNDeepTree(list, depth - 1);
+		left = RowSetNDeepTree(list, depth - 1);
 		p = *list;
 		if (!p)
 			return left;
 		p->Left = left;
 		*list = p->Right;
-		p->Right = rowSetNDeepTree(list, depth - 1);
+		p->Right = RowSetNDeepTree(list, depth - 1);
 		return p;
 	}
 
-	__device__ static RowSetEntry *rowSetListToTree(RowSetEntry *list)
+	__device__ static RowSetEntry *RowSetListToTree(RowSetEntry *list)
 	{
 		_assert(list);
 		RowSetEntry *p = list; // Current tree root
@@ -220,17 +220,17 @@ namespace Core
 			p = list;
 			list = p->Right;
 			p->Left = left;
-			p->Right = rowSetNDeepTree(&list, depth);
+			p->Right = RowSetNDeepTree(&list, depth);
 		}
 		return p;
 	}
 
-	__device__ static void rowSetToList(RowSet *p)
+	__device__ static void RowSetToList(RowSet *p)
 	{
 		// This routine is called only once
 		_assert(p && (p->Flags & ROWSET_NEXT) == 0);
 		if ((p->Flags & ROWSET_SORTED) == 0)
-			p->Entry = rowSetEntrySort(p->Entry);
+			p->Entry = RowSetEntrySort(p->Entry);
 		// While this module could theoretically support it, sqlite3RowSetNext() is never called after sqlite3RowSetText() for the same RowSet.  So
 		// there is never a forest to deal with.  Should this change, simply remove the assert() and the #if 0.
 		_assert(!p->Forest);
@@ -241,8 +241,8 @@ namespace Core
 			if (tree)
 			{
 				RowSetEntry *head, *tail;
-				rowSetTreeToList(tree, &head, &tail);
-				p->Entry = rowSetEntryMerge(p->Entry, head);
+				RowSetTreeToList(tree, &head, &tail);
+				p->Entry = RowSetEntryMerge(p->Entry, head);
 			}
 			p->Forest = p->Forest->Right;
 		}
@@ -255,7 +255,7 @@ namespace Core
 		_assert(p);
 
 		// Merge the forest into a single sorted list on first call
-		if ((p->Flags & ROWSET_NEXT) == 0) rowSetToList(p);
+		if ((p->Flags & ROWSET_NEXT) == 0) RowSetToList(p);
 
 		// Return the next entry on the list
 		if (p->Entry)
@@ -283,31 +283,31 @@ namespace Core
 			{
 				RowSetEntry **prevTree = &rowSet->Forest;
 				if ((rowSet->Flags & ROWSET_SORTED) == 0)
-					p = rowSetEntrySort(p);
+					p = RowSetEntrySort(p);
 				for (tree = rowSet->Forest; tree; tree = tree->Right)
 				{
 					prevTree = &tree->Right;
 					if (!tree->Left)
 					{
-						tree->Left = rowSetListToTree(p);
+						tree->Left = RowSetListToTree(p);
 						break;
 					}
 					else
 					{
 						RowSetEntry *aux, *tail;
-						rowSetTreeToList(tree->Left, &aux, &tail);
+						RowSetTreeToList(tree->Left, &aux, &tail);
 						tree->Left = nullptr;
-						p = rowSetEntryMerge(aux, p);
+						p = RowSetEntryMerge(aux, p);
 					}
 				}
 				if (!tree)
 				{
-					*prevTree = tree = rowSetEntryAlloc(rowSet);
+					*prevTree = tree = RowSetEntryAlloc(rowSet);
 					if (tree)
 					{
 						tree->V = 0;
 						tree->Right = nullptr;
-						tree->Left = rowSetListToTree(p);
+						tree->Left = RowSetListToTree(p);
 					}
 				}
 				rowSet->Entry = nullptr;

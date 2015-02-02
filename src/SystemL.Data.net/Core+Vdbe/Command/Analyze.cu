@@ -1,7 +1,7 @@
 // analyze.c
 #pragma region OMIT_ANALYZE
 #ifndef OMIT_ANALYZE
-#include "..\Core+Vdbe.cu.h"
+#include "..\VdbeInt.cu.h"
 
 namespace Core { namespace Command
 {
@@ -91,8 +91,9 @@ namespace Core { namespace Command
 	{
 		tRowcnt rows = (tRowcnt)Vdbe::Value_Int64(argv[0]);
 		int maxSamples = Vdbe::Value_Int(argv[1]);
+		Stat3Accum *p;
 		int n = sizeof(*p) + sizeof(p->a[0])*maxSamples;
-		Stat3Accum *p = (Stat3Accum *)_alloc(n);
+		p = (Stat3Accum *)_alloc(n);
 		if (!p)
 		{
 			Vdbe::Result_ErrorNoMem(fctx);
@@ -179,7 +180,7 @@ namespace Core { namespace Command
 			p->Min = min;
 		}
 	}
-	__device__ static const FuncDef Stat3PushFuncdef =
+	__device__ static const FuncDef _stat3PushFuncdef =
 	{
 		5,					// nArg
 		TEXTENCODE_UTF8,    // iPrefEnc
@@ -277,12 +278,12 @@ namespace Core { namespace Command
 			int cols = idx->Columns.length;
 			int *chngAddrs = (int *)_tagalloc(ctx, sizeof(int)*cols); // Array of jump instruction addresses
 			if (!chngAddrs) continue;
-			KeyInfo *key = sqlite3IndexKeyinfo(parse, idx);
+			KeyInfo *key = parse->IndexKeyinfo(idx);
 			if (memId+1+(cols*2) > parse->Mems)
 				parse->Mems = memId+1+(cols*2);
 
 			// Open a cursor to the index to be analyzed.
-			_assert(db == sqlite3SchemaToIndex(ctx, idx->Schema));
+			_assert(db == Prepare::SchemaToIndex(ctx, idx->Schema));
 			v->AddOp4(OP_OpenRead, idxCurId, idx->Id, db, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
 			v->Comment("%s", idx->Name);
 
@@ -294,7 +295,7 @@ namespace Core { namespace Command
 			if (once)
 			{
 				once = false;
-				sqlite3OpenTable(parse, tabCurId, db, table, OP_OpenRead);
+				Insert::OpenTable(parse, tabCurId, db, table, OP_OpenRead);
 			}
 			v->AddOp2(OP_Count, idxCurId, regCount);
 			v->AddOp2(OP_Integer, STAT3_SAMPLES, regTemp1);
@@ -339,8 +340,8 @@ namespace Core { namespace Command
 				_assert(idx->CollNames && idx->CollNames[i]);
 				CollSeq *coll = parse->LocateCollSeq(idx->CollNames[i]);
 				chngAddrs[i] = v->AddOp4(OP_Ne, regCol, 0, memId+cols+i+1, (char *)coll, Vdbe::P4T_COLLSEQ);
-				v->ChangeP5(SQLITE_NULLEQ);
-				v->VdbeComment("jump if column %d changed", i);
+				v->ChangeP5(AFF_BIT_NULLEQ);
+				v->Comment("jump if column %d changed", i);
 #ifdef ENABLE_STAT3
 				if (i == 0)
 				{
@@ -357,7 +358,7 @@ namespace Core { namespace Command
 				{
 					v->JumpHere(addrIfNot); // Jump dest for OP_IfNot
 #ifdef ENABLE_STAT3
-					v->AddOp4(OP_Function, 1, regNumEq, regTemp2, (char *)&Stat3PushFuncdef, Vdbe::P4T_FUNCDEF);
+					v->AddOp4(OP_Function, 1, regNumEq, regTemp2, (char *)&_stat3PushFuncdef, Vdbe::P4T_FUNCDEF);
 					v->ChangeP5(5);
 					v->AddOp3(OP_Column, idxCurId, idx->Columns.length, regRowid);
 					v->AddOp3(OP_Add, regNumEq, regNumLt, regNumLt);
@@ -376,21 +377,21 @@ namespace Core { namespace Command
 			v->AddOp2(OP_Next, idxCurId, topOfLoop);
 			v->AddOp1(OP_Close, idxCurId);
 #ifdef ENABLE_STAT3
-			v->AddOp4(OP_Function, 1, regNumEq, regTemp2, (char *)&Stat3PushFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regNumEq, regTemp2, (char *)&_stat3PushFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(5);
 			v->AddOp2(OP_Integer, -1, regLoop);
 			int shortJump =  v->AddOp2(OP_AddImm, regLoop, 1); // Instruction address
-			v->AddOp4(OP_Function, 1, regAccum, regTemp1, (char *)&Stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regAccum, regTemp1, (char *)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(2);
 			v->AddOp1(OP_IsNull, regTemp1);
 			v->AddOp3(OP_NotExists, tabCurId, shortJump, regTemp1);
 			v->AddOp3(OP_Column, tabCurId, idx->Columns[0], regSample);
-			sqlite3ColumnDefault(v, table, idx->Columns[0], regSample);
-			v->AddOp4(OP_Function, 1, regAccum, regNumEq, (char *)&Stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
+			Update::ColumnDefault(v, table, idx->Columns[0], regSample);
+			v->AddOp4(OP_Function, 1, regAccum, regNumEq, (char *)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(3);
-			v->AddOp4(OP_Function, 1, regAccum, regNumLt, (char *)&Stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regAccum, regNumLt, (char *)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(4);
-			v->AddOp4(OP_Function, 1, regAccum, regNumDLt, (char *)&Stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regAccum, regNumDLt, (char *)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(5);
 			v->AddOp4(OP_MakeRecord, regTabname, 6, regRec, "bbbbbb", 0);
 			v->AddOp2(OP_NewRowid, statCurId+1, regNewRowid);
@@ -425,7 +426,7 @@ namespace Core { namespace Command
 			v->AddOp4(OP_MakeRecord, regTabname, 3, regRec, "aaa", 0);
 			v->AddOp2(OP_NewRowid, statCurId, regNewRowid);
 			v->AddOp3(OP_Insert, statCurId, regRec, regNewRowid);
-			v->ChangeP5(OPFLAG_APPEND);
+			v->ChangeP5(Vdbe::OPFLAG_APPEND);
 		}
 
 		// If the table has no indices, create a single sqlite_stat1 entry containing NULL as the index name and the row count as the content.
@@ -446,7 +447,7 @@ namespace Core { namespace Command
 		v->AddOp4(OP_MakeRecord, regTabname, 3, regRec, "aaa", 0);
 		v->AddOp2(OP_NewRowid, statCurId, regNewRowid);
 		v->AddOp3(OP_Insert, statCurId, regRec, regNewRowid);
-		v->ChangeP5(OPFLAG_APPEND);
+		v->ChangeP5(Vdbe::OPFLAG_APPEND);
 		if (parse->Mems < regRec) parse->Mems = regRec;
 		v->JumpHere(zeroRows);
 	}
@@ -467,7 +468,7 @@ namespace Core { namespace Command
 		parse->Tabs += 3;
 		OpenStatTable(parse, db, statCurId, 0, 0);
 		int memId = parse->Mems+1;
-		_assert(sqlite3SchemaMutexHeld(ctx, db, 0));
+		_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 		for (HashElem *k = schema->TableHash.First; k; k = k->Next)
 		{
 			Table *table = (Table *)k->Data;
@@ -640,7 +641,7 @@ namespace Core { namespace Command
 			if (!idx) continue;
 			_assert(idx->Samples.length == 0);
 			idx->Samples.length = samplesLength;
-			idx->Samples.data = _tagalloc(ctx, samplesLength*sizeof(IndexSample));
+			idx->Samples.data = (IndexSample *)_tagalloc(ctx, samplesLength*sizeof(IndexSample));
 			idx->AvgEq = idx->RowEsts[1];
 			if (!idx->Samples.data)
 			{
@@ -709,7 +710,7 @@ namespace Core { namespace Command
 					sample->u.Z = nullptr;
 				else
 				{
-					sample->u.Z = _tagalloc(ctx, n);
+					sample->u.Z = (char *)_tagalloc(ctx, n);
 					if (!sample->u.Z)
 					{
 						ctx->MallocFailed = true;
@@ -734,9 +735,9 @@ namespace Core { namespace Command
 		for (HashElem *i = ctx->DBs[db].Schema->IndexHash.First; i; i = i->Next)
 		{
 			Index *idx = (Index *)i->Data;
-			sqlite3DefaultRowEst(idx);
+			Parse::DefaultRowEst(idx);
 #ifdef ENABLE_STAT3
-			sqlite3DeleteIndexSamples(ctx, idx);
+			DeleteIndexSamples(ctx, idx);
 			idx->Samples.data = nullptr;
 #endif
 		}
@@ -755,7 +756,7 @@ namespace Core { namespace Command
 			rc = RC_NOMEM;
 		else
 		{
-			rc = Vdbe::Exec(ctx, sql, AnalysisLoader, &sInfo, 0);
+			rc = Main::Exec(ctx, sql, AnalysisLoader, &sInfo, 0);
 			_tagfree(ctx, sql);
 		}
 

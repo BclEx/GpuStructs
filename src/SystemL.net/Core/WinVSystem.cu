@@ -11,7 +11,7 @@ namespace Core
 
 #if defined(TEST) || defined(_DEBUG)
 	bool OsTrace = true;
-#define OSTRACE(X, ...) if (OsTrace) { printf(X, __VA_ARGS__); }
+#define OSTRACE(X, ...) if (OsTrace) { _dprintf(X, __VA_ARGS__); }
 #else
 #define OSTRACE(X, ...)
 #endif

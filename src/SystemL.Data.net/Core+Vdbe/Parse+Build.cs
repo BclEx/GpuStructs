@@ -1238,9 +1238,9 @@ namespace Core
             Debug.Assert(table != null);
             Context ctx = Ctx; // Database connection for malloc errors
 #if !OMIT_VIRTUALTABLE
-            if (sqlite3VtabCallConnect(pParse, table) != 0)
+            if (VTable.CallConnect(parse, table) != 0)
                 return (int)RC.ERROR;
-            if (IsVirtual(table))
+            if (E.IsVirtual(table))
                 return 0;
 #endif
 #if !OMIT_VIEW
@@ -1289,14 +1289,14 @@ namespace Core
                 Tabs = n;
                 if (selectTable != null)
                 {
-                    Debug.Assert(table.Cols == null);
+                    Debug.Assert(table.Cols.data == null);
                     table.Cols.length = selectTable.Cols.length;
                     table.Cols = selectTable.Cols;
                     selectTable.Cols.length = 0;
-                    selectTable.Cols = null;
+                    selectTable.Cols.data = null;
                     DeleteTable(ctx, ref selectTable);
                     Debug.Assert(Btree.SchemaMutexHeld(ctx, 0, table.Schema));
-                    table.Schema.Flags |= Context.FLAG.UnresetViews;
+                    table.Schema.Flags |= SCHEMA.UnresetViews;
                 }
                 else
                 {
@@ -1316,7 +1316,7 @@ namespace Core
         public static void ViewResetAll(Context ctx, int db)
         {
             Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
-            if (!E.DbHasProperty(ctx, db, Context.FLAG.UnresetViews))
+            if (!E.DbHasProperty(ctx, db, SCHEMA.UnresetViews))
                 return;
             for (HashElem i = ctx.DBs[db].Schema.TableHash.First; i != null; i = i.Next)
             {
@@ -1324,7 +1324,7 @@ namespace Core
                 if (table.Select != null)
                 {
                     DeleteColumnNames(ctx, table);
-                    table.Cols = null;
+                    table.Cols.data = null;
                     table.Cols.length = 0;
 
                 }
@@ -1336,21 +1336,21 @@ namespace Core
 #endif
 
 #if !OMIT_AUTOVACUUM
-        static void RootPageMoved(Context ctx, int db, int from, int to)
+        public static void RootPageMoved(Context ctx, int db, int from, int to)
         {
             Debug.Assert(Btree.SchemaMutexHeld(ctx, db, null));
             Context.DB dbobj = ctx.DBs[db];
             Hash hash = dbobj.Schema.TableHash;
             for (HashElem elem = hash.First; elem != null; elem = elem.Next)
             {
-                Table table = (Table)elem.data;
+                Table table = (Table)elem.Data;
                 if (table.Id == from)
                     table.Id = to;
             }
             hash = dbobj.Schema.IndexHash;
             for (HashElem elem = hash.First; elem != null; elem = elem.Next)
             {
-                Index index = (Index)elem.data;
+                Index index = (Index)elem.Data;
                 if (index.Id == from)
                     index.Id = to;
             }

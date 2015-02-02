@@ -92,11 +92,11 @@ namespace Core
 	//     Used to create a scalar function definition of a function zName that accepts nArg arguments and is implemented by a call to C 
 	//     function likeFunc. Argument arg is cast to a (void *) and made available as the function user-data (sqlite3_user_data()). The
 	//     FuncDef.flags variable is set to the value passed as the flags parameter.
-#define FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
-#define FUNCTION2(name, args, arg, nc, func, extraFlags) {args, TEXTENCODE_UTF8, (nc*FUNC_NEEDCOLL)|extraFlags, INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
-#define STR_FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, nc*FUNC_NEEDCOLL, arg, 0, func, 0, 0, #name, 0, 0}
-#define LIKEFUNC(name, args, arg, flags) {args, TEXTENCODE_UTF8, flags, (void *)arg, 0, likeFunc, 0, 0, #name, 0, 0}
-#define AGGREGATE(name, args, arg, nc, step, final) {args, TEXTENCODE_UTF8, nc*FUNC_NEEDCOLL, INT_TO_PTR(arg), 0, 0, step,final,#name,0,0}
+#define FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
+#define FUNCTION2(name, args, arg, nc, func, extraFlags) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL)|extraFlags, INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
+#define STR_FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), arg, 0, func, 0, 0, #name, 0, 0}
+#define LIKEFUNC(name, args, arg, flags) {args, TEXTENCODE_UTF8, (FUNC)flags, (void *)arg, 0, likeFunc, 0, 0, #name, 0, 0}
+#define AGGREGATE(name, args, arg, nc, step, final) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, 0, step,final,#name,0,0}
 
 #pragma endregion
 
@@ -1079,7 +1079,7 @@ namespace Core
 		__device__ static void ViewResetAll(Context *ctx, int db);
 #endif
 #ifndef OMIT_AUTOVACUUM
-		__device__ void RootPageMoved(Context *ctx, int db, int from, int to);
+		__device__ void static RootPageMoved(Context *ctx, int db, int from, int to);
 #endif
 		__device__ void ClearStatTables(int db, const char *type, const char *name);
 		__device__ void CodeDropTable(Table *table, int db, bool isView);
@@ -1647,7 +1647,7 @@ namespace Core {
 
 #pragma region From: Legacy_c
 
-		__device__ static RC Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
+		__device__ static RC Exec(Context *ctx, const char *sql, int (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
 
 #pragma endregion
 

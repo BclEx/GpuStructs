@@ -393,6 +393,12 @@ __device__ inline static char *__snprintf(const char *buf, size_t bufLen, const 
 #pragma endregion
 
 //////////////////////
+// DPRINTF
+#pragma region MPRINTF
+#define _dprintf _printf
+#pragma endregion
+
+//////////////////////
 // MPRINTF
 #pragma region MPRINTF
 __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *length);

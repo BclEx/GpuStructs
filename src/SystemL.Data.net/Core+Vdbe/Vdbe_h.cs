@@ -145,6 +145,7 @@ namespace Core
             public array_t<VdbeOp> Ops;     // Array of opcodes for sub-program
             public int Mems;                // Number of memory cells required
             public int Csrs;                // Number of cursors required
+            public int Onces;               // Number of OP_Once instructions
             public int Token;               // id that may be used to recursive triggers
             public SubProgram Next;         // Next sub-program already visited
         }
