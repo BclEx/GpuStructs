@@ -267,7 +267,7 @@ namespace Core
 				if (rc == RC_OK)
 				{
 					if (DestCtx)
-						Main::ResetAllSchemasOfConnection(DestCtx);
+						Parse::ResetAllSchemasOfConnection(DestCtx);
 					if (destMode == IPager::JOURNALMODE_WAL)
 						rc = Dest->SetVersion(2);
 				}

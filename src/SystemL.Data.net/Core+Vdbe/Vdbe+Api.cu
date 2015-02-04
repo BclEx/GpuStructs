@@ -330,8 +330,8 @@ end_of_step:
 
 __device__ RC Vdbe::Step()
 {
-	RC rc = RC_OK;      // Result from sqlite3Step()
-	RC rc2 = RC_OK;     // Result from sqlite3Reprepare()
+	RC rc = RC_OK; // Result from sqlite3Step()
+	RC rc2 = RC_OK; // Result from sqlite3Reprepare()
 	int cnt = 0; // Counter to prevent infinite loop of reprepares
 	Context *ctx = Ctx; // The database connection
 	MutexEx::Enter(ctx->Mutex);

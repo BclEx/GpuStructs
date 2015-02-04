@@ -1,5 +1,4 @@
 // func.c
-#include "..\Core+Vdbe.cu.h"
 #include "..\VdbeInt.cu.h"
 #include <stdlib.h>
 

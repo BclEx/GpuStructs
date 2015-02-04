@@ -175,7 +175,7 @@ namespace Core
 		// Build the Trigger object
 		trigger = (Trigger *)_tagalloc2(ctx, sizeof(Trigger), true);
 		if (!trigger) goto trigger_cleanup;
-		trigger->Name = name; name = nullptr;
+		trigger->Name = nameAsString; nameAsString = nullptr;
 		trigger->Table = _tagstrdup(ctx, tableName->Ids[0].Name);
 		trigger->Schema = ctx->DBs[db].Schema;
 		trigger->TabSchema = table->Schema;
@@ -187,9 +187,9 @@ namespace Core
 		parse->NewTrigger = trigger;
 
 trigger_cleanup:
-		_tagfree(ctx, name);
-		Expr::SrcListDelete(ctx, tableName);
-		Expr::IdListDelete(ctx, columns);
+		_tagfree(ctx, nameAsString);
+		Parse::SrcListDelete(ctx, tableName);
+		Parse::IdListDelete(ctx, columns);
 		Expr::Delete(ctx, when);
 		if (!parse->NewTrigger)
 			DeleteTrigger(ctx, trigger);
@@ -297,7 +297,7 @@ triggerfinish_cleanup:
 			triggerStep->Orconf = orconf;
 		}
 		else
-			Expr::IdListDelete(ctx, column);
+			Parse::IdListDelete(ctx, column);
 		Expr::ListDelete(ctx, list);
 		Select::Delete(ctx, select);
 		return triggerStep;
@@ -336,21 +336,21 @@ triggerfinish_cleanup:
 		_tagfree(ctx, trigger->Name);
 		_tagfree(ctx, trigger->Table);
 		Expr::Delete(ctx, trigger->When);
-		Expr::IdListDelete(ctx, trigger->Columns);
+		Parse::IdListDelete(ctx, trigger->Columns);
 		_tagfree(ctx, trigger);
 	}
 
 	__device__ void Trigger::DropTrigger(Parse *parse, SrcList *name, int noErr)
 	{
 		Context *ctx = parse->Ctx;
-		if (ctx->MallocFailed || parse->ReadSchema() != RC_OK)
+		if (ctx->MallocFailed || Prepare::ReadSchema(parse) != RC_OK)
 			goto drop_trigger_cleanup;
 
 		_assert(name->Srcs == 1);
 		const char *dbName = name->Ids[0].Database;
 		const char *nameAsString = name->Ids[0].Name;
 		int nameLength = _strlen30(nameAsString);
-		_assert(dbName != 0 || Btree::BtreeHoldsAllMutexes(ctx));
+		_assert(dbName != 0 || Btree::HoldsAllMutexes(ctx));
 		Trigger *trigger = nullptr;
 		for (int i = E_OMIT_TEMPDB; i < ctx->DBs.length; i++)
 		{
@@ -372,7 +372,7 @@ triggerfinish_cleanup:
 		DropTriggerPtr(parse, trigger);
 
 drop_trigger_cleanup:
-		SrcListDelete(ctx, name);
+		Parse::SrcListDelete(ctx, name);
 	}
 
 	static Table *TableOfTrigger(Trigger *trigger)
@@ -451,13 +451,13 @@ drop_trigger_cleanup:
 	{
 		if (!idList || _NEVER(!eList)) return true;
 		for (int e = 0; e < eList->Exprs; e++)
-			if (Expr::IdListIndex(idList, eList->Ids[e].Name) >= 0) return true;
+			if (Parse::IdListIndex(idList, eList->Ids[e].Name) >= 0) return true;
 		return false; 
 	}
 
 	__device__ Trigger *Trigger::TriggersExist(Parse *parse, Core::Table *table, int op, ExprList *changes, TRIGGER *maskOut)
 	{
-		int mask = 0;
+		TRIGGER mask = (TRIGGER)0;
 		Trigger *list = nullptr;
 		if ((parse->Ctx->Flags & Context::FLAG_EnableTrigger) != 0)
 			list = List(parse, table);
@@ -518,7 +518,7 @@ drop_trigger_cleanup:
 			switch (step->OP)
 			{
 			case TK_UPDATE:
-				Update(parse, 
+				Update::Update_(parse, 
 					TargetSrcList(parse, step),
 					Expr::ListDup(ctx, step->ExprList, 0), 
 					Expr::Dup(ctx, step->Where, 0), 
@@ -526,7 +526,7 @@ drop_trigger_cleanup:
 				break;
 
 			case TK_INSERT:
-				Insert(parse, 
+				Insert::Insert_(parse, 
 					TargetSrcList(parse, step),
 					Expr::ListDup(ctx, step->ExprList, 0), 
 					Expr::SelectDup(ctx, step->Select, 0), 
@@ -535,7 +535,7 @@ drop_trigger_cleanup:
 				break;
 
 			case TK_DELETE: {
-				DeleteFrom(parse, 
+				Delete::DeleteFrom(parse, 
 					TargetSrcList(parse, step),
 					Expr::Dup(ctx, step->Where, 0));
 				break;
@@ -585,7 +585,7 @@ drop_trigger_cleanup:
 
 	static TriggerPrg *CodeRowTrigger(Parse *parse, Trigger *trigger, Table *table, OE orconf)
 	{
-		Parse *top = Parse::Toplevel(parse);
+		Parse *top = Parse_Toplevel(parse);
 		Context *ctx = parse->Ctx; // Database handle
 
 		_assert(trigger->Name == nullptr || table == TableOfTrigger(trigger));
@@ -637,11 +637,11 @@ drop_trigger_cleanup:
 			// OP_Halt inserted at the end of the program.
 			if (trigger->When)
 			{
-				Expr *when = Expr.Dup(ctx, trigger->When, 0); // Duplicate of trigger WHEN expression
-				if (ResolveExprNames(&sNC, when) == RC_OK && !ctx->MallocFailed)
+				Expr *when = Expr::Dup(ctx, trigger->When, 0); // Duplicate of trigger WHEN expression
+				if (Walker::ResolveExprNames(&sNC, when) == RC_OK && !ctx->MallocFailed)
 				{
 					endTrigger = v->MakeLabel();
-					subParse->IfFalse(when, endTrigger, RC.JUMPIFNULL);
+					when->IfFalse(subParse, endTrigger, AFF_BIT_JUMPIFNULL);
 				}
 				Expr::Delete(ctx, when);
 			}
@@ -676,7 +676,7 @@ drop_trigger_cleanup:
 
 	static TriggerPrg *GetRowTrigger(Parse *parse, Trigger *trigger, Table *table, OE orconf)
 	{
-		Parse *root = Parse::Toplevel(parse);
+		Parse *root = Parse_Toplevel(parse);
 		_assert(!trigger->Name || table == TableOfTrigger(trigger));
 
 		// It may be that this trigger has already been coded (or is in the process of being coded). If this is the case, then an entry with
@@ -712,7 +712,7 @@ drop_trigger_cleanup:
 		}
 	}
 
-	__device__ void Trigger::CodeRowTrigger(Parse *parse, TK op, ExprList *changes, int trtm, Core::Table *table, int reg, OE orconf, int ignoreJump)
+	__device__ void Trigger::CodeRowTrigger(Parse *parse, TK op, ExprList *changes, TRIGGER trtm, ::Table *table, int reg, OE orconf, int ignoreJump)
 	{
 		_assert(op == TK_UPDATE || op == TK_INSERT || op == TK_DELETE );
 		_assert(trtm == TRIGGER_BEFORE || trtm == TRIGGER_AFTER );
@@ -731,7 +731,7 @@ drop_trigger_cleanup:
 		}
 	}
 
-	__device__ uint32 Trigger::Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, Core::Table *table, OE orconf)
+	__device__ uint32 Trigger::Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, ::Table *table, OE orconf)
 	{
 		const int op = (changes ? TK_UPDATE : TK_DELETE);
 		int isNewId = (isNew ? 1 : 0);

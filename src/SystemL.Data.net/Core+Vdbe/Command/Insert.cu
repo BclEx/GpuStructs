@@ -1,5 +1,4 @@
 // insert.c
-#include "..\Core+Vdbe.cu.h"
 #include "..\VdbeInt.cu.h"
 
 namespace Core { namespace Command
@@ -11,7 +10,7 @@ namespace Core { namespace Command
 		_assert(opcode == OP_OpenWrite || opcode == OP_OpenRead);
 		p->TableLock(db, table->Id, (opcode == OP_OpenWrite), table->Name);
 		v->AddOp3(opcode, cur, table->Id, db);
-		v->ChangeP4(-1, INT_TO_PTR(table->Cols.length), Vdbe::P4T_INT32);
+		v->ChangeP4(-1, (char *)INT_TO_PTR(table->Cols.length), Vdbe::P4T_INT32);
 		v->Comment("%s", table->Name);
 	}
 
@@ -374,7 +373,7 @@ namespace Core { namespace Command
 			_assert(!useTempTable);
 			columns = (list ? list->Exprs : 0);
 			for (i = 0; i < columns; i++)
-				if (Resolve::ExprNames(&sNC, list->Ids[i].Expr))
+				if (Walker::ResolveExprNames(&sNC, list->Ids[i].Expr))
 					goto insert_cleanup;
 		}
 
@@ -707,10 +706,10 @@ insert_end:
 		}
 
 insert_cleanup:
-		Expr::SrcListDelete(ctx, tabList);
+		Parse::SrcListDelete(ctx, tabList);
 		Expr::ListDelete(ctx, list);
 		Select::Delete(ctx, select);
-		Expr::IdListDelete(ctx, column);
+		Parse::IdListDelete(ctx, column);
 		_tagfree(ctx, regIdxs);
 	}
 
@@ -877,7 +876,7 @@ insert_cleanup:
 			}
 			v->AddOp2(OP_SCopy, regRowid, regIdx+i);
 			v->AddOp3(OP_MakeRecord, regIdx, index->Columns.length+1, regIdxs[curId]);
-			v->ChangeP4(-1, sqlite3IndexAffinityStr(v, index), Vdbe::P4T_TRANSIENT);
+			v->ChangeP4(-1, IndexAffinityStr(v, index), Vdbe::P4T_TRANSIENT);
 			Expr::CacheAffinityChange(parse, regIdx, index->Columns.length+1);
 
 			// Find out what action to take in case there is an indexing conflict
@@ -898,7 +897,7 @@ insert_cleanup:
 			// Check to see if the new index entry will be unique
 			int regR = Expr::GetTempReg(parse);
 			v->AddOp2(OP_SCopy, regOldRowid, regR);
-			j3 = v->AddOp4(OP_IsUnique, baseCur+curId+1, 0, regR, INT_TO_PTR(regIdx), Vdbe::P4T_INT32);
+			j3 = v->AddOp4(OP_IsUnique, baseCur+curId+1, 0, regR, (char *)INT_TO_PTR(regIdx), Vdbe::P4T_INT32);
 			Expr::ReleaseTempRange(parse, regIdx, index->Columns.length+1);
 
 			// Generate code that executes if the new index entry is not unique
@@ -968,7 +967,7 @@ insert_cleanup:
 		Expr::CacheAffinityChange(parse, regData, table->Cols.length);
 		Vdbe::OPFLAG pik_flags;
 		if (parse->Nested)
-			pik_flags = 0;
+			pik_flags = (Vdbe::OPFLAG)0;
 		else
 		{
 			pik_flags = Vdbe::OPFLAG_NCHANGE;
@@ -1109,7 +1108,7 @@ insert_cleanup:
 		int srcId = parse->Tabs++; // Cursors from source and destination
 		int destId = parse->Tabs++; // Cursors from source and destination
 		int regAutoinc = AutoIncBegin(parse, dbDestId, dest); // Memory register used by AUTOINC
-		OpenTable(parse, destId, dbDestId, dest, OP_OpenWrite);
+		Insert::OpenTable(parse, destId, dbDestId, dest, OP_OpenWrite);
 		int addr1; // Loop addresses
 		int emptyDestTest; // Address of test for empty pDest
 		if ((dest->PKey < 0 && dest->Index != nullptr) ||		// (1)
@@ -1131,7 +1130,7 @@ insert_cleanup:
 		}
 		else
 			emptyDestTest = 0;
-		OpenTable(parse, srcId, dbSrcId, src, OP_OpenRead);
+		Insert::OpenTable(parse, srcId, dbSrcId, src, OP_OpenRead);
 		int emptySrcTest = v->AddOp2(OP_Rewind, srcId, 0); // Address of test for empty pSrc
 		int regData = Expr::GetTempReg(parse); // Registers holding data and rowid
 		int regRowid = Expr::GetTempReg(parse); // Registers holding data and rowid

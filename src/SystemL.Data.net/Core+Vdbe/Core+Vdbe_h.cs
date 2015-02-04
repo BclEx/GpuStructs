@@ -984,7 +984,7 @@ namespace Core
         public short PKey;				    // If not negative, use aCol[iPKey] as the primary key
         public ushort Refs;                 // Number of pointers to this Table
         public TF TabFlags;			        // Mask of TF_* values
-        public byte KeyConf;                // What to do in case of uniqueness conflict on iPKey
+        public OE KeyConf;                  // What to do in case of uniqueness conflict on iPKey
 #if !OMIT_ALTERTABLE
         public int AddColOffset;		    // Offset in CREATE TABLE stmt to add a new column
 #endif

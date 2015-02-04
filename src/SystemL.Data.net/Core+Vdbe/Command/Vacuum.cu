@@ -6,9 +6,9 @@ namespace Core { namespace Command
 {
 	static RC VacuumFinalize(Context *ctx, Vdbe *stmt, char **errMsg)
 	{
-		RC rc = sqlite3VdbeFinalize(stmt);
+		RC rc = stmt->Finalize();
 		if (rc)
-			_setstring(errMsg, ctx, sqlite3_errmsg(ctx));
+			_setstring(errMsg, ctx, Main::ErrMsg(ctx));
 		return rc;
 	}
 
@@ -16,25 +16,25 @@ namespace Core { namespace Command
 	{
 		if (!sql) return RC_NOMEM;
 		Vdbe *stmt;
-		if (sqlite3_prepare(ctx, sql, -1, &stmt, 0) != RC_OK)
+		if (Prepare::Prepare_(ctx, sql, -1, &stmt, nullptr) != RC_OK)
 		{
-			_setstring(errMsg, ctx, sqlite3_errmsg(ctx));
-			return sqlite3_errcode(ctx);
+			_setstring(errMsg, ctx, Main::ErrMsg(ctx));
+			return Main::ErrCode(ctx);
 		}
-		ASSERTONLY(int rc =) sqlite3_step(stmt);
-		_assert(rc != RC_ROW || (ctx->Flags & FLAG_CountRows));
+		ASSERTONLY(int rc =) stmt->Step();
+		_assert(rc != RC_ROW || (ctx->Flags & Context::FLAG_CountRows));
 		return VacuumFinalize(ctx, stmt, errMsg);
 	}
 
 	static RC ExecExecSql(Context *ctx, char **errMsg, const char *sql)
 	{
 		Vdbe *stmt;
-		RC rc = sqlite3_prepare(ctx, sql, -1, &stmt, 0);
+		RC rc = Prepare::Prepare_(ctx, sql, -1, &stmt, nullptr);
 		if (rc != RC_OK) return rc;
 
-		while (sqlite3_step(stmt) == RC_ROW)
+		while (stmt->Step() == RC_ROW)
 		{
-			rc = ExecSql(ctx, errMsg, (char *)sqlite3_column_text(stmt, 0));
+			rc = ExecSql(ctx, errMsg, (char *)Vdbe::Column_Text(stmt, 0));
 			if (rc != RC_OK)
 			{
 				VacuumFinalize(ctx, stmt, errMsg);
@@ -44,7 +44,7 @@ namespace Core { namespace Command
 		return VacuumFinalize(ctx, stmt, errMsg);
 	}
 
-	__device__ void Vacuum::Vacuum(Parse *parse)
+	__device__ void Vacuum::Vacuum_(Parse *parse)
 	{
 		Vdbe *v = parse->GetVdbe();
 		if (v)
@@ -56,12 +56,12 @@ namespace Core { namespace Command
 	}
 
 	static const unsigned char _runVacuum_copy[] = {
-		BTREE_SCHEMA_VERSION,     1,  // Add one to the old schema cookie
-		BTREE_DEFAULT_CACHE_SIZE, 0,  // Preserve the default page cache size
-		BTREE_TEXT_ENCODING,      0,  // Preserve the text encoding
-		BTREE_USER_VERSION,       0,  // Preserve the user version
+		Btree::META_SCHEMA_VERSION,     1,  // Add one to the old schema cookie
+		Btree::META_DEFAULT_CACHE_SIZE, 0,  // Preserve the default page cache size
+		Btree::META_TEXT_ENCODING,      0,  // Preserve the text encoding
+		Btree::META_USER_VERSION,       0,  // Preserve the user version
 	};
-	__device__ int Vacuum::RunVacuum(char **errMsg, Context *ctx)
+	__device__ RC Vacuum::RunVacuum(char **errMsg, Context *ctx)
 	{
 		if (!ctx->AutoCommit)
 		{
@@ -76,16 +76,16 @@ namespace Core { namespace Command
 
 		// Save the current value of the database flags so that it can be restored before returning. Then set the writable-schema flag, and
 		// disable CHECK and foreign key constraints.
-		int saved_Flags = ctx->Flags; // Saved value of the ctx->flags
-		int saved_Change = ctx->Changes; // Saved value of ctx->nChange
-		int saved_TotalChange = ctx->TotalChange; // Saved value of ctx->nTotalChange
+		Context::FLAG saved_Flags = ctx->Flags; // Saved value of the ctx->flags
+		int saved_Changes = ctx->Changes; // Saved value of ctx->nChange
+		int saved_TotalChanges = ctx->TotalChanges; // Saved value of ctx->nTotalChange
 		void (*saved_Trace)(void *, const char *) = ctx->Trace; // Saved ctx->xTrace
 		ctx->Flags |= Context::FLAG_WriteSchema | Context::FLAG_IgnoreChecks | Context::FLAG_PreferBuiltin;
 		ctx->Flags &= ~(Context::FLAG_ForeignKeys | Context::FLAG_ReverseOrder);
 		ctx->Trace = nullptr;
 
 		Btree *main = ctx->DBs[0].Bt; // The database being vacuumed
-		bool isMemDb = sqlite3PagerIsMemdb(main->get_Pager()); // True if vacuuming a :memory: database
+		bool isMemDb = main->get_Pager()->get_MemoryDB(); // True if vacuuming a :memory: database
 
 		// Attach the temporary database as 'vacuum_db'. The synchronous pragma can be set to 'off' for this file, as it is not recovered if a crash
 		// occurs anyway. The integrity of the database is maintained by a (possibly synchronous) transaction opened on the main database before
@@ -96,7 +96,7 @@ namespace Core { namespace Command
 		// empty.  Only the journal header is written.  Apparently it takes more time to parse and run the PRAGMA to turn journalling off than it does
 		// to write the journal header file.
 		int db = ctx->DBs.length; // Number of attached databases
-		char *sql = (sqlite3TempInMemory(ctx) ? "ATTACH ':memory:' AS vacuum_db;" : "ATTACH '' AS vacuum_db;"); // SQL statements
+		char *sql = (Main::TempInMemory(ctx) ? "ATTACH ':memory:' AS vacuum_db;" : "ATTACH '' AS vacuum_db;"); // SQL statements
 		RC rc = ExecSql(ctx, errMsg, sql); // Return code from service routines      
 		Context::DB *dbObj = nullptr; // Database to detach at end of vacuum
 		if (ctx->DBs.length > db)
@@ -117,11 +117,11 @@ namespace Core { namespace Command
 #ifdef HAS_CODEC
 		if (ctx->NextPagesize)
 		{
-			extern void sqlite3CodecGetKey(sqlite3*, int, void**, int*);
-			int nKey;
-			char *zKey;
-			sqlite3CodecGetKey(ctx, 0, (void**)&zKey, &nKey);
-			if (nKey) ctx->NextPagesize = 0;
+			extern void CodecGetKey(Context*, int, void**, int*);
+			int keyLength;
+			char *key;
+			CodecGetKey(ctx, 0, (void**)&key, &keyLength);
+			if (keyLength) ctx->NextPagesize = 0;
 		}
 #endif
 		rc = ExecSql(ctx, errMsg, "PRAGMA vacuum_db.synchronous=OFF");
@@ -204,19 +204,19 @@ namespace Core { namespace Command
 			// This array determines which meta meta values are preserved in the vacuum.  Even entries are the meta value number and odd entries
 			// are an increment to apply to the meta value after the vacuum. The increment is used to increase the schema cookie so that other
 			// connections to the same database will know to reread the schema.
-			_assert(Btree::IsInTrans(temp) == 1);
-			_assert(Btree::IsInTrans(main) == 1);
+			_assert(temp->IsInTrans());
+			_assert(main->IsInTrans());
 
 			// Copy Btree meta values
 			for (int i = 0; i < _lengthof(_runVacuum_copy); i+=2)
 			{
 				// GetMeta() and UpdateMeta() cannot fail in this context because we already have page 1 loaded into cache and marked dirty.
 				uint32 meta;
-				main->GetMeta(_runVacuum_copy[i], &meta);
-				rc = temp->UpdateMeta(_runVacuum_copy[i], meta+_runVacuum_copy[i+1]);
+				main->GetMeta((Btree::META)_runVacuum_copy[i], &meta);
+				rc = temp->UpdateMeta((Btree::META)_runVacuum_copy[i], meta+_runVacuum_copy[i+1]);
 				if (_NEVER(rc != RC_OK)) goto end_of_vacuum;
 			}
-			rc = sqlite3BtreeCopyFile(main, temp);
+			rc = Backup::BtreeCopyFile(main, temp);
 			if (rc != RC_OK) goto end_of_vacuum;
 			rc = temp->Commit();
 			if (rc != RC_OK) goto end_of_vacuum;
@@ -232,7 +232,7 @@ end_of_vacuum:
 		// Restore the original value of ctx->flags
 		ctx->Flags = saved_Flags;
 		ctx->Changes = saved_Changes;
-		ctx->TotalChanges = saved_TotalChange;
+		ctx->TotalChanges = saved_TotalChanges;
 		ctx->Trace = saved_Trace;
 		main->SetPageSize(-1, -1, 1);
 
@@ -249,7 +249,7 @@ end_of_vacuum:
 		}
 
 		// This both clears the schemas and reduces the size of the ctx->aDb[] array.
-		sqlite3ResetAllSchemasOfConnection(ctx);
+		Parse::ResetAllSchemasOfConnection(ctx);
 		return rc;
 	}
 

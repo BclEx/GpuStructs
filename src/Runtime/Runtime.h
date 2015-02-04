@@ -120,7 +120,7 @@ template <typename T> __device__ inline int _strncmp(const T *left, const T *rig
 #define _fstrncmp(x, y) (_tolower(*(unsigned char *)(x))==_tolower(*(unsigned char *)(y))&&!_strcmp((x)+1,(y)+1))
 
 // memcpy
-template <typename T> __device__ inline void _memcpy(T *dest, const T *src, size_t length)
+template <typename T> __device__ inline void _memcpy(T *dest, T *src, size_t length)
 {
 	register unsigned char *a, *b;
 	a = (unsigned char *)dest;
@@ -287,7 +287,7 @@ __device__ inline static char *_tagstrdup(void *tag, const char *z)
 	_assert((n & 0x7fffffff) == n);
 	char *newZ = (char *)_tagalloc(tag, (int)n);
 	if (newZ)
-		_memcpy(newZ, z, n);
+		_memcpy(newZ, (char *)z, n);
 	return newZ;
 }
 
@@ -298,7 +298,7 @@ __device__ inline static char *_tagstrndup(void *tag, const char *z, int n)
 	char *newZ = (char *)_tagalloc(tag, n + 1);
 	if (newZ)
 	{
-		_memcpy(newZ, z, n);
+		_memcpy(newZ, (char *)z, n);
 		newZ[n] = 0;
 	}
 	return newZ;

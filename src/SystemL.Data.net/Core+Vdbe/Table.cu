@@ -75,7 +75,7 @@ malloc_failed:
 		return true;
 	}
 
-	__device__ RC Table::GetTable(Context *db, const char *sql, char ***results, int *rows, int *columns, char **errMsg)
+	__device__ RC Table::GetTable(Context *ctx, const char *sql, char ***results, int *rows, int *columns, char **errMsg)
 	{
 		*results = nullptr;
 		if (columns) *columns = 0;
@@ -90,9 +90,9 @@ malloc_failed:
 		r.Results.data = (char **)_alloc(sizeof(char *)*r.ResultsAlloc);
 		r.Results.length = 1;
 		if (!r.Results)
-			return (db->ErrCode = RC_NOMEM);
+			return (ctx->ErrCode = RC_NOMEM);
 		r.Results[0] = nullptr;
-		RC rc = Main::Exec(db, sql, GetTableCallback, (char **)&r, errMsg);
+		RC rc = Main::Exec(ctx, sql, GetTableCallback, (char **)&r, errMsg);
 		_assert(sizeof(r.Results[0]) >= sizeof(r.Results.length));
 		r.Results[0] = (char *)INT_TO_PTR(r.Results.length);
 		if ((rc & 0xff) == RC_ABORT)
@@ -107,7 +107,7 @@ malloc_failed:
 				}
 				_free(r.ErrMsg);
 			}
-			return (db->ErrCode = r.RC); // Assume 32-bit assignment is atomic
+			return (ctx->ErrCode = r.RC); // Assume 32-bit assignment is atomic
 		}
 		_free(r.ErrMsg);
 		if (rc != RC_OK)
@@ -121,7 +121,7 @@ malloc_failed:
 			if (!newResults)
 			{
 				FreeTable(&r.Results[1]);
-				db->ErrCode = RC_NOMEM;
+				ctx->ErrCode = RC_NOMEM;
 				return RC_NOMEM;
 			}
 			r.Results = newResults;

@@ -648,7 +648,7 @@ namespace Core
 		int TableIdx;            
 		// TK_COLUMN: column index.  -1 for rowid.
 		// TK_VARIABLE: variable number (always >= 1).
-		yVars ColumnIdx;         
+		yVars ColumnIdx;
 		int16 Agg;					// Which entry in pAggInfo->aCol[] or ->aFunc[]
 		int16 RightJoinTable;		// If EP_FromJoin, the right table of the join
 		EP2 Flags2;					// Second set of flags.  EP2_...
@@ -1260,7 +1260,7 @@ namespace Core {
 		int16 PKey;					// If not negative, use aCol[iPKey] as the primary key
 		uint16 Refs;				// Number of pointers to this Table
 		TF TabFlags;				// Mask of TF_* values
-		uint8 KeyConf;				// What to do in case of uniqueness conflict on iPKey
+		OE KeyConf;					// What to do in case of uniqueness conflict on iPKey
 #ifndef OMIT_ALTERTABLE
 		int AddColOffset;			// Offset in CREATE TABLE stmt to add a new column
 #endif
@@ -1428,6 +1428,8 @@ namespace Core {
 		TRIGGER_BEFORE = 1,
 		TRIGGER_AFTER = 2,
 	};
+	__device__ inline TRIGGER operator|=(TRIGGER a, int b) { return (TRIGGER)(a | b); }
+	__device__ inline TRIGGER operator|(TRIGGER a, TRIGGER b) { return (TRIGGER)((int)a | (int)b); }
 
 	struct TriggerStep;
 	struct Trigger
@@ -1457,8 +1459,8 @@ namespace Core {
 		__device__ static void UnlinkAndDeleteTrigger(Context *ctx, int db, const char *name);
 		__device__ static Trigger *TriggersExist(Parse *parse, Core::Table *table, int op, ExprList *changes, TRIGGER *maskOut);
 		__device__ void CodeRowTriggerDirect(Parse *parse, Core::Table *table, int reg, OE orconf, int ignoreJump);
-		__device__ void CodeRowTrigger(Parse *parse, TK op, ExprList *changes, TRIGGER trtm, Core::Table *table, int reg, OE orconf, int ignoreJump);
-		__device__ uint32 Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, Core::Table *table, int orconf);
+		__device__ void CodeRowTrigger(Parse *parse, TK op, ExprList *changes, TRIGGER trtm, ::Table *table, int reg, OE orconf, int ignoreJump);
+		__device__ uint32 Colmask(Parse *parse, ExprList *changes, bool isNew, TRIGGER trtm, ::Table *table, OE orconf);
 	};
 
 	struct TriggerStep
@@ -1594,10 +1596,14 @@ namespace Core {
 
 		struct Update
 		{
+			__device__ static void ColumnDefault(Vdbe *v, Table *table, int i, int regId);
+			__device__ static void Update_(Parse *parse, SrcList *tabList, ExprList *changes, Expr *where_, OE onError);
 		};
 
 		struct Vacuum
 		{
+			__device__ static void Vacuum_(Parse *parse);
+			__device__ static RC RunVacuum(char **errMsg, Context *ctx);
 		};
 
 	}

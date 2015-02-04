@@ -59,12 +59,12 @@ namespace Core { namespace Command
 			_assert(!from->Ids[0].Using);
 		}
 
-		Select *select = Select::New(parse, 0, from, where_, 0, 0, 0, 0, 0, 0);
+		Select *select = Select::New(parse, nullptr, from, where_, nullptr, nullptr, nullptr, (SF)0, nullptr, nullptr);
 		if (select) select->SelFlags |= SF_Materialize;
 
 		SelectDest dest;
 		Select::DestInit(&dest, SRT_EphemTab, curId);
-		Select::Select(parse, select, &dest);
+		Select::Select_(parse, select, &dest);
 		Select::Delete(ctx, select);
 	}
 #endif
@@ -94,19 +94,19 @@ namespace Core { namespace Command
 		//   );
 		Expr *selectRowid = Expr::PExpr_(parse, TK_ROW, 0, 0, 0); // SELECT rowid ...
 		if (!selectRowid) goto limit_where_cleanup_2;
-		ExprList *list = ExprList::Append(parse, 0, selectRowid);
+		ExprList *list = Expr::ListAppend(parse, 0, selectRowid);
 		if (!list) goto limit_where_cleanup_2; // Expression list contaning only pSelectRowid
 
 		// duplicate the FROM clause as it is needed by both the DELETE/UPDATE tree and the SELECT subtree.
-		SrcList *selectSrc = SrcList::Dup(parse->Ctx, src, 0); // SELECT rowid FROM x ... (dup of pSrc)
+		SrcList *selectSrc = Expr::SrcListDup(parse->Ctx, src, 0); // SELECT rowid FROM x ... (dup of pSrc)
 		if (!selectSrc)
 		{
-			ExprList::Delete(parse->Ctx, list);
+			Expr::ListDelete(parse->Ctx, list);
 			goto limit_where_cleanup_2;
 		}
 
 		// generate the SELECT expression tree.
-		Select *select = Select::New(parse, list, selectSrc, where_, 0, 0, orderBy, 0, limit, offset); // Complete SELECT tree
+		Select *select = Select::New(parse, list, selectSrc, where_, 0, 0, orderBy, (SF)0, limit, offset); // Complete SELECT tree
 		if (!select) return nullptr;
 
 		// now generate the new WHERE rowid IN clause for the DELETE/UDPATE
@@ -117,7 +117,7 @@ namespace Core { namespace Command
 
 		inClause->x.Select = select;
 		inClause->Flags |= EP_xIsSelect;
-		Expr::SetHeight(parse, inClause);
+		inClause->SetHeight(parse);
 		return inClause;
 
 		// something went wrong. clean up anything allocated.
@@ -127,7 +127,7 @@ limit_where_cleanup_1:
 
 limit_where_cleanup_2:
 		Expr::Delete(parse->Ctx, where_);
-		ExprList::Delete(parse->Ctx, orderBy);
+		Expr::ListDelete(parse->Ctx, orderBy);
 		Expr::Delete(parse->Ctx, limit);
 		Expr::Delete(parse->Ctx, offset);
 		return nullptr;
@@ -145,7 +145,7 @@ limit_where_cleanup_2:
 
 		// Locate the table which we want to delete.  This table has to be put in an SrcList structure because some of the subroutines we
 		// will be calling are designed to work with multiple tables and expect an SrcList* parameter instead of just a Table* parameter.
-		Table *table = SrcList::Lookup(parse, tabList); // The table from which records will be deleted
+		Table *table = SrcListLookup(parse, tabList); // The table from which records will be deleted
 		if (!table) goto delete_from_cleanup;
 
 		// Figure out if we have any triggers and if the table being deleted from is a view
@@ -162,7 +162,7 @@ limit_where_cleanup_2:
 #endif
 
 		// If table is really a view, make sure it has been initialized.
-		if (sqlite3ViewGetColumnNames(parse, table) || IsReadOnly(parse, table, (trigger != nullptr)))
+		if (parse->ViewGetColumnNames(table) || IsReadOnly(parse, table, (trigger != nullptr)))
 			goto delete_from_cleanup;
 		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Database number
 		_assert(db < ctx->DBs.length);
@@ -202,7 +202,7 @@ limit_where_cleanup_2:
 		_memset(&sNC, 0, sizeof(sNC));
 		sNC.Parse = parse;
 		sNC.SrcList = tabList;
-		if (sqlite3ResolveExprNames(&sNC, where_))
+		if (Walker::ResolveExprNames(&sNC, where_))
 			goto delete_from_cleanup;
 
 		// Initialize the counter of the number of rows deleted, if we are counting rows.
@@ -235,13 +235,13 @@ limit_where_cleanup_2:
 
 			// Collect rowids of every row to be deleted.
 			v->AddOp2(OP_Null, 0, rowSet);
-			WhereInfo *winfo = Where::Begin(parse, tabList, where_, 0, nullptr, WHERE_DUPLICATES_OK, 0); // Information about the WHERE clause
+			WhereInfo *winfo = WhereInfo::Begin(parse, tabList, where_, 0, nullptr, WHERE_DUPLICATES_OK, 0); // Information about the WHERE clause
 			if (!winfo) goto delete_from_cleanup;
 			int regRowid = Expr::CodeGetColumn(parse, table, -1, curId, rowid, 0); // Actual register containing rowids
 			v->AddOp2(OP_RowSetAdd, rowSet, regRowid);
 			if (ctx->Flags & Context::FLAG_CountRows)
 				v->AddOp2(OP_AddImm, memCnt, 1);
-			Where::End(winfo);
+			WhereInfo::End(winfo);
 
 			// Delete every item whose key was written to the list during the database scan.  We have to delete items after the scan is complete
 			// because deleting an item can change the scan order.
@@ -250,7 +250,7 @@ limit_where_cleanup_2:
 			// Unless this is a view, open cursors for the table we are deleting from and all its indices. If this is a view, then the
 			// only effect this statement has is to fire the INSTEAD OF triggers.
 			if (!isView)
-				sqlite3OpenTableAndIndices(parse, table, curId, OP_OpenWrite);
+				Insert::OpenTableAndIndices(parse, table, curId, OP_OpenWrite);
 			int addr = v->AddOp3(OP_RowSetRead, rowSet, end, rowid);
 
 			// Delete the row
@@ -277,7 +277,8 @@ limit_where_cleanup_2:
 			// Close the cursors open on the table and its indexes.
 			if (!isView && !IsVirtual(table))
 			{
-				for (int i = 1, idx = table->Index; idx; i++, idx = idx->Next)
+				int i;
+				for (i = 1, idx = table->Index; idx; i++, idx = idx->Next)
 					v->AddOp2(OP_Close, curId + i, idx->Id);
 				v->AddOp1(OP_Close, curId);
 			}
@@ -286,7 +287,7 @@ limit_where_cleanup_2:
 		// Update the sqlite_sequence table by storing the content of the maximum rowid counter values recorded while inserting into
 		// autoincrement tables.
 		if (!parse->Nested && !parse->TriggerTab)
-			Prepare::AutoincrementEnd(parse);
+			Insert::AutoincrementEnd(parse);
 
 		// Return the number of rows that were deleted. If this routine is generating code because of a call to sqlite3NestedParse(), do not
 		// invoke the callback function.
@@ -294,12 +295,12 @@ limit_where_cleanup_2:
 		{
 			v->AddOp2(OP_ResultRow, memCnt, 1);
 			v->SetNumCols(1);
-			v->SetColName(0, COLNAME_NAME, "rows deleted", SQLITE_STATIC);
+			v->SetColName(0, COLNAME_NAME, "rows deleted", DESTRUCTOR_STATIC);
 		}
 
 delete_from_cleanup:
 		Auth::ContextPop(&sContext);
-		SrcList::Delete(ctx, tabList);
+		Parse::SrcListDelete(ctx, tabList);
 		Expr::Delete(ctx, where_);
 		return;
 	}
@@ -322,12 +323,13 @@ delete_from_cleanup:
 		v->AddOp3(OP_NotExists, curId, label, rowid);
 
 		// If there are any triggers to fire, allocate a range of registers to use for the old.* references in the triggers.
+		int oldId = 0; // First register in OLD.* array
 		if (parse->FKRequired(table, 0, 0) || trigger)
 		{
 			// TODO: Could use temporary registers here. Also could attempt to avoid copying the contents of the rowid register.
-			uint32 mask = sqlite3TriggerColmask(parse, trigger, 0, 0, TRIGGER_BEFORE|TRIGGER_AFTER, table, onconf); // Mask of OLD.* columns in use
+			uint32 mask = trigger->Colmask(parse, nullptr, false, TRIGGER_BEFORE|TRIGGER_AFTER, table, onconf); // Mask of OLD.* columns in use
 			mask |= parse->FKOldmask(table);
-			int oldId = parse->Mems+1; // First register in OLD.* array
+			oldId = parse->Mems+1;
 			parse->Mems += (1 + table->Cols.length);
 
 			// Populate the OLD.* pseudo-table register array. These values will be used by any BEFORE and AFTER triggers that exist.
@@ -337,7 +339,7 @@ delete_from_cleanup:
 					Expr::CodeGetColumnOfTable(v, table, curId, col, oldId + col+1);
 
 			// Invoke BEFORE DELETE trigger programs.
-			sqlite3CodeRowTrigger(parse, trigger, TK_DELETE, 0, TRIGGER_BEFORE, table, oldId, onconf, label);
+			trigger->CodeRowTrigger(parse, TK_DELETE, nullptr, TRIGGER_BEFORE, table, oldId, onconf, label);
 
 			// Seek the cursor to the row to be deleted again. It may be that the BEFORE triggers coded above have already removed the row
 			// being deleted. Do not attempt to delete the row a second time, and do not fire AFTER triggers.
@@ -360,7 +362,7 @@ delete_from_cleanup:
 		parse->FKActions(table, 0, oldId);
 
 		// Invoke AFTER DELETE trigger programs.
-		sqlite3CodeRowTrigger(parse, trigger, TK_DELETE, 0, TRIGGER_AFTER, table, oldId, onconf, label);
+		trigger->CodeRowTrigger(parse, TK_DELETE, 0, TRIGGER_AFTER, table, oldId, onconf, label);
 
 		// Jump here if the row had already been deleted before any BEFORE trigger programs were invoked. Or if a trigger program throws a RAISE(IGNORE) exception.
 		v->ResolveLabel(label);
@@ -394,12 +396,12 @@ delete_from_cleanup:
 			else
 			{
 				v->AddOp3(OP_Column, curId, idx, regBase+j);
-				v->ColumnDefault(table, idx, -1);
+				Update::ColumnDefault(v, table, idx, -1);
 			}
 		}
 		if (doMakeRec)
 		{
-			const char *affName = (table->Select || CtxOptimizationDisabled(parse->Ctx, SQLITE_IdxRealAsInt) ? nullptr : sqlite3IndexAffinityStr(v, index));
+			const char *affName = (table->Select || CtxOptimizationDisabled(parse->Ctx, OPTFLAG_IdxRealAsInt) ? nullptr : Insert::IndexAffinityStr(v, index));
 			v->AddOp3(OP_MakeRecord, regBase, cols+1, regOut);
 			v->ChangeP4(-1, affName, Vdbe::P4T_TRANSIENT);
 		}

@@ -123,10 +123,10 @@ namespace Core { namespace Command
 
 	__device__ static void Stat3Push_(FuncContext *fctx, int argc, Mem **argv)
 	{
-		tRowcnt eq = Vdbe::Value_Int64(argv[0]);
+		tRowcnt eq = (tRowcnt)Vdbe::Value_Int64(argv[0]);
 		if (eq == 0) return;
-		tRowcnt lt = Vdbe::Value_Int64(argv[1]);
-		tRowcnt dLt = Vdbe::Value_Int64(argv[2]);
+		tRowcnt lt = (tRowcnt)Vdbe::Value_Int64(argv[1]);
+		tRowcnt dLt = (tRowcnt)Vdbe::Value_Int64(argv[2]);
 		int64 rowid = Vdbe::Value_Int64(argv[3]);
 		Stat3Accum *p = (Stat3Accum *)Vdbe::Value_Blob(argv[4]);
 		bool isPSample = false;
@@ -515,7 +515,7 @@ namespace Core { namespace Command
 		else if (name2->length == 0)
 		{
 			// Form 2:  Analyze the database or table named
-			int db = Parse::FindDb(ctx, name1);
+			db = Parse::FindDb(ctx, name1);
 			if (db >= 0)
 				AnalyzeDatabase(parse, db);
 			else
@@ -537,7 +537,7 @@ namespace Core { namespace Command
 		{
 			// Form 3: Analyze the fully qualified table name
 			Token *tableName;
-			int db = parse->TwoPartName(name1, name2, &tableName);
+			db = parse->TwoPartName(name1, name2, &tableName);
 			if (db >= 0)
 			{
 				char *dbName = ctx->DBs[db].Name;

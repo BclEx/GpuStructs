@@ -141,7 +141,7 @@ namespace Core
 		uint8 TempStore;					// 1: file 2: memory 0: default
 		//TAGBASE::MallocFailed
 		IPager::LOCKINGMODE DefaultLockMode;// Default locking-mode for attached dbs
-		signed char NextAutovac;			// Autovac setting after VACUUM if >=0
+		Btree::AUTOVACUUM NextAutovac;		// Autovac setting after VACUUM if >=0
 		uint8 SuppressErr;					// Do not issue error messages if true
 		uint8 VTableOnConflict;				// Value to return for s3_vtab_on_conflict()
 		uint8 IsTransactionSavepoint;		// True if the outermost savepoint is a TS

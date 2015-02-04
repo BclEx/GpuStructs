@@ -182,7 +182,7 @@ namespace Core
 		// Note: The #defined SQLITE_UTF* symbols in sqliteInt.h correspond to the possible values of meta[4].
 		int meta[5];
 		for (i = 0; i < _lengthof(meta); i++)
-			dbAsObj->Bt->GetMeta((Btree::META)i+1, (uint32 *)&meta[i]);
+			dbAsObj->Bt->GetMeta((Btree::META)(i+1), (uint32 *)&meta[i]);
 		dbAsObj->Schema->SchemaCookie = meta[Btree::META_SCHEMA_VERSION-1];
 
 		// If opening a non-empty database, check the text encoding. For the main database, set sqlite3.enc to the encoding of the main database.
@@ -193,7 +193,7 @@ namespace Core
 			{
 #ifndef OMIT_UTF16
 				// If opening the main database, set ENC(ctx).
-				TEXTENCODE encoding = (TEXTENCODE)meta[Btree::META_TEXT_ENCODING-1] & 3;
+				TEXTENCODE encoding = (TEXTENCODE)(meta[Btree::META_TEXT_ENCODING-1] & 3);
 				if (encoding == 0) encoding = TEXTENCODE_UTF8;
 				CTXENCODE(ctx) = encoding;
 #else
@@ -249,7 +249,7 @@ namespace Core
 				ARC (*auth)(void*,int,const char*,const char*,const char*,const char*) = ctx->Auth;
 				ctx->Auth = nullptr;
 #endif
-				rc = sqlite3_exec(ctx, sql, InitCallback, &initData, 0);
+				rc = Main::Exec(ctx, sql, InitCallback, &initData, 0);
 #ifndef OMIT_AUTHORIZATION
 				ctx->Auth = auth;
 			}
@@ -299,7 +299,7 @@ error_out:
 			if (DbHasProperty(ctx, i, SCHEMA_SchemaLoaded) || i == 1) continue;
 			rc = InitOne(ctx, i, errMsg);
 			if (rc)
-				ResetOneSchema(ctx, i);
+				Parse::ResetOneSchema(ctx, i);
 		}
 
 		// Once all the other databases have been initialized, load the schema for the TEMP database. This is loaded last, as the TEMP database
@@ -316,7 +316,7 @@ error_out:
 		bool commitInternal = !(ctx->Flags & Context::FLAG_InternChanges);
 		ctx->Init.Busy = false;
 		if (rc == RC_OK && commitInternal)
-			CommitInternalChanges(ctx);
+			Parse::CommitInternalChanges(ctx);
 		return rc; 
 	}
 
@@ -364,7 +364,7 @@ error_out:
 			_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
 			if (cookie != ctx->DBs[db].Schema->SchemaCookie)
 			{
-				ResetOneSchema(ctx, db);
+				Parse::ResetOneSchema(ctx, db);
 				parse->RC = RC_SCHEMA;
 			}
 

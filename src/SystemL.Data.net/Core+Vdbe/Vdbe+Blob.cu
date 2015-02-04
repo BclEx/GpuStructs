@@ -224,7 +224,7 @@ namespace Core {
 				// Configure the number of columns. Configure the cursor to think that the table has one more column than it really
 				// does. An OP_Column to retrieve this imaginary column will always return an SQL NULL. This is useful because it means
 				// we can invoke OP_Column to fill in the vdbe cursors type and offset cache without causing any IO.
-				v->ChangeP4(3+flags, INT_TO_PTR(table->Cols.length+1), Vdbe::P4T_INT32);
+				v->ChangeP4(3+flags, (char *)INT_TO_PTR(table->Cols.length+1), Vdbe::P4T_INT32);
 				v->ChangeP2(7, table->Cols.length);
 				if (!ctx->MallocFailed)
 				{

@@ -1078,7 +1078,7 @@ findTerm_success:
 		return logN;
 	}
 
-#if !defined(OMIT_VIRTUALTABLE) && defined(DEBUG)
+#if !defined(OMIT_VIRTUALTABLE) && defined(_DEBUG)
 	__device__ static void TRACE_IDX_INPUTS(IIndexInfo *p)
 	{
 		if (!WhereTrace) return;
@@ -1092,7 +1092,7 @@ findTerm_success:
 		for (int i = 0; i < p->OrderBys.length; i++)
 			_dprintf("  orderby[%d]: col=%d desc=%d\n",
 			i,
-			p->OrderBsy[i].ColumnIdx,
+			p->OrderBys[i].Column,
 			p->OrderBys[i].Desc);
 	}
 	__device__ static void TRACE_IDX_OUTPUTS(IIndexInfo *p)

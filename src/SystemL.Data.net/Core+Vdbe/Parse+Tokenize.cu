@@ -329,7 +329,7 @@ namespace Core
 				break; }
 			case TK_ILLEGAL: {
 				_tagfree(ctx, *errMsg);
-				*errMsg = _mprintf(ctx, "unrecognized token: \"%T\"", &LastToken);
+				*errMsg = _mtagprintf(ctx, "unrecognized token: \"%T\"", &LastToken);
 				errs++;
 				goto abort_parse; }
 			case TK_SEMI: {
@@ -361,7 +361,7 @@ abort_parse:
 		if (ctx->MallocFailed)
 			RC = RC_NOMEM;
 		if (RC != RC_OK && RC != RC_DONE && !ErrMsg)
-			SetString(&ErrMsg, ctx, "%s", ErrStr(RC));
+			_setstring(&ErrMsg, ctx, "%s", Main::ErrStr(RC));
 		_assert(errMsg);
 		if (ErrMsg)
 		{
@@ -394,7 +394,7 @@ abort_parse:
 			DeleteTable(ctx, NewTable);
 		}
 #if !OMIT_TRIGGER
-		DeleteTrigger(ctx, NewTrigger);
+		Trigger::DeleteTrigger(ctx, NewTrigger);
 #endif
 		for (i = Vars.length-1; i >= 0; i--)
 			_tagfree(ctx, Vars.data[i]);

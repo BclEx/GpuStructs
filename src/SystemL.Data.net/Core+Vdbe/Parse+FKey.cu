@@ -98,7 +98,7 @@ namespace Core
 		return 0;
 	}
 
-	__device__ static void FKLookupParent(Parse *parse, int iDb, Table *table, Index *index, FKey *fkey, int *cols, int regDataId, int incr, bool isIgnore)
+	__device__ static void FKLookupParent(Parse *parse, int db, Table *table, Index *index, FKey *fkey, int *cols, int regDataId, int incr, bool isIgnore)
 	{
 		Vdbe *v = parse->GetVdbe(); // Vdbe to add code to
 		int curId = parse->Tabs - 1; // Cursor number to use
@@ -123,8 +123,7 @@ namespace Core
 			if (!index)
 			{
 				// If pIdx is NULL, then the parent key is the INTEGER PRIMARY KEY column of the parent table (table table).
-				int mustBeIntId; 
-				int regTempId = parse->GetTempReg();
+				int regTempId = Expr::GetTempReg(parse);
 
 				// Invoke MustBeInt to coerce the child key value to an integer (i.e. apply the affinity of the parent key). If this fails, then there
 				// is no matching parent key. Before using MustBeInt, make a copy of the value. Otherwise, the value inserted into the child key column
@@ -137,18 +136,18 @@ namespace Core
 				if (table == fkey->From && incr == 1)
 					v->AddOp3(OP_Eq, regDataId, okId, regTempId);
 
-				parse->OpenTable(curId, db, table, OP_OpenRead);
+				Insert::OpenTable(parse, curId, db, table, OP_OpenRead);
 				v->AddOp3(OP_NotExists, curId, 0, regTempId);
 				v->AddOp2(OP_Goto, 0, okId);
 				v->JumpHere(v->CurrentAddr()-2);
 				v->JumpHere(mustBeIntId);
-				parse->ReleaseTempReg(regTempId);
+				Expr::ReleaseTempReg(parse, regTempId);
 			}
 			else
 			{
 				int colsLength = fkey->Cols.length;
-				int regTempId = parse->GetTempRange(colsLength);
-				int regRecId = parse->GetTempReg();
+				int regTempId = Expr::GetTempRange(parse, colsLength);
+				int regRecId = Expr::GetTempReg(parse);
 				KeyInfo *key = parse->IndexKeyinfo(index);
 
 				v->AddOp3(OP_OpenRead, curId, index->Id, db);
@@ -172,17 +171,17 @@ namespace Core
 						if (index->Columns[i] == table->PKey)
 							parentId = regDataId; // The parent key is a composite key that includes the IPK column
 						v->AddOp3(OP_Ne, childId, jumpId, parentId);
-						v->ChangeP5(SQLITE_JUMPIFNULL);
+						v->ChangeP5(AFF_BIT_JUMPIFNULL);
 					}
 					v->AddOp2(OP_Goto, 0, okId);
 				}
 
 				v->AddOp3(OP_MakeRecord, regTempId, colsLength, regRecId);
-				v->ChangeP4(-1, v->IndexAffinityStr(index), Vdbe::P4T_TRANSIENT);
+				v->ChangeP4(-1, Insert::IndexAffinityStr(v, index), Vdbe::P4T_TRANSIENT);
 				v->AddOp4Int(OP_Found, curId, okId, regRecId, 0);
 
-				parse->ReleaseTempReg(regRec);
-				parse->ReleaseTempRange(regTempId, colsLength);
+				Expr::ReleaseTempReg(parse, regRecId);
+				Expr::ReleaseTempRange(parse, regTempId, colsLength);
 			}
 		}
 
@@ -191,7 +190,7 @@ namespace Core
 			// Special case: If this is an INSERT statement that will insert exactly one row into the table, raise a constraint immediately instead of
 			// incrementing a counter. This is necessary as the VM code is being generated for will not open a statement transaction.
 			_assert(incr == 1);
-			HaltConstraint(parse, SQLITE_CONSTRAINT_FOREIGNKEY, OE_Abort, "foreign key constraint failed", Vdbe::P4T_STATIC);
+			parse->HaltConstraint(RC_CONSTRAINT_FOREIGNKEY, OE_Abort, "foreign key constraint failed", Vdbe::P4T_STATIC);
 		}
 		else
 		{
@@ -209,9 +208,9 @@ namespace Core
 		Context *ctx = parse->Ctx; // Database handle
 		Vdbe *v = parse->GetVdbe();
 		_assert(!index || index->Table == table);
-		int iFkIfZero = 0; // Address of OP_FkIfZero
+		int fkIfZero = 0; // Address of OP_FkIfZero
 		if (incr < 0)
-			iFkIfZero = v->AddOp2(OP_FkIfZero, fkey->IsDeferred, 0);
+			fkIfZero = v->AddOp2(OP_FkIfZero, fkey->IsDeferred, 0);
 
 		// Create an Expr object representing an SQL expression like:
 		//
@@ -223,7 +222,7 @@ namespace Core
 		for (int i = 0; i < fkey->Cols.length; i++)
 		{
 			int col; // Index of column in child table
-			Expr *left = Expr::Expr(ctx, TK_REGISTER, 0); // Value from parent table row
+			Expr *left = Expr::Expr_(ctx, TK_REGISTER, 0); // Value from parent table row
 			if (left)
 			{
 				// Set the collation sequence and affinity of the LHS of each TK_EQ expression to the parent key column defaults.
@@ -236,19 +235,19 @@ namespace Core
 					left->Aff = colObj->Affinity;
 					const char *collName = colObj->Coll;
 					if (collName == 0) collName = ctx->DefaultColl->Name;
-					left = Expr::AddCollateString(parse, left, collName);
+					left = left->AddCollateString(parse, collName);
 				}
 				else
 				{
 					left->TableIdx = regDataId;
-					left->Affinity = AFF_INTEGER;
+					left->Aff = AFF_INTEGER;
 				}
 			}
 			col = (cols ? cols[i] : fkey->Cols[0].From);
 			_assert(col >= 0);
 			const char *colName = fkey->From->Cols[col].Name; // Name of column in child table
-			Expr *right = Expr::Expr(ctx, TK_ID, colName); // Column ref to child table
-			Expr *eq = Expr::PExpr(parse, TK_EQ, left, right, 0); // Expression (left = right)
+			Expr *right = Expr::Expr_(ctx, TK_ID, colName); // Column ref to child table
+			Expr *eq = Expr::PExpr_(parse, TK_EQ, left, right, 0); // Expression (left = right)
 			where_ = Expr::And(ctx, where_, eq);
 		}
 
@@ -256,16 +255,16 @@ namespace Core
 		// row being deleted from the scan by adding ($rowid != rowid) to the WHERE clause, where $rowid is the rowid of the row being deleted.
 		if (table == fkey->From && incr > 0)
 		{
-			Expr *left = Expr::Expr(ctx, TK_REGISTER, 0); // Value from parent table row
-			Expr *right = Expr::Expr(ctx, TK_COLUMN, 0); // Column ref to child table
+			Expr *left = Expr::Expr_(ctx, TK_REGISTER, 0); // Value from parent table row
+			Expr *right = Expr::Expr_(ctx, TK_COLUMN, 0); // Column ref to child table
 			if (left && right)
 			{
 				left->TableIdx = regDataId;
-				left->Affinity = AFF_INTEGER;
+				left->Aff = AFF_INTEGER;
 				right->TableIdx = src->Ids[0].Cursor;
 				right->ColumnIdx= -1;
 			}
-			Expr *eq = Expr::PExpr(parse, TK_NE, left, right, 0); // Expression (left = right)
+			Expr *eq = Expr::PExpr_(parse, TK_NE, left, right, 0); // Expression (left = right)
 			where_ = Expr::And(ctx, where_, eq);
 		}
 
@@ -274,16 +273,16 @@ namespace Core
 		_memset(&nameContext, 0, sizeof(NameContext));
 		nameContext.SrcList = src;
 		nameContext.Parse = parse;
-		ResolveExprNames(&nameContext, where_);
+		Walker::ResolveExprNames(&nameContext, where_);
 
 		// Create VDBE to loop through the entries in src that match the WHERE clause. If the constraint is not deferred, throw an exception for
 		// each row found. Otherwise, for deferred constraints, increment the deferred constraint counter by incr for each row selected.
-		WhereInfo *whereInfo = Where::Begin(parse, src, where_, 0, 0, 0, 0);  // Context used by sqlite3WhereXXX()
+		WhereInfo *whereInfo = WhereInfo::Begin(parse, src, where_, nullptr, nullptr, (WHERE)0, 0);  // Context used by sqlite3WhereXXX()
 		if (incr > 0 && !fkey->IsDeferred)
 			Parse_Toplevel(parse)->_MayAbort = true;
 		v->AddOp2(OP_FkCounter, fkey->IsDeferred, incr);
 		if (whereInfo)
-			Where::End(whereInfo);
+			WhereInfo::End(whereInfo);
 
 		// Clean up the WHERE clause constructed above.
 		Expr::Delete(ctx, where_);
@@ -333,13 +332,13 @@ namespace Core
 			}
 
 			DisableTriggers = true;
-			DeleteFrom(this, SrcListDup(ctx, name, 0), 0);
+			Delete::DeleteFrom(this, Expr::SrcListDup(ctx, name, 0), 0);
 			DisableTriggers = false;
 
 			// If the DELETE has generated immediate foreign key constraint violations, halt the VDBE and return an error at this point, before
 			// any modifications to the schema are made. This is because statement transactions are not able to rollback schema changes.
 			v->AddOp2(OP_FkIfZero, 0, v->CurrentAddr()+2);
-			HaltConstraint(this, SQLITE_CONSTRAINT_FOREIGNKEY, OE_Abort, "foreign key constraint failed", Vdbe::P4T_STATIC);
+			HaltConstraint(RC_CONSTRAINT_FOREIGNKEY, OE_Abort, "foreign key constraint failed", Vdbe::P4T_STATIC);
 
 			if (skipId)
 				v->ResolveLabel(skipId);
@@ -357,7 +356,7 @@ namespace Core
 		// If foreign-keys are disabled, this function is a no-op.
 		if ((ctx->Flags & Context::FLAG_ForeignKeys) == 0) return;
 
-		int db = SchemaToIndex(ctx, table->Schema); // Index of database containing table
+		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Index of database containing table
 		const char *dbName = ctx->DBs[db].Name; // Name of database containing table
 
 		// Loop through all the foreign key constraints for which table is the child table (the table that the foreign key definition is part of).
@@ -367,7 +366,7 @@ namespace Core
 			bool isIgnore = false;
 			// Find the parent table of this foreign key. Also find a unique index on the parent key columns in the parent table. If either of these 
 			// schema items cannot be located, set an error in parse and return early.
-			Table *to = (DisableTriggers ? FindTable(ctx, fkey->To, dbName) : LocateTable(this, 0, fkey->To, dbName)); // Parent table of foreign key fkey
+			Table *to = (DisableTriggers ? FindTable(ctx, fkey->To, dbName) : LocateTable(false, fkey->To, dbName)); // Parent table of foreign key fkey
 			Index *index = nullptr; // Index on key columns in to
 			int *frees = nullptr;
 			if (!to || FKLocateIndex(to, fkey, &index, &frees))
@@ -634,12 +633,12 @@ namespace Core
 				from.length = fromNameLength;
 				Expr *raise = Expr::Expr_(ctx, TK_RAISE, "foreign key constraint failed");
 				if (raise)
-					raise->Affinity = OE_Abort;
+					raise->Aff = (AFF)OE_Abort; //:sky seems odd
 				select = Select::New(parse, 
 					Expr::ListAppend(parse, 0, raise),
-					SrcListAppend(ctx, 0, &from, 0),
+					Parse::SrcListAppend(ctx, 0, &from, 0),
 					where_,
-					nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+					nullptr, nullptr, nullptr, (SF)0, nullptr, nullptr);
 				where_ = nullptr;
 			}
 
@@ -647,7 +646,7 @@ namespace Core
 			bool enableLookaside = ctx->Lookaside.Enabled; // Copy of ctx->lookaside.bEnabled
 			ctx->Lookaside.Enabled = false;
 
-			trigger = (Trigger *)_tagalloc(ctx, 
+			trigger = (Trigger *)_tagalloc2(ctx, 
 				sizeof(Trigger) + // Trigger
 				sizeof(TriggerStep) + // Single step in trigger program
 				fromNameLength + 1 // Space for step->target.z
@@ -658,7 +657,7 @@ namespace Core
 				step = trigger->StepList = (TriggerStep *)&trigger[1];
 				step->Target.data = (char *)&step[1];
 				step->Target.length = fromNameLength;
-				_memcpy((const char *)step->Target.data, fromName, fromNameLength);
+				_memcpy(step->Target.data, fromName, fromNameLength);
 
 				step->Where = Expr::Dup(ctx, where_, EXPRDUP_REDUCE);
 				step->ExprList = Expr::ListDup(ctx, list, EXPRDUP_REDUCE);
@@ -698,7 +697,7 @@ namespace Core
 			default:
 				step->OP = TK_UPDATE;
 			}
-			step->Trigger = trigger;
+			step->Trig = trigger;
 			trigger->Schema = table->Schema;
 			trigger->TabSchema = table->Schema;
 			key->Triggers[actionId] = trigger;
@@ -715,9 +714,9 @@ namespace Core
 		if (Ctx->Flags & Context::FLAG_ForeignKeys)
 			for (FKey *fkey = FKReferences(table); fkey; fkey = fkey->NextTo)
 			{
-				Trigger *action = FKActionTrigger(table, fkey, changes);
+				Trigger *action = FKActionTrigger(this, table, fkey, changes);
 				if (action)
-					CodeRowTriggerDirect(this, action, table, regOld, OE_Abort, 0);
+					action->CodeRowTriggerDirect(this, table, regOld, OE_Abort, 0);
 			}
 	}
 

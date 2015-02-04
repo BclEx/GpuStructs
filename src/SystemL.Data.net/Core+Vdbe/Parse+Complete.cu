@@ -149,17 +149,17 @@ namespace Core
 #ifndef OMIT_UTF16
 	__device__ bool Parse::Complete16(const void *sql)
 	{
-		RC rc = RC_NOMEM;
+		::RC rc = RC_NOMEM;
 #ifndef OMIT_AUTOINIT
-		rc = SysEx::Initialize();
+		rc = Main::Initialize();
 		if (rc) return rc;
 #endif
-		Mem *val = Mem_ValueNew(0);
-		Mem_SetStr(val, -1, sql, TEXTENCODE_UTF16NATIVE, DESTRUCTOR_STATIC);
-		char const *sql8 = Mem_Text(val, TEXTENCODE_UTF8);
-		rc = (sql8 ? (RC)Complete(sql8) : RC_NOMEM);
-		Mem_Free(val);
-		return Context::ApiExit(nullptr, rc);
+		Mem *val = Vdbe::ValueNew(0);
+		Vdbe::ValueSetStr(val, -1, sql, TEXTENCODE_UTF16NATIVE, DESTRUCTOR_STATIC);
+		char const *sql8 = (const char *)Vdbe::ValueText(val, TEXTENCODE_UTF8);
+		rc = (sql8 ? (::RC)Parse::Complete(sql8) : RC_NOMEM);
+		Vdbe::ValueFree(val);
+		return Main::ApiExit(nullptr, rc);
 	}
 #endif
 
