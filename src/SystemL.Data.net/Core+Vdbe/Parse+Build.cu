@@ -1,4 +1,5 @@
-#include "Core+Vdbe.cu.h"
+#include "VdbeInt.cu.h"
+#include "..\KeywordHash.h"
 //#include <stddef.h>
 
 namespace Core
@@ -33,7 +34,7 @@ namespace Core
 			}
 		}
 		int bytes = sizeof(Core::TableLock) * (toplevel->TableLocks.length + 1);
-		toplevel->TableLocks.data = (Core::TableLock *)_tagrelloc_or_free(toplevel->Ctx, toplevel->TableLocks.data, bytes);
+		toplevel->TableLocks.data = (Core::TableLock *)_tagrealloc_or_free(toplevel->Ctx, toplevel->TableLocks.data, bytes);
 		if (toplevel->TableLocks)
 		{
 			tableLock = &toplevel->TableLocks[toplevel->TableLocks.length++];
@@ -112,7 +113,7 @@ namespace Core
 				// shared-cache feature is enabled.
 				CodeTableLocks(this);
 				// Initialize any AUTOINCREMENT data structures required.
-				AutoincrementBegin();
+				Insert::AutoincrementBegin(this);
 				// Finally, jump back to the beginning of the executable code.
 				v->AddOp2(OP_Goto, 0, CookieGoto);
 			}
@@ -154,18 +155,18 @@ namespace Core
 		Nested++;
 #define SAVE_SZ (sizeof(Parse) - offsetof(Parse, VarsSeen))
 		char saveBuf[SAVE_SZ];
-		_memcpy(saveBuf, &VarsSeen, SAVE_SZ);
+		_memcpy(saveBuf, (const char *)&VarsSeen, SAVE_SZ);
 		_memset(&VarsSeen, 0, SAVE_SZ);
 		char *errMsg = nullptr;
 		RunParser(sql, &errMsg);
 		Context *ctx = Ctx;
 		_tagfree(ctx, errMsg);
 		_tagfree(ctx, sql);
-		_memcpy(&VarsSeen, saveBuf, SAVE_SZ);
+		_memcpy((char *)&VarsSeen, saveBuf, SAVE_SZ);
 		Nested--;
 	}
 
-	__device__ Table *Parse::FindTable(Context *ctx, const char *name, const char *database)
+	__device__ Table *Parse::FindTable(Context *ctx, const char *name, const char *dbName)
 	{
 		_assert(name);
 		int nameLength = _strlen30(name);
@@ -188,7 +189,7 @@ namespace Core
 	__device__ Table *Parse::LocateTable(bool isView, const char *name, const char *dbName)
 	{
 		// Read the database schema. If an error occurs, leave an error message and code in pParse and return NULL.
-		if (ReadSchema() != RC_OK)
+		if (Prepare::ReadSchema(this) != RC_OK)
 			return nullptr;
 
 		Table *table = FindTable(Ctx, name, dbName);
@@ -210,7 +211,7 @@ namespace Core
 		const char *dbName;
 		if (item->Schema)
 		{
-			int db = SchemaToIndex(Ctx, item->Schema);
+			int db = Prepare::SchemaToIndex(Ctx, item->Schema);
 			dbName = Ctx->DBs[db].Name;
 		}
 		else
@@ -242,7 +243,7 @@ namespace Core
 	__device__ static void FreeIndex(Context *ctx, Index *index)
 	{
 #ifndef OMIT_ANALYZE
-		Parse::DeleteIndexSamples(ctx, index);
+		Analyze::DeleteIndexSamples(ctx, index);
 #endif
 		_tagfree(ctx, index->ColAff);
 		_tagfree(ctx, index);
@@ -292,7 +293,7 @@ namespace Core
 		ctx->DBs.length = j;
 		if (ctx->DBs.length <= 2 && ctx->DBs.data != ctx->DBStatics)
 		{
-			_memcpy(ctx->StaticDBs, ctx->DBs.data, 2 * sizeof(ctx->DBs[0]));
+			_memcpy(ctx->DBStatics, ctx->DBs.data, 2 * sizeof(ctx->DBs[0]));
 			_tagfree(ctx, ctx->DBs);
 			ctx->DBs = ctx->DBStatics;
 		}
@@ -385,15 +386,15 @@ namespace Core
 		}
 
 		// Delete any foreign keys attached to this table.
-		FkDelete(ctx, table);
+		FKDelete(ctx, table);
 
 		// Delete the Table structure itself.
 		DeleteColumnNames(ctx, table);
 		_tagfree(ctx, table->Name);
 		_tagfree(ctx, table->ColAff);
-		Select::SelectDelete(db, table->Select);
+		Select::Delete(ctx, table->Select);
 #ifndef OMIT_CHECK
-		Expr::ExprListDelete(db, table->Check);
+		Expr::ListDelete(ctx, table->Check);
 #endif
 #ifndef OMIT_VIRTUALTABLE
 		VTable::Clear(ctx, table);
@@ -410,7 +411,7 @@ namespace Core
 		_assert(db >= 0 && db < ctx->DBs.length);
 		_assert(tableName);
 		_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
-		ASSERTCOVERAGE(tableName[0] == nullptr);  // Zero-length table names are allowed
+		ASSERTCOVERAGE(tableName[0] == 0);  // Zero-length table names are allowed
 		Context::DB *db2 = &ctx->DBs[db];
 		Table *table = (Table *)db2->Schema->TableHash.Insert(tableName, _strlen30(tableName), nullptr);
 		DeleteTable(ctx, table);
@@ -454,7 +455,7 @@ namespace Core
 
 	__device__ int Parse::FindDb(Context *ctx, Token *name)
 	{
-		char *nameAsString = NameFromToken(db, name); // Name we are searching for
+		char *nameAsString = NameFromToken(ctx, name); // Name we are searching for
 		int db = FindDbName(ctx, nameAsString); // Database number                    
 		_tagfree(ctx, nameAsString);
 		return db;
@@ -559,7 +560,7 @@ namespace Core
 		if (!INDECLARE_VTABLE(this))
 		{
 			char *dbName = ctx->DBs[db].Name;
-			if (ReadSchema() != RC_OK)
+			if (Prepare::ReadSchema(this) != RC_OK)
 				goto begin_table_error;
 			table = FindTable(ctx, name, dbName);
 			if (table)
@@ -569,7 +570,7 @@ namespace Core
 				else
 				{
 					_assert(!ctx->Init.Busy);
-					CodeVerifySchema(this, db);
+					CodeVerifySchema(db);
 				}
 				goto begin_table_error;
 			}
@@ -580,7 +581,7 @@ namespace Core
 			}
 		}
 
-		table = (Table *)_tagalloc(ctx, sizeof(Table), true);
+		table = (Table *)_tagalloc2(ctx, sizeof(Table), true);
 		if (!table)
 		{
 			ctx->MallocFailed = true;
@@ -622,14 +623,14 @@ namespace Core
 			int reg1 = RegRowid = ++Mems;
 			int reg2 = RegRoot = ++Mems;
 			int reg3 = ++Mems;
-			v->AddOp3(OP_ReadCookie, db, reg3, BTREE_FILE_FORMAT);
+			v->AddOp3(OP_ReadCookie, db, reg3, Btree::META_FILE_FORMAT);
 			v->UsesBtree(db);
 			int j1 = v->AddOp1(OP_If, reg3);
 			int fileFormat = ((ctx->Flags & Context::FLAG_LegacyFileFmt) != 0 ? 1 : MAX_FILE_FORMAT);
 			v->AddOp2(OP_Integer, fileFormat, reg3);
-			v->AddOp3(OP_SetCookie, db, BTREE_FILE_FORMAT, reg3);
+			v->AddOp3(OP_SetCookie, db, Btree::META_FILE_FORMAT, reg3);
 			v->AddOp2(OP_Integer, CTXENCODE(ctx), reg3);
-			v->AddOp3(OP_SetCookie, db, BTREE_TEXT_ENCODING, reg3);
+			v->AddOp3(OP_SetCookie, db, Btree::META_TEXT_ENCODING, reg3);
 			v->JumpHere(j1);
 
 			// This just creates a place-holder record in the sqlite_master table. The record created does not contain anything yet.  It will be replaced
@@ -647,7 +648,7 @@ namespace Core
 			v->AddOp2(OP_NewRowid, 0, reg1);
 			v->AddOp2(OP_Null, 0, reg3);
 			v->AddOp3(OP_Insert, 0, reg3, reg1);
-			v->ChangeP5(OPFLAG_APPEND);
+			v->ChangeP5(Vdbe::OPFLAG_APPEND);
 			v->AddOp0(OP_Close);
 		}
 		return;
@@ -702,7 +703,7 @@ begin_table_error:
 		table->Cols.length++;
 	}
 
-	__device__ void Parse::AddNotNull(uint8 onError)
+	__device__ void Parse::AddNotNull(OE onError)
 	{
 		Table *table = NewTable;
 		if (!table || _NEVER(table->Cols.length < 1))
@@ -758,7 +759,7 @@ begin_table_error:
 				// A copy of pExpr is used instead of the original, as pExpr contains tokens that point to volatile memory. The 'span' of the expression
 				// is required by pragma table_info.
 				Expr::Delete(ctx, col->Dflt);
-				col->Dflt = Expr::ExprDup(ctx, span->Expr, EXPRDUP_REDUCE);
+				col->Dflt = Expr::Dup(ctx, span->Expr, EXPRDUP_REDUCE);
 				_tagfree(ctx, col->DfltName);
 				col->DfltName = _tagstrndup(ctx, (char *)span->Start, (int)(span->End - span->Start));
 			}
@@ -819,7 +820,7 @@ begin_table_error:
 			list = nullptr;
 		}
 primary_key_exit:
-		Expr::ExprListDelete(Ctx, list);
+		Expr::ListDelete(Ctx, list);
 		return;
 	}
 
@@ -829,9 +830,9 @@ primary_key_exit:
 		Table *table = NewTable;
 		if (table && !INDECLARE_VTABLE(this))
 		{
-			table->Check = ExprListAppend(table->Check, checkExpr);
+			table->Check = Expr::ListAppend(this, table->Check, checkExpr);
 			if (ConstraintName.length)
-				ExprListSetName(table->Check, &ConstraintName, 1);
+				Expr::ListSetName(this, table->Check, &ConstraintName, true);
 		}
 		else
 #endif
@@ -877,13 +878,13 @@ primary_key_exit:
 
 	__device__ void Parse::ChangeCookie(int db)
 	{
-		int r1 = GetTempReg();
+		int r1 = Expr::GetTempReg(this);
 		Context *ctx = Ctx;
 		Vdbe *v = V;
 		_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
 		v->AddOp2(OP_Integer, ctx->DBs[db].Schema->SchemaCookie + 1, r1);
-		v->AddOp3(OP_SetCookie, db, BTREE_SCHEMA_VERSION, r1);
-		ReleaseTempReg(r1);
+		v->AddOp3(OP_SetCookie, db, Btree::META_SCHEMA_VERSION, r1);
+		Expr::ReleaseTempReg(this, r1);
 	}
 
 	__device__ static int IdentLength(const char *z)
@@ -903,7 +904,7 @@ primary_key_exit:
 		for (j = 0; ident[j]; j++)
 			if (!_isalnum(ident[j]) && ident[j] != '_')
 				break;
-		bool needQuote = (_isdigit(ident[0]) || KeywordCode(ident, j) != TK_ID);
+		bool needQuote = (_isdigit(ident[0]) || KeywordCode((const char *)ident, j) != TK_ID);
 		if (!needQuote) needQuote = ident[j];
 		else z[i++] = '"';
 		for (j = 0; ident[j]; j++)
@@ -960,7 +961,7 @@ primary_key_exit:
 			sep = sep2;
 			IdentPut(stmt, &k, col->Name);
 			_assert(col->Affinity - AFF_TEXT >= 0);
-			_assert(col->Affinity - AFF_TEXT < _arrayLength(types));
+			_assert(col->Affinity - AFF_TEXT < _lengthof(_createTableStmt_Types));
 			ASSERTCOVERAGE(col->Affinity == AFF_TEXT);
 			ASSERTCOVERAGE(col->Affinity == AFF_NONE);
 			ASSERTCOVERAGE(col->Affinity == AFF_NUMERIC);
@@ -969,7 +970,7 @@ primary_key_exit:
 
 			const char *type = _createTableStmt_Types[col->Affinity - AFF_TEXT];
 			int typeLength = _strlen30(type);
-			_assert(col->Affinity == AFF_NONE || col->Affinity == sqlite3AffinityType(type));
+			_assert(col->Affinity == AFF_NONE || col->Affinity == Parse::AffinityType(type));
 			_memcpy(&stmt[k], type, typeLength);
 			k += typeLength;
 			_assert(k <= n);
@@ -988,7 +989,7 @@ primary_key_exit:
 			return;
 		_assert(!ctx->Init.Busy || !select);
 
-		int db = SchemaToIndex(ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(ctx, table->Schema);
 #ifndef OMIT_CHECK
 		// Resolve names in all CHECK constraint expressions.
 		if (table->Check)
@@ -1006,7 +1007,7 @@ primary_key_exit:
 			nc.NCFlags = NC_IsCheck;
 			ExprList *list = table->Check; // List of all CHECK constraints
 			for (int i = 0; i < list->Exprs; i++)
-				if (Resolve::ExprNames(&nc, list->Ids[i].Expr))
+				if (Walker::ResolveExprNames(&nc, list->Ids[i].Expr))
 					return;
 		}
 #endif
@@ -1055,16 +1056,16 @@ primary_key_exit:
 			if (select)
 			{
 				_assert(Tabs == 1);
-				v->AddOp3(OP_OpenWrite, 1, RegRoot, ctx);
-				v->ChangeP5(OPFLAG_P2ISREG);
+				v->AddOp3(OP_OpenWrite, 1, RegRoot, db);
+				v->ChangeP5(Vdbe::OPFLAG_P2ISREG);
 				Tabs = 2;
 				SelectDest dest;
-				SelectDestInit(&dest, SRT_Table, 1);
-				Select.Select(this, select, &dest);
+				Select::DestInit(&dest, SRT_Table, 1);
+				Select::Select_(this, select, &dest);
 				v->AddOp1(OP_Close, 1);
 				if (Errs == 0)
 				{
-					Table *selectTable = ResultSetOfSelect(select);
+					Table *selectTable = select->ResultSetOfSelect(this);
 					if (!selectTable)
 						return;
 					_assert(!table->Cols);
@@ -1089,13 +1090,12 @@ primary_key_exit:
 
 			// A slot for the record has already been allocated in the SQLITE_MASTER table.  We just need to update that slot with all
 			// the information we've collected.
-			void *args[8] = { ctx->DBs[db].Name, SCHEMA_TABLE(db),
-				type, table->Name, table->Name, RegRoot, stmt,
-				RegRowid };
 			NestedParse(
 				"UPDATE %Q.%s "
 				"SET type='%s', name=%Q, tbl_name=%Q, rootpage=#%d, sql=%Q "
-				"WHERE rowid=#%d", args);
+				"WHERE rowid=#%d", ctx->DBs[db].Name, SCHEMA_TABLE(db),
+				type, table->Name, table->Name, RegRoot, stmt,
+				RegRowid);
 			_tagfree(ctx, stmt);
 			ChangeCookie(db);
 
@@ -1106,10 +1106,7 @@ primary_key_exit:
 				Context::DB *dbobj = &ctx->DBs[db];
 				_assert(Btree::SchemaMutexHeld(ctx, db, nullptr));
 				if (!dbobj->Schema->SeqTable)
-				{
-					void *args2[1] = { dbobj->Name };
-					NestedParse("CREATE TABLE %Q.sqlite_sequence(name,seq)", args2);
-				}
+					NestedParse("CREATE TABLE %Q.sqlite_sequence(name,seq)", dbobj->Name);
 			}
 #endif
 
@@ -1182,19 +1179,19 @@ primary_key_exit:
 			ViewGetColumnNames(table);
 
 		// Locate the end of the CREATE VIEW statement.  Make sEnd point to the end.
-		Token end = LastToken;
-		if (_ALWAYS(end[0] != 0) && end[0] != ';')
-			end.data += end.length;
-		end.length = 0;
+		Token sEnd = LastToken;
+		if (_ALWAYS(sEnd.data[0] != 0) && sEnd.data[0] != ';')
+			sEnd.data += sEnd.length;
+		sEnd.length = 0;
 
-		int n = (int)(end.data - begin->data);
+		int n = (int)(sEnd.data - begin->data);
 		const char *z = begin->data;
 		while (_ALWAYS(n > 0) && _isspace(z[n - 1])) { n--; }
-		end.data = &z[n - 1];
-		end.length = 1;
+		sEnd.data = &z[n - 1];
+		sEnd.length = 1;
 
 		// Use sqlite3EndTable() to add the view to the SQLITE_MASTER table
-		EndTable(nullptr, &end, nullptr);
+		EndTable(nullptr, &sEnd, nullptr);
 		return;
 	}
 #endif
@@ -1247,7 +1244,7 @@ primary_key_exit:
 #ifndef OMIT_AUTHORIZATION
 			ARC (*auth)(void*,int,const char*,const char*,const char*,const char*) = ctx->Auth;
 			ctx->Auth = nullptr;
-			Table *selectTable = ResultSetOfSelect(select); // A fake table from which we get the result set
+			Table *selectTable = select->ResultSetOfSelect(this); // A fake table from which we get the result set
 			ctx->Auth = auth;
 #else
 			Table *selectTable = ResultSetOfSelect(select); // A fake table from which we get the result set
@@ -1326,7 +1323,7 @@ primary_key_exit:
 	__device__ static void DestroyRootPage(Parse *parse, int table, int db)
 	{
 		Vdbe *v = parse->GetVdbe();
-		int r1 = parse->GetTempReg();
+		int r1 = Expr::GetTempReg(parse);
 		v->AddOp3(OP_Destroy, table, r1, db);
 		parse->MayAbort();
 #ifndef OMIT_AUTOVACUUM
@@ -1335,10 +1332,9 @@ primary_key_exit:
 		//
 		// The "#NNN" in the SQL is a special constant that means whatever value is in register NNN.  See grammar rules associated with the TK_REGISTER
 		// token for additional information.
-		void *args[5] = { parse->Ctx->DBs[db].Name, SCHEMA_TABLE(db), table, r1, r1 };
-		parse->NestedParse("UPDATE %Q.%s SET rootpage=%d WHERE #%d AND rootpage=#%d", args);
+		parse->NestedParse("UPDATE %Q.%s SET rootpage=%d WHERE #%d AND rootpage=#%d", parse->Ctx->DBs[db].Name, SCHEMA_TABLE(db), table, r1, r1);
 #endif
-		parse->ReleaseTempReg(r1);
+		Expr::ReleaseTempReg(parse, r1);
 	}
 
 	__device__ static void DestroyTable(Parse *parse, Table *table)
@@ -1377,7 +1373,7 @@ primary_key_exit:
 				return;
 			else
 			{
-				int db = SchemaToIndex(parse->Ctx, table->Schema);
+				int db = Prepare::SchemaToIndex(parse->Ctx, table->Schema);
 				_assert(db >= 0 && db < parse->Ctx->DBs.length);
 				DestroyRootPage(parse, largestId, db);
 				destroyedId = largestId;
@@ -1394,10 +1390,7 @@ primary_key_exit:
 			char tableName[24];
 			__snprintf(tableName, sizeof(tableName), "sqlite_stat%d", i);
 			if (FindTable(Ctx, tableName, dbName))
-			{
-				void *args[4] = { dbName, tableName, type, name };
-				NestedParse("DELETE FROM %Q.%s WHERE %s=%Q", args);
-			}
+				NestedParse("DELETE FROM %Q.%s WHERE %s=%Q", dbName, tableName, type, name);
 		}
 	}
 
@@ -1417,11 +1410,11 @@ primary_key_exit:
 
 		// Drop all triggers associated with the table being dropped. Code is generated to remove entries from sqlite_master and/or
 		// sqlite_temp_master if required.
-		Trigger *trigger = sqlite3TriggerList(this, table);
+		Trigger *trigger = Trigger::List(this, table);
 		while (trigger)
 		{
 			_assert(trigger->Schema == table->Schema || trigger->Schema == ctx->DBs[1].Schema);
-			sqlite3DropTriggerPtr(this, trigger);
+			Trigger::DropTriggerPtr(this, trigger);
 			trigger = trigger->Next;
 		}
 
@@ -1429,17 +1422,13 @@ primary_key_exit:
 		// Remove any entries of the sqlite_sequence table associated with the table being dropped. This is done before the table is dropped
 		// at the btree level, in case the sqlite_sequence table needs to move as a result of the drop (can happen in auto-vacuum mode).
 		if (table->TabFlags & TF_Autoincrement)
-		{
-			void *args[2] = { dbobj->Name, table->Name };
-			NestedParse("DELETE FROM %Q.sqlite_sequence WHERE name=%Q", args);
-		}
+			NestedParse("DELETE FROM %Q.sqlite_sequence WHERE name=%Q", dbobj->Name, table->Name);
 #endif
 
 		// Drop all SQLITE_MASTER table and index entries that refer to the table. The program name loops through the master table and deletes
 		// every row that refers to a table of the same name as the one being dropped. Triggers are handled separately because a trigger can be
 		// created in the temp database that refers to a table in another database.
-		void *args2[3] = { dbobj->Name, SCHEMA_TABLE(db), table->Name };
-		NestedParse("DELETE FROM %Q.%s WHERE tbl_name=%Q and type!='trigger'", args2);
+		NestedParse("DELETE FROM %Q.%s WHERE tbl_name=%Q and type!='trigger'", dbobj->Name, SCHEMA_TABLE(db), table->Name);
 		if (!isView && !IsVirtual(table))
 			DestroyTable(this, table);
 
@@ -1458,7 +1447,7 @@ primary_key_exit:
 			goto exit_drop_table;
 
 		_assert(Errs == 0);
-		_assert(name->Srcs.length == 1);
+		_assert(name->Srcs == 1);
 		if (noErr)
 			ctx->SuppressErr++;
 		Table *table = LocateTableItem(isView, &name->Ids[0]);
@@ -1468,10 +1457,10 @@ primary_key_exit:
 		if (!table)
 		{
 			if (noErr)
-				CodeVerifyNamedSchema(this, name->Ids[0].Database);
+				CodeVerifyNamedSchema(name->Ids[0].Database);
 			goto exit_drop_table;
 		}
-		int db = SchemaToIndex(ctx, table->Schema);
+		int db = Prepare::SchemaToIndex(ctx, table->Schema);
 		_assert(db >= 0 && db < ctx->DBs.length);
 
 		// If pTab is a virtual table, call ViewGetColumnNames() to ensure it is initialized.
@@ -1493,7 +1482,7 @@ primary_key_exit:
 #ifndef OMIT_VIRTUALTABLE
 			else if (IsVirtual(table))
 			{
-				code = DROP_VTABLE;
+				code = AUTH_DROP_VTABLE;
 				arg2 = VTable::GetVTable(ctx, table)->Module->Name;
 			}
 #endif
@@ -1502,7 +1491,7 @@ primary_key_exit:
 				code = (!E_OMIT_TEMPDB && db == 1 ? AUTH_DROP_TEMP_TABLE : AUTH_DROP_TABLE);
 				arg2 = 0;
 			}
-			if (AuthCheck(this, code, table->Name, arg2, dbName) || AuthCheck(this, AUTH_DELETE, table->Name, nullptr, dbName))
+			if (Auth::Check(this, code, table->Name, arg2, dbName) || Auth::Check(this, AUTH_DELETE, table->Name, nullptr, dbName))
 				goto exit_drop_table;
 		}
 #endif
@@ -1532,7 +1521,7 @@ primary_key_exit:
 		{
 			BeginWriteOperation(1, db);
 			ClearStatTables(db, "tbl", table->Name);
-			FkDropTable(name, table);
+			FKDropTable(name, table);
 			CodeDropTable(table, db, isView);
 		}
 
@@ -1605,7 +1594,7 @@ exit_drop_table:
 				}
 				if (j >= table->Cols.length)
 				{
-					ErrorMsg("unknown column \"%s\" in foreign key definition", fromCol->a[i].Name);
+					ErrorMsg("unknown column \"%s\" in foreign key definition", fromCol->Ids[i].Name);
 					goto fk_end;
 				}
 			}
@@ -1622,8 +1611,8 @@ exit_drop_table:
 			}
 		}
 		fkey->IsDeferred = false;
-		fkey->Actions[0] = (uint8)(flags & 0xff);            // ON DELETE action
-		fkey->Actions[1] = (uint8)((flags >> 8 ) & 0xff);    // ON UPDATE action
+		fkey->Actions[0] = (OE)(flags & 0xff);            // ON DELETE action
+		fkey->Actions[1] = (OE)((flags >> 8 ) & 0xff);    // ON UPDATE action
 
 		_assert(Btree::SchemaMutexHeld(ctx, 0, table->Schema));
 		nextTo = (FKey *)table->Schema->FKeyHash.Insert(fkey->To, _strlen30(fkey->To), (void *)fkey);
@@ -1646,8 +1635,8 @@ exit_drop_table:
 fk_end:
 		_tagfree(ctx, fkey);
 #endif
-		Expr::ExprListDelete(ctx, fromCol);
-		Expr::ExprListDelete(ctx, toCol);
+		Expr::ListDelete(ctx, fromCol);
+		Expr::ListDelete(ctx, toCol);
 	}
 
 	__device__ void Parse::DeferForeignKey(bool isDeferred)
@@ -1663,7 +1652,7 @@ fk_end:
 	__device__ void Parse::RefillIndex(Index *index, int memRootPage)
 	{
 		Context *ctx = Ctx; // The database connection
-		int db = SchemaToIndex(ctx, index->Schema);
+		int db = Prepare::SchemaToIndex(ctx, index->Schema);
 
 #ifndef OMIT_AUTHORIZATION
 		if (Auth::Check(this, AUTH_REINDEX, index->Name, 0, ctx->DBs[db].Name))
@@ -1695,30 +1684,30 @@ fk_end:
 
 		// Open the table. Loop through all rows of the table, inserting index records into the sorter.
 		int tableIdx = Tabs++; // Btree cursor used for pTab
-		OpenTable(tableIdx, db, table, OP_OpenRead);
+		Insert::OpenTable(this, tableIdx, db, table, OP_OpenRead);
 		int addr1 = v->AddOp2(OP_Rewind, tableIdx, 0); // Address of top of loop
-		int regRecord = GetTempReg(); // Register holding assemblied index record
+		int regRecord = Expr::GetTempReg(this); // Register holding assemblied index record
 
-		GenerateIndexKey(index, tableIdx, regRecord, 1);
+		Delete::GenerateIndexKey(this, index, tableIdx, regRecord, true);
 		v->AddOp2(OP_SorterInsert, sorterIdx, regRecord);
 		v->AddOp2(OP_Next, tableIdx, addr1+1);
 		v->JumpHere(addr1);
 		addr1 = v->AddOp2(OP_SorterSort, sorterIdx, 0);
 		int addr2; // Address to jump to for next iteration
-		if (indexIdx->OnError != OE_None)
+		if (index->OnError != OE_None)
 		{
 			int j2 = v->CurrentAddr() + 3;
 			v->AddOp2(OP_Goto, 0, j2);
 			addr2 = v->CurrentAddr();
 			v->AddOp3(OP_SorterCompare, sorterIdx, j2, regRecord);
-			HaltConstraint(SQLITE_CONSTRAINT_UNIQUE, OE_Abort, "indexed columns are not unique", Vdbe::P4T_STATIC);
+			HaltConstraint(RC_CONSTRAINT_UNIQUE, OE_Abort, "indexed columns are not unique", Vdbe::P4T_STATIC);
 		}
 		else
-			addr2 = v.CurrentAddr();
+			addr2 = v->CurrentAddr();
 		v->AddOp2(OP_SorterData, sorterIdx, regRecord);
 		v->AddOp3(OP_IdxInsert, indexIdx, regRecord, 1);
-		v->ChangeP5(OPFLAG_USESEEKRESULT);
-		ReleaseTempReg(regRecord);
+		v->ChangeP5(Vdbe::OPFLAG_USESEEKRESULT);
+		Expr::ReleaseTempReg(this, regRecord);
 		v->AddOp2(OP_SorterNext, sorterIdx, addr2);
 		v->JumpHere(addr1);
 		v->AddOp1(OP_Close, tableIdx);
@@ -1732,7 +1721,7 @@ fk_end:
 		_assert(Errs == 0); // Never called with prior errors
 		Index *r = nullptr; // Pointer to return
 		Context *ctx = Ctx;
-		if (ctx->MallocFailed || INDECLARE_VTABLE(this) || ReadSchema() != RC_OK)
+		if (ctx->MallocFailed || INDECLARE_VTABLE(this) || Prepare::ReadSchema(this) != RC_OK)
 			goto exit_create_index;
 
 		// Find the table that is to be indexed.  Return early if not found.
@@ -1760,7 +1749,7 @@ fk_end:
 			}
 #endif
 			// Because the parser constructs pTblName from a single identifier, sqlite3FixSrcList can never fail.
-			if (Attach::FixInit(&fix, this, db, "index", nameAsToken) && Attach::FixSrcList(&fix, tableName))
+			if (fix.FixInit(this, db, "index", nameAsToken) && fix.FixSrcList(tableName))
 				_assert(0);
 			table = LocateTableItem(false, &tableName->Ids[0]);
 			_assert(!ctx->MallocFailed || !table);
@@ -1775,7 +1764,7 @@ fk_end:
 			table = NewTable;
 			if (!table)
 				goto exit_create_index;
-			db = SchemaToIndex(ctx, table->Schema);
+			db = Prepare::SchemaToIndex(ctx, table->Schema);
 		}
 		Context::DB *dbobj = &ctx->DBs[db]; // The specific table containing the indexed database
 		_assert(table);
@@ -1840,7 +1829,7 @@ fk_end:
 			int n;
 			Index *loop;
 			for (loop = table->Index, n = 1; loop; loop = loop->Next, n++) { }
-			name = _mprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
+			name = _mtagprintf(ctx, "sqlite_autoindex_%s_%d", table->Name, n);
 			if (!name)
 				goto exit_create_index;
 		}
@@ -1852,8 +1841,8 @@ fk_end:
 			const char *dbName = dbobj->Name;
 			if (Auth::Check(this, AUTH_INSERT, SCHEMA_TABLE(db), 0, dbName))
 				goto exit_create_index;
-			i = (!OMIT_TEMPDB2 && db == 1 ? AUTH_CREATE_TEMP_INDEX : AUTH_CREATE_INDEX);
-			if (Auth::Check(this, i, name, table->Name, dbName))
+			i = (!E_OMIT_TEMPDB && db == 1 ? AUTH_CREATE_TEMP_INDEX : AUTH_CREATE_INDEX);
+			if (Auth::Check(this, (AUTH)i, name, table->Name, dbName))
 				goto exit_create_index;
 		}
 #endif
@@ -1865,11 +1854,11 @@ fk_end:
 			Token nullId; // Fake token for an empty ID list
 			nullId.data = table->Cols[table->Cols.length-1].Name;
 			nullId.length = _strlen30((char *)nullId.data);
-			list = ExprList::Append(this, nullptr, nullptr);
+			list = Expr::ListAppend(this, nullptr, nullptr);
 			if (!list)
 				goto exit_create_index;
-			ExprList::SetName(this, list, &nullId, 0);
-			list->Ids[0].SortOrder = (uint8)sortOrder;
+			Expr::ListSetName(this, list, &nullId, 0);
+			list->Ids[0].SortOrder = (SO)sortOrder;
 		}
 
 		// Figure out how many bytes of space are required to store explicitly specified collation sequence names.
@@ -1879,7 +1868,7 @@ fk_end:
 			Expr *expr = list->Ids[i].Expr;
 			if (expr)
 			{
-				CollSeq *coll = Expr::CollSeq(this, expr);
+				CollSeq *coll = expr->CollSeq(this);
 				if (coll)
 					extraLength += (1 + _strlen30(coll->Name));
 			}
@@ -1904,7 +1893,7 @@ fk_end:
 		_assert(_HASALIGNMENT8(index->RowEsts) );
 		_assert(_HASALIGNMENT8(index->CollNames) );
 		index->Columns = (int *)(&index->CollNames[cols]);
-		index->SortOrders = (uint8 *)(&index->Columns[cols]);
+		index->SortOrders = (SO *)(&index->Columns[cols]);
 		index->Name = (char *)(&index->SortOrders[cols]);
 		extra = (char *)(&index->Name[nameLength+1]);
 		_memcpy(index->Name, name, nameLength+1);
@@ -1941,7 +1930,7 @@ fk_end:
 			index->Columns[i] = j;
 			char *collName; // Collation sequence name
 			CollSeq *coll; // Collating sequence
-			if (listItem->Expr && (coll = Expr::CollSeq(this, listItem->Expr)) != nullptr)
+			if (listItem->Expr && (coll = listItem->Expr->CollSeq(this)) != nullptr)
 			{
 				collName = coll->Name;
 				int collNameLength = _strlen30(collName) + 1;
@@ -1960,8 +1949,8 @@ fk_end:
 			if (!ctx->Init.Busy && !LocateCollSeq(collName))
 				goto exit_create_index;
 			index->CollNames[i] = collName;
-			int requestedSortOrder = (listItem->SortOrder & sortOrderMask);
-			index->SortOrders[i] = (uint8)requestedSortOrder;
+			SO requestedSortOrder = (SO)(listItem->SortOrder & sortOrderMask);
+			index->SortOrders[i] = requestedSortOrder;
 		}
 		DefaultRowEst(index);
 
@@ -2052,18 +2041,17 @@ fk_end:
 			{
 				_assert(end != nullptr);
 				// A named index with an explicit CREATE INDEX statement
-				stmt = _mprintf(ctx, "CREATE%s INDEX %.*s", (onError == OE_None ? "" : " UNIQUE"), (int)(end->data - nameAsToken->data) + 1, nameAsToken->data);
+				stmt = _mtagprintf(ctx, "CREATE%s INDEX %.*s", (onError == OE_None ? "" : " UNIQUE"), (int)(end->data - nameAsToken->data) + 1, nameAsToken->data);
 			}
 			else
 				stmt = nullptr; // An automatic index created by a PRIMARY KEY or UNIQUE constraint zStmt = sqlite3MPrintf("");
 
 			// Add an entry in sqlite_master for this index
-			void *args[6] = { ctx->DBs[db].Name, SCHEMA_TABLE(db),
+			NestedParse("INSERT INTO %Q.%s VALUES('index',%Q,%Q,#%d,%Q);", ctx->DBs[db].Name, SCHEMA_TABLE(db),
 				index->Name,
 				table->Name,
 				(void *)memId,
-				stmt };
-			NestedParse("INSERT INTO %Q.%s VALUES('index',%Q,%Q,#%d,%Q);", args);
+				stmt);
 			_tagfree(ctx, stmt);
 
 			// Fill the index with data and reparse the schema. Code an OP_Expire to invalidate all pre-compiled statements.
@@ -2071,7 +2059,7 @@ fk_end:
 			{
 				RefillIndex(index, memId);
 				ChangeCookie(db);
-				v->AddParseSchemaOp(db, _mprintf(ctx, "name='%q' AND type='index'", index->Name));
+				v->AddParseSchemaOp(db, _mtagprintf(ctx, "name='%q' AND type='index'", index->Name));
 				v->AddOp1(OP_Expire, 0);
 			}
 		}
@@ -2105,8 +2093,8 @@ exit_create_index:
 			_tagfree(ctx, index->ColAff);
 			_tagfree(ctx, index);
 		}
-		ExprList::Delete(ctx, list);
-		SrcList::Delete(ctx, tableName);
+		Expr::ListDelete(ctx, list);
+		SrcListDelete(ctx, tableName);
 		_tagfree(ctx, name);
 		return r;
 	}
@@ -2134,7 +2122,7 @@ exit_create_index:
 		if (ctx->MallocFailed)
 			goto exit_drop_index;
 		_assert(name->Srcs == 1);
-		if (ReadSchema() != RC_OK)
+		if (Prepare::ReadSchema(this) != RC_OK)
 			goto exit_drop_index;
 		Index *index = FindIndex(ctx, name->Ids[0].Name, name->Ids[0].Database);
 		if (!index)
@@ -2142,7 +2130,7 @@ exit_create_index:
 			if (!ifExists)
 				ErrorMsg("no such index: %S", name);
 			else
-				CodeVerifyNamedSchema(this, name->Ids[0].Database);
+				CodeVerifyNamedSchema(name->Ids[0].Database);
 			CheckSchema = 1;
 			goto exit_drop_index;
 		}
@@ -2151,7 +2139,7 @@ exit_create_index:
 			ErrorMsg("index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped");
 			goto exit_drop_index;
 		}
-		int db = SchemaToIndex(ctx, index->Schema);
+		int db = Prepare::SchemaToIndex(ctx, index->Schema);
 #ifndef OMIT_AUTHORIZATION
 		{
 			Table *table = index->Table;
@@ -2168,25 +2156,24 @@ exit_create_index:
 		if (v)
 		{
 			BeginWriteOperation(1, db);
-			void *args[3] = { ctx->DBs[db].Name, SCHEMA_TABLE(db), index->Name };
-			NestedParse("DELETE FROM %Q.%s WHERE name=%Q AND type='index'", args);
+			NestedParse("DELETE FROM %Q.%s WHERE name=%Q AND type='index'", ctx->DBs[db].Name, SCHEMA_TABLE(db), index->Name);
 			ClearStatTables(db, "idx", index->Name);
 			ChangeCookie(db);
-			DestroyRootPage(index->Id, db);
+			DestroyRootPage(this, index->Id, db);
 			v->AddOp4(OP_DropIndex, db, 0, 0, index->Name, 0);
 		}
 
 exit_drop_index:
-		SrcList::Delete(ctx, name);
+		SrcListDelete(ctx, name);
 	}
 
-	__device__ void *Parse:ArrayAllocate(Context *ctx, void *array_, int entrySize, int *entryLength, int *index)
+	__device__ void *Parse::ArrayAllocate(Context *ctx, void *array_, int entrySize, int *entryLength, int *index)
 	{
-		int n = *entryCount;
+		int n = *entryLength;
 		if ((n & (n-1)) == 0)
 		{
 			int newSize = (n == 0 ? 1 : 2*n);
-			void *newArray = _tagrealloc(ctx, array_, size*entrySize);
+			void *newArray = _tagrealloc(ctx, array_, newSize*entrySize);
 			if (!newArray)
 			{
 				*index = -1;
@@ -2194,22 +2181,22 @@ exit_drop_index:
 			}
 			array_ = newArray;
 		}
-		char *z = (char *)a;
+		char *z = (char *)array_;
 		_memset(&z[n * entrySize], 0, entrySize);
 		*index = n;
-		++*entryCount;
-		return a;
+		++*entryLength;
+		return array_;
 	}
 
 	__device__ IdList *Parse::IdListAppend(Context *ctx, IdList *list, Token *token)
 	{
 		if (!list)
 		{
-			list = SysEx::TagMalloc(ctx, sizeof(IdList), true);
+			list = (IdList *)_tagalloc2(ctx, sizeof(IdList), true);
 			if (!list) return nullptr;
 		}
 		int i;
-		list->Ids = ArrayAllocate(ctx, list->Ids, sizeof(list->Ids[0]), &list->Ids.length, &i);
+		list->Ids.data = (IdList::IdListItem *)ArrayAllocate(ctx, list->Ids, sizeof(list->Ids[0]), &list->Ids.length, &i);
 		if (i < 0)
 		{
 			IdListDelete(ctx, list);
@@ -2247,7 +2234,7 @@ exit_drop_index:
 		if (src->Srcs + extra > src->Allocs)
 		{
 			int allocs = src->Srcs + extra;
-			SrcList *newSrc = _tagrealloc(ctx, src, sizeof(*src) + (allocs - 1)*sizeof(src->Ids[0]));
+			SrcList *newSrc = (SrcList *)_tagrealloc(ctx, src, sizeof(*src) + (allocs - 1)*sizeof(src->Ids[0]));
 			if (!newSrc)
 			{
 				_assert(ctx->MallocFailed);
@@ -2262,7 +2249,7 @@ exit_drop_index:
 			src->Ids[i + extra] = src->Ids[i];
 		src->Srcs += (int16)extra;
 		// Zero the newly allocated slots
-		__memset(&src->Ids[start], 0, sizeof(src->Ids[0])*extra);
+		_memset(&src->Ids[start], 0, sizeof(src->Ids[0])*extra);
 		for (int i = start; i < start + extra; i++)
 			src->Ids[i].Cursor = -1;
 		// Return a pointer to the enlarged SrcList
@@ -2274,7 +2261,7 @@ exit_drop_index:
 		_assert(!database || table); // Cannot have C without B
 		if (!list)
 		{
-			list = (SrcList *)_tagalloc(ctx, sizeof(SrcList), true);
+			list = (SrcList *)_tagalloc2(ctx, sizeof(SrcList), true);
 			if (!list) return nullptr;
 			list->Allocs = 1;
 		}
@@ -2324,7 +2311,7 @@ exit_drop_index:
 			_tagfree(ctx, item->Name);
 			_tagfree(ctx, item->Alias);
 			_tagfree(ctx, item->Index);
-			Table::DeleteTable(ctx, item->Table);
+			DeleteTable(ctx, item->Table);
 			Select::Delete(ctx, item->Select);
 			Expr::Delete(ctx, item->On);
 			IdListDelete(ctx, item->Using);
@@ -2341,11 +2328,11 @@ exit_drop_index:
 			goto append_from_error;
 		}
 		list = SrcListAppend(ctx, list, table, database);
-		if (!list || SysEx::NEVER(list->Srcs == 0))
+		if (!list || _NEVER(list->Srcs == 0))
 			goto append_from_error;
-		SrcList::SrcListItem *item = &list>Ids[list->Srcs-1];
+		SrcList::SrcListItem *item = &list->Ids[list->Srcs-1];
 		_assert(alias != nullptr);
-		if (alias->Length != 0)
+		if (alias->length != 0)
 			item->Alias = NameFromToken(ctx, alias);
 		item->Select = subquery;
 		item->On = on;
@@ -2354,7 +2341,7 @@ exit_drop_index:
 
 append_from_error:
 		_assert(list == nullptr);
-		ExprDelete(ctx, on);
+		Expr::Delete(ctx, on);
 		IdListDelete(Ctx, using_);
 		Select::Delete(ctx, subquery);
 		return nullptr;
@@ -2370,7 +2357,7 @@ append_from_error:
 			if (indexedBy->length == 1 && !indexedBy->data)
 				item->NotIndexed = 1; // A "NOT INDEXED" clause was supplied. See parse.y construct "indexed_opt" for details.
 			else
-				item->Index = NameFromToken(Ctx, indexedBy);
+				item->IndexName = NameFromToken(Ctx, indexedBy);
 		}
 	}
 
@@ -2381,13 +2368,13 @@ append_from_error:
 			_assert(list->Ids || list->Srcs == 0);
 			for (int i = list->Srcs - 1; i > 0; i--)
 				list->Ids[i].Jointype = list->Ids[i - 1].Jointype;
-			list->Ids[0].Jointype = 0;
+			list->Ids[0].Jointype = (JT)0;
 		}
 	}
 
 	__device__ void Parse::BeginTransaction(int type)
 	{
-		Context ctx = Ctx;
+		Context *ctx = Ctx;
 		_assert(ctx);
 #ifndef OMIT_AUTHORIZATION
 		if (Auth::Check(this, AUTH_TRANSACTION, "BEGIN", 0, 0))
@@ -2397,7 +2384,7 @@ append_from_error:
 		if (!v) return;
 		if (type != TK_DEFERRED)
 		{
-			for (int i = 0; i < ctx->DBs; i++)
+			for (int i = 0; i < ctx->DBs.length; i++)
 			{
 				v->AddOp2(OP_Transaction, i, (type == TK_EXCLUSIVE ? 2 : 1));
 				v->UsesBtree(i);
@@ -2436,7 +2423,7 @@ append_from_error:
 	__device__ void Parse::Savepoint(int op, Token *name)
 	{
 #if !OMIT_AUTHORIZATION
-		_assert(SAVEPOINT_BEGIN == 0 && SAVEPOINT_RELEASE == 1 && SAVEPOINT_ROLLBACK == 2);
+		_assert(IPager::SAVEPOINT_BEGIN == 0 && IPager::SAVEPOINT_RELEASE == 1 && IPager::SAVEPOINT_ROLLBACK == 2);
 #endif
 		char *nameAsString = NameFromToken(Ctx, name);
 		if (nameAsString)
@@ -2471,7 +2458,7 @@ append_from_error:
 			}
 			ctx->DBs[1].Bt = bt;
 			_assert(ctx->DBs[1].Schema);
-			if (Btree::SetPageSize(bt, ctx->NextPagesize, -1, 0) != RC_NOMEM)
+			if (bt->SetPageSize(ctx->NextPagesize, -1, 0) != RC_NOMEM)
 			{
 				ctx->MallocFailed = true;
 				return 1;
@@ -2574,7 +2561,7 @@ append_from_error:
 		for (Index *index = table->Index; index; index = index->Next)
 			if (!collName || CollationMatch(collName, index))
 			{
-				int db = SchemaToIndex(parse->Ctx, table->Schema);
+				int db = Prepare::SchemaToIndex(parse->Ctx, table->Schema);
 				parse->BeginWriteOperation(0, db);
 				parse->RefillIndex(index, -1);
 			}
@@ -2601,7 +2588,7 @@ append_from_error:
 	{
 		Context *ctx = Ctx; // The database connection
 		// Read the database schema. If an error occurs, leave an error message and code in pParse and return NULL.
-		if (ReadSchema(this) != RC_OK)
+		if (Prepare::ReadSchema(this) != RC_OK)
 			return;
 		if (!name1)
 		{
@@ -2613,7 +2600,7 @@ append_from_error:
 			_assert(name1->data);
 			char *collName = NameFromToken(ctx, name1);
 			if (!collName) return;
-			CollSeq *coll = FindCollSeq(ctx, CTXENCODE(db), collName, 0); // Collating sequence to be reindexed, or NULL
+			CollSeq *coll = Callback::FindCollSeq(ctx, CTXENCODE(ctx), collName, 0); // Collating sequence to be reindexed, or NULL
 			if (coll)
 			{
 				ReindexDatabases(this, collName);
@@ -2656,13 +2643,13 @@ append_from_error:
 		if (key)
 		{
 			key->Ctx = Ctx;
-			key->SortOrders = (uint8 *)&(key->Colls[colLength]);
-			_assert(&key->SortOrders[colLength] == &(((uint8 *)key)[bytes]));
+			key->SortOrders = (SO *)&(key->Colls[colLength]);
+			_assert(&key->SortOrders[colLength] == &(((SO *)key)[bytes]));
 			for (int i = 0; i < colLength; i++)
 			{
-				char *collName = index->CollName[i];
+				char *collName = index->CollNames[i];
 				_assert(collName);
-				key->Colls[i] = LocateCollSeq(this, collName);
+				key->Colls[i] = LocateCollSeq(collName);
 				key->SortOrders[i] = index->SortOrders[i];
 			}
 			key->Fields = (uint16)colLength;

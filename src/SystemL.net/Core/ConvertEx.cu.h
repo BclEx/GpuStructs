@@ -9,6 +9,10 @@
 		TEXTENCODE_ANY = 5, // sqlite3_create_function only
 		TEXTENCODE_UTF16_ALIGNED = 8, // sqlite3_create_collation only
 	};
+	__device__ inline TEXTENCODE operator|=(TEXTENCODE a, int b) { return (TEXTENCODE)(a | b); }
+	__device__ inline TEXTENCODE operator&=(TEXTENCODE a, int b) { return (TEXTENCODE)(a & b); }
+	__device__ inline TEXTENCODE operator|(TEXTENCODE a, TEXTENCODE b) { return (TEXTENCODE)((int)a | (int)b); }
+	__device__ inline TEXTENCODE operator&(TEXTENCODE a, TEXTENCODE b) { return (TEXTENCODE)((int)a & (int)b); }
 
 #define ConvertEx_GetVarint32(A,B) \
 	(uint8)((*(A)<(uint8)0x80)?((B)=(uint32)*(A)),1:\

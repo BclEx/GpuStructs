@@ -195,11 +195,6 @@ namespace Core
 #define VDBE_MAGIC_HALT     0x519c2973    // VDBE has completed execution
 #define VDBE_MAGIC_DEAD     0xb606c3c8    // The VDBE has been deallocated
 
-#ifdef OMIT_TEMPDB
-#define E_OMIT_TEMPDB 1
-#else
-#define E_OMIT_TEMPDB 0
-#endif
 #define MASTER_NAME       "sqlite_master" // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
 #define TEMP_MASTER_NAME  "sqlite_temp_master" // Name of the master database table.  The master database table is a special table that holds the names and attributes of all user tables and indices.
 #define SCHEMA_TABLE(x)  (!E_OMIT_TEMPDB && (x) == 1 ? TEMP_MASTER_NAME : MASTER_NAME) // The name of the schema table.

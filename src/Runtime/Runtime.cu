@@ -551,7 +551,7 @@ __device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_
 				out_ = extra = (char *)_alloc(outLength);
 				if (!out_)
 				{
-					MallocFailed = true;
+					AllocFailed = true;
 					return;
 				}
 			}
@@ -659,7 +659,7 @@ __device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_
 				bufpt = extra = (char *)_alloc(e2+precision+width+15);
 				if (!bufpt)
 				{
-					MallocFailed = true;
+					AllocFailed = true;
 					return;
 				}
 			}
@@ -762,7 +762,7 @@ __device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_
 				bufpt = extra = (char *)_alloc(n);
 				if (!bufpt)
 				{
-					MallocFailed = true;
+					AllocFailed = true;
 					return;
 				}
 			}
@@ -825,10 +825,10 @@ __device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_
 __device__ void TextBuilder::Append(const char *z, int length)
 {
 	_assert(z != nullptr || length == 0);
-	if (Overflowed | MallocFailed)
+	if (Overflowed | AllocFailed)
 	{
 		ASSERTCOVERAGE(Overflowed);
-		ASSERTCOVERAGE(MallocFailed);
+		ASSERTCOVERAGE(AllocFailed);
 		return;
 	}
 	_assert(Text != nullptr || Index == 0);
@@ -870,7 +870,7 @@ __device__ void TextBuilder::Append(const char *z, int length)
 			}
 			else
 			{
-				MallocFailed = true;
+				AllocFailed = true;
 				Reset();
 				return;
 			}
@@ -895,7 +895,7 @@ __device__ char *TextBuilder::ToString()
 			if (Text)
 				_memcpy(Text, Base, Index + 1);
 			else
-				MallocFailed = true;
+				AllocFailed = true;
 		}
 	}
 	return Text;
@@ -922,7 +922,7 @@ __device__ void TextBuilder::Init(TextBuilder *b, char *text, int capacity, int 
 	b->MaxSize = maxSize;
 	b->AllocType = 1;
 	b->Overflowed = false;
-	b->MallocFailed = false;
+	b->AllocFailed = false;
 }
 
 __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *length)
@@ -936,7 +936,7 @@ __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *len
 	b.AppendFormat(true, fmt, args);
 	if (length) *length = b.Index;
 	char *z = b.ToString();
-	//? if (b.MallocFailed) _tagallocfailed(tag);
+	//? if (b.AllocFailed) _tagallocfailed(tag);
 	return z;
 }
 

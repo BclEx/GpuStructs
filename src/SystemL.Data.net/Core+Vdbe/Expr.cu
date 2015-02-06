@@ -245,7 +245,7 @@ namespace Core
 	__device__ void Expr::SetHeight(Parse *parse)
 	{
 		ExprSetHeight(this);
-		ExprCheckHeight(parse, this->Height);
+		CheckHeight(parse, this->Height);
 	}
 
 	__device__ int Expr::SelectExprHeight(Select *select)
@@ -270,7 +270,7 @@ namespace Core
 				_assert(value >= 0);
 			}
 		}
-		Expr *newExpr = (Expr *)_tagalloc(ctx, sizeof(Expr)+extraSize, true);
+		Expr *newExpr = (Expr *)_tagalloc2(ctx, sizeof(Expr)+extraSize, true);
 		if (newExpr)
 		{
 			newExpr->OP = (uint8)op;
@@ -541,8 +541,9 @@ namespace Core
 		Expr *newExpr = nullptr; // Value to return
 		if (expr)
 		{
-			_assert(!buffer || isReduced);
 			const bool isReduced = (flags & EXPRDUP_REDUCE);
+			_assert(!buffer || isReduced);
+
 			// Figure out where to write the new Expr structure.
 			uint8 *alloc;
 			uint32 staticFlag;
@@ -563,7 +564,6 @@ namespace Core
 				// EXPR_TOKENONLYSIZE. nToken is set to the number of bytes consumed * by the copy of the p->u.zToken string (if any).
 				const unsigned structSize = DupedExprStructSize(expr, flags);
 				const int newSize = structSize & 0xfff;
-				int tokenLength;
 				int tokenLength = (!ExprHasProperty(expr, EP_IntValue) && expr->u.Token ? _strlen30(expr->u.Token) + 1 : 0);
 				if (isReduced)
 				{
@@ -591,9 +591,9 @@ namespace Core
 				{
 					// Fill in the pNew->x.pSelect or pNew->x.pList member.
 					if (ExprHasProperty(expr, EP_xIsSelect))
-						newExpr->x.Select = SelectDup(ctx, expr->x.Select, isReduced);
+						newExpr->x.Select = Expr::SelectDup(ctx, expr->x.Select, isReduced);
 					else
-						newExpr->x.List = ListDup(ctx, expr->x.List, isReduced);
+						newExpr->x.List = Expr::ListDup(ctx, expr->x.List, isReduced);
 				}
 				// Fill in pNew->pLeft and pNew->pRight.
 				if (ExprHasAnyProperty(newExpr, EP_Reduced|EP_TokenOnly))
@@ -737,15 +737,15 @@ namespace Core
 		if (prior)
 			prior->Next = newSelect;
 		newSelect->Next = nullptr;
-		newSelect->Limit = ExprDup(ctx, p->pLimit, flags);
-		newSelect->Offset = ExprDup(ctx, p->pOffset, flags);
+		newSelect->Limit = ExprDup(ctx, select->Limit, flags, nullptr);
+		newSelect->Offset = ExprDup(ctx, select->Offset, flags, nullptr);
 		newSelect->LimitId = 0;
 		newSelect->OffsetId = 0;
 		newSelect->SelFlags = (SF)(select->SelFlags & ~SF_UsesEphemeral);
 		newSelect->Rightmost = nullptr;
-		newSelect->AddrOpenEphm[0] = -1;
-		newSelect->AddrOpenEphm[1] = -1;
-		newSelect->AddrOpenEphm[2] = -1;
+		newSelect->AddrOpenEphms[0] = -1;
+		newSelect->AddrOpenEphms[1] = -1;
+		newSelect->AddrOpenEphms[2] = -1;
 		return newSelect;
 	}
 #else
@@ -899,7 +899,7 @@ no_mem:
 	__device__ bool Expr::IsInteger(int *value)
 	{
 		// If an expression is an integer literal that fits in a signed 32-bit integer, then the EP_IntValue flag will have already been set
-		bool rc = false;
+		int rc = 0;
 		_assert(OP != TK_INTEGER || (Flags & EP_IntValue) != 0 || !ConvertEx::Atoi(u.Token, &rc));
 		if (Flags & EP_IntValue)
 		{
@@ -1033,16 +1033,15 @@ no_mem:
 			int col = expr2->ColumnIdx; // Index of column <column>
 
 			// Code an OP_VerifyCookie and OP_TableLock for <table>.
-			int db = SchemaToIndex(ctx, table->Schema); // Database idx for pTab
-			CodeVerifySchema(parse, db);
+			int db = Prepare::SchemaToIndex(ctx, table->Schema); // Database idx for pTab
+			parse->CodeVerifySchema(db);
 			parse->TableLock(db, table->Id, 0, table->Name);
 
-			// This function is only called from two places. In both cases the vdbe has already been allocated. So assume sqlite3GetVdbe() is always
-			// successful here.
+			// This function is only called from two places. In both cases the vdbe has already been allocated. So assume sqlite3GetVdbe() is always successful here.
 			_assert(v);
 			if (col < 0)
 			{
-				int addr = CodeOnce();
+				int addr = CodeOnce(parse);
 				Insert::OpenTable(parse, tableIdx, db, table, OP_OpenRead);
 				type = IN_INDEX_ROWID;
 				v->JumpHere(addr);
@@ -1051,7 +1050,7 @@ no_mem:
 			{
 				// The collation sequence used by the comparison. If an index is to be used in place of a temp-table, it must be ordered according
 				// to this collation sequence.
-				Core::CollSeq *req = BinaryCompareCollSeq(expr->Left, expr2);
+				Core::CollSeq *req = BinaryCompareCollSeq(parse, expr->Left, expr2);
 				// Check that the affinity that will be used to perform the comparison is the same as the affinity of the column. If
 				// it is not, it is not possible to use any index.
 				bool validAffinity = expr->ValidIndexAffinity(table->Cols[col].Affinity);
@@ -1061,13 +1060,13 @@ no_mem:
 						KeyInfo *key = parse->IndexKeyinfo(index);
 						int addr = CodeOnce(parse);
 						v->AddOp4(OP_OpenRead, tableIdx, index->Id, db, (char *)key, Vdbe::P4T_KEYINFO_HANDOFF);
-						VdbeComment(v, "%s", index->Name);
+						v->Comment("%s", index->Name);
 						_assert(IN_INDEX_INDEX_DESC == IN_INDEX_INDEX_ASC+1);
-						type = (IN_INDEX)IN_INDEX_INDEX_ASC + index->SortOrders[0];
+						type = (IN_INDEX)(IN_INDEX_INDEX_ASC + index->SortOrders[0]);
 						v->JumpHere(addr);
 						if (notFound && !table->Cols[col].NotNull)
 						{
-							*notFound = ++parse.Mems;
+							*notFound = ++parse->Mems;
 							v->AddOp2(OP_Null, 0, *notFound);
 						}
 					}
@@ -1087,20 +1086,20 @@ no_mem:
 			}
 			else
 			{
-				ASSERTCOVERAGE(QueryLoops > (double)1);
-				QueryLoops = (double)1;
+				ASSERTCOVERAGE(parse->QueryLoops > (double)1);
+				parse->QueryLoops = (double)1;
 				if (expr->Left->ColumnIdx < 0 && !ExprHasAnyProperty(expr, EP_xIsSelect))
 					type = IN_INDEX_ROWID;
 			}
 			CodeSubselect(parse, expr, mayHaveNull, type == IN_INDEX_ROWID);
-			parse.QueryLoops = savedQueryLoops;
+			parse->QueryLoops = savedQueryLoops;
 		}
 		else
 			expr->TableIdx = tableIdx;
 		return type;
 	}
 
-	__device__ static uint8 _CodeSubselect_SortOrder = 0; // Fake aSortOrder for keyInfo
+	__device__ static SO _CodeSubselect_SortOrder = (SO)0; // Fake aSortOrder for keyInfo
 	__device__ int Expr::CodeSubselect(Parse *parse, Expr *expr, int mayHaveNull, bool isRowid)
 	{
 		int reg = 0; // Register storing resulting
@@ -1117,7 +1116,7 @@ no_mem:
 #ifndef OMIT_EXPLAIN
 		if (parse->Explain == 2)
 		{
-			char *msg = _mprintf(parse->Ctx, "EXECUTE %s%s SUBQUERY %d", (testAddr >= 0 ? "" : "CORRELATED "), (expr->OP == TK_IN ? "LIST" : "SCALAR"), parse->NextSelectId);
+			char *msg = _mtagprintf(parse->Ctx, "EXECUTE %s%s SUBQUERY %d", (testAddr >= 0 ? "" : "CORRELATED "), (expr->OP == TK_IN ? "LIST" : "SCALAR"), parse->NextSelectId);
 			v->AddOp4(OP_Explain, parse->SelectId, 0, 0, msg, Vdbe::P4T_DYNAMIC);
 		}
 #endif
@@ -1137,7 +1136,7 @@ no_mem:
 			// if either column has NUMERIC or INTEGER affinity. If neither 'x' nor the SELECT... statement are columns, then numeric affinity is used.
 			expr->TableIdx = parse->Tabs++;
 			int addr = v->AddOp2(OP_OpenEphemeral, expr->TableIdx, !isRowid); // Address of OP_OpenEphemeral instruction
-			if (!mayHaveNull) v->ChangeP5(BTREE_UNORDERED);
+			if (!mayHaveNull) v->ChangeP5(Btree::OPEN_UNORDERED);
 			KeyInfo keyInfo; // Keyinfo for the generated table
 			_memset(&keyInfo, 0, sizeof(keyInfo));
 			keyInfo.Fields = 1;
@@ -1149,11 +1148,11 @@ no_mem:
 				// Generate code to write the results of the select into the temporary table allocated and opened above.
 				_assert(!isRowid);
 				SelectDest dest;
-				SelectDestInit(&dest, SRT_Set, expr->TableIdx);
+				Select::DestInit(&dest, SRT_Set, expr->TableIdx);
 				dest.AffSdst = affinity;
 				_assert((expr->TableIdx&0x0000FFFF) == expr->TableIdx);
 				expr->x.Select->LimitId = 0;
-				if (Select(parse, expr->x.Select, &dest))
+				if (Select::Select_(parse, expr->x.Select, &dest))
 					return 0;
 				ExprList *list = expr->x.Select->EList;
 				if (_ALWAYS(list && list->Exprs > 0))
@@ -1192,7 +1191,7 @@ no_mem:
 						v->AddOp3(OP_InsertInt, expr->TableIdx, r2, valToIns);
 					else
 					{
-						int r3 = ExprCodeTarget(parse, e2, r1);
+						int r3 = CodeTarget(parse, e2, r1);
 						if (isRowid)
 						{
 							v->AddOp2(OP_MustBeInt, r3, v->CurrentAddr()+2);
@@ -1200,8 +1199,8 @@ no_mem:
 						}
 						else
 						{
-							v->AddOp4(OP_MakeRecord, r3, 1, r2, &affinity, 1);
-							ExprCacheAffinityChange(parse, r3, 1);
+							v->AddOp4(OP_MakeRecord, r3, 1, r2, (char *)&affinity, 1);
+							CacheAffinityChange(parse, r3, 1);
 							v->AddOp2(OP_IdxInsert, expr->TableIdx, r2);
 						}
 					}
@@ -1226,23 +1225,23 @@ no_mem:
 			// and record that memory cell in iColumn.
 			Select *sel = expr->x.Select; // SELECT statement to encode
 			SelectDest dest; // How to deal with SELECt result
-			SelectDestInit(&dest, 0, ++parse->Mems);
+			Select::DestInit(&dest, (SRT)0, ++parse->Mems);
 			if (expr->OP == TK_SELECT)
 			{
 				dest.Dest = SRT_Mem;
 				v->AddOp2(OP_Null, 0, dest.SDParmId);
-				VdbeComment(v, "Init subquery result");
+				v->Comment("Init subquery result");
 			}
 			else
 			{
 				dest.Dest = SRT_Exists;
 				v->AddOp2(OP_Integer, 0, dest.SDParmId);
-				VdbeComment(v, "Init EXISTS result");
+				v->Comment("Init EXISTS result");
 			}
 			Expr::Delete(parse->Ctx, sel->Limit);
 			sel->Limit = PExpr_(parse, TK_INTEGER, 0, 0, &_IntTokens[1]);
 			sel->LimitId = 0;
-			if (Select(parse, sel, &dest))
+			if (Select::Select_(parse, sel, &dest))
 				return 0;
 			reg = dest.SDParmId;
 			ExprSetIrreducible(expr);
@@ -1250,7 +1249,7 @@ no_mem:
 		}
 		if (testAddr >= 0)
 			v->JumpHere(testAddr);
-		ExprCachePop(parse, 1);
+		CachePop(parse, 1);
 		return reg;
 	}
 
@@ -1259,7 +1258,7 @@ no_mem:
 		// Compute the RHS. After this step, the table with cursor expr->TableId will contains the values that make up the RHS.
 		Vdbe *v = parse->V; // Statement under construction
 		_assert(v); // OOM detected prior to this routine
-		VdbeNoopComment(v, "begin IN expr");
+		v->NoopComment("begin IN expr");
 		int rhsHasNull = 0; // Register that is true if RHS contains NULL values
 		int type = FindInIndex(parse, expr, &rhsHasNull); // Type of the RHS
 
@@ -1267,9 +1266,9 @@ no_mem:
 		AFF affinity = ComparisonAffinity(expr); // Comparison affinity to use
 
 		// Code the LHS, the <expr> from "<expr> IN (...)".
-		ExprCachePush(parse);
+		CachePush(parse);
 		int r1 = GetTempReg(parse); // Temporary use register
-		ExprCode(parse, expr->Left, r1);
+		Code(parse, expr->Left, r1);
 
 		// If the LHS is NULL, then the result is either false or NULL depending on whether the RHS is empty or not, respectively.
 		if (destIfNull == destIfFalse)
@@ -1294,7 +1293,7 @@ no_mem:
 		else
 		{
 			// In this case, the RHS is an index b-tree.
-			v->AddOp4(OP_Affinity, r1, 1, 0, &affinity, 1);
+			v->AddOp4(OP_Affinity, r1, 1, 0, (char *)&affinity, 1);
 
 			// If the set membership test fails, then the result of the  "x IN (...)" expression must be either 0 or NULL. If the set
 			// contains no NULL values, then the result is 0. If the set contains one or more NULL values, then the result of the
@@ -1335,7 +1334,7 @@ no_mem:
 		}
 		ReleaseTempReg(parse, r1);
 		CachePop(parse, 1);
-		VdbeComment(v, "end IN expr");
+		v->Comment("end IN expr");
 	}
 
 #endif
@@ -1343,7 +1342,7 @@ no_mem:
 
 	__device__ static char *Dup8bytes(Vdbe *v, const char *in)
 	{
-		char *out = (char *)_tagalloc(v->Db, 8);
+		char *out = (char *)_tagalloc(v->Ctx, 8);
 		if (out)
 			_memcpy(out, in, 8);
 		return out;
@@ -1361,7 +1360,7 @@ no_mem:
 		{
 			double value;
 			ConvertEx::Atof(z, &value, _strlen30(z), TEXTENCODE_UTF8);
-			_assert(!_isNaN(value)); // The new AtoF never returns NaN
+			_assert(!_isnan(value)); // The new AtoF never returns NaN
 			if (negateFlag) value = -value;
 			char *value2 = Dup8bytes(v, (char *)&value);
 			v->AddOp4(OP_Real, 0, mem, 0, value2, Vdbe::P4T_REAL);
@@ -1582,7 +1581,7 @@ no_mem:
 
 #pragma endregion
 
-#if defined(DEBUG) || defined(COVERAGE_TEST)
+#if defined(_DEBUG) || defined(COVERAGE_TEST)
 	__device__ static int UsedAsColumnCache(Parse *parse, int from, int to)
 	{
 		int i;
@@ -1670,7 +1669,7 @@ no_mem:
 			const char *z = &expr->u.Token[2];
 			int n = _strlen30(z) - 1;
 			_assert(z[n] == '\'');
-			char *blob = ConvertEx::HexToBlob(v->Db, z, n);
+			char *blob = (char *)_taghextoblob(ctx, z, n);
 			v->AddOp4(OP_Blob, n/2, target, 0, blob, Vdbe::P4T_DYNAMIC);
 			break; }
 #endif
@@ -1700,7 +1699,7 @@ no_mem:
 			// Expressions of the form:   CAST(pLeft AS token)
 			inReg = CodeTarget(parse, expr->Left, target);
 			_assert(!ExprHasProperty(expr, EP_IntValue));
-			AFF aff = AffinityType(expr->u.Token);
+			AFF aff = Parse::AffinityType(expr->u.Token);
 			int toOP = (int)aff - AFF_TEXT + OP_ToText;
 			_assert(toOP == OP_ToText	|| aff != AFF_TEXT);
 			_assert(toOP == OP_ToBlob    || aff != AFF_NONE);
@@ -1743,7 +1742,7 @@ no_mem:
 			ASSERTCOVERAGE(op == TK_NE);
 			r1 = CodeTemp(parse, expr->Left, &regFree1);
 			r2 = CodeTemp(parse, expr->Right, &regFree2);
-			CodeCompare(parse, expr->Left, expr->Right, op, r1, r2, inReg, SQLITE_STOREP2);
+			CodeCompare(parse, expr->Left, expr->Right, op, r1, r2, inReg, AFF_BIT_STOREP2);
 			ASSERTCOVERAGE(regFree1 == 0);
 			ASSERTCOVERAGE(regFree2 == 0);
 			break; }
@@ -1755,7 +1754,7 @@ no_mem:
 			r1 = CodeTemp(parse, expr->Left, &regFree1);
 			r2 = CodeTemp(parse, expr->Right, &regFree2);
 			op = (op == TK_IS ? TK_EQ : TK_NE);
-			CodeCompare(parse, expr->Left, expr->Right, op, r1, r2, inReg, SQLITE_STOREP2 | SQLITE_NULLEQ);
+			CodeCompare(parse, expr->Left, expr->Right, op, r1, r2, inReg, AFF_BIT_STOREP2 | AFF_BIT_NULLEQ);
 			ASSERTCOVERAGE(regFree1 == 0);
 			ASSERTCOVERAGE(regFree2 == 0);
 			break; }
@@ -1914,8 +1913,8 @@ no_mem:
 					uint8 exprOP = farg->Ids[0].Expr->OP;
 					if (exprOP == TK_COLUMN || exprOP == TK_AGG_COLUMN)
 					{
-						_assert(FUNC_LENGTH == OPFLAG_LENGTHARG);
-						_assert(FUNC_TYPEOF == OPFLAG_TYPEOFARG);
+						_assert(FUNC_LENGTH == Vdbe::OPFLAG_LENGTHARG);
+						_assert(FUNC_TYPEOF == Vdbe::OPFLAG_TYPEOFARG);
 						ASSERTCOVERAGE(def->Flags == FUNC_LENGTH);
 						farg->Ids[0].Expr->OP2 = def->Flags;
 					}
@@ -1999,15 +1998,15 @@ no_mem:
 			r2 = CodeTemp(parse, right, &regFree2);
 			ASSERTCOVERAGE(regFree1 == 0);
 			ASSERTCOVERAGE(regFree2 == 0);
-			r3 = GetTempReg();
-			r4 = GetTempReg();
-			CodeCompare(parse, left, right, OP_Ge, r1, r2, r3, SQLITE_STOREP2);
+			r3 = GetTempReg(parse);
+			r4 = GetTempReg(parse);
+			CodeCompare(parse, left, right, OP_Ge, r1, r2, r3, AFF_BIT_STOREP2);
 			item++;
 			right = item->Expr;
 			ReleaseTempReg(parse, regFree2);
 			r2 = CodeTemp(parse, right, &regFree2);
 			ASSERTCOVERAGE(regFree2 == 0);
-			CodeCompare(parse, left, right, OP_Le, r1, r2, r4, SQLITE_STOREP2);
+			CodeCompare(parse, left, right, OP_Le, r1, r2, r4, AFF_BIT_STOREP2);
 			v->AddOp3(OP_And, r3, r4, target);
 			ReleaseTempReg(parse, r3);
 			ReleaseTempReg(parse, r4);
@@ -2041,9 +2040,9 @@ no_mem:
 			_assert(expr->TableIdx == 0 || expr->TableIdx == 1);
 			_assert(expr->ColumnIdx >= -1 && expr->ColumnIdx < table->Cols.length);
 			_assert(table->PKey < 0 || expr->ColumnIdx != table->PKey);
-			_assert(p1 >= 0 && p1 < (table->Cols.ModuleArgs.data*2+2));
+			_assert(p1 >= 0 && p1 < (table->Cols.length*2+2));
 			v->AddOp2(OP_Param, p1, target);
-			VdbeComment(v, "%s.%s -> $%d", (expr->TableIdx ? "new" : "old"), (expr->ColumnIdx < 0 ? "rowid" : expr->Table->Cols[expr->ColumnIdx].Name), target);
+			v->Comment("%s.%s -> $%d", (expr->TableIdx ? "new" : "old"), (expr->ColumnIdx < 0 ? "rowid" : expr->Table->Cols[expr->ColumnIdx].Name), target);
 
 #ifndef OMIT_FLOATING_POINT
 			// If the column has REAL affinity, it may currently be stored as an integer. Use OP_RealAffinity to make sure it is really real.
@@ -2073,7 +2072,7 @@ no_mem:
 						 // no ELSE term, NULL.
 		default: _assert(op == TK_CASE); {
 
-			ASSERTONLY(int cacheLevel = CacheLevel);
+			ASSERTONLY(int cacheLevel = parse->CacheLevel);
 			_assert(!ExprHasProperty(expr, EP_xIsSelect) && expr->x.List);
 			_assert((expr->x.List->Exprs % 2) == 0);
 			_assert(expr->x.List->Exprs > 0);
@@ -2111,7 +2110,7 @@ no_mem:
 					test = elems[i].Expr;
 				int nextCase = v->MakeLabel(); // GOTO label for next WHEN clause
 				ASSERTCOVERAGE(test->OP == TK_COLUMN);
-				IfFalse(parse, test, nextCase, SQLITE_JUMPIFNULL);
+				test->IfFalse(parse, nextCase, AFF_BIT_JUMPIFNULL);
 				ASSERTCOVERAGE(elems[i+1].Expr->OP == TK_COLUMN);
 				ASSERTCOVERAGE(elems[i+1].Expr->OP == TK_REGISTER);
 				Code(parse, elems[i+1].Expr, target);
@@ -2127,25 +2126,25 @@ no_mem:
 			}
 			else
 				v->AddOp2(OP_Null, 0, target);
-			_assert(ctx->MallocFailed || parse->Errs > 0 || CacheLevel == cacheLevel);
+			_assert(ctx->MallocFailed || parse->Errs > 0 || parse->CacheLevel == cacheLevel);
 			v->ResolveLabel(endLabel);
 			break; }
 
 #ifndef OMIT_TRIGGER
 		case TK_RAISE: {
-			_assert(expr->Affinity == OE_Rollback  || expr->Affinity == OE_Abort || expr->Affinity= = OE_Fail || expr->Affinity == OE_Ignore);
+			_assert(expr->Aff == OE_Rollback  || expr->Aff == OE_Abort || expr->Aff == OE_Fail || expr->Aff == OE_Ignore);
 			if (!parse->TriggerTab)
 			{
 				parse->ErrorMsg("RAISE() may only be used within a trigger-program");
 				return 0;
 			}
-			if (expr->Affinity == OE_Abort)
+			if (expr->Aff == OE_Abort)
 				parse->MayAbort();
 			_assert(!ExprHasProperty(expr, EP_IntValue));
-			if (expr->Affinity == OE_Ignore)
+			if (expr->Aff == OE_Ignore)
 				v->AddOp4(OP_Halt, RC_OK, OE_Ignore, 0, expr->u.Token, 0);
 			else
-				HaltConstraint(parse, CONSTRAINT_TRIGGER, expr->Affinity, expr->u.Token, 0);
+				parse->HaltConstraint(RC_CONSTRAINT_TRIGGER, expr->Aff, expr->u.Token, 0);
 			break; }
 #endif
 
@@ -2362,7 +2361,7 @@ no_mem:
 			Vdbe::ExplainPrintf(v, "BETWEEN(");
 			ExplainExpr(v, x);
 			Vdbe::ExplainPrintf(v, ",");
-			ExplainExpr(v, u);
+			ExplainExpr(v, y);
 			Vdbe::ExplainPrintf(v, ",");
 			ExplainExpr(v, z);
 			Vdbe::ExplainPrintf(v, ")");
@@ -2385,7 +2384,7 @@ no_mem:
 #ifndef OMIT_TRIGGER
 		case TK_RAISE: {
 			const char *type = "unk";
-			switch (expr->Affinity)
+			switch (expr->Aff)
 			{
 			case OE_Rollback:   type = "rollback";  break;
 			case OE_Abort:      type = "abort";     break;
@@ -2509,7 +2508,7 @@ no_mem:
 		if (IsAppropriateForFactoring(expr))
 		{
 			int r1 = ++parse->Mems;
-			int r2 = CodeTarget(parse, expr, r1);
+			int r2 = Expr::CodeTarget(parse, expr, r1);
 			// If r2!=r1, it means that register r1 is never used.  That is harmless but suboptimal, so we want to know about the situation to fix it.
 			// Hence the following assert:
 			_assert(r2 == r1);
@@ -2529,7 +2528,7 @@ no_mem:
 		w.ExprCallback = EvalConstExpr;
 		w.SelectCallback = nullptr;
 		w.Parse = parse;
-		WalkExpr(&w, expr);
+		w.WalkExpr(expr);
 	}
 
 	__device__ int Expr::CodeExprList(Parse *parse, ExprList *list, int target, bool doHardCopy)
@@ -2550,7 +2549,7 @@ no_mem:
 		return n;
 	}
 
-	__device__ static void ExprCodeBetween(Parse *parse, Expr *expr, int dest, bool jumpIfTrue, int jumpIfNull)
+	__device__ static void ExprCodeBetween(Parse *parse, Expr *expr, int dest, bool jumpIfTrue, AFF jumpIfNull)
 	{
 		_assert(!ExprHasProperty(expr, EP_xIsSelect));
 		Expr exprX = *expr->Left; // The  x  subexpression
@@ -2603,7 +2602,7 @@ no_mem:
 			int d2 = v->MakeLabel();
 			ASSERTCOVERAGE(jumpIfNull == 0);
 			CachePush(parse);
-			Left->IfFalse(parse, d2, jumpIfNull ^ (int)AFF_BIT_JUMPIFNULL);
+			Left->IfFalse(parse, d2, (AFF)(jumpIfNull ^ AFF_BIT_JUMPIFNULL));
 			Right->IfTrue(parse, dest, jumpIfNull);
 			v->ResolveLabel(d2);
 			CachePop(parse, 1);
@@ -2743,7 +2742,7 @@ no_mem:
 			int d2 = v->MakeLabel();
 			ASSERTCOVERAGE(jumpIfNull == 0);
 			CachePush(parse);
-			Left->IfTrue(parse, d2, jumpIfNull ^ AFF_BIT_JUMPIFNULL);
+			Left->IfTrue(parse, d2, (AFF)(jumpIfNull ^ AFF_BIT_JUMPIFNULL));
 			Right->IfFalse(parse, dest, jumpIfNull);
 			v->ResolveLabel(d2);
 			CachePop(parse, 1);
@@ -2915,18 +2914,18 @@ no_mem:
 	__device__ static int AddAggInfoColumn(Context *ctx, AggInfo *info)
 	{
 		int i;
-		info->Columns.data = sqlite3ArrayAllocate(ctx, info->Columns.data, sizeof(info->Columns[0]), &info->Columns.length, &i);
+		info->Columns.data = (AggInfo::AggInfoColumn *)Parse::ArrayAllocate(ctx, info->Columns.data, sizeof(info->Columns[0]), &info->Columns.length, &i);
 		return i;
 	}    
 
 	__device__ static int AddAggInfoFunc(Context *ctx, AggInfo *info)
 	{
 		int i;
-		info->Funcs.data = sqlite3ArrayAllocate(ctx, info->Funcs.data, sizeof(info->Funcs[0]), &info->Funcs.length, &i);
+		info->Funcs.data = (AggInfo::AggInfoFunc *)Parse::ArrayAllocate(ctx, info->Funcs.data, sizeof(info->Funcs[0]), &info->Funcs.length, &i);
 		return i;
 	}    
 
-	__device__ static int AnalyzeAggregate(Walker *walker, Expr *expr)
+	__device__ static WRC AnalyzeAggregate(Walker *walker, Expr *expr)
 	{
 		NameContext *nc = walker->u.NC;
 		Parse *parse = nc->Parse;
@@ -3033,7 +3032,7 @@ no_mem:
 		return WRC_Continue;
 	}
 
-	__device__ static int AnalyzeAggregatesInSelect(Walker *walker, Select *select)
+	__device__ static WRC AnalyzeAggregatesInSelect(Walker *walker, Select *select)
 	{
 		return WRC_Continue;
 	}
@@ -3046,7 +3045,7 @@ no_mem:
 		w.SelectCallback = AnalyzeAggregatesInSelect;
 		w.u.NC = nc;
 		_assert(nc->SrcList != nullptr);
-		WalkExpr(&w, expr);
+		w.WalkExpr(expr);
 	}
 
 	__device__ void Expr::AnalyzeAggList(NameContext *nc, ExprList *list)

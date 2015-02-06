@@ -1,5 +1,4 @@
 // select.c
-#include "..\Core+Vdbe.cu.h"
 #include "..\VdbeInt.cu.h"
 
 namespace Core
@@ -100,14 +99,14 @@ namespace Core
 		alls[0] = a;
 		alls[1] = b;
 		alls[2] = b;
-		JT jointype = 0;
+		JT jointype = (JT)0;
 		for (int i = 0; i < 3 && alls[i]; i++)
 		{
 			Token *p = alls[i];
 			int j;
 			for (j = 0; j < _lengthof(_keywords); j++)
 			{
-				if (p->length == _keywords[j].Chars && !_strcmp((char *)p->data, &_keyTexts[_keywords[j].I], p->length))
+				if (p->length == _keywords[j].Chars && !_strncmp((char *)p->data, &_keyTexts[_keywords[j].I], p->length))
 				{
 					jointype |= _keywords[j].Code;
 					break;
@@ -165,7 +164,7 @@ namespace Core
 	__device__ static void AddWhereTerm(Parse *parse, SrcList *src, int leftId, int colLeftId, int rightId, int colRightId, bool isOuterJoin, Expr **where_)
 	{
 		_assert(leftId < rightId);
-		_assert(sc->Srcs > rightId);
+		_assert(src->Srcs > rightId);
 		_assert(src->Ids[leftId].Table);
 		_assert(src->Ids[rightId].Table);
 
@@ -277,7 +276,7 @@ namespace Core
 		Expr::CacheClear(parse);
 		Expr::CodeExprList(parse, orderBy, regBase, false);
 		v->AddOp2(OP_Sequence, orderBy->ECursor, regBase+exprs);
-		Expr::CodeMove(pParse, regData, regBase+exprs+1, 1);
+		Expr::CodeMove(parse, regData, regBase+exprs+1, 1);
 		v->AddOp3(OP_MakeRecord, regBase, exprs + 2, regRecord);
 		::OP op =  (select->SelFlags & SF_UseSorter ? OP_SorterInsert : OP_IdxInsert);
 		v->AddOp2(op, orderBy->ECursor, regRecord);
@@ -470,7 +469,7 @@ namespace Core
 			else
 			{
 				int r1 = Expr::GetTempReg(parse);
-				v->AddOp4(OP_MakeRecord, regResult,1,r1, &dest->AffSdst, 1);
+				v->AddOp4(OP_MakeRecord, regResult, 1, r1, (const char *)&dest->AffSdst, 1);
 				Expr::CacheAffinityChange(parse, regResult, 1);
 				v->AddOp2(OP_IdxInsert, parmId, r1);
 				Expr::ReleaseTempReg(parse, r1);
@@ -531,7 +530,7 @@ namespace Core
 	{
 		Context *ctx = parse->Ctx;
 		int exprs = list->Exprs;
-		KeyInfo *info = (KeyInfo *)_tagalloc2(ctx, sizeof(*info) + exprs*(sizeof(CollSeq*)+1));
+		KeyInfo *info = (KeyInfo *)_tagalloc2(ctx, sizeof(*info) + exprs*(sizeof(CollSeq*)+1), true);
 		if (info)
 		{
 			info->SortOrders = (SO *)&info->Colls[exprs];
@@ -651,13 +650,13 @@ namespace Core
 #ifndef OMIT_SUBQUERY
 		case SRT_Set: {
 			_assert(columns == 1);
-			v->AddOp4(OP_MakeRecord, regRow, 1, regRowid, &dest->AffSdst, 1);
+			v->AddOp4(OP_MakeRecord, regRow, 1, regRowid, (const char *)&dest->AffSdst, 1);
 			Expr::CacheAffinityChange(parse, regRow, 1);
 			v->AddOp2(OP_IdxInsert, parmId, regRowid);
 			break; }
 		case SRT_Mem: {
 			_assert(columns == 1);
-			Expr::CodeMove(pParse, regRow, parmId, 1);
+			Expr::CodeMove(parse, regRow, parmId, 1);
 			// The LIMIT clause will terminate the loop for us
 			break; }
 #endif
@@ -872,7 +871,7 @@ namespace Core
 				_assert(j < tabList->Srcs);
 				Table *table = tabList->Ids[j].Table;
 				if (colId < 0) colId = table->PKey;
-				_assert(colId == -1 || (colId >= 0 && colId < table->Cols));
+				_assert(colId == -1 || (colId >= 0 && colId < table->Cols.length));
 				char *colName = (colId < 0 ? "rowid" : table->Cols[colId].Name);
 				if (!shortNames && !fullNames)
 					v->SetColName(i, COLNAME_NAME, _tagstrdup(ctx, list->Ids[i].Span), DESTRUCTOR_DYNAMIC);
@@ -934,7 +933,7 @@ namespace Core
 					int colId = colExpr->ColumnIdx;
 					Table *table = colExpr->Table; // Table associated with this expression
 					if (colId < 0) colId = table->PKey;
-					name = _mtagprintf(ctx, "%s", (col >= 0 ? table->Cols[col].Name : "rowid"));
+					name = _mtagprintf(ctx, "%s", (col >= 0 ? table->Cols[colId].Name : "rowid"));
 				}
 				else if (colExpr->OP == TK_ID)
 				{
@@ -1133,13 +1132,13 @@ namespace Core
 		if (prior->OrderBy)
 		{
 			parse->ErrorMsg("ORDER BY clause should come after %s not before", SelectOpName(p->OP));
-			rc = 1;
+			rc = RC_ERROR;
 			goto multi_select_end;
 		}
 		if (prior->Limit)
 		{
 			parse->ErrorMsg("LIMIT clause should come after %s not before", SelectOpName(p->OP));
-			rc = 1;
+			rc = RC_ERROR;
 			goto multi_select_end;
 		}
 
@@ -1151,7 +1150,7 @@ namespace Core
 		{
 			_assert(p->EList);
 			v->AddOp2(OP_OpenEphemeral, dest2.SDParmId, p->EList->Exprs);
-			v->ChangeP5(BTREE_UNORDERED);
+			v->ChangeP5(Btree::OPEN_UNORDERED);
 			dest2.Dest = SRT_Table;
 		}
 
@@ -1163,7 +1162,7 @@ namespace Core
 				parse->ErrorMsg("all VALUES must have the same number of terms");
 			else
 				parse->ErrorMsg("SELECTs to the left and right of %s do not have the same number of result columns", SelectOpName(p->OP));
-			rc = 1;
+			rc = RC_ERROR;
 			goto multi_select_end;
 		}
 
@@ -1244,7 +1243,7 @@ namespace Core
 				goto multi_select_end;
 
 			// Code the current SELECT statement
-			SRT op = 0; // One of the SRT_ operations to apply to self
+			SRT op = (SRT)0; // One of the SRT_ operations to apply to self
 			if (p->OP == TK_EXCEPT)
 				op = SRT_Except;
 			else
@@ -1355,7 +1354,7 @@ namespace Core
 			int startId = v->AddOp2(OP_RowKey, tab1, r1);
 			v->AddOp4Int(OP_NotFound, tab2, continueId, r1, 0);
 			Expr::ReleaseTempReg(parse, r1);
-			selectInnerLoop(parse, p, p->EList, tab1, p->EList->Exprs, nullptr, nullptr, &dest2, continueId, breakId);
+			SelectInnerLoop(parse, p, p->EList, tab1, p->EList->Exprs, nullptr, nullptr, &dest2, continueId, breakId);
 			v->ResolveLabel(continueId);
 			v->AddOp2(OP_Next, tab1, startId);
 			v->ResolveLabel(breakId);
@@ -1456,7 +1455,7 @@ multi_select_end:
 			v->AddOp3(OP_MakeRecord, in_->SdstId, in_->Sdsts, r1);
 			v->AddOp2(OP_NewRowid, dest->SDParmId, r2);
 			v->AddOp3(OP_Insert, dest->SDParmId, r1, r2);
-			v->ChangeP5(OPFLAG_APPEND);
+			v->ChangeP5(Vdbe::OPFLAG_APPEND);
 			Expr::ReleaseTempReg(parse, r2);
 			Expr::ReleaseTempReg(parse, r1);
 			break; }
@@ -1468,12 +1467,12 @@ multi_select_end:
 			_assert(in_->Sdsts == 1);
 			dest->AffSdst = p->EList->Ids[0].Expr->CompareAffinity(dest->AffSdst);
 			int r1 = Expr::GetTempReg(parse);
-			v->AddOp4(OP_MakeRecord, in_->SdstId, 1, r1, &dest->AffSdst, 1);
+			v->AddOp4(OP_MakeRecord, in_->SdstId, 1, r1, (const char *)&dest->AffSdst, 1);
 			Expr::CacheAffinityChange(parse, in_->SdstId, 1);
 			v->AddOp2(OP_IdxInsert, dest->SDParmId, r1);
 			Expr::ReleaseTempReg(parse, r1);
 			break; }
-#if false // Never occurs on an ORDER BY query
+#if 0 // Never occurs on an ORDER BY query
 		case SRT_Exists: {
 			// If any row exist in the result set, record that fact and abort.
 			v->AddOp2(OP_Integer, 1, dest->SDParmId);
@@ -1608,7 +1607,7 @@ multi_select_end:
 			keyMerge = nullptr;
 
 		// Reattach the ORDER BY clause to the query.
-		p->OrderBy = pOrderBy;
+		p->OrderBy = orderBy;
 		prior->OrderBy = Expr::ListDup(ctx, orderBy, 0);
 
 		// Allocate a range of temporary registers and the KeyInfo needed for the logic that removes duplicate result rows when the
@@ -1621,7 +1620,7 @@ multi_select_end:
 		else
 		{
 			int exprs = p->EList->Exprs;
-			_assert(orderBys >= exprs || ctxb->MallocFailed);
+			_assert(orderBys >= exprs || ctx->MallocFailed);
 			regPrev = parse->Mems+1;
 			parse->Mems += exprs+1;
 			v->AddOp2(OP_Integer, 0, regPrev);
@@ -1634,16 +1633,16 @@ multi_select_end:
 				for (i = 0; i < exprs; i++)
 				{
 					keyDup->Colls[i] = MultiSelectCollSeq(parse, p, i);
-					keyDup->SortOrders[i] = 0;
+					keyDup->SortOrders[i] = (SO)0;
 				}
 			}
 		}
 
 		// Separate the left and the right query from one another
 		p->Prior = nullptr;
-		sqlite3ResolveOrderGroupBy(parse, p, p->OrderBy, "ORDER");
+		Walker::ResolveOrderGroupBy(parse, p, p->OrderBy, "ORDER");
 		if (!prior->Prior)
-			sqlite3ResolveOrderGroupBy(parse, prior, prior->OrderBy, "ORDER");
+			Walker::ResolveOrderGroupBy(parse, prior, prior->OrderBy, "ORDER");
 
 		// Compute the limit registers
 		int regLimitA; // Limit register for select-A
@@ -1653,8 +1652,8 @@ multi_select_end:
 		{
 			regLimitA = ++parse->Mems;
 			regLimitB = ++parse->Mems;
-			sqlite3VdbeAddOp2(v, OP_Copy, (p->OffsetId ? p->OffsetId+1 : p->LimitId), regLimitA);
-			sqlite3VdbeAddOp2(v, OP_Copy, regLimitA, regLimitB);
+			v->AddOp2(OP_Copy, (p->OffsetId ? p->OffsetId+1 : p->LimitId), regLimitA);
+			v->AddOp2(OP_Copy, regLimitA, regLimitB);
 		}
 		else
 			regLimitA = regLimitB = 0;
@@ -1682,7 +1681,7 @@ multi_select_end:
 		v->NoopComment("Begin coroutine for left SELECT");
 		prior->LimitId = regLimitA;
 		ExplainSetInteger(sub1Id, parse->NextSelectId);
-		Select::Select_(pParse, prior, &destA);
+		Select::Select_(parse, prior, &destA);
 		v->AddOp2(OP_Integer, 1, regEofA);
 		v->AddOp1(OP_Yield, regAddrA);
 		v->NoopComment("End coroutine for left SELECT");
@@ -1794,7 +1793,7 @@ multi_select_end:
 		v->ResolveLabel(labelCmpr);
 		v->AddOp4(OP_Permutation, 0, 0, 0, (char *)permutes, Vdbe::P4T_INTARRAY);
 		v->AddOp4(OP_Compare, destA.SdstId, destB.SdstId, orderBys, (char *)keyMerge, Vdbe::P4T_KEYINFO_HANDOFF);
-		v->ChangeP5(OPFLAG_PERMUTE);
+		v->ChangeP5(Vdbe::OPFLAG_PERMUTE);
 		v->AddOp3(OP_Jump, addrAltB, addrAeqB, addrAgtB);
 
 		// Jump to the this point in order to terminate the query.
@@ -1960,6 +1959,7 @@ multi_select_end:
 		////// If we reach this point, flattening is permitted. //////
 
 		// Authorize the subquery
+		int i;
 		const char *savedAuthContext = parse->AuthContext;
 		parse->AuthContext = subitem->Name;
 		ASSERTONLY(i = )Auth::Check(parse, AUTH_SELECT, nullptr, nullptr, nullptr);
@@ -2101,7 +2101,6 @@ multi_select_end:
 			}
 
 			// Transfer the FROM clause terms from the subquery into the outer query.
-			int i;
 			for (i = 0; i < subSrcs; i++)
 			{
 				Parse::IdListDelete(ctx, src->Ids[i+fromId].Using);
@@ -2187,7 +2186,7 @@ multi_select_end:
 		{
 			Expr *expr = aggInfo->Funcs[0].Expr; // Aggregate function
 			ExprList *list = expr->x.List; // Arguments to agg function
-			_assert(expr->OP = =TK_AGG_FUNCTION);
+			_assert(expr->OP == TK_AGG_FUNCTION);
 			if (list && list->Exprs == 1 && list->Ids[0].Expr->OP == TK_AGG_COLUMN)
 			{
 				const char *funcName = expr->u.Token;
@@ -2507,7 +2506,7 @@ multi_select_end:
 		if ((p->SelFlags & SF_HasTypeInfo) == 0)
 		{
 			p->SelFlags |= SF_HasTypeInfo;
-			Parse *parse = walker->parse;
+			Parse *parse = walker->Parse;
 			SrcList *tabList = p->Src;
 			int i;
 			SrcList::SrcListItem *from;
@@ -2590,7 +2589,7 @@ multi_select_end:
 		{
 			ExprList *list = f->Expr->x.List;
 			_assert(!ExprHasProperty(f->Expr, EP_xIsSelect));
-			v->AddOp4(OP_AggFinal, f->Mem, (list ? list->Exprs : 0), 0, (void *)f->Func, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_AggFinal, f->Mem, (list ? list->Exprs : 0), 0, (char *)f->Func, Vdbe::P4T_FUNCDEF);
 		}
 	}
 
@@ -2640,7 +2639,7 @@ multi_select_end:
 				if (regHit == 0 && aggInfo->Accumulators) regHit = ++parse->Mems;
 				v->AddOp4(OP_CollSeq, regHit, 0, 0, (char *)coll, Vdbe::P4T_COLLSEQ);
 			}
-			v->AddOp4(OP_AggStep, 0, regAgg, f->Mem, (void *)f->Func, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_AggStep, 0, regAgg, f->Mem, (char *)f->Func, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5((uint8)args);
 			Expr::CacheAffinityChange(parse, regAgg, args);
 			Expr::ReleaseTempRange(parse, regAgg, args);
@@ -2695,8 +2694,8 @@ multi_select_end:
 
 		Context *ctx = parse->Ctx; // The database connection
 		if (p == 0 || ctx->MallocFailed || parse->Errs)
-			return 1;
-		if (Auth::Check(parse, AUTH_SELECT, nullptr, nullptr, nullptr)) return 1;
+			return RC_ERROR;
+		if (Auth::Check(parse, AUTH_SELECT, nullptr, nullptr, nullptr)) return RC_ERROR;
 		AggInfo sAggInfo; // Information used by aggregate queries
 		_memset(&sAggInfo, 0, sizeof(sAggInfo));
 
@@ -2831,7 +2830,7 @@ multi_select_end:
 		DistinctCtx sDistinct; // Info on how to code the DISTINCT keyword
 		sDistinct.IsTnct = ((p->SelFlags & SF_Distinct) != 0);
 
-		RC rc = 1; // Value to return from this function
+		RC rc = RC_ERROR; // Value to return from this function
 #ifndef OMIT_COMPOUND_SELECT
 		// If there is are a sequence of queries, do the earlier ones first.
 		if (p->Prior)
@@ -2919,7 +2918,7 @@ multi_select_end:
 		{
 			sDistinct.TableTnct = parse->Tabs++;
 			sDistinct.AddrTnct = v->AddOp4(OP_OpenEphemeral, sDistinct.TableTnct, 0, 0, (char *)KeyInfoFromExprList(parse, p->EList), Vdbe::P4T_KEYINFO_HANDOFF);
-			v->ChangeP5(BTREE_UNORDERED);
+			v->ChangeP5(Btree::OPEN_UNORDERED);
 			sDistinct.TnctType = WHERE_DISTINCT_UNORDERED;
 		}
 		else
@@ -2932,7 +2931,7 @@ multi_select_end:
 			ExprList *dist = (sDistinct.IsTnct ? p->EList : nullptr);
 
 			// Begin the database scan.
-			winfo = Where::Begin(parse, tabList, where_, orderBy, dist, 0, 0);
+			winfo = WhereInfo::Begin(parse, tabList, where_, orderBy, dist, (WHERE)0, 0);
 			if (!winfo) goto select_end;
 			if (winfo->RowOuts < p->SelectRows) p->SelectRows = winfo->RowOuts;
 			if (winfo->EDistinct) sDistinct.TnctType = winfo->EDistinct;
@@ -2949,7 +2948,7 @@ multi_select_end:
 			SelectInnerLoop(parse, p, list, 0, 0, orderBy, &sDistinct, dest, winfo->ContinueId, winfo->BreakId);
 
 			// End the database scan loop.
-			Where::End(winfo);
+			WhereInfo::End(winfo);
 		}
 		else
 		{
@@ -3029,7 +3028,7 @@ multi_select_end:
 				// Begin a loop that will extract all source rows in GROUP BY order. This might involve two separate loops with an OP_Sort in between, or
 				// it might be a single loop that uses an index to extract information in the right order to begin with.
 				v->AddOp2(OP_Gosub, regReset, addrReset);
-				winfo = Where::Begin(parse, tabList, where_, groupBy, 0, 0, 0);
+				winfo = WhereInfo::Begin(parse, tabList, where_, groupBy, nullptr, (WHERE)0, 0);
 				if (!winfo) goto select_end;
 				if (winfo->OBSats == groupBy->Exprs)
 					groupBySort = false; // The optimizer is able to deliver rows in group by order so we do not have to sort.  The OP_OpenEphemeral table will be cancelled later because we still need to use the keyInfo
@@ -3073,7 +3072,7 @@ multi_select_end:
 					v->AddOp2(OP_SorterInsert, sAggInfo.SortingIdx, regRecord);
 					Expr::ReleaseTempReg(parse, regRecord);
 					Expr::ReleaseTempRange(parse, regBase, cols);
-					Where::End(winfo);
+					WhereInfo::End(winfo);
 					sAggInfo.SortingIdxPTab = sortPTab = parse->Tabs++;
 					sortOut = Expr::GetTempReg(parse);
 					v->AddOp3(OP_OpenPseudo, sortPTab, sortOut, cols);
@@ -3094,7 +3093,7 @@ multi_select_end:
 					if (groupBySort)
 					{
 						v->AddOp3(OP_Column, sortPTab, j, bmemId+j);
-						if (j == 0) v->ChangeP5(OPFLAG_CLEARCACHE);
+						if (j == 0) v->ChangeP5(Vdbe::OPFLAG_CLEARCACHE);
 					}
 					else
 					{
@@ -3130,7 +3129,7 @@ multi_select_end:
 					v->AddOp2(OP_SorterNext, sAggInfo.SortingIdx, addrTopOfLoop);
 				else
 				{
-					Where::End(winfo);
+					WhereInfo::End(winfo);
 					v->ChangeToNoop(addrSortingIdx);
 				}
 
@@ -3255,7 +3254,7 @@ multi_select_end:
 
 					// This case runs if the aggregate has no GROUP BY clause. The processing is much simpler since there is only a single row of output.
 					ResetAccumulator(parse, &sAggInfo);
-					winfo = Where::Begin(parse, tabList, where_, minMax, 0, flag, 0);
+					winfo = WhereInfo::Begin(parse, tabList, where_, minMax, 0, flag, 0);
 					if (!winfo)
 					{
 						Expr::ListDelete(ctx, del);
@@ -3268,7 +3267,7 @@ multi_select_end:
 						v->AddOp2(OP_Goto, 0, winfo->BreakId);
 						v->Comment("%s() by index", (flag == WHERE_ORDERBY_MIN ? "min" : "max"));
 					}
-					Where::End(winfo);
+					WhereInfo::End(winfo);
 					FinalizeAggFunctions(parse, &sAggInfo);
 				}
 
@@ -3294,7 +3293,7 @@ multi_select_end:
 		v->ResolveLabel(endId);
 
 		// The SELECT was successfully coded. Set the return code to 0 to indicate no errors.
-		rc = 0;
+		rc = (RC)0;
 
 		// Control jumps to here if an error is encountered above, or upon successful coding of the SELECT.
 select_end:

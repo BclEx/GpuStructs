@@ -248,7 +248,7 @@ namespace Core
 		__device__ static void *User_Data(FuncContext *fctx);
 		__device__ static Context *Context_Ctx(FuncContext *fctx);
 		__device__ static void InvalidFunction(FuncContext *fctx, int notUsed1, Mem **notUsed2);
-		__device__ static void *Agregate_Context(FuncContext *fctx, int bytes);
+		__device__ static void *Aggregate_Context(FuncContext *fctx, int bytes);
 		__device__ static void *get_Auxdata(FuncContext *fctx, int arg);
 		__device__ static void set_Auxdata(FuncContext *fctx, int args, void *aux, void (*delete_)(void*));
 		__device__ static int Column_Count(Vdbe *p);
@@ -535,12 +535,29 @@ namespace Core
 #endif
 #if defined(ENABLE_TREE_EXPLAIN)
 		__device__ static void ExplainBegin(Vdbe *p);
-		__device__ static void ExplainPrintf(Vdbe *p, const char *format, va_list args);
+		__device__ static void ExplainPrintf(Vdbe *p, const char *fmt, va_list args);
 		__device__ static void ExplainNL(Vdbe *p);
 		__device__ static void ExplainPush(Vdbe *p);
 		__device__ static void ExplainPop(Vdbe *p);
 		__device__ static void ExplainFinish(Vdbe *p);
 		__device__ static const char *Explanation(Vdbe *p);
+
+#if __CUDACC__
+		__device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt) { va_list args; va_start(args, nullptr); ExplainPrintf(p, fmt, args); va_end(args); }
+		template <typename T1> __device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); ExplainPrintf(p, fmt, args); va_end(args); }
+		template <typename T1, typename T2> __device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); ExplainPrintf(p, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3> __device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); ExplainPrintf(p, fmt, args); va_end(args); }
+		template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); ExplainPrintf(p, fmt, args); va_end(args); }
+#else
+		__device__ inline static void ExplainPrintf(Vdbe *p, const char *fmt, ...)
+		{
+			va_list args;
+			va_start(args, fmt);
+			ExplainPrintf(p, fmt, args);
+			va_end(args);
+		}
+#endif
+
 #endif
 #pragma endregion
 

@@ -4,12 +4,12 @@
 
 namespace Core { namespace Command
 {
-	__device__ static CollSeq *Func::GetFuncCollSeq(FuncContext *fctx)
+	__device__ CollSeq *Func::GetFuncCollSeq(FuncContext *fctx)
 	{
 		return fctx->Coll;
 	}
 
-	__device__ static void Func::SkipAccumulatorLoad(FuncContext *fctx)
+	__device__ void Func::SkipAccumulatorLoad(FuncContext *fctx)
 	{
 		fctx->SkipFlag = true;
 	}
@@ -18,7 +18,7 @@ namespace Core { namespace Command
 	{
 		_assert(argc > 1);
 		int mask = (Vdbe::User_Data(fctx) == nullptr ? 0 : -1); // 0 for min() or 0xffffffff for max()
-		CollSeq *coll = sqlite3GetFuncCollSeq(fctx);
+		CollSeq *coll = Func::GetFuncCollSeq(fctx);
 		_assert(coll);
 		_assert(mask == -1 || mask == 0);
 		int best = 0;
@@ -26,7 +26,7 @@ namespace Core { namespace Command
 		for (int i = 1; i < argc; i++)
 		{
 			if (Vdbe::Value_Type(argv[i]) == TYPE_NULL) return;
-			if ((sqlite3MemCompare(argv[best], argv[i], coll)^mask) >= 0)
+			if ((Vdbe::MemCompare(argv[best], argv[i], coll)^mask) >= 0)
 			{
 				ASSERTCOVERAGE(mask == 0);
 				best = i;
@@ -35,7 +35,7 @@ namespace Core { namespace Command
 		Vdbe::Result_Value(fctx, argv[best]);
 	}
 
-	__device__ static void TypeofFunc(FuncContext *fctx, int notUsed1, Mem **argv)
+	__device__ static void TypeOfFunc(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
 		const char *z;
 		switch (Vdbe::Value_Type(argv[0]))
@@ -123,8 +123,8 @@ namespace Core { namespace Command
 		bool isText;
 		if (typeHaystack == TYPE_BLOB && typeNeedle == TYPE_BLOB)
 		{
-			haystack = Vdbe::Value_Blob(argv[0]);
-			needle = Vdbe::Value_Blob(argv[1]);
+			haystack = (const unsigned char *)Vdbe::Value_Blob(argv[0]);
+			needle = (const unsigned char *)Vdbe::Value_Blob(argv[1]);
 			isText = false;
 		}
 		else
@@ -160,7 +160,7 @@ namespace Core { namespace Command
 		if (p0type == TYPE_BLOB)
 		{
 			len = Vdbe::Value_Bytes(argv[0]);
-			z = Vdbe::Value_Blob(argv[0]);
+			z = (const unsigned char *)Vdbe::Value_Blob(argv[0]);
 			if (!z) return;
 			//_assert(len == Vdbe::Value_Bytes(argv[0]));
 		}
@@ -281,7 +281,7 @@ namespace Core { namespace Command
 		}
 		else
 		{
-			z = _alloc((int)bytes);
+			z = (char *)_alloc((int)bytes);
 			if (!z)
 				Vdbe::Result_ErrorNoMem(fctx);
 		}
@@ -296,7 +296,7 @@ namespace Core { namespace Command
 		_assert(z2 == (char *)Vdbe::Value_Text(argv[0]));
 		if (z2)
 		{
-			char *z1 = ContextMalloc(fctx, ((int64)n)+1);
+			char *z1 = (char *)ContextMalloc(fctx, ((int64)n)+1);
 			if (z1)
 			{
 				for (int i = 0; i < n; i++)
@@ -310,10 +310,10 @@ namespace Core { namespace Command
 		const char *z2 = (char *)Vdbe::Value_Text(argv[0]);
 		int n = Vdbe::Value_Bytes(argv[0]);
 		// Verify that the call to _bytes() does not invalidate the _text() pointer
-		_assert(z2 == (char *)Vdbe::Value_text(argv[0]));
+		_assert(z2 == (char *)Vdbe::Value_Text(argv[0]));
 		if (z2)
 		{
-			char *z1 = ContextMalloc(fctx, ((int64)n)+1);
+			char *z1 = (char *)ContextMalloc(fctx, ((int64)n)+1);
 			if (z1)
 			{
 				for (int i = 0; i < n; i++)
@@ -323,7 +323,7 @@ namespace Core { namespace Command
 		}
 	}
 
-#define ifnullFunc versionFunc   // Substitute function - never called
+#define IfNullFunc VersionFunc // Substitute function - never called
 
 	__device__ static void RandomFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
@@ -346,7 +346,7 @@ namespace Core { namespace Command
 		int n = Vdbe::Value_Int(argv[0]);
 		if (n < 1)
 			n = 1;
-		unsigned char *p = ContextMalloc(fctx, n);
+		unsigned char *p = (unsigned char *)ContextMalloc(fctx, n);
 		if (p)
 		{
 			SysEx::PutRandom(n, p);
@@ -358,20 +358,20 @@ namespace Core { namespace Command
 	{
 		Context *ctx = Vdbe::Context_Ctx(fctx);
 		// IMP: R-51513-12026 The last_insert_rowid() SQL function is a wrapper around the sqlite3_last_insert_rowid() C/C++ interface function.
-		Vdbe::Result_Int64(fctx, Vdbe::Last_InsertRowid(ctx));
+		Vdbe::Result_Int64(fctx, Main::CtxLastInsertRowid(ctx));
 	}
 
 	__device__ static void Changes(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		Context *ctx = Vdbe::Context_Ctx(fctx);
-		Vdbe::Result_Int(fctx, sqlite3_changes(ctx));
+		Vdbe::Result_Int(fctx, Main::CtxChanges(ctx));
 	}
 
 	__device__ static void TotalChanges(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		Context *ctx = Vdbe::Context_Ctx(fctx);
 		// IMP: R-52756-41993 This function is a wrapper around the sqlite3_total_changes() C/C++ interface.
-		Vdbe::Result_Int(fctx, sqlite3_total_changes(db));
+		Vdbe::Result_Int(fctx, Main::CtxTotalChanges(ctx));
 	}
 
 	struct CompareInfo
@@ -530,7 +530,7 @@ namespace Core { namespace Command
 			// The escape character string must consist of a single UTF-8 character. Otherwise, return an error.
 			const unsigned char *zEscape = Vdbe::Value_Text(argv[2]);
 			if (!zEscape) return;
-			if (_utf8charlen((char *)zEscape, -1) != 1)
+			if (_utf8charlength((char *)zEscape, -1) != 1)
 			{
 				Vdbe::Result_Error(fctx, "ESCAPE expression must be a single character", -1);
 				return;
@@ -539,7 +539,7 @@ namespace Core { namespace Command
 		}
 		if (zA && zB)
 		{
-			CompareInfo *info = Vdbe::User_Data(fctx);
+			CompareInfo *info = (CompareInfo *)Vdbe::User_Data(fctx);
 #ifdef TEST
 			_likeCount++;
 #endif
@@ -547,28 +547,28 @@ namespace Core { namespace Command
 		}
 	}
 
-	__device__ static void NullifFunc(FuncContext *fctx, int notUsed1, Mem **argv)
+	__device__ static void NullIfFunc(FuncContext *fctx, int notUsed1, Mem **argv)
 	{
 		CollSeq *coll = Func::GetFuncCollSeq(fctx);
-		if (sqlite3MemCompare(argv[0], argv[1], coll) != 0)
+		if (Vdbe::MemCompare(argv[0], argv[1], coll) != 0)
 			Vdbe::Result_Value(fctx, argv[0]);
 	}
 
 	__device__ static void VersionFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		// IMP: R-48699-48617 This function is an SQL wrapper around the sqlite3_libversion() C-interface.
-		Vdbe::Result_Text(fctx, sqlite3_libversion(), -1, DESTRUCTOR_STATIC);
+		Vdbe::Result_Text(fctx, CORE_VERSION, -1, DESTRUCTOR_STATIC);
 	}
 
-	__device__ static void SourceidFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
+	__device__ static void SourceIdFunc(FuncContext *fctx, int notUsed1, Mem **notUsed2)
 	{
 		// IMP: R-24470-31136 This function is an SQL wrapper around the sqlite3_sourceid() C interface.
-		Vdbe::Result_Text(fctx, sqlite3_sourceid(), -1, DESTRUCTOR_STATIC);
+		Vdbe::Result_Text(fctx, CORE_SOURCE_ID, -1, DESTRUCTOR_STATIC);
 	}
 
 	__device__ static void ErrlogFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		SysEx_LOG(Vdbe::Value_Int(argv[0]), "%s", Vdbe::Value_Text(argv[1]));
+		SysEx_LOG((RC)Vdbe::Value_Int(argv[0]), "%s", Vdbe::Value_Text(argv[1]));
 	}
 
 
@@ -585,7 +585,7 @@ namespace Core { namespace Command
 
 	__device__ static void CompileoptiongetFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
-		assert(argc == 1);
+		_assert(argc == 1);
 		// IMP: R-04922-24076 The sqlite_compileoption_get() SQL function is a wrapper around the sqlite3_compileoption_get() C/C++ function.
 		int n = Vdbe::Value_Int(argv[0]);
 		Vdbe::Result_Text(fctx, CompileTimeGet(n), -1, DESTRUCTOR_STATIC);
@@ -602,11 +602,11 @@ namespace Core { namespace Command
 		case TYPE_FLOAT: {
 			double r1 = Vdbe::Value_Double(argv[0]);
 			char b[50];
-			__snprintf(sizeof(b), b, "%!.15g", r1);
+			__snprintf(b, sizeof(b), "%!.15g", r1);
 			double r2;
 			ConvertEx::Atof(b, &r2, 20, TEXTENCODE_UTF8);
 			if (r1 != r2)
-				__snprintf(sizeof(b), b, "%!.20e", r1);
+				__snprintf(b, sizeof(b), "%!.20e", r1);
 			Vdbe::Result_Text(fctx, b, -1, DESTRUCTOR_TRANSIENT);
 			break; }
 
@@ -616,7 +616,7 @@ namespace Core { namespace Command
 
 		case TYPE_BLOB: {
 			char *z = 0;
-			char const *blob = Vdbe::Value_Blob(argv[0]);
+			char const *blob = (char const *)Vdbe::Value_Blob(argv[0]);
 			int blobLength = Vdbe::Value_Bytes(argv[0]);
 			_assert(blob == Vdbe::Value_Blob(argv[0])); // No encoding change
 			z = (char *)ContextMalloc(fctx, (2*(int64)blobLength)+4); 
@@ -674,7 +674,7 @@ namespace Core { namespace Command
 	__device__ static void CharFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		unsigned char *z, *z2;
-		z = z2 = _alloc(argc*4);
+		z = z2 = (unsigned char *)_alloc(argc*4);
 		if (!z)
 		{
 			Vdbe::Result_ErrorNoMem(fctx);
@@ -712,7 +712,7 @@ namespace Core { namespace Command
 	__device__ static void HexFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		const unsigned char *blob = Vdbe::Value_Blob(argv[0]);
+		const unsigned char *blob = (const unsigned char *)Vdbe::Value_Blob(argv[0]);
 		int n = Vdbe::Value_Bytes(argv[0]);
 		_assert(blob == Vdbe::Value_Blob(argv[0])); // No encoding change
 		char *zHex, *z;
@@ -726,11 +726,11 @@ namespace Core { namespace Command
 				*(z++) = _hexdigits[c&0xf];
 			}
 			*z = 0;
-			sqlite3_result_text(fctx, zHex, n*2, _free);
+			Vdbe::Result_Text(fctx, zHex, n*2, _free);
 		}
 	}
 
-	__device__ static void ZeroblobFunc(FuncContext *fctx, int argc, Mem **argv)
+	__device__ static void ZeroBlobFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
 		Context *ctx = Vdbe::Context_Ctx(fctx);
@@ -740,7 +740,7 @@ namespace Core { namespace Command
 		if (n > ctx->Limits[LIMIT_LENGTH])
 			Vdbe::Result_ErrorOverflow(fctx);
 		else
-			Vdbe::Result_Zeroblob(fctx, (int)n); // IMP: R-00293-64994
+			Vdbe::Result_ZeroBlob(fctx, (int)n); // IMP: R-00293-64994
 	}
 
 	__device__ static void ReplaceFunc(FuncContext *fctx, int argc, Mem **argv)
@@ -910,7 +910,7 @@ namespace Core { namespace Command
 	__device__ static void SoundexFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		const uint8 *z = (uint8 *)sqlite3_value_text(argv[0]);
+		const uint8 *z = (uint8 *)Vdbe::Value_Text(argv[0]);
 		if (!z) z = (uint8 *)"";
 		int i;
 		for (i = 0; z[i] && !_isalpha(z[i]); i++) { }
@@ -953,7 +953,7 @@ namespace Core { namespace Command
 		const char *proc = (argc == 2 ? (const char *)Vdbe::Value_Text(argv[1]) : nullptr);
 		if (file && sqlite3_load_extension(ctx, file, proc, &errMsg))
 		{
-			Vdeb::Result_Error(fctx, errMsg, -1);
+			Vdbe::Result_Error(fctx, errMsg, -1);
 			_free(errMsg);
 		}
 	}
@@ -964,23 +964,23 @@ namespace Core { namespace Command
 		double RSum;	// Floating point sum
 		int64 ISum;		// Integer sum
 		int64 Count;	// Number of elements summed
-		bool overflow;	// True if integer overflow seen
-		bool approx;	// True if non-integer value was input to the sum
+		bool Overflow;	// True if integer overflow seen
+		bool Approx;	// True if non-integer value was input to the sum
 	};
 
 	__device__ static void SumStep(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
-		SumCtx *p = Vdbe::Aggregate_Context(fctx, sizeof(*p));
-		TYPE type = Vdbe::Value_NumericType(argv[0]);
+		SumCtx *p = (SumCtx *)Vdbe::Aggregate_Context(fctx, sizeof(*p));
+		TYPE type = Vdbe::ValueNumericType(argv[0]);
 		if (p && type != TYPE_NULL)
 		{
-			p->cnt++;
+			p->Count++;
 			if (type == TYPE_INTEGER)
 			{
 				int64 v = Vdbe::Value_Int64(argv[0]);
 				p->RSum += v;
-				if (!(p->Approx | p->Overflow) && sqlite3AddInt64(&p->iSum, v))
+				if (!(p->Approx | p->Overflow) && MathEx::Add(&p->ISum, v))
 					p->Overflow = true;
 			}
 			else
@@ -993,7 +993,7 @@ namespace Core { namespace Command
 
 	__device__ static void SumFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		SumCtx *p = (SumCtx *)Vdbe::Aggregate_Context(fctx, 0);
 		if (p && p->Count > 0)
 		{
 			if (p->Overflow)
@@ -1001,20 +1001,20 @@ namespace Core { namespace Command
 			else if (p->Approx)
 				Vdbe::Result_Double(fctx, p->RSum);
 			else
-				Vdbe::Result_Unt64(fctx, p->ISum);
+				Vdbe::Result_Int64(fctx, p->ISum);
 		}
 	}
 
 	__device__ static void AvgFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		SumCtx *p = (SumCtx *)Vdbe::Aggregate_Context(fctx, 0);
 		if (p && p->Count > 0)
 			Vdbe::Result_Double(fctx, p->RSum/(double)p->Count);
 	}
 
 	__device__ static void TotalFinalize(FuncContext *fctx)
 	{
-		SumCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		SumCtx *p = (SumCtx *)Vdbe::Aggregate_Context(fctx, 0);
 		Vdbe::Result_Double(fctx, p ? p->RSum : (double)0); // (double)0 In case of OMIT_FLOATING_POINT...
 	}
 
@@ -1025,14 +1025,14 @@ namespace Core { namespace Command
 
 	__device__ static void CountStep(FuncContext *fctx, int argc, Mem **argv)
 	{
-		CountCtx *p = Vdbe::Aggregate_Context(fctx, sizeof(*p));
+		CountCtx *p = (CountCtx *)Vdbe::Aggregate_Context(fctx, sizeof(*p));
 		if ((argc == 0 || Vdbe::Value_Type(argv[0]) != TYPE_NULL) && p)
 			p->N++;
 	}
 
 	__device__ static void CountFinalize(FuncContext *fctx)
 	{
-		CountCtx *p = Vdbe::Aggregate_Context(fctx, 0);
+		CountCtx *p = (CountCtx *)Vdbe::Aggregate_Context(fctx, 0);
 		Vdbe::Result_Int64(fctx, p ? p->N : 0);
 	}
 
@@ -1043,26 +1043,24 @@ namespace Core { namespace Command
 		if (!best) return;
 		if (Vdbe::Value_Type(argv[0]) == TYPE_NULL)
 		{
-			if (best->Flags) sqlite3SkipAccumulatorLoad(fctx);
+			if (best->Flags) Func::SkipAccumulatorLoad(fctx);
 		}
 		else if (best->Flags)
 		{
-			CollSeq *coll = GetFuncCollSeq(fctx);
+			CollSeq *coll = Func::GetFuncCollSeq(fctx);
 			// This step function is used for both the min() and max() aggregates, the only difference between the two being that the sense of the
 			// comparison is inverted. For the max() aggregate, the sqlite3_user_data() function returns (void *)-1. For min() it
 			// returns (void *)db, where db is the sqlite3* database pointer. Therefore the next statement sets variable 'max' to 1 for the max()
 			// aggregate, or 0 for min().
 			bool max = (Vdbe::User_Data(fctx) != 0);
-			int cmp = sqlite3MemCompare(best, arg, coll);
+			int cmp = Vdbe::MemCompare(best, arg, coll);
 			if ((max && cmp < 0) || (!max && cmp > 0))
-				sqlite3VdbeMemCopy(best, arg);
+				Vdbe::MemCopy(best, arg);
 			else
-				sqlite3SkipAccumulatorLoad(fctx);
+				Func::SkipAccumulatorLoad(fctx);
 		}
 		else
-		{
-			sqlite3VdbeMemCopy(best, arg);
-		}
+			Vdbe::MemCopy(best, arg);
 	}
 
 	__device__ static void MinMaxFinalize(FuncContext *fctx)
@@ -1072,7 +1070,7 @@ namespace Core { namespace Command
 		{
 			if (r->Flags)
 				Vdbe::Result_Value(fctx, r);
-			sqlite3VdbeMemRelease(r);
+			Vdbe::MemRelease(r);
 		}
 	}
 
@@ -1111,7 +1109,7 @@ namespace Core { namespace Command
 
 	__device__ static void GroupConcatFinalize(FuncContext *fctx)
 	{
-		TextBuilder *b = Vdbe::Aggregate_Context(fctx, 0);
+		TextBuilder *b = (TextBuilder *)Vdbe::Aggregate_Context(fctx, 0);
 		if (b)
 		{
 			if (b->Overflowed)
@@ -1125,7 +1123,7 @@ namespace Core { namespace Command
 
 	__device__ void Func::RegisterBuiltinFunctions(Context *ctx)
 	{
-		RC rc = sqlite3_overload_function(ctx, "MATCH", 2);
+		RC rc = Main::OverloadFunction(ctx, "MATCH", 2);
 		_assert(rc == RC_NOMEM || rc == RC_OK);
 		if (rc == RC_NOMEM)
 			ctx->MallocFailed = true;
@@ -1141,9 +1139,9 @@ namespace Core { namespace Command
 	__device__ void Func::RegisterLikeFunctions(Context *ctx, bool caseSensitive)
 	{
 		CompareInfo *info = (caseSensitive ? (CompareInfo *)&_likeInfoAlt : (CompareInfo *)&_likeInfoNorm);
-		sqlite3CreateFunc(ctx, "like", 2, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
-		sqlite3CreateFunc(ctx, "like", 3, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
-		sqlite3CreateFunc(ctx, "glob", 2, TEXTENCODE_UTF8, (CompareInfo *)&globInfo, LikeFunc, 0, 0, 0);
+		Main::CreateFunc(ctx, "like", 2, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
+		Main::CreateFunc(ctx, "like", 3, TEXTENCODE_UTF8, info, LikeFunc, 0, 0, 0);
+		Main::CreateFunc(ctx, "glob", 2, TEXTENCODE_UTF8, (CompareInfo *)&_globInfo, LikeFunc, 0, 0, 0);
 		SetLikeOptFlag(ctx, "glob", FUNC_LIKE | FUNC_CASE);
 		SetLikeOptFlag(ctx, "like", caseSensitive ? (FUNC_LIKE | FUNC_CASE) : FUNC_LIKE);
 	}
@@ -1157,7 +1155,7 @@ namespace Core { namespace Command
 		if (_NEVER(def == nullptr) || (def->Flags & FUNC_LIKE) == 0)
 			return false;
 		// The memcpy() statement assumes that the wildcard characters are the first three statements in the compareInfo structure.  The asserts() that follow verify that assumption
-		_memcpy(wc, def->UserData, 3);
+		_memcpy(wc, (char *)def->UserData, 3);
 		_assert((char *)&_likeInfoAlt == (char*)&_likeInfoAlt.MatchAll);
 		_assert(&((char *)&_likeInfoAlt)[1] == (char*)&_likeInfoAlt.MatchOne);
 		_assert(&((char *)&_likeInfoAlt)[2] == (char*)&_likeInfoAlt.MatchSet);
@@ -1231,7 +1229,7 @@ namespace Core { namespace Command
 		AGGREGATE(count,             1, 0, 0, CountStep,       CountFinalize),
 		AGGREGATE(group_concat,      1, 0, 0, GroupConcatStep, GroupConcatFinalize),
 		AGGREGATE(group_concat,      2, 0, 0, GroupConcatStep, GroupConcatFinalize),
-		LIKEFUNC(glob, 2, &globInfo, FUNC_LIKE|FUNC_CASE),
+		LIKEFUNC(glob, 2, &_globInfo, FUNC_LIKE|FUNC_CASE),
 #ifdef CASE_SENSITIVE_LIKE
 		LIKEFUNC(like, 2, &_likeInfoAlt, FUNC_LIKE|FUNC_CASE),
 		LIKEFUNC(like, 3, &_likeInfoAlt, FUNC_LIKE|FUNC_CASE),
@@ -1244,8 +1242,8 @@ namespace Core { namespace Command
 	__device__ void Func::RegisterGlobalFunctions()
 	{
 		FuncDefHash *hash = &Main_GlobalFunctions;
-		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_builtinFunc);
-		for (int i = 0; i < _lengthof(g_builtinFunc); i++)
+		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_builtinFuncs);
+		for (int i = 0; i < _lengthof(g_builtinFuncs); i++)
 			Callback::FuncDefInsert(hash, &funcs[i]);
 		Date_::RegisterDateTimeFunctions();
 #ifndef OMIT_ALTERTABLE

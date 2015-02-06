@@ -1121,14 +1121,14 @@ __device__ int Vdbe::FrameRestore(VdbeFrame *frame)
 
 __device__ static void CloseAllCursors(Vdbe *p)
 {
-	if (p->Frames.data)
+	if (p->Frames)
 	{
 		VdbeFrame *frame;
-		for (frame = p->Frames.data; frame->Parent; frame = frame->Parent);
+		for (frame = p->Frames; frame->Parent; frame = frame->Parent);
 		Vdbe::FrameRestore(frame);
 	}
-	p->Frames.data = nullptr;
-	p->Frames.length = 0;
+	p->Frames = nullptr;
+	p->FramesLength = 0;
 	if (p->Cursors.data)
 	{
 		for (int i = 0; i < p->Cursors.length; i++)

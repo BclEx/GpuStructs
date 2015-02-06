@@ -16,12 +16,12 @@ namespace Core
 #ifndef OMIT_UTF16
 		if (ctx->CollNeeded16)
 		{
-			Mem *tmp = Mem_New(ctx);
-			Mem_SetStr(tmp, -1, name, TEXTENCODE_UTF8, DESTRUCTOR_STATIC);
-			char const *external = (char const *)Mem_Text(tmp, TEXTENCODE_UTF16NATIVE);
+			Mem *tmp = Vdbe::ValueNew(ctx);
+			Vdbe::ValueSetStr(tmp, -1, name, TEXTENCODE_UTF8, DESTRUCTOR_STATIC);
+			char const *external = (char const *)Vdbe::ValueText(tmp, TEXTENCODE_UTF16NATIVE);
 			if (external)
-				ctx->CollNeeded16(ctx->CollNeededArg, ctx, (int)CTXENCODE(ctx), external);
-			Mem_Free(tmp);
+				ctx->CollNeeded16(ctx->CollNeededArg, ctx, CTXENCODE(ctx), external);
+			Vdbe::ValueFree(tmp);
 		}
 #endif
 	}
@@ -133,7 +133,7 @@ namespace Core
 
 	__device__ static FuncDef *FunctionSearch(FuncDefHash *hash, int h, const char *func, int funcLength)
 	{
-		for (FuncDef *p = hash[h]; p; p = p->Hash)
+		for (FuncDef *p = hash->data[h]; p; p = p->Hash)
 			if (!_strncmp(p->Name, func, funcLength) && p->Name[funcLength] == 0)
 				return p;
 		return nullptr;
@@ -153,8 +153,8 @@ namespace Core
 		else
 		{
 			def->Next = nullptr;
-			def->Hash = hash[h];
-			hash[h] = def;
+			def->Hash = hash->data[h];
+			hash->data[h] = def;
 		}
 	}
 
@@ -225,15 +225,15 @@ namespace Core
 		Schema *schema = (Schema *)p;
 		Hash temp1 = schema->TableHash;
 		Hash temp2 = schema->TriggerHash;
-		new (schema->TriggerHash) Hash();
+		new (&schema->TriggerHash) Hash();
 		schema->IndexHash.Clear();
 		HashElem *elem;
 		for (elem = temp2.First; elem; elem = elem->Next)
 			Trigger::DeleteTrigger(nullptr, (Trigger *)elem->Data);
 		temp2.Clear();
-		new Hash schema->TableHash ();
+		new (&schema->TableHash) Hash();
 		for (elem = temp1.First; elem; elem = elem->Next)
-			sqlite3DeleteTable(nullptr, (Table *)elem->Data);
+			Parse::DeleteTable(nullptr, (Table *)elem->Data);
 		temp1.Clear();
 		schema->FKeyHash.Clear();
 		schema->SeqTable = nullptr;

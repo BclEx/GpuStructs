@@ -76,5 +76,9 @@
 		RC_DONE = 101,
 	};
 
-	__device__ RC inline operator|=(RC a, int b) { return (RC)(a | b); }
+	__device__ inline RC operator|=(RC a, int b) { return (RC)(a | b); }
+	__device__ inline RC operator&=(RC a, int b) { return (RC)(a & b); }
+	__device__ inline RC operator|(RC a, RC b) { return (RC)((int)a | (int)b); }
+	__device__ inline RC operator&(RC a, RC b) { return (RC)((int)a & (int)b); }
+
 }

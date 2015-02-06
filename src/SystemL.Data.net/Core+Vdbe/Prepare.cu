@@ -309,7 +309,7 @@ error_out:
 		{
 			rc = InitOne(ctx, 1, errMsg);
 			if (rc)
-				ResetOneSchema(ctx, 1);
+				Parse::ResetOneSchema(ctx, 1);
 		}
 #endif
 

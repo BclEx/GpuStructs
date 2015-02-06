@@ -120,6 +120,14 @@ template <typename T> __device__ inline int _strncmp(const T *left, const T *rig
 #define _fstrncmp(x, y) (_tolower(*(unsigned char *)(x))==_tolower(*(unsigned char *)(y))&&!_strcmp((x)+1,(y)+1))
 
 // memcpy
+template <typename T> __device__ inline void _memcpy(T *dest, const T *src, size_t length)
+{
+	register unsigned char *a, *b;
+	a = (unsigned char *)dest;
+	b = (unsigned char *)src;
+	for (size_t i = 0; i < length; ++i, ++a, ++b)
+		*a = *b;
+}
 template <typename T> __device__ inline void _memcpy(T *dest, T *src, size_t length)
 {
 	register unsigned char *a, *b;
@@ -323,7 +331,7 @@ public:
 	int Index;			// Length of the string so far
 	int Size;			// Amount of space allocated in zText
 	int MaxSize;		// Maximum allowed string length
-	bool MallocFailed;  // Becomes true if any memory allocation fails
+	bool AllocFailed;  // Becomes true if any memory allocation fails
 	unsigned char AllocType; // 0: none,  1: sqlite3DbMalloc,  2: sqlite3_malloc
 	bool Overflowed;    // Becomes true if string size exceeds limits
 

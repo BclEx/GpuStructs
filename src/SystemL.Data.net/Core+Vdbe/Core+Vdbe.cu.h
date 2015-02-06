@@ -23,21 +23,95 @@ namespace Core
 #pragma endregion 
 
 #pragma region Limits
-#ifndef MAX_ATTACHED
-#define MAX_ATTACHED 10
-#endif
+
 #ifndef N_COLCACHE
 #define N_COLCACHE 10
 #endif
 #define BMS ((int)(sizeof(Bitmask)*8))
+
+	// from sqliteInt.h
+#ifdef OMIT_TEMPDB
+#define E_OMIT_TEMPDB true
+#else
+#define E_OMIT_TEMPDB false
+#endif
+#define MAX_FILE_FORMAT 4
+#ifndef DEFAULT_FILE_FORMAT
+#define DEFAULT_FILE_FORMAT 4
+#endif
+#ifndef DEFAULT_RECURSIVE_TRIGGERS
+#define DEFAULT_RECURSIVE_TRIGGERS 0
+#endif
+#ifndef TEMP_STORE
+#define TEMP_STORE 1
+#endif
+
+	// from sqliteLimits.h
+#ifndef MAX_COLUMN
+#define MAX_COLUMN 2000
+#endif
+#ifndef MAX_SQL_LENGTH
+#define MAX_SQL_LENGTH 1000000000
+#endif
 #ifndef MAX_EXPR_DEPTH
 #define MAX_EXPR_DEPTH 1000
 #endif
-#ifdef OMIT_TEMPDB
-#define OMIT_TEMPDB true
-#else
-#define OMIT_TEMPDB false
+#ifndef MAX_COMPOUND_SELECT
+#define MAX_COMPOUND_SELECT 500
 #endif
+#ifndef MAX_VDBE_OP
+#define MAX_VDBE_OP 25000
+#endif
+#ifndef MAX_FUNCTION_ARG
+#define MAX_FUNCTION_ARG 127
+#endif
+
+	//#ifndef DEFAULT_CACHE_SIZE
+	//#define DEFAULT_CACHE_SIZE  2000
+	//#endif
+#ifndef DEFAULT_TEMP_CACHE_SIZE
+#define DEFAULT_TEMP_CACHE_SIZE  500
+#endif
+#ifndef DEFAULT_WAL_AUTOCHECKPOINT
+#define DEFAULT_WAL_AUTOCHECKPOINT  1000
+#endif
+
+#ifndef MAX_ATTACHED
+#define MAX_ATTACHED 10
+#endif
+#ifndef MAX_VARIABLE_NUMBER
+#define MAX_VARIABLE_NUMBER 999
+#endif
+	//#ifdef MAX_PAGE_SIZE
+	//#undef MAX_PAGE_SIZE
+	//#endif
+	//#define MAX_PAGE_SIZE 65536
+
+#ifndef DEFAULT_PAGE_SIZE
+#define DEFAULT_PAGE_SIZE 1024
+#endif
+#if DEFAULT_PAGE_SIZE > MAX_PAGE_SIZE
+#undef DEFAULT_PAGE_SIZE
+#define DEFAULT_PAGE_SIZE MAX_PAGE_SIZE
+#endif
+
+#ifndef MAX_DEFAULT_PAGE_SIZE
+#define MAX_DEFAULT_PAGE_SIZE 8192
+#endif
+#if MAX_DEFAULT_PAGE_SIZE > MAX_PAGE_SIZE
+#undef MAX_DEFAULT_PAGE_SIZE
+#define MAX_DEFAULT_PAGE_SIZE MAX_PAGE_SIZE
+#endif
+#ifndef MAX_PAGE_COUNT
+#define MAX_PAGE_COUNT 1073741823
+#endif
+#ifndef MAX_LIKE_PATTERN_LENGTH
+#define MAX_LIKE_PATTERN_LENGTH 50000
+#endif
+#ifndef MAX_TRIGGER_DEPTH
+#define MAX_TRIGGER_DEPTH 1000
+#endif
+
 #pragma endregion 
 
 #pragma region Func
@@ -53,7 +127,8 @@ namespace Core
 		FUNC_LENGTH = 0x40,			// Built-in length() function
 		FUNC_TYPEOF = 0x80,			// Built-in typeof() function
 	};
-	__device__ FUNC inline operator|=(FUNC a, int b) { return (FUNC)(a | b); }
+	__device__ inline FUNC operator|=(FUNC a, int b) { return (FUNC)(a | b); }
+	__device__ inline FUNC operator|(FUNC a, FUNC b) { return (FUNC)((int)a | (int)b); }
 
 	struct FuncDestructor
 	{
@@ -95,7 +170,7 @@ namespace Core
 #define FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
 #define FUNCTION2(name, args, arg, nc, func, extraFlags) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL)|extraFlags, INT_TO_PTR(arg), 0, func, 0, 0, #name, 0, 0}
 #define STR_FUNCTION(name, args, arg, nc, func) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), arg, 0, func, 0, 0, #name, 0, 0}
-#define LIKEFUNC(name, args, arg, flags) {args, TEXTENCODE_UTF8, (FUNC)flags, (void *)arg, 0, likeFunc, 0, 0, #name, 0, 0}
+#define LIKEFUNC(name, args, arg, flags) {args, TEXTENCODE_UTF8, (FUNC)flags, (void *)arg, 0, LikeFunc, 0, 0, #name, 0, 0}
 #define AGGREGATE(name, args, arg, nc, step, final) {args, TEXTENCODE_UTF8, (FUNC)(nc*FUNC_NEEDCOLL), INT_TO_PTR(arg), 0, 0, step,final,#name,0,0}
 
 #pragma endregion
@@ -324,6 +399,8 @@ namespace Core
 		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
 		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
 	};
+	__device__ inline AFF operator|=(AFF a, int b) { return (AFF)(a | b); }
+	__device__ inline AFF operator|(AFF a, AFF b) { return (AFF)((int)a | (int)b); }
 
 #define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
 
@@ -351,6 +428,8 @@ namespace Core
 		JT_OUTER = 0x0020,		// The "OUTER" keyword is present
 		JT_ERROR = 0x0040,		// unknown or unsupported join type
 	};
+	__device__ inline JT operator|=(JT a, int b) { return (JT)(a | b); }
+	__device__ inline JT operator|(JT a, JT b) { return (JT)((int)a | (int)b); }
 
 	struct Select;
 	struct SrcList
@@ -569,7 +648,7 @@ namespace Core
 		__device__ Table *ResultSetOfSelect(Parse *parse);
 		//__device__ static Vdbe *GetVdbe(Parse *parse);
 		__device__ static RC IndexedByLookup(Parse *parse, SrcList::SrcListItem *from);
-		__device__ void Expand(Parse *parse, Select *select);
+		__device__ void Expand(Parse *parse);
 		__device__ void AddTypeInfo(Parse *parse);
 		__device__ void Prep(Parse *parse, NameContext *outerNC);
 		__device__ static RC Select_(Parse *parse, Select *p, SelectDest *dest);
@@ -1040,10 +1119,10 @@ namespace Core
 #else
 		__device__ inline void NestedParse(const char *fmt, ...) { va_list args; va_start(args, fmt); NestedParse(fmt, args); va_end(args); }
 #endif
-		__device__ static Table *FindTable(Context *ctx, const char *name, const char *database);
-		__device__ Table *LocateTable(bool isView, const char *name, const char *database);
+		__device__ static Table *FindTable(Context *ctx, const char *name, const char *dbName);
+		__device__ Table *LocateTable(bool isView, const char *name, const char *dbName);
 		__device__ Table *LocateTableItem(bool isView,  SrcList::SrcListItem *item);
-		__device__ static Index *FindIndex(Context *ctx, const char *name, const char *database);
+		__device__ static Index *FindIndex(Context *ctx, const char *name, const char *dbName);
 		__device__ static void UnlinkAndDeleteIndex(Context *ctx, int db, const char *indexName);
 		__device__ static void CollapseDatabaseArray(Context *ctx);
 		__device__ static void ResetOneSchema(Context *ctx, int db);
@@ -1059,11 +1138,11 @@ namespace Core
 		__device__ Core::RC CheckObjectName(const char *name);
 		__device__ void StartTable(Token *name1, Token *name2, bool isTemp, bool isView, bool isVirtual, bool noErr);
 		__device__ void AddColumn(Token *name);
-		__device__ void AddNotNull(uint8 onError);
+		__device__ void AddNotNull(OE onError);
 		__device__ static AFF AffinityType(const char *data);
 		__device__ void AddColumnType(Token *type);
 		__device__ void AddDefaultValue(ExprSpan *span);
-		__device__ void AddPrimaryKey(ExprList *list, OE onError, bool autoInc, int sortOrder);
+		__device__ void AddPrimaryKey(ExprList *list, OE onError, bool autoInc, SO sortOrder);
 		__device__ void AddCheckConstraint(Expr *checkExpr);
 		__device__ void AddCollateType(Token *token);
 		__device__ CollSeq *LocateCollSeq(const char *name);
@@ -1564,7 +1643,7 @@ namespace Core {
 			__device__ static CollSeq *GetFuncCollSeq(FuncContext *fctx);
 			__device__ static void SkipAccumulatorLoad(FuncContext *fctx);
 			__device__ static void RegisterBuiltinFunctions(Context *ctx);
-			__device__ static void RegisterLikeFunctions(Context *ctx, int caseSensitive);
+			__device__ static void RegisterLikeFunctions(Context *ctx, bool caseSensitive);
 			__device__ static bool IsLikeFunction(Context *ctx, Expr *expr, bool *isNocase, char *wc);
 			__device__ static void RegisterGlobalFunctions();
 		};
@@ -1747,7 +1826,7 @@ namespace Core {
 		__device__ static void *Trace(Context *ctx, void (*trace)(void*,const char*), void *arg);
 		__device__ static void *Profile(Context *ctx, void (*profile)(void*,const char*,uint64), void *arg);
 #endif
-		__device__ static void *CommitHook(Context *ctx, int (*callback)(void*), void *arg);
+		__device__ static void *CommitHook(Context *ctx, RC (*callback)(void*), void *arg);
 		__device__ static void *UpdateHook(Context *ctx, void (*callback)(void*,int,char const*,char const*,int64), void *arg);
 		__device__ static void *RollbackHook(Context *ctx, void (*callback)(void*), void *arg);
 #ifndef OMIT_WAL
@@ -1810,6 +1889,11 @@ namespace Core {
 		__device__ static Btree *DbNameToBtree(Context *ctx, const char *dbName);
 		__device__ static const char *CtxFilename(Context *ctx, const char *dbName);
 		__device__ static int CtxReadonly(Context *ctx, const char *dbName);
+
+		// inlined
+		__device__ inline static int64 CtxLastInsertRowid(Context *ctx) { return ctx->LastRowID; }
+		__device__ inline static int CtxChanges(Context *ctx) { return ctx->Changes; }
+		__device__ inline static int CtxTotalChanges(Context *ctx) { return ctx->TotalChanges; }
 	};
 
 #pragma endregion

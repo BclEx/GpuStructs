@@ -382,7 +382,7 @@ __device__ void Vdbe::InvalidFunction(FuncContext *fctx, int notUsed1, Mem **not
 	_free(err);
 }
 
-__device__ void *Vdbe::Agregate_Context(FuncContext *fctx, int bytes)
+__device__ void *Vdbe::Aggregate_Context(FuncContext *fctx, int bytes)
 {
 	_assert(fctx && fctx->Func && fctx->Func->Step);
 	_assert(MutexEx::Held(fctx->S.Ctx->Mutex));

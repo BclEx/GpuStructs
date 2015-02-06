@@ -215,8 +215,8 @@ namespace Core
 		int OP;      // The opcode
 		Context::FLAG Mask; // Mask of the bit in sqlite3.flags to set/clear
 	} _flagOps[] = {
-		{ CTXCONFIG_ENABLE_FKEY,    SQLITE_ForeignKeys   },
-		{ CTXCONFIG_ENABLE_TRIGGER, SQLITE_EnableTrigger },
+		{ Main::CTXCONFIG_ENABLE_FKEY,    Context::FLAG_ForeignKeys   },
+		{ Main::CTXCONFIG_ENABLE_TRIGGER, Context::FLAG_EnableTrigger },
 	};
 	__device__ RC Main::CtxConfig(Context *ctx, CTXCONFIG op, va_list args)
 	{
@@ -637,9 +637,9 @@ namespace Core
 	__device__ RC Main::BusyHandler(Context *ctx, int (*busy)(void *, int), void *arg)
 	{
 		MutexEx::Enter(ctx->Mutex);
-		ctx->BusyHandler.Func = busy;
-		ctx->BusyHandler.Arg = arg;
-		ctx->BusyHandler.Busy = 0;
+		ctx->BusyHandler->Func = busy;
+		ctx->BusyHandler->Arg = arg;
+		ctx->BusyHandler->Busys = 0;
 		ctx->BusyTimeout = 0;
 		MutexEx::Leave(ctx->Mutex);
 		return RC_OK;
@@ -743,7 +743,7 @@ namespace Core
 		if (destructor)
 			destructor->Refs++;
 		p->Destructor = destructor;
-		p->Flags = 0;
+		p->Flags = (FUNC)0;
 		p->Func = func;
 		p->Step = step;
 		p->Finalize = final_;
@@ -834,7 +834,7 @@ _out:
 	}
 #endif
 
-	__device__ void *Main::CommitHook(Context *ctx, int (*callback)(void*), void *arg)
+	__device__ void *Main::CommitHook(Context *ctx, RC (*callback)(void*), void *arg)
 	{
 		MutexEx::Enter(ctx->Mutex);
 		void *oldArg = ctx->CommitArg;
@@ -1135,14 +1135,14 @@ _out:
 #pragma region Limit
 
 	// Make sure the hard limits are set to reasonable values
-#if MAX_LENGTH < 100
-#error MAX_LENGTH must be at least 100
+#if CORE_MAX_LENGTH < 100
+#error CORE_MAX_LENGTH must be at least 100
 #endif
 #if MAX_SQL_LENGTH < 100
 #error MAX_SQL_LENGTH must be at least 100
 #endif
-#if MAX_SQL_LENGTH > MAX_LENGTH
-#error MAX_SQL_LENGTH must not be greater than MAX_LENGTH
+#if MAX_SQL_LENGTH > CORE_MAX_LENGTH
+#error MAX_SQL_LENGTH must not be greater than CORE_MAX_LENGTH
 #endif
 #if MAX_COMPOUND_SELECT < 2
 #error MAX_COMPOUND_SELECT must be at least 2
@@ -1168,7 +1168,7 @@ _out:
 
 	static const int _hardLimits[] = // kept in sync with the LIMIT_*
 	{
-		MAX_LENGTH,
+		CORE_MAX_LENGTH,
 		MAX_SQL_LENGTH,
 		MAX_COLUMN,
 		MAX_EXPR_DEPTH,
@@ -1185,7 +1185,7 @@ _out:
 	{
 		// EVIDENCE-OF: R-30189-54097 For each limit category SQLITE_LIMIT_NAME there is a hard upper bound set at compile-time by a C preprocessor
 		// macro called SQLITE_MAX_NAME. (The "_LIMIT_" in the name is changed to "_MAX_".)
-		_assert(_hardLimits[LIMIT_LENGTH] == MAX_LENGTH);
+		_assert(_hardLimits[LIMIT_LENGTH] == CORE_MAX_LENGTH);
 		_assert(_hardLimits[LIMIT_SQL_LENGTH] == MAX_SQL_LENGTH);
 		_assert(_hardLimits[LIMIT_COLUMN] == MAX_COLUMN);
 		_assert(_hardLimits[LIMIT_EXPR_DEPTH] == MAX_EXPR_DEPTH);
@@ -1284,10 +1284,10 @@ _out:
 		ctx->DBs.length = 2;
 		ctx->DBs.data = ctx->DBStatics;
 
-		_assert(sizeof(ctx->Limits) == sizeof(_hardLimit));
+		_assert(sizeof(ctx->Limits) == sizeof(_hardLimits));
 		_memcpy(ctx->Limits, _hardLimits, sizeof(ctx->Limits));
 		ctx->AutoCommit = 1;
-		ctx->NextAutovac = -1;
+		ctx->NextAutovac = (Btree::AUTOVACUUM)-1;
 		ctx->NextPagesize = 0;
 		ctx->Flags |= Context::FLAG_ShortColNames | Context::FLAG_AutoIndex | Context::FLAG_EnableTrigger
 #if DEFAULT_FILE_FORMAT<4
@@ -1747,7 +1747,7 @@ error_out:
 #ifndef OMIT_WSD
 			{
 				uint32 newVal = va_arg(args, uint32);
-				if (newVal) sqlite3PendingByte = newVal;
+				if (newVal) Pager::PendingByte = newVal;
 			}
 #endif
 			break; }
@@ -1783,7 +1783,7 @@ error_out:
 			//    }else{
 			//      // ALWAYS(x) is a constant 1.  NEVER(x) is a constant 0.
 			//    }
-			int x = va_arg(arg, int);
+			int x = va_arg(args, int);
 			rc = _ALWAYS(x);
 			break; }
 		case TESTCTRL_RESERVE: {
@@ -1825,7 +1825,7 @@ error_out:
 			int size = va_arg(args, int);
 			void **new_ = va_arg(args, void**);
 			void *free = va_arg(args, void*);
-			if (size) *newOut = _stackalloc(nullptr, size, false);
+			if (size) *new_ = _stackalloc(nullptr, size, false);
 			_stackfree(nullptr, free);
 			break; }
 		case TESTCTRL_LOCALTIME_FAULT: {

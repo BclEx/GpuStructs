@@ -53,6 +53,9 @@ namespace Core
 	};
 
 	// sqliteLimit.h
+#ifdef MAX_PAGE_SIZE
+#undef MAX_PAGE_SIZE
+#endif
 #define MAX_PAGE_SIZE 65536
 
 	class Pager

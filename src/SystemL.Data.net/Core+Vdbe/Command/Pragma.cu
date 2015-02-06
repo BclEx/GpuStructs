@@ -189,7 +189,7 @@ namespace Core { namespace Command
 		_assert(IPager::JOURNALMODE_PERSIST == 1);
 		_assert(IPager::JOURNALMODE_OFF == 2);
 		_assert(IPager::JOURNALMODE_TRUNCATE == 3);
-		_assert(IPager::JOURNALMODE_MEMORY == 4);
+		_assert(IPager::JOURNALMODE_JMEMORY == 4);
 		_assert(IPager::JOURNALMODE_WAL == 5);
 		_assert(mode>=0 && mode<=_lengthof(_modeName));
 		if (mode == _lengthof(_modeName)) return nullptr;
@@ -211,7 +211,7 @@ namespace Core { namespace Command
 	__constant__ static const Vdbe::VdbeOpList _getCacheSize[] =
 	{
 		{OP_Transaction, 0, 0,        0},                         // 0
-		{OP_ReadCookie,  0, 1,        BTREE_DEFAULT_CACHE_SIZE},  // 1
+		{OP_ReadCookie,  0, 1,        Btree::META_DEFAULT_CACHE_SIZE},  // 1
 		{OP_IfPos,       1, 7,        0},
 		{OP_Integer,     0, 2,        0},
 		{OP_Subtract,    1, 2,        1},
@@ -222,11 +222,11 @@ namespace Core { namespace Command
 	__constant__ static const Vdbe::VdbeOpList _setMeta6[] =
 	{
 		{OP_Transaction,    0,         1,                 0},    // 0
-		{OP_ReadCookie,     0,         1,         BTREE_LARGEST_ROOT_PAGE},
+		{OP_ReadCookie,     0,         1,         Btree::META_LARGEST_ROOT_PAGE},
 		{OP_If,             1,         0,                 0},    // 2
 		{OP_Halt,           RC_OK, OE_Abort,          0},    // 3
 		{OP_Integer,        0,         1,                 0},    // 4
-		{OP_SetCookie,      0,         BTREE_INCR_VACUUM, 1},    // 5
+		{OP_SetCookie,      0,         Btree::META_INCR_VACUUM, 1},    // 5
 	};
 	// Code that appears at the end of the integrity check.  If no error messages have been generated, output OK.  Otherwise output the error message
 	__constant__ static const Vdbe::VdbeOpList _endCode[] =
@@ -276,9 +276,9 @@ namespace Core { namespace Command
 		{"UTF-16be", TEXTENCODE_UTF16BE},  // Must be element [3]
 		{"UTF16le",  TEXTENCODE_UTF16LE},
 		{"UTF16be",  TEXTENCODE_UTF16BE},
-		{"UTF-16",   0}, // TEXTENCODE_UTF16NATIVE
-		{"UTF16",    0}, // TEXTENCODE_UTF16NATIVE
-		{0, 0}
+		{"UTF-16",   (TEXTENCODE)0}, // TEXTENCODE_UTF16NATIVE
+		{"UTF16",    (TEXTENCODE)0}, // TEXTENCODE_UTF16NATIVE
+		{nullptr, (TEXTENCODE)0}
 	};
 	// Write the specified cookie value
 	__constant__ static const Vdbe::VdbeOpList _setCookie[] =
@@ -299,12 +299,14 @@ namespace Core { namespace Command
 		"unlocked", "shared", "reserved", "pending", "exclusive"
 	};
 
+	extern char *g_temp_directory;
+	extern char *g_data_directory;
 	__device__ void Pragma::Pragma_(Parse *parse, Token *id1, Token *id2, Token *value, bool minusFlag)
 	{
 		Context *ctx = parse->Ctx; // The database connection
 		Vdbe *v = parse->V = Vdbe::Create(ctx); // Prepared statement
 		if (!v) return;
-		v->RunOnlyOnce();
+		v->set_RunOnlyOnce();
 		parse->Mems = 2;
 
 		// Interpret the [database.] part of the pragma statement. db is the index of the database this pragma is being applied to in db.aDb[].
@@ -333,7 +335,7 @@ namespace Core { namespace Command
 		fcntls[1] = left;
 		fcntls[2] = right;
 		fcntls[3] = nullptr;
-		ctx->BusyHandler.Busys = 0;
+		ctx->BusyHandler->Busys = 0;
 		RC rc = Main::FileControl(ctx, dbName, VFile::FCNTL_PRAGMA, (void *)fcntls); // return value form SQLITE_FCNTL_PRAGMA
 		if (rc == RC_OK)
 		{
@@ -385,10 +387,10 @@ namespace Core { namespace Command
 			}
 			else
 			{
-				int size = ConvertEx::AbsInt32(ConvertEx::Atoi(right));
+				int size = MathEx::Abs(ConvertEx::Atoi(right));
 				parse->BeginWriteOperation(0, db);
 				v->AddOp2(OP_Integer, size, 1);
-				v->AddOp3(OP_SetCookie, db, BTREE_DEFAULT_CACHE_SIZE, 1);
+				v->AddOp3(OP_SetCookie, db, Btree::META_DEFAULT_CACHE_SIZE, 1);
 				_assert(Btree::SchemaMutexHeld(ctx, db, 0));
 				dbAsObj->Schema->CacheSize = size;
 				dbAsObj->Bt->SetCacheSize(dbAsObj->Schema->CacheSize);
@@ -452,12 +454,12 @@ namespace Core { namespace Command
 		else if (!_strcmp(left, "page_count") || !_strcmp(left, "max_page_count"))
 		{
 			if (Prepare::ReadSchema(parse)) goto pragma_out;
-			Parse::CodeVerifySchema(parse, db);
+			parse->CodeVerifySchema(db);
 			int regId = ++parse->Mems;
 			if (_tolower(left[0]) == 'p')
 				v->AddOp2(OP_Pagecount, db, regId);
 			else
-				v->AddOp3(OP_MaxPgcnt, db, regId, ConvertEx::AbsInt32(ConvertEx::Atoi(right)));
+				v->AddOp3(OP_MaxPgcnt, db, regId, MathEx::Abs(ConvertEx::Atoi(right)));
 			v->AddOp2(OP_ResultRow, regId, 1);
 			v->SetNumCols(1);
 			v->SetColName(0, COLNAME_NAME, left, DESTRUCTOR_TRANSIENT);
@@ -485,7 +487,7 @@ namespace Core { namespace Command
 					for (int ii = 2; ii < ctx->DBs.length; ii++)
 					{
 						pager = ctx->DBs[ii].Bt->get_Pager();
-						pager.LockingMode(mode);
+						pager->LockingMode(mode);
 					}
 					ctx->DefaultLockMode = mode;
 				}
@@ -512,15 +514,15 @@ namespace Core { namespace Command
 			v->SetNumCols(1);
 			v->SetColName(0, COLNAME_NAME, "journal_mode", DESTRUCTOR_STATIC);
 
-			IPager::JOURNALMODE mode; // One of the PAGER_JOURNALMODE_XXX symbols
+			int mode; // One of the PAGER_JOURNALMODE_XXX symbols
 			if (!right)
 				mode = IPager::JOURNALMODE_JQUERY; // If there is no "=MODE" part of the pragma, do a query for the current mode
 			else
 			{
 				const char *modeName;
 				int n = _strlen30(right);
-				for (mode = 0; (mode = sqlite3JournalModename(mode)) != 0; mode++)
-					if (!_strcmp(right, modeName, n)) break;
+				for (mode = 0; (modeName = JournalModename((IPager::JOURNALMODE)mode)) != 0; mode++)
+					if (!_strncmp(right, modeName, n)) break;
 				if (!modeName)
 					mode = IPager::JOURNALMODE_JQUERY; // If the "=MODE" part does not match any known journal mode, then do a query
 			}
@@ -534,10 +536,10 @@ namespace Core { namespace Command
 				if (ctx->DBs[ii].Bt && (ii == db || id2->length == 0))
 				{
 					v->UsesBtree(ii);
-					v->AddOp3(OP.JournalMode, ii, 1, mode);
+					v->AddOp3(OP_JournalMode, ii, 1, mode);
 				}
 			}
-			v->AddOp2(OP.ResultRow, 1, 1);
+			v->AddOp2(OP_ResultRow, 1, 1);
 		}
 
 		//  PRAGMA [database.]journal_size_limit
@@ -553,7 +555,7 @@ namespace Core { namespace Command
 				ConvertEx::Atoi64(right, &limit, 1000000, TEXTENCODE_UTF8);
 				if (limit < -1) limit = -1;
 			}
-			limit = sqlite3PagerJournalSizeLimit(pager, limit);
+			limit = pager->SetJournalSizeLimit(limit);
 			ReturnSingleInt(parse, "journal_size_limit", limit);
 		}
 #endif
@@ -659,6 +661,7 @@ namespace Core { namespace Command
 		//
 		// Return or set the local value of the temp_store_directory flag.  Changing the value sets a specific directory to be used for temporary files.
 		// Setting to a null string reverts to the default temporary directory search. If temporary directory is changed, then invalidateTempStorage.
+
 		else if (!_strcmp(left, "temp_store_directory"))
 		{
 			if (!right)
@@ -823,7 +826,7 @@ namespace Core { namespace Command
 				int i;
 				Column *col;
 				int hidden = 0;
-				for (int i = 0, col = table->Cols; i < table->Cols.length; i++, col++)
+				for (i = 0, col = table->Cols.data; i < table->Cols.length; i++, col++)
 				{
 					if (IsHiddenColumn(col))
 					{
@@ -905,10 +908,10 @@ namespace Core { namespace Command
 				}
 			}
 		}
-		else if (!_strcmp(left, "database_list")=)
+		else if (!_strcmp(left, "database_list"))
 		{
 			if (Prepare::ReadSchema(parse)) goto pragma_out;
-			v->SetNumCols(v, 3);
+			v->SetNumCols(3);
 			parse->Mems = 3;
 			v->SetColName(0, COLNAME_NAME, "seq", DESTRUCTOR_STATIC);
 			v->SetColName(1, COLNAME_NAME, "name", DESTRUCTOR_STATIC);
@@ -930,9 +933,9 @@ namespace Core { namespace Command
 			v->SetColName(0, COLNAME_NAME, "seq", DESTRUCTOR_STATIC);
 			v->SetColName(1, COLNAME_NAME, "name", DESTRUCTOR_STATIC);
 			int i = 0;
-			for (HashElem *p = ctx->CollSeqs.First; p; p = p.Next)
+			for (HashElem *p = ctx->CollSeqs.First; p; p = p->Next)
 			{
-				CollSeq *coll = (CollSeq *)p.Data;
+				CollSeq *coll = (CollSeq *)p->Data;
 				v->AddOp2(OP_Integer, i++, 1);
 				v->AddOp4(OP_String8, 0, 2, 0, coll->Name, 0);
 				v->AddOp2(OP_ResultRow, 1, 2);
@@ -952,7 +955,7 @@ namespace Core { namespace Command
 				{
 					v->SetNumCols(8);
 					parse->Mems = 8;
-					parse->VerifySchema(db);
+					parse->CodeVerifySchema(db);
 					v->SetColName(0, COLNAME_NAME, "id", DESTRUCTOR_STATIC);
 					v->SetColName(1, COLNAME_NAME, "seq", DESTRUCTOR_STATIC);
 					v->SetColName(2, COLNAME_NAME, "table", DESTRUCTOR_STATIC);
@@ -967,8 +970,8 @@ namespace Core { namespace Command
 						for (int j = 0; j < fk->Cols.length; j++)
 						{
 							char *colName = fk->Cols[j].Col;
-							char *onDelete = (char *)ActionName(fK->Actions[0]);
-							char *onUpdate = (char *)ActionName(fK->Actions[1]);
+							char *onDelete = (char *)ActionName(fk->Actions[0]);
+							char *onUpdate = (char *)ActionName(fk->Actions[1]);
 							v->AddOp2(OP_Integer, i, 1);
 							v->AddOp2(OP_Integer, j, 2);
 							v->AddOp4(OP_String8, 0, 3, 0, fk->To, 0);
@@ -988,7 +991,7 @@ namespace Core { namespace Command
 #ifndef OMIT_TRIGGER
 		else if (!_strcmp(left, "foreign_key_check"))
 		{
-			if (Prepare::ReadSchema(parse) ) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			int regResult = parse->Mems+1; // 3 registers to hold a result row
 			parse->Mems += 4;
 			int regKey = ++parse->Mems; // Register to hold key for checking the FK
@@ -1012,13 +1015,13 @@ namespace Core { namespace Command
 				}
 				else
 				{
-					table = (Table *)k.Data;
-					k = k.Next;
+					table = (Table *)k->Data;
+					k = k->Next;
 				}
 				if (!table || !table->FKeys) continue;
 				parse->TableLock(db, table->Id, false, table->Name);
 				if (table->Cols.length+regRow > parse->Mems) parse->Mems = table->Cols.length + regRow;
-				sqlite3OpenTable(parse, 0, db, table, OP_OpenRead);
+				Insert::OpenTable(parse, 0, db, table, OP_OpenRead);
 				v->AddOp4(OP_String8, 0, regResult, 0, table->Name, Vdbe::P4T_TRANSIENT);
 				Table *parent; // Parent table that child points to
 				Index *index; // Index in the parent table
@@ -1035,7 +1038,7 @@ namespace Core { namespace Command
 					if (x == 0)
 					{
 						if (!index)
-							sqlite3OpenTable(parse, i, db, parent, OP_OpenRead);
+							Insert::OpenTable(parse, i, db, parent, OP_OpenRead);
 						else
 						{
 							KeyInfo *key = parse->IndexKeyinfo(index);
@@ -1058,7 +1061,7 @@ namespace Core { namespace Command
 					_assert(parent != nullptr);
 					index = nullptr;
 					cols = nullptr;
-					x = parse->LocateIndex(parent, fk, &index, &cols);
+					x = parse->FKLocateIndex(parent, fk, &index, &cols);
 					_assert(x == 0);
 					int addrOk = v->MakeLabel(); // Jump here if the key is OK
 					if (!index)
@@ -1068,7 +1071,7 @@ namespace Core { namespace Command
 						if (keyId != table->PKey)
 						{
 							v->AddOp3(OP_Column, 0, keyId, regRow);
-							sqlite3ColumnDefault(v, table, keyId, regRow);
+							Update::ColumnDefault(v, table, keyId, regRow);
 							v->AddOp2(OP_IsNull, regRow, addrOk);
 							v->AddOp2(OP_MustBeInt, regRow, v->CurrentAddr()+3);
 						}
@@ -1086,7 +1089,7 @@ namespace Core { namespace Command
 							v->AddOp2(OP_IsNull, regRow+j, addrOk);
 						}
 						v->AddOp3(OP_MakeRecord, regRow, fk->Cols.length, regKey);
-						v->ChangeP4(-1, sqlite3IndexAffinityStr(v, index), Vdbe::P4T_TRANSIENT);
+						v->ChangeP4(-1, Insert::IndexAffinityStr(v, index), Vdbe::P4T_TRANSIENT);
 						v->AddOp4Int(OP_Found, i, addrOk, regKey, 0);
 					}
 					v->AddOp2(OP_Rowid, 0, regResult+1);
@@ -1156,13 +1159,14 @@ namespace Core { namespace Command
 			v->AddOp2(OP_Integer, maxErr, 1); // reg[1] holds errors left
 
 			// Do an integrity check on each database file
+			int addr;
 			for (int i = 0; i < ctx->DBs.length; i++)
 			{
 				if (E_OMIT_TEMPDB && i == 1) continue;
 				if (db >= 0 && i != db) continue;
 
 				parse->CodeVerifySchema(i);
-				int addr = v->AddOp1(OP_IfPos, 1); // Halt if out of errors
+				addr = v->AddOp1(OP_IfPos, 1); // Halt if out of errors
 				v->AddOp2(OP_Halt, 0, 0);
 				v->JumpHere(addr);
 
@@ -1202,12 +1206,12 @@ namespace Core { namespace Command
 				// Make sure all the indices are constructed correctly.
 				for (x = tables->First; x && !isQuick; x = x->Next)
 				{
-					Table *table = x.Data;
+					Table *table = (Table *)x->Data;
 					if (!table->Index) continue;
 					addr = v->AddOp1(OP_IfPos, 1); // Stop if out of errors
 					v->AddOp2(OP_Halt, 0, 0);
 					v->JumpHere(addr);
-					parse->OpenTableAndIndices(table, 1, OP_OpenRead);
+					Insert::OpenTableAndIndices(parse, table, 1, OP_OpenRead);
 					v->AddOp2(OP_Integer, 0, 2); // reg(2) will count entries
 					int loopTop = v->AddOp2(OP_Rewind, 1, 0);
 					v->AddOp2(OP_AddImm, 2, 1); // increment entry count
@@ -1215,7 +1219,7 @@ namespace Core { namespace Command
 					Index *index;
 					for (j = 0, index = table->Index; index; index = index->Next, j++)
 					{
-						int r1 = parse->GenerateIndexKey(index, 1, 3, 0);
+						int r1 = Delete::GenerateIndexKey(parse, index, 1, 3, 0);
 						int jmp2 = v->AddOp4Int(OP_Found, j+2, 0, r1, index->Columns.length+1);
 						addr = v->AddOpList(_lengthof(_idxErr), _idxErr);
 						v->ChangeP4(addr+1, "rowid ", Vdbe::P4T_STATIC);
@@ -1274,7 +1278,7 @@ namespace Core { namespace Command
 				v->AddOp2(OP_String8, 0, 1);
 				_assert(_encodeNames[TEXTENCODE_UTF8].Encode == TEXTENCODE_UTF8);
 				_assert(_encodeNames[TEXTENCODE_UTF16LE].Encode == TEXTENCODE_UTF16LE);
-				_assert(_encodeNames[TEXTENCODE_UTF16BE].Encode == TEXTENCOD _UTF16BE);
+				_assert(_encodeNames[TEXTENCODE_UTF16BE].Encode == TEXTENCODE_UTF16BE);
 				v->ChangeP4(-1, _encodeNames[CTXENCODE(parse->Ctx)].Name, Vdbe::P4T_STATIC);
 				v->AddOp2(OP_ResultRow, 1, 1);
 			}
@@ -1289,7 +1293,7 @@ namespace Core { namespace Command
 					{
 						if (!_strcmp(right, encode->Name))
 						{
-							CXTENCODE(parse->Ctx) = (encode->Encode ? encode->Encode : TEXTENCODE_UTF16NATIVE);
+							CTXENCODE(parse->Ctx) = (encode->Encode ? encode->Encode : TEXTENCODE_UTF16NATIVE);
 							break;
 						}
 					}
@@ -1323,11 +1327,11 @@ namespace Core { namespace Command
 			int cookie; // Cookie index. 1 for schema-cookie, 6 for user-cookie.
 			switch (left[0])
 			{
-			case 'f': case 'F': cookie = BTREE_FREE_PAGE_COUNT; break;
-			case 's': case 'S': cookie = BTREE_SCHEMA_VERSION; break;
-			default: cookie = BTREE_USER_VERSION; break;
+			case 'f': case 'F': cookie = Btree::META_FREE_PAGE_COUNT; break;
+			case 's': case 'S': cookie = Btree::META_SCHEMA_VERSION; break;
+			default: cookie = Btree::META_USER_VERSION; break;
 			}
-			if (right && cookie != BTREE_FREE_PAGE_COUNT)
+			if (right && cookie != Btree::META_FREE_PAGE_COUNT)
 			{
 				int addr = v->AddOpList(_lengthof(_setCookie), _setCookie);
 				v->ChangeP1(addr, db);
@@ -1425,8 +1429,8 @@ namespace Core { namespace Command
 		{
 			v->SetNumCols(2);
 			parse->Mems = 2;
-			v->SetColName(0, COLNAME_NAME, "database", DESTRUTOR_STATIC);
-			v->SetColName(1, COLNAME_NAME, "status", DESTRUTOR_STATIC);
+			v->SetColName(0, COLNAME_NAME, "database", DESTRUCTOR_STATIC);
+			v->SetColName(1, COLNAME_NAME, "status", DESTRUCTOR_STATIC);
 			for (int i =0 ; i < ctx->DBs.length; i++)
 			{
 				if (!ctx->DBs[i].Name) continue;
@@ -1444,21 +1448,17 @@ namespace Core { namespace Command
 
 #ifdef HAS_CODEC
 		else if (!_strcmp(left, "key") && right)
-		{
 			sqlite3_key(ctx, right, _strlen30(right));
-		}
 		else if (!_strcmp(left, "rekey") && right)
-		{
 			sqlite3_rekey(ctx, right, _strlen30(right));
-		}
 		else if (right && (!_strcmp(left, "hexkey") || !_strcmp(left, "hexrekey")))
 		{
-			int i;
+			int i, h1, h2;
 			char key[40];
 			for (i = 0; (h1 = right[i]) != 0 && (h2 = right[i+1]) != 0; i += 2)
 			{
-				int h1 += 9*(1&(h1>>6));
-				int h2 += 9*(1&(h2>>6));
+				h1 += 9*(1&(h1>>6));
+				h2 += 9*(1&(h2>>6));
 				key[i/2] = (h2 & 0x0f) | ((h1 & 0xf)<<4);
 			}
 			if ((left[3] & 0xf) == 0xb)
@@ -1472,11 +1472,11 @@ namespace Core { namespace Command
 		else if (!_strcmp(left, "activate_extensions") && right)
 		{
 #ifdef HAS_CODEC
-			if (!_strcmp(right, "see-", 4))
+			if (!_strncmp(right, "see-", 4))
 				sqlite3_activate_see(&right[4]);
 #endif
 #ifdef ENABLE_CEROD
-			if (!_strcmp(right, "cerod-", 6))
+			if (!_strncmp(right, "cerod-", 6))
 				sqlite3_activate_cerod(&right[6]);
 #endif
 		}

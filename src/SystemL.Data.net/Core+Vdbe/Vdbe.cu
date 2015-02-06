@@ -129,7 +129,7 @@ namespace Core
 		if (mem->Type == TYPE_TEXT)
 		{
 			ApplyNumericAffinity(mem);
-			Vdbe::MemStoreType(mem);
+			MemStoreType(mem);
 		}
 		return mem->Type;
 	}

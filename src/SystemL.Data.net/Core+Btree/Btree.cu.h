@@ -4,7 +4,7 @@ namespace Core
 #define N_BTREE_META 10
 
 #ifndef DEFAULT_AUTOVACUUM
-#define DEFAULT_AUTOVACUUM AUTOVACUUM_NONE
+#define DEFAULT_AUTOVACUUM Btree::AUTOVACUUM_NONE
 #endif
 
 	struct Mem;
