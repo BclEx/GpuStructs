@@ -182,5 +182,14 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Btree\BContext+Notify.cu">
+      <Filter>Core+Btree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main+Legacy.cu">
+      <Filter>Core+Vdbe</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Btree\BContext.cu">
+      <Filter>Core+Btree</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -53,50 +53,56 @@ namespace Core
 			FLAG_EnableTrigger  = 0x00400000,	// True to enable triggers
 		};
 
-		array_t<DB> DBs;				// All backends / Number of backends currently in use
-		FLAG Flags;						// Miscellaneous flags. See below
-		int ActiveVdbeCnt;				// Number of VDBEs currently executing
-		BusyHandlerType *BusyHandler;	// Busy callback
-		DB DBStatics[2];				// Static space for the 2 default backends
-		Savepoint *Savepoints;			// List of active savepoints
-		int BusyTimeout;				// Busy handler timeout, in msec
-		int SavepointsLength;			// Number of non-transaction savepoints
+		array_t<DB> DBs;					// All backends / Number of backends currently in use
+		FLAG Flags;							// Miscellaneous flags. See below
+		int ActiveVdbeCnt;					// Number of VDBEs currently executing
+		BusyHandlerType *BusyHandler;		// Busy callback
+		DB DBStatics[2];					// Static space for the 2 default backends
+		Savepoint *Savepoints;				// List of active savepoints
+		int BusyTimeout;					// Busy handler timeout, in msec
+		int SavepointsLength;				// Number of non-transaction savepoints
+#ifdef ENABLE_UNLOCK_NOTIFY
+		BContext *BlockingConnection;		// Connection that caused SQLITE_LOCKED
+		BContext *UnlockConnection;			// Connection to watch for unlock
+		void *UnlockArg;					// Argument to xUnlockNotify
+		void (*UnlockNotify)(void**,int);	// Unlock notify callback
+		BContext *NextBlocked;				// Next in list of all blocked connections
+#endif
 
-		//		__device__ inline int InvokeBusyHandler()
-		//		{
-		//			if (_NEVER(BusyHandler == nullptr) || BusyHandler->Func == nullptr || BusyHandler->Busys < 0)
-		//				return 0;
-		//			int rc = BusyHandler->Func(BusyHandler->Arg, BusyHandler->Busys);
-		//			if (rc == 0)
-		//				BusyHandler->Busys = -1;
-		//			else
-		//				BusyHandler->Busys++;
-		//			return rc;
-		//		}
-		//
-		//		// HOOKS
-		//#if ENABLE_UNLOCK_NOTIFY
-		//		__device__ void ConnectionBlocked(BContext *a, BContext *b);
-		//		__device__ void ConnectionUnlocked(BContext *a);
-		//		__device__ void ConnectionClosed(BContext *a);
-		//#else
-		//		__device__ static void ConnectionBlocked(BContext *a, BContext *b) { }
-		//		//__device__ static void ConnectionUnlocked(BContext *a) { }
-		//		//__device__ static void ConnectionClosed(BContext *a) { }
-		//#endif
-		//
-		//		__device__ inline bool TempInMemory()
-		//		{
-		//			return true;
-		//			//if (TEMP_STORE == 1) return (temp_store == 2);
-		//			//if (TEMP_STORE == 2) return (temp_store != 1);
-		//			//if (TEMP_STORE == 3) return true;
-		//			//if (TEMP_STORE < 1 || TEMP_STORE > 3) return false;
-		//			//return false;
-		//		}
+#pragma region From: Main_c
+		__device__ int InvokeBusyHandler();
+		__device__ inline bool TempInMemory()
+		{
+#if TEMP_STORE == 1
+			return (TempStore == 2);
+#endif
+#if TEMP_STORE == 2
+			return (TempStore != 1);
+#endif
+#if TEMP_STORE == 3
+			return true;
+#endif
+			return false;
+		}
+#pragma endregion
+
+#pragma region From: Notify_c
+#if ENABLE_UNLOCK_NOTIFY
+		__device__ RC UnlockNotify_(void (*notify)(void **, int), void *arg, void (*error)(BContext *, RC, const char *));
+		__device__ void ConnectionBlocked(BContext *blocker);
+		__device__ void ConnectionUnlocked();
+		__device__ void ConnectionClosed();
+#else
+		__device__ static void ConnectionBlocked(BContext *blocker) { }
+		__device__ static void ConnectionUnlocked() { }
+		__device__ static void ConnectionClosed() { }
+#endif
+#pragma endregion
+
 	};
 	__device__ inline BContext::FLAG operator|=(BContext::FLAG a, int b) { return (BContext::FLAG)(a | b); }
 	__device__ inline BContext::FLAG operator&=(BContext::FLAG a, int b) { return (BContext::FLAG)(a & b); }
 	__device__ inline BContext::FLAG operator|(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a | (int)b); }
 	__device__ inline BContext::FLAG operator&(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a & (int)b); }
+
 }

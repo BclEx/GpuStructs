@@ -520,12 +520,12 @@ namespace Core
 #pragma endregion
 
 #pragma region Vdbe+Sort
-		__device__ static RC SorterInit(Context *db, VdbeCursor *cursor);
-		__device__ static void SorterClose(Context *db, VdbeCursor *cursor);
+		__device__ static RC SorterInit(Context *ctx, VdbeCursor *cursor);
+		__device__ static void SorterClose(Context *ctx, VdbeCursor *cursor);
 		__device__ static RC SorterRowkey(const VdbeCursor *cursor, Mem *mem);
-		__device__ static RC SorterNext(Context *db, const VdbeCursor *cursor, bool *eof);
-		__device__ static RC SorterRewind(Context *db, const VdbeCursor *cursor, bool *eof);
-		__device__ static RC SorterWrite(Context *db, const VdbeCursor *cursor, Mem *mem);
+		__device__ static RC SorterNext(Context *ctx, const VdbeCursor *cursor, int *eof);
+		__device__ static RC SorterRewind(Context *ctx, const VdbeCursor *cursor, int *eof);
+		__device__ static RC SorterWrite(Context *ctx, const VdbeCursor *cursor, Mem *mem);
 		__device__ static RC SorterCompare(const VdbeCursor *cursor, Mem *mem, int *r);
 #pragma endregion
 

@@ -1031,9 +1031,6 @@ namespace Core
     #region Rowset
     #endregion
 
-    #region Mem
-    #endregion
-
     #region Backup
     #endregion
 

@@ -69,9 +69,9 @@ namespace Core
 
 #if !OMIT_BUILTIN_TEST
 	__device__ static _WSD Prng *g_savedPrng = nullptr;
-	__device__ inline static void PrngSaveState() { _memcpy<void>(&_GLOBAL(Prng, g_savedPrng), &_GLOBAL(Prng, g_prng), sizeof(g_prng)); }
-	__device__ inline static void PrngRestoreState() { _memcpy<void>(&_GLOBAL(Prng, g_prng), &_GLOBAL(Prng, g_savedPrng), sizeof(g_prng)); }
-	__device__ inline static void PrngResetState() { _prng.IsInit = false; }
+	__device__ void Random_PrngSaveState() { _memcpy<void>(&_GLOBAL(Prng, g_savedPrng), &_GLOBAL(Prng, g_prng), sizeof(g_prng)); }
+	__device__ void Random_PrngRestoreState() { _memcpy<void>(&_GLOBAL(Prng, g_prng), &_GLOBAL(Prng, g_savedPrng), sizeof(g_prng)); }
+	__device__ void Random_PrngResetState() { _prng.IsInit = false; }
 #endif
 
 }

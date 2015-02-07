@@ -1395,57 +1395,6 @@ namespace Core {
 
 #pragma endregion
 
-#pragma region Mem
-
-	struct Mem;
-	//
-	//	inline const void *Mem_Blob(Mem *p)
-	//	{
-	//		if (p->Flags & (MEM_Blob|MEM_Str))
-	//		{
-	//			sqlite3VdbeMemExpandBlob(p);
-	//			p->Flags &= ~MEM_Str;
-	//			p->Flags |= MEM_Blob;
-	//			return (p->length ? p->data : 0);
-	//		}
-	//		else
-	//			return Mem_Text(p);
-	//	}
-	//	int sqlite3_value_bytes(Mem *p){ return sqlite3ValueBytes(p, TEXTENCODE_UTF8); }
-	//	int sqlite3_value_bytes16(Mem *pVal){ return sqlite3ValueBytes(pVal, TEXTENCODE_UTF16NATIVE); }
-	//	double sqlite3_value_double(Mem *pVal){ return sqlite3VdbeRealValue((Mem*)pVal); }
-	//	int sqlite3_value_int(Mem *pVal){ return (int)sqlite3VdbeIntValue((Mem*)pVal); }
-	//	int64 sqlite3_value_int64(Mem *pVal){ return sqlite3VdbeIntValue((Mem*)pVal); }
-	//	const unsigned char *sqlite3_value_text(Mem *pVal){ return (const unsigned char *)sqlite3ValueText(pVal, TEXTENCODE_UTF8); }
-	//#ifndef OMIT_UTF16
-	//	const void *sqlite3_value_text16(Mem* pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16NATIVE); }
-	//	const void *sqlite3_value_text16be(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16BE); }
-	//	const void *sqlite3_value_text16le(Mem *pVal){ return sqlite3ValueText(pVal, TEXTENCODE_UTF16LE); }
-	//#endif
-	//	int sqlite3_value_type(Mem* pVal){ return pVal->type; }
-	//
-	//	const void *sqlite3_value_blob(Mem*);
-	//	int sqlite3_value_bytes(Mem*);
-	//	int sqlite3_value_bytes16(Mem*);
-	//	double sqlite3_value_double(Mem*);
-	//	int sqlite3_value_int(Mem*);
-	//	int64 sqlite3_value_int64(Mem*);
-	//	const unsigned char *sqlite3_value_text(Mem*);
-	//	const void *sqlite3_value_text16(Mem*);
-	//	const void *sqlite3_value_text16le(Mem*);
-	//	const void *sqlite3_value_text16be(Mem*);
-	//	int sqlite3_value_type(Mem*);
-	//	int sqlite3_value_numeric_type(Mem*);
-	//__device__ void Mem_ApplyAffinity(Mem *mem, uint8 affinity, TEXTENCODE encode);
-	//__device__ const void *Mem_Text(Mem *mem, TEXTENCODE encode);
-	//__device__ int Mem_Bytes(Mem *mem, TEXTENCODE encode);
-	//__device__ void Mem_SetStr(Mem *mem, int n, const void *z, TEXTENCODE encode, void (*del)(void *));
-	//__device__ void Mem_Free(Mem *mem);
-	//__device__ Mem *Mem_New(Context *db);
-	//__device__ RC Mem_FromExpr(Context *db, Expr *expr, TEXTENCODE encode, AFF affinity, Mem **value);
-
-#pragma endregion
-
 #pragma region Backup
 
 	struct Backup
@@ -1480,6 +1429,7 @@ namespace Core {
 
 #pragma region Internal
 
+	struct Mem;
 	struct VdbeCursor;
 	struct VdbeFrame;
 	struct VdbeFunc;
@@ -1732,7 +1682,7 @@ namespace Core {
 
 #pragma region From: Legacy_c
 
-		__device__ static RC Exec(Context *ctx, const char *sql, int (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
+		__device__ static RC Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
 
 #pragma endregion
 

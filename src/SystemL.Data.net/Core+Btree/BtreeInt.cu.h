@@ -150,8 +150,8 @@ namespace Core
 #define MJ_PID(x) ((Pid)((PENDING_BYTE / ((x)->PageSize)) + 1))
 #define PENDING_BYTE_PAGE(bt) MJ_PID(bt)
 
-#define PTRMAP_PAGENO(bt, id) ptrmapPageno(bt, id)
-#define PTRMAP_PTROFFSET(ptrmapID, id) (5 * (id - ptrmapID - 1))
+#define PTRMAP_PAGENO(bt, id) PtrmapPageId(bt, id)
+#define PTRMAP_PTROFFSET(ptrmapId, id) (5 * (id - ptrmapId - 1))
 #define PTRMAP_ISPAGE(bt, id) (PTRMAP_PAGENO((bt), (id)) == (id))
 
 	enum PTRMAP : uint8
@@ -163,7 +163,7 @@ namespace Core
 		PTRMAP_BTREE = 5,
 	};
 
-#define btreeIntegrity(p) \
+#define BtreeIntegrity(p) \
 	_assert(p->Bt->InTransaction != TRANS_NONE || p->Bt->Transactions == 0); \
 	_assert(p->Bt->InTransaction >= p->InTrans); 
 

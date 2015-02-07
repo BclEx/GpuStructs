@@ -623,16 +623,17 @@ namespace Core
 #endif
 	}
 
-	__device__ int Main::InvokeBusyHandler(Context::BusyHandlerType *p)
-	{
-		if (_NEVER(p == nullptr) || p->Func == nullptr || p->Busys < 0) return 0;
-		int rc = p->Func(p->Arg, p->Busys);
-		if (rc == 0)
-			p->Busys = -1;
-		else
-			p->Busys++;
-		return rc; 
-	}
+	// Moved to BContext
+	//__device__ int Main::InvokeBusyHandler(Context::BusyHandlerType *p)
+	//{
+	//	if (_NEVER(p == nullptr) || p->Func == nullptr || p->Busys < 0) return 0;
+	//	int rc = p->Func(p->Arg, p->Busys);
+	//	if (rc == 0)
+	//		p->Busys = -1;
+	//	else
+	//		p->Busys++;
+	//	return rc; 
+	//}
 
 	__device__ RC Main::BusyHandler(Context *ctx, int (*busy)(void *, int), void *arg)
 	{
@@ -975,19 +976,20 @@ _out:
 
 #pragma endregion
 
-	__device__ bool Main::TempInMemory(Context *ctx)
-	{
-#if TEMP_STORE == 1
-		return (ctx->TempStore == 2);
-#endif
-#if TEMP_STORE == 2
-		return (ctx->TempStore != 1);
-#endif
-#if TEMP_STORE == 3
-		return true;
-#endif
-		return false;
-	}
+	// Moved to BContext
+	//	__device__ bool Main::TempInMemory(Context *ctx)
+	//	{
+	//#if TEMP_STORE == 1
+	//		return (ctx->TempStore == 2);
+	//#endif
+	//#if TEMP_STORE == 2
+	//		return (ctx->TempStore != 1);
+	//#endif
+	//#if TEMP_STORE == 3
+	//		return true;
+	//#endif
+	//		return false;
+	//	}
 
 #pragma region Error Message
 
@@ -1697,6 +1699,10 @@ error_out:
 	}
 
 #pragma region TEST
+	extern __device__ void Random_PrngSaveState();
+	extern __device__ void Random_PrngRestoreState();
+	extern __device__ void Random_PrngResetState();
+	extern __device__ int Bitvec_BuiltinTest(int size, int *ops);
 	__device__ RC Main::TestControl(TESTCTRL op, va_list args)
 	{
 		int rc = 0;
@@ -1705,17 +1711,17 @@ error_out:
 		{
 		case TESTCTRL_PRNG_SAVE: {
 			// Save the current state of the PRNG.
-			sqlite3PrngSaveState();
+			Random_PrngSaveState();
 			break; }
 		case TESTCTRL_PRNG_RESTORE: {
 			// Restore the state of the PRNG to the last state saved using PRNG_SAVE.  If PRNG_SAVE has never before been called, then
 			// this verb acts like PRNG_RESET.
-			sqlite3PrngRestoreState();
+			Random_PrngRestoreState();
 			break; }
 		case TESTCTRL_PRNG_RESET: {
 			// Reset the PRNG back to its uninitialized state.  The next call to sqlite3_randomness() will reseed the PRNG using a single call
 			// to the xRandomness method of the default VFS.
-			sqlite3PrngResetState();
+			Random_PrngResetState();
 			break; }
 		case TESTCTRL_BITVEC_TEST: {
 			// sqlite3_test_control(BITVEC_TEST, size, program)
@@ -1724,7 +1730,7 @@ error_out:
 			// memory allocation error, 0 on success, or non-zero for an error. See the sqlite3BitvecBuiltinTest() for additional information.
 			int sz = va_arg(args, int);
 			int *progs = va_arg(args, int*);
-			rc = sqlite3BitvecBuiltinTest(sz, progs);
+			rc = Bitvec_BuiltinTest(sz, progs);
 			break; }
 		case TESTCTRL_BENIGN_MALLOC_HOOKS: {
 			// sqlite3_test_control(BENIGN_MALLOC_HOOKS, xBegin, xEnd)
@@ -1746,8 +1752,8 @@ error_out:
 			rc = PENDING_BYTE;
 #ifndef OMIT_WSD
 			{
-				uint32 newVal = va_arg(args, uint32);
-				if (newVal) Pager::PendingByte = newVal;
+				//uint32 newVal = va_arg(args, uint32);
+				//if (newVal) Pager::PendingByte = newVal;
 			}
 #endif
 			break; }

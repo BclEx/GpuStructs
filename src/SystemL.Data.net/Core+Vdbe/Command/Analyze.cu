@@ -562,15 +562,15 @@ namespace Core { namespace Command
 		const char *Database;
 	};
 
-	__device__ static int AnalysisLoader(void *data, int argc, char **argv, char **notUsed)
+	__device__ static bool AnalysisLoader(void *data, int argc, char **argv, char **notUsed)
 	{
 		AnalysisInfo *info = (AnalysisInfo *)data;
 		_assert(argc == 3);
 		if (argv == 0 || argv[0] == 0 || argv[2] == 0)
-			return 0;
+			return false;
 		Table *table = Parse::FindTable(info->Ctx, argv[0], info->Database);
 		if (!table)
-			return 0;
+			return false;
 		Index *index = (argv[1] ? Parse::FindIndex(info->Ctx, argv[1], info->Database) : nullptr);
 		int n = (index ? index->Columns.length : 0);
 		const char *z = argv[2];
@@ -593,7 +593,7 @@ namespace Core { namespace Command
 				break;
 			}
 		}
-		return 0;
+		return false;
 	}
 
 	__device__ void Analyze::DeleteIndexSamples(Context *ctx, Index *idx)

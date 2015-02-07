@@ -536,7 +536,7 @@ namespace Core
 		return rc;
 	}
 
-	__device__ RC Vdbe::SorterRewind(Context *ctx, const VdbeCursor *cursor, bool *eof)
+	__device__ RC Vdbe::SorterRewind(Context *ctx, const VdbeCursor *cursor, int *eof)
 	{
 		VdbeSorter *sorter = cursor->Sorter;
 		_assert(sorter);
@@ -591,7 +591,7 @@ namespace Core
 				}
 				if (rc == RC_OK)
 				{
-					bool eof = false;
+					int eof = false;
 					FileWriterInit(ctx, temp2, &writer, write2);
 					FileWriterWriteVarint(&writer, writes);
 					while (rc == RC_OK && !eof)
@@ -625,7 +625,7 @@ namespace Core
 		return rc;
 	}
 
-	__device__ RC Vdbe::SorterNext(Context *ctx, const VdbeCursor *cursor, bool *eof)
+	__device__ RC Vdbe::SorterNext(Context *ctx, const VdbeCursor *cursor, int *eof)
 	{
 		VdbeSorter *sorter = cursor->Sorter;
 		if (sorter->Trees)

@@ -13,14 +13,14 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug.cpu|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;_LIB;TEST;THREADSAFE;ENABLE_ATOMIC_WRITE;OMIT_WAL;EXPENSIVE_ASSERT;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;ENABLE_STAT3;SOUNDEX;ENABLE_TREE_EXPLAIN;MAX_EXPR_DEPTH;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;VDBE_PROFILE;ENABLE_TREE_EXPLAIN</DefineConstants>
+    <DefineConstants>DEBUG;_LIB;TEST;THREADSAFE;ENABLE_ATOMIC_WRITE;OMIT_WAL;EXPENSIVE_ASSERT;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;ENABLE_STAT3;SOUNDEX;ENABLE_TREE_EXPLAIN;MAX_EXPR_DEPTH;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;VDBE_PROFILE;ENABLE_TREE_EXPLAIN;ENABLE_UNLOCK_NOTIFY</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <NoWarn>0618</NoWarn>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release.cpu|AnyCPU'">
     <OutputPath>bin\Release\</OutputPath>
@@ -38,6 +38,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Core+Btree\BContext+Notify.cs" />
+    <Compile Include="Core+Btree\BContext.cs" />
+    <Compile Include="Core+Vdbe\LoadExt.cs" />
+    <Compile Include="Core+Vdbe\Main+Legacy.cs" />
     <Compile Include="Opcodes.cs" />
     <Compile Include="Core+Btree\Btree.cs" />
     <Compile Include="Core+Btree\BtreeInt_h.cs" />
@@ -74,6 +78,8 @@
     <Compile Include="KeywordHash_h.cs" />
     <Compile Include="Core+Vdbe\Main.cs" />
     <Compile Include="Opcodes_h.cs" />
+    <None Include="Core+Btree\BContext+Notify.cu" />
+    <None Include="Core+Btree\BContext.cu" />
     <None Include="Core+Vdbe\Command\Date.cu" />
     <Content Include="Core+Vdbe\Context.cu.h" />
     <None Include="Core+Vdbe\Backup.cu" />
@@ -121,6 +127,8 @@
     <None Include="Core+Vdbe\Command\Update.cu" />
     <None Include="Core+Vdbe\Command\Vacuum.cu" />
     <None Include="Core+Vdbe\Expr.cu" />
+    <None Include="Core+Vdbe\LoadExt.cu" />
+    <None Include="Core+Vdbe\Main+Legacy.cu" />
     <None Include="Core+Vdbe\Parse+Build.cu" />
     <None Include="Core+Vdbe\Parse+FKey.cu" />
     <None Include="Core+Vdbe\Prepare.cu" />

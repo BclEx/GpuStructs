@@ -153,11 +153,11 @@ namespace Core
         public long DeferredCons;                   // Net deferred constraints this transaction.
         public int BytesFreed;					    // If not NULL, increment this in DbFree()
 #if ENABLE_UNLOCK_NOTIFY
-        public Context BlockingConnection;          // Connection that caused SQLITE_LOCKED
-        public Context UnlockConnection;            // Connection to watch for unlock
-        public object UnlockArg;                    // Argument to xUnlockNotify
-        public Action<object[], int> UnlockNotify;  // Unlock notify callback
-        public Context NextBlocked;                 // Next in list of all blocked connections
+		//BCONTEXT::BlockingConnection
+		//BCONTEXT::UnlockConnection
+		//BCONTEXT::UnlockArg
+		//BCONTEXT::UnlockNotify
+		//BCONTEXT::NextBlocked
 #endif
     }
 }

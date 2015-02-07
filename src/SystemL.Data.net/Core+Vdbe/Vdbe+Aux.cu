@@ -1648,7 +1648,7 @@ __device__ RC Vdbe::Halt()
 	// If the auto-commit flag is set to true, then any locks that were held by connection ctx have now been released. Call sqlite3ConnectionUnlocked() 
 	// to invoke any required unlock-notify callbacks.
 	if (ctx->AutoCommit)
-		Notify::ConnectionUnlocked(ctx);
+		ctx->ConnectionUnlocked();
 
 	_assert(ctx->ActiveVdbeCnt > 0 || ctx->AutoCommit == 0 || ctx->Statements == 0);
 	return (RC_ == RC_BUSY ? RC_BUSY : RC_OK);

@@ -561,16 +561,16 @@ namespace Core.Command
             public string Database;
         };
 
-        static int AnalysisLoader(object data, long argc, object Oargv, object notUsed)
+        static bool AnalysisLoader(object data, long argc, object Oargv, object notUsed)
         {
             string[] argv = (string[])Oargv;
             AnalysisInfo info = (AnalysisInfo)data;
             Debug.Assert(argc == 3);
             if (argv == null || argv[0] == null || argv[2] == null)
-                return 0;
+                return false;
             Table table = sqlite3FindTable(info.Ctx, argv[0], info.Database);
             if (table == null)
-                return 0;
+                return false;
             Index index = (!string.IsNullOrEmpty(argv[1]) ? sqlite3FindIndex(info.Ctx, argv[1], info.Database) : null);
             int n = (index != null ? index.Columns.length : 0);
             string z = argv[2];
@@ -594,7 +594,7 @@ namespace Core.Command
                     break;
                 }
             }
-            return 0;
+            return false;
         }
 
         public static void DeleteIndexSamples(Context ctx, Index idx)

@@ -207,11 +207,11 @@ namespace Core
 		int64 DeferredCons;					// Net deferred constraints this transaction.
 		int *BytesFreed;					// If not NULL, increment this in DbFree()
 #ifdef ENABLE_UNLOCK_NOTIFY
-		Context *BlockingConnection;		// Connection that caused SQLITE_LOCKED
-		Context *UnlockConnection;			// Connection to watch for unlock
-		void *UnlockArg;					// Argument to xUnlockNotify
-		void (*UnlockNotify)(void**,int);	// Unlock notify callback
-		Context *NextBlocked;				// Next in list of all blocked connections
+		//BCONTEXT::BlockingConnection
+		//BCONTEXT::UnlockConnection
+		//BCONTEXT::UnlockArg
+		//BCONTEXT::UnlockNotify
+		//BCONTEXT::NextBlocked
 #endif
 	};
 

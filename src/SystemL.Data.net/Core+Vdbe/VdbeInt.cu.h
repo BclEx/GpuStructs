@@ -158,9 +158,9 @@ namespace Core
 		//		inline TYPE GetType() { return Type; }
 	};
 
-	struct VdbeFunc : public FuncDef
+	struct VdbeFunc // : public FuncDef
 	{
-		// FuncDef *Func;		// The definition of the function
+		FuncDef *Func;			// The definition of the function
 		int AuxsLength;         // Number of entries allocated for apAux[]
 		struct AuxData
 		{

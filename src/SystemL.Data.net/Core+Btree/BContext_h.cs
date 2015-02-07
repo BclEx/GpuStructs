@@ -63,38 +63,37 @@ namespace Core
         public Savepoint Savepoints;            // List of active savepoints
         public int BusyTimeout;				    // Busy handler timeout, in msec
         public int SavepointsLength;            // Number of non-transaction savepoints
-
-        //public int InvokeBusyHandler()
-        //{
-        //    if (C._NEVER(BusyHandler == null) || BusyHandler.Func == null || BusyHandler.Busys < 0)
-        //        return 0;
-        //    var rc = BusyHandler.Func(BusyHandler.Arg, BusyHandler.Busys);
-        //    if (rc == 0)
-        //        BusyHandler.Busys = -1;
-        //    else
-        //        BusyHandler.Busys++;
-        //    return rc;
-        //}
-
-        // HOOKS
 #if ENABLE_UNLOCK_NOTIFY
-        public void sqlite3ConnectionBlocked(sqlite3 *, sqlite3 );
-        internal void sqlite3ConnectionUnlocked(sqlite3 db);
-        internal void sqlite3ConnectionClosed(sqlite3 db);
-#else
-        public static void ConnectionBlocked(BContext a, BContext b) { }
-        //internal static void ConnectionUnlocked(sqlite3 x) { }
-        //internal static void ConnectionClosed(sqlite3 x) { }
+        public Context BlockingConnection;          // Connection that caused SQLITE_LOCKED
+        public Context UnlockConnection;            // Connection to watch for unlock
+        public object UnlockArg;                    // Argument to xUnlockNotify
+        public Action<object[], int> UnlockNotify;  // Unlock notify callback
+        public Context NextBlocked;                 // Next in list of all blocked connections
 #endif
 
+        #region From: Main_c
         public bool TempInMemory()
         {
-            return true;
-            //if (SQLITE_TEMP_STORE == 1) return (temp_store == 2);
-            //if (SQLITE_TEMP_STORE == 2) return (temp_store != 1);
-            //if (SQLITE_TEMP_STORE == 3) return true;
-            //if (SQLITE_TEMP_STORE < 1 || SQLITE_TEMP_STORE > 3) return false;
-            //return false;
+            //#if TEMP_STORE = 1
+            //            return (TempStore == 2);
+            //#endif
+            //#if TEMP_STORE = 2
+            //            return (TempStore != 1);
+            //#endif
+            //#if TEMP_STORE = 3
+            //            return true;
+            //#endif
+            return false;
         }
+        #endregion
+
+        #region From: Notify_c
+#if ENABLE_UNLOCK_NOTIFY
+#else
+        public void ConnectionBlocked(BContext blocked) { }
+        internal void ConnectionUnlocked() { }
+        internal void ConnectionClosed() { }
+#endif
+        #endregion
     }
 }

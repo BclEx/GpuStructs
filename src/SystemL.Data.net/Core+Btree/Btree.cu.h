@@ -164,15 +164,15 @@ namespace Core
 		__device__ static void CursorZero(BtCursor *p);
 
 		__device__ static RC CloseCursor(BtCursor *cur);
-		__device__ static RC MovetoUnpacked(BtCursor *cur, UnpackedRecord *idxKey, int64 intKey, int biasRight, int *res);
+		__device__ static RC MovetoUnpacked(BtCursor *cur, UnpackedRecord *idxKey, int64 intKey, int biasRight, int *eof);
 		__device__ static RC CursorHasMoved(BtCursor *cur, bool *hasMoved);
 		__device__ static RC Delete(BtCursor *cur);
 		__device__ static RC Insert(BtCursor *cur, const void *key, int64 keyLength, const void *data, int dataLength, int zero, int appendBias, int seekResult);
-		__device__ static RC First(BtCursor *cur, int *res);
-		__device__ static RC Last(BtCursor *cur, int *res);
-		__device__ static RC Next_(BtCursor *cur, int *res);
+		__device__ static RC First(BtCursor *cur, int *eof);
+		__device__ static RC Last(BtCursor *cur, int *eof);
+		__device__ static RC Next_(BtCursor *cur, int *eof);
 		__device__ static bool Eof(BtCursor *cur);
-		__device__ static RC Previous(BtCursor *cur, int *res);
+		__device__ static RC Previous(BtCursor *cur, int *eof);
 		__device__ static RC KeySize(BtCursor *cur, int64 *size);
 		__device__ static RC Key(BtCursor *cur, uint32 offset, uint32 amount, void *buf);
 		__device__ static const void *KeyFetch(BtCursor *cur, int *amount);
