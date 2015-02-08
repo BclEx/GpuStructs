@@ -1656,7 +1656,6 @@ error_out:
 
 	__device__ int Main::Sleep(int ms)
 	{
-		int rc;
 		VSystem *vfs = VSystem::FindVfs(nullptr);
 		if (!vfs) return 0;
 		// This function works in milliseconds, but the underlying OsSleep() API uses microseconds. Hence the 1000's.
@@ -1736,10 +1735,10 @@ error_out:
 			// sqlite3_test_control(BENIGN_MALLOC_HOOKS, xBegin, xEnd)
 			//
 			// Register hooks to call to indicate which malloc() failures are benign.
-			typedef void (*void_function)();
-			void_function benignBegin = va_arg(args, void_function);
-			void_function benignEnd = va_arg(args, void_function);
-			sqlite3BenignMallocHooks(benignBegin, benignEnd);
+			typedef void (*action)();
+			action benignBegin = va_arg(args, action);
+			action benignEnd = va_arg(args, action);
+			_benignalloc_hook(benignBegin, benignEnd);
 			break; }
 		case TESTCTRL_PENDING_BYTE: {
 			// sqlite3_test_control(SQLITE_TESTCTRL_PENDING_BYTE, unsigned int X)

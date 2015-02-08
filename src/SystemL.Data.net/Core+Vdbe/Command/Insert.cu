@@ -907,7 +907,6 @@ insert_cleanup:
 			case OE_Rollback:
 			case OE_Abort:
 			case OE_Fail: {
-				int j;
 				TextBuilder b;
 				TextBuilder::Init(&b, nullptr, 0, 200);
 				b.Tag = ctx;

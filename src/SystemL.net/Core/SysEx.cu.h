@@ -70,24 +70,6 @@ namespace Core
 	class SysEx
 	{
 	public:
-#pragma region WSD
-		// When SQLITE_OMIT_WSD is defined, it means that the target platform does not support Writable Static Data (WSD) such as global and static variables.
-		// All variables must either be on the stack or dynamically allocated from the heap.  When WSD is unsupported, the variable declarations scattered
-		// throughout the SQLite code must become constants instead.  The SQLITE_WSD macro is used for this purpose.  And instead of referencing the variable
-		// directly, we use its constant as a key to lookup the run-time allocated buffer that holds real variable.  The constant is also the initializer
-		// for the run-time allocated buffer.
-		//
-		// In the usual case where WSD is supported, the SQLITE_WSD and _GLOBAL macros become no-ops and have zero performance impact.
-#ifdef OMIT_WSD
-		int WsdInit(int n, int j);
-		void *WsdFind(void *k, int l);
-#define _WSD const
-#define _GLOBAL(t, v) (*(t*)SysEx::WsdFind((void *)&(v), sizeof(v)))
-#else
-#define _WSD
-#define _GLOBAL(t, v) v
-#endif
-#pragma endregion
 
 #pragma region Initialize/Shutdown/Config
 		struct GlobalStatics

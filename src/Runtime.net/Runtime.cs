@@ -104,7 +104,7 @@ namespace Core
     }
     #endregion
 
-    public static class C
+    public static partial class C
     {
         public const double BIG_DOUBLE = 1e99;
 
@@ -392,8 +392,6 @@ namespace Core
         public static bool _memdbg_nottype<T>(T X, MEMTYPE Y) { return true; }
 #endif
 
-        public static void _benignalloc_begin() { }
-        public static void _benignalloc_end() { }
         public static byte[] _alloc(int size) { return new byte[size]; }
         public static byte[] _alloc2(int size, bool clear) { return new byte[size]; }
         public static T[] _alloc<T>(byte s, int size) where T : struct { return new T[size / s]; }

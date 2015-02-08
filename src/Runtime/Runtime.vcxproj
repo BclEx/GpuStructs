@@ -40,10 +40,12 @@
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
     <ClCompile Include="Falloc.cu" />
     <ClCompile Include="Runtime.cu" />
+    <ClCompile Include="Runtime+Fault.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
     <CudaCompile Include="Falloc.cu" />
     <CudaCompile Include="Runtime.cu" />
+    <CudaCompile Include="Runtime+Fault.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FallocHost.cpp" />

@@ -1731,7 +1731,6 @@ namespace Core
 
         public static int Sleep(int ms)
         {
-            int rc;
             VSystem vfs = VSystem.FindVfs(null);
             if (vfs == null) return 0;
             // This function works in milliseconds, but the underlying OsSleep() API uses microseconds. Hence the 1000's.

@@ -1,235 +1,128 @@
 using System;
 using System.Diagnostics;
-using System.Text;
 
-namespace Community.CsharpSqlite
+namespace Core
 {
-  using sqlite3_callback = Sqlite3.dxCallback;
-  using sqlite3_stmt = Sqlite3.Vdbe;
-
-  public partial class Sqlite3
-  {
-    /*
-    ** 2001 September 15
-    **
-    ** The author disclaims copyright to this source code.  In place of
-    ** a legal notice, here is a blessing:
-    **
-    **    May you do good and not evil.
-    **    May you find forgiveness for yourself and forgive others.
-    **    May you share freely, never taking more than you give.
-    **
-    *************************************************************************
-    ** Main file for the SQLite library.  The routines in this file
-    ** implement the programmer interface to the library.  Routines in
-    ** other files are for internal use by SQLite and should not be
-    ** accessed by users of the library.
-    *************************************************************************
-    **  Included in SQLite3 port to C#-SQLite;  2008 Noah B Hart
-    **  C#-SQLite is an independent reimplementation of the SQLite software library
-    **
-    **  SQLITE_SOURCE_ID: 2010-08-23 18:52:01 42537b60566f288167f1b5864a5435986838e3a3
-    **
-    *************************************************************************
-    */
-
-    //#include "sqliteInt.h"
-
-    /*
-    ** Execute SQL code.  Return one of the SQLITE_ success/failure
-    ** codes.  Also write an error message into memory obtained from
-    ** malloc() and make pzErrMsg point to that message.
-    **
-    ** If the SQL is a query, then for each row in the query result
-    ** the xCallback() function is called.  pArg becomes the first
-    ** argument to xCallback().  If xCallback=NULL then no callback
-    ** is invoked, even for queries.
-    */
-    //C# Alias
-    static public int exec( sqlite3 db,             /* The database on which the SQL executes */    string zSql,            /* The SQL to be executed */    int NoCallback, int NoArgs, int NoErrors )
+    public partial class Main
     {
-      string Errors = "";
-      return sqlite3_exec( db, zSql, null, null, ref Errors );
-    }
+        //C# Alias
+        //static public int exec(Context db, string zSql, int NoCallback, int NoArgs, int NoErrors) { string Errors = ""; return sqlite3_exec(db, zSql, null, null, ref Errors); }
+        //static public int exec(Context db, string zSql, sqlite3_callback xCallback, object pArg, int NoErrors) { string Errors = ""; return sqlite3_exec(db, zSql, xCallback, pArg, ref Errors); }
+        //static public int exec(Context db, string zSql, sqlite3_callback xCallback, object pArg, ref string pzErrMsg) { return sqlite3_exec(db, zSql, xCallback, pArg, ref pzErrMsg); }
 
-    static public int exec( sqlite3 db,             /* The database on which the SQL executes */    string zSql,                /* The SQL to be executed */    sqlite3_callback xCallback, /* Invoke this callback routine */    object pArg,                /* First argument to xCallback() */    int NoErrors )
-    {
-      string Errors = "";
-      return sqlite3_exec( db, zSql, xCallback, pArg, ref Errors );
-    }
-    static public int exec( sqlite3 db,             /* The database on which the SQL executes */    string zSql,                /* The SQL to be executed */    sqlite3_callback xCallback, /* Invoke this callback routine */    object pArg,                /* First argument to xCallback() */    ref string pzErrMsg         /* Write error messages here */)
-    {
-      return sqlite3_exec( db, zSql, xCallback, pArg, ref pzErrMsg );
-    }
-
-    //OVERLOADS 
-    static public int sqlite3_exec(
-    sqlite3 db,             /* The database on which the SQL executes */
-    string zSql,            /* The SQL to be executed */
-    int NoCallback, int NoArgs, int NoErrors
-    )
-    {
-      string Errors = "";
-      return sqlite3_exec( db, zSql, null, null, ref Errors );
-    }
-
-    static public int sqlite3_exec(
-    sqlite3 db,             /* The database on which the SQL executes */
-    string zSql,                /* The SQL to be executed */
-    sqlite3_callback xCallback, /* Invoke this callback routine */
-    object pArg,                /* First argument to xCallback() */
-    int NoErrors
-    )
-    {
-      string Errors = "";
-      return sqlite3_exec( db, zSql, xCallback, pArg, ref Errors );
-    }
-    static public int sqlite3_exec(
-    sqlite3 db,             /* The database on which the SQL executes */
-    string zSql,                /* The SQL to be executed */
-    sqlite3_callback xCallback, /* Invoke this callback routine */
-    object pArg,                /* First argument to xCallback() */
-    ref string pzErrMsg         /* Write error messages here */
-    )
-    {
-
-      int rc = SQLITE_OK;         /* Return code */
-      string zLeftover = "";      /* Tail of unprocessed SQL */
-      sqlite3_stmt pStmt = null;  /* The current SQL statement */
-      string[] azCols = null;     /* Names of result columns */
-      int nRetry = 0;             /* Number of retry attempts */
-      int callbackIsInit;         /* True if callback data is initialized */
-
-      if ( !sqlite3SafetyCheckOk( db ) )
-        return SQLITE_MISUSE_BKPT();
-
-      if ( zSql == null )
-        zSql = "";
-
-      sqlite3_mutex_enter( db.mutex );
-      sqlite3Error( db, SQLITE_OK, 0 );
-      while ( ( rc == SQLITE_OK || ( rc == SQLITE_SCHEMA && ( ++nRetry ) < 2 ) ) && zSql != "" )
-      {
-        int nCol;
-        string[] azVals = null;
-
-        pStmt = null;
-        rc = sqlite3_prepare( db, zSql, -1, ref pStmt, ref zLeftover );
-        Debug.Assert( rc == SQLITE_OK || pStmt == null );
-        if ( rc != SQLITE_OK )
+        //OVERLOADS 
+        public static RC Exec(Context ctx, string sql, int noCallback, int noArgs, int noErrors) { string errors = null; return Exec(ctx, sql, null, null, ref errors); }
+        public static RC Exec(Context ctx, string sql, Func<object, int, string[], string[], bool> callback, object arg, int noErrors) { string errors = null; return Exec(ctx, sql, callback, arg, ref errors); }
+        public static RC Exec(Context ctx, string sql, Func<object, int, string[], string[], bool> callback, object arg, ref string errmsg)
         {
-          continue;
-        }
-        if ( pStmt == null )
-        {
-          /* this happens for a comment or white-space */
-          zSql = zLeftover;
-          continue;
-        }
+            RC rc = RC.OK; // Return code
+            if (!SafetyCheckOk(ctx)) return SysEx.MISUSE_BKPT();
+            if (sql == null) sql = string.Empty;
 
-        callbackIsInit = 0;
-        nCol = sqlite3_column_count( pStmt );
+            MutexEx.Enter(ctx.Mutex);
+            Error(ctx, RC.OK, null);
+            Vdbe stmt = null; // The current SQL statement
+            int retrys = 0; // Number of retry attempts
+            string[] colsNames = null; // Names of result columns
 
-        while ( true )
-        {
-          int i;
-          rc = sqlite3_step( pStmt );
-
-          /* Invoke the callback function if required */
-          if ( xCallback != null && ( SQLITE_ROW == rc ||
-          ( SQLITE_DONE == rc && callbackIsInit == 0
-          && ( db.flags & SQLITE_NullCallback ) != 0 ) ) )
-          {
-            if ( 0 == callbackIsInit )
+            while ((rc == RC.OK || (rc == RC.SCHEMA && (++retrys) < 2)) && sql.Length > 0)
             {
-              azCols = new string[nCol];//sqlite3DbMallocZero(db, 2*nCol*sizeof(const char*) + 1);
-              //if ( azCols == null )
-              //{
-              //  goto exec_out;
-              //}
-              for ( i = 0; i < nCol; i++ )
-              {
-                azCols[i] = sqlite3_column_name( pStmt, i );
-                /* sqlite3VdbeSetColName() installs column names as UTF8
-                ** strings so there is no way for sqlite3_column_name() to fail. */
-                Debug.Assert( azCols[i] != null );
-              }
-              callbackIsInit = 1;
-            }
-            if ( rc == SQLITE_ROW )
-            {
-              azVals = new string[nCol];// azCols[nCol];
-              for ( i = 0; i < nCol; i++ )
-              {
-                azVals[i] = sqlite3_column_text( pStmt, i );
-                if ( azVals[i] == null && sqlite3_column_type( pStmt, i ) != SQLITE_NULL )
+
+                stmt = null;
+                string leftover = null; // Tail of unprocessed SQL
+                rc = Prepare.Prepare_(ctx, sql, -1, ref stmt, ref leftover);
+                Debug.Assert(rc == RC.OK || stmt == null);
+                if (rc != RC.OK)
+                    continue;
+                if (stmt == null)
                 {
-                  //db.mallocFailed = 1;
-                  //goto exec_out;
+                    sql = leftover; // this happens for a comment or white-space
+                    continue;
                 }
-              }
-            }
-            if ( xCallback( pArg, nCol, azVals, azCols ) != 0 )
-            {
-              rc = SQLITE_ABORT;
-              sqlite3VdbeFinalize( ref pStmt );
-              pStmt = null;
-              sqlite3Error( db, SQLITE_ABORT, 0 );
-              goto exec_out;
-            }
-          }
 
-          if ( rc != SQLITE_ROW )
-          {
-            rc = sqlite3VdbeFinalize( ref pStmt );
-            pStmt = null;
-            if ( rc != SQLITE_SCHEMA )
-            {
-              nRetry = 0;
-              if ( ( zSql = zLeftover ) != "" )
-              {
-                int zindex = 0;
-                while ( zindex < zSql.Length && sqlite3Isspace( zSql[zindex] ) )
-                  zindex++;
-                if ( zindex != 0 )
-                  zSql = zindex < zSql.Length ? zSql.Substring( zindex ) : "";
-              }
+                bool callbackIsInit = false; // True if callback data is initialized
+                int cols = Vdbe.Column_Count(stmt);
+
+                while (true)
+                {
+                    rc = stmt.Step();
+
+                    // Invoke the callback function if required
+                    int i;
+                    if (callback != null && (rc == RC.ROW || (rc == RC.DONE && !callbackIsInit && (ctx.Flags & Context.FLAG.NullCallback) != 0)))
+                    {
+                        if (!callbackIsInit)
+                        {
+                            colsNames = new string[cols];
+                            if (colsNames == null)
+                                goto exec_out;
+                            for (i = 0; i < cols; i++)
+                            {
+                                colsNames[i] = Vdbe.Column_Name(stmt, i);
+                                // Vdbe::SetColName() installs column names as UTF8 strings so there is no way for sqlite3_column_name() to fail.
+                                Debug.Assert(colsNames[i] != null);
+                            }
+                            callbackIsInit = true;
+                        }
+                        string[] colsValues = null;
+                        if (rc == RC.ROW)
+                        {
+                            colsValues = new string[cols];
+                            for (i = 0; i < cols; i++)
+                            {
+                                colsValues[i] = Vdbe.Column_Text(stmt, i);
+                                if (colsValues[i] == null && Vdbe.Column_Type(stmt, i) != TYPE.NULL)
+                                {
+                                    ctx.MallocFailed = true;
+                                    goto exec_out;
+                                }
+                            }
+                        }
+                        if (callback(arg, cols, colsValues, colsNames))
+                        {
+                            rc = RC.ABORT;
+                            stmt.Finalize();
+                            stmt = null;
+                            Error(ctx, RC.ABORT, null);
+                            goto exec_out;
+                        }
+                    }
+
+                    if (rc != RC.ROW)
+                    {
+                        rc = stmt.Finalize();
+                        stmt = null;
+                        if (rc != RC.SCHEMA)
+                        {
+                            retrys = 0;
+                            if ((sql = leftover) != string.Empty)
+                            {
+                                int idx = 0;
+                                while (idx < sql.Length && char.IsWhiteSpace(sql[idx])) idx++;
+                                if (idx != 0) sql = (idx < sql.Length ? sql.Substring(idx) : string.Empty);
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                C._tagfree(ctx, ref colsNames);
+                colsNames = null;
             }
-            break;
-          }
+
+        exec_out:
+            if (stmt != null) stmt.Finalize();
+            C._tagfree(ctx, ref colsNames);
+
+            rc = ApiExit(ctx, rc);
+            if (rc != RC.OK && C._ALWAYS(rc == ErrCode(ctx)) && errmsg != null)
+                errmsg = ErrMsg(ctx);
+            else if (errmsg != null)
+                errmsg = null;
+
+            Debug.Assert((rc & (RC)ctx.ErrMask) == rc);
+            MutexEx.Leave(ctx.Mutex);
+            return rc;
         }
-
-        sqlite3DbFree( db, ref azCols );
-        azCols = null;
-      }
-
-exec_out:
-      if ( pStmt != null )
-        sqlite3VdbeFinalize( ref pStmt );
-      sqlite3DbFree( db, ref azCols );
-
-      rc = sqlite3ApiExit( db, rc );
-      if ( rc != SQLITE_OK && ALWAYS( rc == sqlite3_errcode( db ) ) && pzErrMsg != null )
-      {
-        //int nErrMsg = 1 + sqlite3Strlen30(sqlite3_errmsg(db));
-        //pzErrMsg = sqlite3Malloc(nErrMsg);
-        //if (pzErrMsg)
-        //{
-        //   memcpy(pzErrMsg, sqlite3_errmsg(db), nErrMsg);
-        //}else{
-        //rc = SQLITE_NOMEM;
-        //sqlite3Error(db, SQLITE_NOMEM, 0);
-        //}
-        pzErrMsg = sqlite3_errmsg( db );
-      }
-      else if ( pzErrMsg != "" )
-      {
-        pzErrMsg = "";
-      }
-
-      Debug.Assert( ( rc & db.errMask ) == rc );
-      sqlite3_mutex_leave( db.mutex );
-      return rc;
     }
-  }
 }

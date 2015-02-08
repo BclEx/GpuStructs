@@ -81,7 +81,7 @@ namespace Core
 
 		RC rc;
 #ifdef OMIT_WSD
-		rc = WsdInit(4096, 24);
+		rc = __wsdinit(4096, 24);
 		if (rc != RC_OK) return rc;
 #endif
 

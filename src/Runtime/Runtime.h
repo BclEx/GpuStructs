@@ -51,6 +51,30 @@ __device__ extern unsigned char __one;
 //	return (__curt.Initialized == 1);
 //}
 
+
+//////////////////////
+// WSD
+#pragma region WSD
+
+// When OMIT_WSD is defined, it means that the target platform does not support Writable Static Data (WSD) such as global and static variables.
+// All variables must either be on the stack or dynamically allocated from the heap.  When WSD is unsupported, the variable declarations scattered
+// throughout the SQLite code must become constants instead.  The _WSD macro is used for this purpose.  And instead of referencing the variable
+// directly, we use its constant as a key to lookup the run-time allocated buffer that holds real variable.  The constant is also the initializer
+// for the run-time allocated buffer.
+//
+// In the usual case where WSD is supported, the _WSD and _GLOBAL macros become no-ops and have zero performance impact.
+#ifdef OMIT_WSD
+int __wsdinit(int n, int j);
+void *__wsdfind(void *k, int l);
+#define _WSD const
+#define _GLOBAL(t, v) (*(t*)__wsdfind((void *)&(v), sizeof(v)))
+#else
+#define _WSD
+#define _GLOBAL(t, v) v
+#endif
+
+#pragma endregion
+
 //////////////////////
 // UTF
 #pragma region UTF
@@ -250,8 +274,16 @@ __device__ inline static bool _memdbg_hastype(void *p, MEMTYPE memType) { return
 __device__ inline static bool _memdbg_nottype(void *p, MEMTYPE memType) { return true; }
 #endif
 
+// BenignMallocHooks
+#ifndef OMIT_BUILTIN_TEST
+__device__ void _benignalloc_hook(void (*benignBegin)(), void (*benignEnd)());
+__device__ void _benignalloc_begin();
+__device__ void _benignalloc_end();
+#else
 __device__ inline static void _benignalloc_begin() { }
 __device__ inline static void _benignalloc_end() { }
+#endif
+
 __device__ inline static void *_alloc(size_t size) { return (char *)malloc(size); }
 __device__ inline static void *_alloc2(size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
 __device__ inline static void *_tagalloc(void *tag, size_t size) { return (char *)malloc(size); }

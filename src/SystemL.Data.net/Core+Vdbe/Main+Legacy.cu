@@ -2,10 +2,9 @@
 #include "Core+Vdbe.cu.h"
 namespace Core
 {
-	//__device__ RC Main::Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg);
 	__device__ RC Main::Exec(Context *ctx, const char *sql, bool (*callback)(void *, int, char **, char **), void *arg, char **errmsg)
 	{
-		RC rc = RC_OK;         // Return code
+		RC rc = RC_OK; // Return code
 		if (!SafetyCheckOk(ctx)) return SysEx_MISUSE_BKPT;
 		if (!sql) sql = "";
 
@@ -16,7 +15,6 @@ namespace Core
 		char **colsNames = nullptr; // Names of result columns
 		while ((rc == RC_OK || (rc == RC_SCHEMA && (++retrys) < 2)) && sql[0])
 		{
-
 			stmt = nullptr;
 			const char *leftover; // Tail of unprocessed SQL
 			rc = Prepare::Prepare_(ctx, sql, -1, &stmt, &leftover);
@@ -25,8 +23,7 @@ namespace Core
 				continue;
 			if (!stmt)
 			{
-				// this happens for a comment or white-space
-				sql = leftover;
+				sql = leftover; // this happens for a comment or white-space
 				continue;
 			}
 
@@ -39,7 +36,7 @@ namespace Core
 
 				// Invoke the callback function if required
 				int i;
-				if (callback && (rc == RC_ROW || (rc == RC_DONE && !callbackIsInit && ctx->Flags & Context::FLAG_NullCallback)))
+				if (callback && (rc == RC_ROW || (rc == RC_DONE && !callbackIsInit && (ctx->Flags & Context::FLAG_NullCallback) != 0)))
 				{
 					if (!callbackIsInit)
 					{
@@ -49,7 +46,7 @@ namespace Core
 						for (i = 0; i < cols; i++)
 						{
 							colsNames[i] = (char *)Vdbe::Column_Name(stmt, i);
-							// sqlite3VctxeSetColName() installs column names as UTF8 strings so there is no way for sqlite3_column_name() to fail.
+							// Vdbe::SetColName() installs column names as UTF8 strings so there is no way for sqlite3_column_name() to fail.
 							_assert(colsNames[i] != 0);
 						}
 						callbackIsInit = true;
