@@ -129,7 +129,7 @@ namespace Core
 		int srcReserve = p->Src->GetReserveNoMutex();
 		int destReserve = p->Dest->GetReserve();
 		// Backup is not possible if the page size of the destination is changing and a codec is in use.
-		if (srcPgsz != destPgsz && Pager::GetCodec(destPager) != nullptr)
+		if (srcPgsz != destPgsz && destPager->GetCodec() != nullptr)
 			rc = RC_READONLY;
 
 		// Backup is not possible if the number of bytes of reserve space differ between source and destination.  If there is a difference, try to
@@ -148,7 +148,7 @@ namespace Core
 			IPage *destPg = nullptr;
 			Pid dest = (Pid)(off / destPgsz)+1;
 			if (dest == PENDING_BYTE_PAGE(p->Dest->Bt)) continue;
-			if ((rc = destPager->Acquire(dest, &destPg, false)) == RC_OK && rc = Pager::Write(destPg) == RC_OK)
+			if ((rc = destPager->Acquire(dest, &destPg, false)) == RC_OK && (rc = Pager::Write(destPg)) == RC_OK)
 			{
 				const uint8 *in_ = &srcData[off % srcPgsz];
 				uint8 *destData = (uint8 *)Pager::GetData(destPg);

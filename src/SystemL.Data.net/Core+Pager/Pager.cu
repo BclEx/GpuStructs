@@ -1848,7 +1848,7 @@ end_playback:
 		disable_simulated_io_errors();
 		_benignalloc_begin();
 		ErrorCode = RC_OK;
-		ExclusiveMode = false;
+		ExclusiveMode = (IPager::LOCKINGMODE)0;
 		uint8 *tmp = (uint8 *)TmpSpace;
 #ifndef OMIT_WAL
 		Wal->Close(CheckpointSyncFlags, PageSize, tmp);
@@ -2379,7 +2379,7 @@ end_playback:
 		pager->TempFile = tempFile;
 		//_assert(tempFile == IPager::LOCKINGMODE_NORMAL || tempFile == IPager::LOCKINGMODE_EXCLUSIVE);
 		//_assert(IPager::LOCKINGMODE_EXCLUSIVE == 1);
-		pager->ExclusiveMode = tempFile; 
+		pager->ExclusiveMode = (IPager::LOCKINGMODE)(tempFile ? 1 : 0); 
 		pager->ChangeCountDone = tempFile;
 		pager->MemoryDB = memoryDB;
 		pager->ReadOnly = readOnly;
@@ -3556,19 +3556,19 @@ commit_phase_one_exit:
 	}
 
 #ifdef HAS_CODEC
-	__device__ void sqlite3PagerSetCodec(Pager *pager, void *(*codec)(void *,void *, Pid, int), void (*codecSizeChange)(void *, int, int), void (*codecFree)(void *), void *codecArg)
+	__device__ void Pager::SetCodec(void *(*codec)(void *,void *, Pid, int), void (*codecSizeChange)(void *, int, int), void (*codecFree)(void *), void *codecArg)
 	{
-		if (pager->CodecFree) pager->CodecFree(pager->Codec);
-		pager->Codec = (pager->MemoryDB ? nullptr : codec);
-		pager->CodecSizeChange = codecSizeChange;
-		pager->CodecFree = codecFree;
-		pager->CodecArg = codecArg;
-		pagerReportSize(pager);
+		if (CodecFree) CodecFree(Codec);
+		Codec = (MemoryDB ? nullptr : codec);
+		CodecSizeChange = codecSizeChange;
+		CodecFree = codecFree;
+		CodecArg = codecArg;
+		pagerReportSize(this);
 	}
 
-	__device__ void *sqlite3PagerGetCodec(Pager *pager)
+	__device__ void *Pager::GetCodec()
 	{
-		return pager->Codec;
+		return Codec;
 	}
 #endif
 
@@ -3691,7 +3691,7 @@ commit_phase_one_exit:
 		return pg->Extra;
 	}
 
-	__device__ int Pager::LockingMode(IPager::LOCKINGMODE mode)
+	__device__ IPager::LOCKINGMODE Pager::LockingMode(IPager::LOCKINGMODE mode)
 	{
 		_assert(mode == IPager::LOCKINGMODE_QUERY ||
 			mode == IPager::LOCKINGMODE_NORMAL ||
@@ -3700,8 +3700,8 @@ commit_phase_one_exit:
 		_assert(IPager::LOCKINGMODE_NORMAL >= 0 && IPager::LOCKINGMODE_EXCLUSIVE >= 0);
 		_assert(ExclusiveMode || Wal->get_HeapMemory() == 0);
 		if (mode >= 0 && !TempFile && !Wal->get_HeapMemory())
-			ExclusiveMode = (uint8)mode;
-		return (int)ExclusiveMode;
+			ExclusiveMode = mode;
+		return ExclusiveMode;
 	}
 
 	__device__ IPager::JOURNALMODE Pager::SetJournalMode(IPager::JOURNALMODE mode)

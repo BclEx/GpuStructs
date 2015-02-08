@@ -583,6 +583,7 @@ namespace Core { namespace Command
 			Vdbe::Result_Int(fctx, CompileTimeOptionUsed(optName));
 	}
 
+	extern __device__ const char *CompileTimeGet(int id);
 	__device__ static void CompileoptiongetFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
@@ -951,7 +952,7 @@ namespace Core { namespace Command
 		Context *ctx = Vdbe::Context_Ctx(fctx);
 		char *errMsg = nullptr;
 		const char *proc = (argc == 2 ? (const char *)Vdbe::Value_Text(argv[1]) : nullptr);
-		if (file && sqlite3_load_extension(ctx, file, proc, &errMsg))
+		if (file && Main::LoadExtension(ctx, file, proc, &errMsg))
 		{
 			Vdbe::Result_Error(fctx, errMsg, -1);
 			_free(errMsg);

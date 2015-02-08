@@ -73,7 +73,7 @@ namespace Core
 		};
 
 		VSystem *Vfs;				// OS functions to use for IO
-		bool ExclusiveMode;			// Boolean. True if locking_mode==EXCLUSIVE
+		IPager::LOCKINGMODE ExclusiveMode;	// Boolean. True if locking_mode==EXCLUSIVE
 		IPager::JOURNALMODE JournalMode; // One of the PAGER_JOURNALMODE_* values
 		bool UseJournal;			// Use a rollback journal on this file
 		bool NoSync;				// Do not sync the journal if true
@@ -154,7 +154,7 @@ namespace Core
 		__device__ void SetCacheSize(int maxPages);
 		__device__ void Shrink();
 		__device__ void SetSafetyLevel(int level, bool fullFsync, bool checkpointFullFsync);
-		__device__ int LockingMode(IPager::LOCKINGMODE mode);
+		__device__ IPager::LOCKINGMODE LockingMode(IPager::LOCKINGMODE mode);
 		__device__ IPager::JOURNALMODE SetJournalMode(IPager::JOURNALMODE mode);
 		__device__ IPager::JOURNALMODE Pager::GetJournalMode();
 		__device__ bool OkToChangeJournalMode();
@@ -206,6 +206,10 @@ namespace Core
 		__device__ VFile *get_File();
 		__device__ const char *get_Journalname();
 		__device__ int get_NoSync();
+#ifdef HAS_CODEC
+		__device__ void SetCodec(void *(*codec)(void *,void *, Pid, int), void (*codecSizeChange)(void *, int, int), void (*codecFree)(void *), void *codecArg);
+		__device__ void *GetCodec();
+#endif
 		__device__ void *get_TempSpace();
 		__device__ bool get_MemoryDB();
 		__device__ void CacheStat(int dbStatus, bool reset, int *value);

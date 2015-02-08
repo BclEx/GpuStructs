@@ -68,7 +68,7 @@ namespace Core
         }
 
         VSystem Vfs;             // OS functions to use for IO
-        bool ExclusiveMode;          // Boolean. True if locking_mode==EXCLUSIVE
+        IPager.LOCKINGMODE ExclusiveMode;   // Boolean. True if locking_mode==EXCLUSIVE
         IPager.JOURNALMODE JournalMode;     // One of the PAGER_JOURNALMODE_* values
         bool UseJournal;             // Use a rollback journal on this file
         bool NoSync;                 // Do not sync the journal if true

@@ -84,7 +84,7 @@ namespace Core
 #define _WSD const
 #define _GLOBAL(t, v) (*(t*)SysEx::WsdFind((void *)&(v), sizeof(v)))
 #else
-#define _WSD 
+#define _WSD
 #define _GLOBAL(t, v) v
 #endif
 #pragma endregion

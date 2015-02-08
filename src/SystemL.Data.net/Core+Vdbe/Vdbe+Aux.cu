@@ -366,7 +366,7 @@ __device__ static void FreeP4(Context *ctx, Vdbe::P4T p4t, void *p4)
 			break; }
 		case Vdbe::P4T_VDBEFUNC: {
 			VdbeFunc *vdbeFunc = (VdbeFunc *)p4;
-			FreeEphemeralFunction(ctx, vdbeFunc);
+			FreeEphemeralFunction(ctx, (FuncDef *)vdbeFunc);
 			if (ctx->BytesFreed == 0) Vdbe::DeleteAuxData(vdbeFunc, 0);
 			_tagfree(ctx, vdbeFunc);
 			break; }

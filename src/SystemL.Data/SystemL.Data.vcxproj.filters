@@ -53,6 +53,9 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\VdbeInt.cu.h">
       <Filter>Core+Vdbe</Filter>
     </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Core+Ext.cu.h">
+      <Filter>Core+Vdbe</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\SystemL.Data.net\Shell.cu" />
@@ -111,9 +114,6 @@
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Callback.cu">
-      <Filter>Core+Vdbe</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\CompileTime.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Expr.cu">
@@ -190,6 +190,10 @@
     </ClCompile>
     <ClCompile Include="..\SystemL.Data.net\Core+Btree\BContext.cu">
       <Filter>Core+Btree</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main+LoadExt.cu">
+      <Filter>Core+Vdbe</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

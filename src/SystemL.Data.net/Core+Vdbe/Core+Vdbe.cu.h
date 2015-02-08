@@ -1542,6 +1542,20 @@ namespace Core {
 
 #pragma endregion
 
+#pragma region Codec + Cerod
+
+#ifdef HAS_CODEC
+	__device__ int sqlite3_key(Context *ctx, const void *key, int keyLength);
+	__device__ int sqlite3_rekey(Context *ctx, const void *key, int keyLenegth);
+	__device__ void sqlite3_activate_see(const char *passPhrase);
+#endif
+
+#ifdef ENABLE_CEROD
+	__device__ void sqlite3_activate_cerod(const char *passPhrase);
+#endif
+
+#pragma endregion
+
 #pragma region Command
 	namespace Command {
 
@@ -1686,6 +1700,18 @@ namespace Core {
 
 #pragma endregion
 
+#pragma region From: LoadExt_c
+
+		__device__ static RC LoadExtension_(Context *ctx, const char *fileName, const char *procName, char **errMsgOut);
+		__device__ static RC LoadExtension(Context *ctx, const char *fileName, const char *procName, char **errMsgOut);
+		__device__ static void CloseExtensions(Context *ctx);
+		__device__ static RC EnableLoadExtension(Context *ctx, bool onoff);
+		__device__ static RC AutoExtension(void (*init)());
+		__device__ static void ResetAutoExtension();
+		__device__ static void AutoLoadExtensions(Context *ctx);
+
+#pragma endregion
+
 #pragma region Initialize/Shutdown/Config
 
 		struct GlobalStatics
@@ -1795,8 +1821,8 @@ namespace Core {
 		__device__ static RC ErrCode(Context *ctx);
 		__device__ static RC ExtendedErrCode(Context *ctx);
 		__device__ static int Limit(Context *ctx, LIMIT limit, int newLimit);
-		__device__ static RC Main::Open(const char *fileName, Context **ctxOut);
-		__device__ static RC Main::Open_v2(const char *fileName, Context **ctxOut, VSystem::OPEN flags, const char *vfsName);
+		__device__ static RC Open(const char *fileName, Context **ctxOut);
+		__device__ static RC Open_v2(const char *fileName, Context **ctxOut, VSystem::OPEN flags, const char *vfsName);
 #ifndef OMIT_UTF16
 		__device__ static RC Open16(const void *fileName,  Context **ctxOut);
 #endif

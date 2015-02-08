@@ -1367,7 +1367,7 @@ _out:
 		rc = Main::ErrCode(ctx);
 		if (rc == RC_OK)
 		{
-			LoadExt::AutoLoadExtensions(ctx);
+			Main::AutoLoadExtensions(ctx);
 			rc = Main::ErrCode(ctx);
 			if (rc != RC_OK)
 				goto opendb_out;

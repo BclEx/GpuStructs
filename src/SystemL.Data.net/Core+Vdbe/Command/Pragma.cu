@@ -1357,12 +1357,13 @@ namespace Core { namespace Command
 		// Return the names of all compile-time options used in this build, one option per row.
 		else if (!_strcmp(left, "compile_options"))
 		{
+			extern __device__ const char *CompileTimeGet(int id);
 			v->SetNumCols(1);
 			parse->Mems = 1;
 			v->SetColName(0, COLNAME_NAME, "compile_option", DESTRUCTOR_STATIC);
 			const char *opt;
 			int i = 0;
-			while ((opt = sqlite3_compileoption_get(i++)) != nullptr)
+			while ((opt = CompileTimeGet(i++)) != nullptr)
 			{
 				v->AddOp4(OP_String8, 0, 1, 0, opt, 0);
 				v->AddOp2(OP_ResultRow, 1, 1);
@@ -1376,14 +1377,14 @@ namespace Core { namespace Command
 		// Checkpoint the database.
 		else if (!_strcmp(left, "wal_checkpoint"))
 		{
-			int bt = (id2->data ? db : SQLITE_MAX_ATTACHED);
-			int mode = SQLITE_CHECKPOINT_PASSIVE;
+			int bt = (id2->data ? db : MAX_ATTACHED);
+			IPager::CHECKPOINT mode = IPager::CHECKPOINT_PASSIVE;
 			if (right)
 			{
-				if (!_strcmp(right, "full")) mode = SQLITE_CHECKPOINT_FULL;
-				else if (!_strcmp(right, "restart")) mode = SQLITE_CHECKPOINT_RESTART;
+				if (!_strcmp(right, "full")) mode = IPager::CHECKPOINT_FULL;
+				else if (!_strcmp(right, "restart")) mode = IPager::CHECKPOINT_RESTART;
 			}
-			if (sqlite3ReadSchema(parse)) goto pragma_out;
+			if (Prepare::ReadSchema(parse)) goto pragma_out;
 			v->SetNumCols(3);
 			parse->Mems = 3;
 			v->SetColName(0, COLNAME_NAME, "busy", DESTRUCTOR_STATIC);
