@@ -2463,7 +2463,7 @@ namespace Core
 #if !OMIT_AUTHORIZATION
         const string[] _savepoint_Names = { "BEGIN", "RELEASE", "ROLLBACK" };
 #endif
-        public void Savepoint(int op, Token name)
+        public void Savepoint(IPager.SAVEPOINT op, Token name)
         {
 #if !OMIT_AUTHORIZATION
             Debug.Assert(SAVEPOINT_BEGIN == 0 && SAVEPOINT_RELEASE == 1 && SAVEPOINT_ROLLBACK == 2);
@@ -2474,7 +2474,7 @@ namespace Core
                 Vdbe v = sqlite3GetVdbe(pParse);
                 if (v == null
 #if !OMIT_AUTHORIZATION
- || Auth.Check(pParse, AUTH.SAVEPOINT, _savepoint_Names[op], nameAsString, 0)
+ || Auth.Check(pParse, AUTH.SAVEPOINT, _savepoint_Names[(int)op], nameAsString, 0)
 #endif
 )
                 {

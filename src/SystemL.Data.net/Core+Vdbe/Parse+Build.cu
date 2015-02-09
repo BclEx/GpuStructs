@@ -2420,7 +2420,7 @@ append_from_error:
 #if !OMIT_AUTHORIZATION
 	static const char *const _savepoint_Names[] = { "BEGIN", "RELEASE", "ROLLBACK" };
 #endif
-	__device__ void Parse::Savepoint(int op, Token *name)
+	__device__ void Parse::Savepoint(IPager::SAVEPOINT op, Token *name)
 	{
 #if !OMIT_AUTHORIZATION
 		_assert(IPager::SAVEPOINT_BEGIN == 0 && IPager::SAVEPOINT_RELEASE == 1 && IPager::SAVEPOINT_ROLLBACK == 2);

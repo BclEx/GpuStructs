@@ -1065,7 +1065,7 @@ namespace Core
 		int NextSelectId;			// Next available select ID for EXPLAIN output
 #endif
 		array_t<char *>Vars;		// Pointers to names of parameters
-		Core::Vdbe *Reprepare;		// VM being reprepared (sqlite3Reprepare())
+		Vdbe *Reprepare;		// VM being reprepared (sqlite3Reprepare())
 		array_t<int> Alias;			// Register used to hold aliased result
 		const char *Tail;			// All SQL text past the last semicolon parsed
 		Table *NewTable;			// A table being constructed by CREATE TABLE
@@ -1135,7 +1135,7 @@ namespace Core
 		__device__ static int FindDbName(Context *ctx, const char *name);
 		__device__ static int FindDb(Context *ctx, Token *name);
 		__device__ int TwoPartName(Token *name1, Token *name2, Token **unqual);
-		__device__ Core::RC CheckObjectName(const char *name);
+		__device__ ::RC CheckObjectName(const char *name);
 		__device__ void StartTable(Token *name1, Token *name2, bool isTemp, bool isView, bool isVirtual, bool noErr);
 		__device__ void AddColumn(Token *name);
 		__device__ void AddNotNull(OE onError);
@@ -1183,14 +1183,14 @@ namespace Core
 		__device__ void BeginTransaction(int type);
 		__device__ void CommitTransaction();
 		__device__ void RollbackTransaction();
-		__device__ void Savepoint(int op, Token *name);
+		__device__ void Savepoint(IPager::SAVEPOINT op, Token *name);
 		__device__ int OpenTempDatabase();
 		__device__ void CodeVerifySchema(int db);
 		__device__ void CodeVerifyNamedSchema(const char *dbName);
 		__device__ void BeginWriteOperation(int setStatement, int db);
 		__device__ void MultiWrite();
 		__device__ void MayAbort();
-		__device__ void HaltConstraint(Core::RC errCode, int onError, char *p4, int p4type);
+		__device__ void HaltConstraint(::RC errCode, int onError, char *p4, int p4type);
 		__device__ void Reindex(Token *name1, Token *name2);
 		__device__ KeyInfo *IndexKeyinfo(Index *index);
 #pragma endregion
