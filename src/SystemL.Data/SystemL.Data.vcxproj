@@ -36,6 +36,7 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Context.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Core+Ext.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Core+Vdbe.cu.h" />
+    <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.orig.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Vdbe.cu.h" />
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\VdbeInt.cu.h" />
   </ItemGroup>
@@ -73,6 +74,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Tokenize.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.c" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Prepare.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Table.cu" />
@@ -122,6 +124,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Tokenize.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.c" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Prepare.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Rowset.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Table.cu" />
@@ -138,6 +141,9 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Walker+Resolve.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Where.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.ycu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{AADAB731-E71B-406B-B023-6A3FD7957591}</ProjectGuid>

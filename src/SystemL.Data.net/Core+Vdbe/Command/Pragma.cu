@@ -1112,9 +1112,9 @@ namespace Core { namespace Command
 			if (right)
 			{
 				if (ConvertEx::GetBoolean(right, 0))
-					Parser::Trace(stderr, "parser: ");
+					Parse::ParserTrace(stderr, "parser: ");
 				else
-					Parser::Trace(nullptr, nullptr);
+					Parse::ParserTrace(nullptr, nullptr);
 			}
 		}
 #endif

@@ -90,10 +90,10 @@
     <Content Include="Core+Vdbe\Vdbe.cu.h" />
     <Content Include="KeywordHash.h" />
     <Content Include="Opcodes.h" />
-    <Content Include="Parse1.cs">
+    <Content Include="Core+Vdbe\Parse+Parser.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
-      <DependentUpon>Parse.y</DependentUpon>
+      <DependentUpon>Parse+Parser.y</DependentUpon>
     </Content>
     <Compile Include="Core+Vdbe\Parse+Build.cs" />
     <Compile Include="Core+Vdbe\Callback.cs" />
@@ -163,13 +163,13 @@
     <Content Include="Core+Pager\Pager.cu.h" />
     <Content Include="Core+Pager\PCache.cu.h" />
     <Content Include="Core+Pager\Wal.cu.h" />
-    <Content Include="Parse.c">
+    <Content Include="Core+Vdbe\Parse+Parser.c">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
-      <DependentUpon>Parse.yc</DependentUpon>
+      <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </Content>
-    <Content Include="Parse.h">
-      <DependentUpon>Parse.yc</DependentUpon>
+    <Content Include="Core+Vdbe\Parse.h">
+      <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </Content>
     <Content Include="Core+Vdbe\Core+Vdbe.cu.h" />
   </ItemGroup>
@@ -180,19 +180,19 @@
     <None Include="Core+Pager\PCache1.cu" />
     <None Include="Core+Pager\Wal.cu" />
     <None Include="Opcodes.cu" />
-    <None Include="Parse.out">
-      <DependentUpon>Parse.yc</DependentUpon>
+    <None Include="Core+Vdbe\Parse.out">
+      <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </None>
-    <None Include="Parse.template">
-      <DependentUpon>Parse.yc</DependentUpon>
+    <None Include="Core+Vdbe\Parse.template">
+      <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </None>
-    <None Include="Parse.y">
+    <None Include="Core+Vdbe\Parse+Parser.y">
       <Generator>LALR</Generator>
-      <LastGenOutput>Parse1.cs</LastGenOutput>
+      <LastGenOutput>Parse+Parser.cs</LastGenOutput>
     </None>
-    <None Include="Parse.yc">
+    <None Include="Core+Vdbe\Parse+Parser.ycu">
       <Generator>LALRC</Generator>
-      <LastGenOutput>Parse.c</LastGenOutput>
+      <LastGenOutput>Parse+Parser.c</LastGenOutput>
     </None>
     <None Include="Core+Vdbe\Rowset.cu" />
     <None Include="Core+Vdbe\Table.cu" />

@@ -56,6 +56,9 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Core+Ext.cu.h">
       <Filter>Core+Vdbe</Filter>
     </ClInclude>
+    <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.orig.h">
+      <Filter>Core+Vdbe</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\SystemL.Data.net\Shell.cu" />
@@ -195,5 +198,13 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main+LoadExt.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.c">
+      <Filter>Core+Vdbe</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.ycu">
+      <Filter>Core+Vdbe</Filter>
+    </None>
   </ItemGroup>
 </Project>

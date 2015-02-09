@@ -28,7 +28,7 @@ To register
 
 // The following text is included near the beginning of the C source code file that implements the parser.
 %include {
-	#include "sqliteInt.h"
+	#include "Core+Vdbe.cu.h"
 
 	#define YYNOERRORRECOVERY 1 // Disable all error recovery processing in the parser push-down automaton.
 	#define yyASSERTCOVERAGE(X) ASSERTCOVERAGE(X) // Make yyASSERTCOVERAGE() the same as testcase()

@@ -1,5 +1,5 @@
 ﻿#include "../Core+Btree/Core+Btree.cu.h"
-#include "../Parse.h"
+#include "Parser.orig.h"
 #include "../Opcodes.h"
 namespace Core
 {
@@ -1220,6 +1220,19 @@ namespace Core
 		__device__ static int GetToken(const unsigned char *z, int *tokenType);
 		__device__ int RunParser(const char *sql, char **errMsg);
 		__device__ static int Dequote(char *z);
+#pragma endregion
+
+		// The interface to the LEMON-generated parser
+#pragma region From: Parse+Parser_cu
+		__device__ static void *ParserAlloc(void *(*)(size_t));
+		__device__ static void ParserFree(void *, void(*)(void *));
+		__device__ static void Parser(void *, int, Token, Parse *);
+#ifdef YYTRACKMAXSTACKDEPTH
+		__device__ static int ParserStackPeak(void *);
+#endif
+#ifdef _DEBUG
+		__device__ static void ParserTrace(FILE *, char *);
+#endif
 #pragma endregion
 	};
 

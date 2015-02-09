@@ -1,4 +1,4 @@
-typedef uint8 OP;
+typedef unsigned char OP;
 /* Automatically generated.  Do not edit */
 /* See the mkopcodeh.awk script for details */
 #define OP_Goto                                 1

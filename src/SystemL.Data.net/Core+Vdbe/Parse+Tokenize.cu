@@ -293,7 +293,7 @@ namespace Core
 			ctx->u1.IsInterrupted = 0;
 		RC = RC_OK;
 		Tail = sql;
-		void *engine = Parser_Alloc((void *(*)(size_t))_alloc); // The LEMON-generated LALR(1) parser
+		void *engine = ParserAlloc((void *(*)(size_t))_alloc); // The LEMON-generated LALR(1) parser
 		if (!engine)
 		{
 			ctx->MallocFailed = true;
@@ -354,9 +354,9 @@ abort_parse:
 			Parser(engine, 0, LastToken, this);
 		}
 #ifdef YYTRACKMAXSTACKDEPTH
-		sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK, sqlite3ParserStackPeak(engine));
+		StatusEx::Set(StatusEx::STATUS_PARSER_STACK, ParserStackPeak(engine));
 #endif
-		Parser_Free(engine, _free);
+		ParserFree(engine, _free);
 		ctx->Lookaside.Enabled = enableLookaside;
 		if (ctx->MallocFailed)
 			RC = RC_NOMEM;
