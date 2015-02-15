@@ -198,7 +198,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Main+LoadExt.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.c">
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.cu">
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
   </ItemGroup>

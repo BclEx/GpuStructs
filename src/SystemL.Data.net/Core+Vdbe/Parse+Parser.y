@@ -193,7 +193,7 @@ ccons ::= DEFAULT LP expr(X) RP.		{ parse.AddDefaultValue(&X); }
 ccons ::= DEFAULT PLUS term(X).			{ parse.AddDefaultValue(&X); }
 ccons ::= DEFAULT MINUS(A) term(X).     {
 	ExprSpan v;
-	v.Expr = Expr.PExpr(parse, TK.UMINUS, X.Expr, 0, 0);
+	v.Expr = Expr.PExpr_(parse, TK.UMINUS, X.Expr, 0, 0);
 	v.Start = A.data;
 	v.End = X.End;
 	parse.AddDefaultValue(&v);
@@ -247,14 +247,14 @@ conslist_opt(A) ::= .							{ A.length = 0; A.data = null; }
 conslist_opt(A) ::= COMMA(X) conslist.			{ A = X; }
 conslist ::= conslist tconscomma tcons.
 conslist ::= tcons.
-tconscomma ::= COMMA.							{ parse->ConstraintName.length = 0; }
+tconscomma ::= COMMA.							{ parse.ConstraintName.length = 0; }
 tconscomma ::= .
-tcons ::= CONSTRAINT nm(X).														{ parse->ConstraintName = X; }
-tcons ::= PRIMARY KEY LP idxlist(X) autoinc(I) RP onconf(R).					{ parse->AddPrimaryKey(X, R, I, 0); }
-tcons ::= UNIQUE LP idxlist(X) RP onconf(R).									{ parse->CreateIndex(0, 0, 0, X, R, 0, 0, 0, 0); }
-tcons ::= CHECK LP expr(E) RP onconf.											{ parse->AddCheckConstraint(E.Expr); }
+tcons ::= CONSTRAINT nm(X).														{ parse.ConstraintName = X; }
+tcons ::= PRIMARY KEY LP idxlist(X) autoinc(I) RP onconf(R).					{ parse.AddPrimaryKey(X, R, I, 0); }
+tcons ::= UNIQUE LP idxlist(X) RP onconf(R).									{ parse.CreateIndex(0, 0, 0, X, R, 0, 0, 0, 0); }
+tcons ::= CHECK LP expr(E) RP onconf.											{ parse.AddCheckConstraint(E.Expr); }
 tcons ::= FOREIGN KEY LP idxlist(FA) RP
-          REFERENCES nm(T) idxlist_opt(TA) refargs(R) defer_subclause_opt(D).	{ parse->CreateForeignKey(FA, &T, TA, R); parse->DeferForeignKey(D); }
+          REFERENCES nm(T) idxlist_opt(TA) refargs(R) defer_subclause_opt(D).	{ parse.CreateForeignKey(FA, &T, TA, R); parse.DeferForeignKey(D); }
 %type defer_subclause_opt {int}
 defer_subclause_opt(A) ::= .                    { A = 0; }
 defer_subclause_opt(A) ::= defer_subclause(X).  { A = X; }
@@ -339,9 +339,9 @@ selcollist(A) ::= sclp(P) STAR.					{
 	A = Expr.ListAppend(parse, P, p);
 }
 selcollist(A) ::= sclp(P) nm(X) DOT STAR(Y).	{
-	Expr right = Expr.PExpr(parse, TK_ALL, 0, 0, &Y);
-	Expr left = Expr.PExpr(parse, TK_ID, 0, 0, &X);
-	Expr dot = Expr.PExpr(parse, TK_DOT, left, right, 0);
+	Expr right = Expr.PExpr_(parse, TK_ALL, 0, 0, &Y);
+	Expr left = Expr.PExpr_(parse, TK_ID, 0, 0, &X);
+	Expr dot = Expr.PExpr_(parse, TK_DOT, left, right, 0);
 	A = Expr.ListAppend(parse, P, dot);
 }
 
@@ -364,7 +364,7 @@ from(A) ::= .					{ A = (SrcList)C._alloc2(parse.Ctx, sizeof(*A), true); }
 from(A) ::= FROM seltablist(X). { A = X; Vdbe.SrcListShiftJoinType(A); }
 
 // "seltablist" is a "Select Table List" - the content of the FROM clause in a SELECT statement.  "stl_prefix" is a prefix of this list.
-stl_prefix(A) ::= seltablist(X) joinop(Y).		{ A = X; if (C._ALWAYS(A != null && A->Srcs > 0)) A->Ids[A->Srcs-1].Jointype = (JT)Y; }
+stl_prefix(A) ::= seltablist(X) joinop(Y).		{ A = X; if (C._ALWAYS(A != null && A.Srcs > 0)) A.Ids[A.Srcs-1].Jointype = (JT)Y; }
 stl_prefix(A) ::= .								{ A = null; }
 seltablist(A) ::= stl_prefix(X) nm(Y) dbnm(D) as(Z) indexed_opt(I)
                   on_opt(N) using_opt(U).		{ A = parse.SrcListAppendFromTerm(X, &Y, &D, &Z, null, N, U); parse.SrcListIndexedBy(A, &I); }
@@ -375,12 +375,12 @@ seltablist(A) ::= stl_prefix(X) LP seltablist(F) RP
                   as(Z) on_opt(N) using_opt(U). {
     if (X == null && Z.length == null && N == null && U == null)
 		A = F;
-	else if (F->Srcs == 1)
+	else if (F.Srcs == 1)
 	{
 		A = parse.SrcListAppendFromTerm(X, null, null, &Z, null, N, U);
 		if (A != null)
 		{
-			SrcList.SrcListItem newItem = &A.Ids[A->Srcs-1];
+			SrcList.SrcListItem newItem = &A.Ids[A.Srcs-1];
 			SrcList.SrcListItem oldItem = F.Ids[0];
 			newItem.Name = oldItem.Name;
 			newItem.Database = oldItem.Database;
@@ -440,8 +440,8 @@ using_opt(U) ::= .							{ U = null; }
 
 orderby_opt(A) ::= .                        { A = null; }
 orderby_opt(A) ::= ORDER BY sortlist(X).    { A = X; }
-sortlist(A) ::= sortlist(X) COMMA expr(Y) sortorder(Z).		{ A = Expr.ListAppend(parse, X, Y.Expr); if (A != null) A->Ids[A->Exprs-1].SortOrder = (SO)Z; }
-sortlist(A) ::= expr(Y) sortorder(Z).						{ A = Expr.ListAppend(parse, null, Y.Expr); if (A != null && C._ALWAYS(A->Ids != null)) A->Ids[0].SortOrder = (SO)Z; }
+sortlist(A) ::= sortlist(X) COMMA expr(Y) sortorder(Z).		{ A = Expr.ListAppend(parse, X, Y.Expr); if (A != null) A.Ids[A.Exprs-1].SortOrder = (SO)Z; }
+sortlist(A) ::= expr(Y) sortorder(Z).						{ A = Expr.ListAppend(parse, null, Y.Expr); if (A != null && C._ALWAYS(A.Ids != null)) A.Ids[0].SortOrder = (SO)Z; }
 
 %type sortorder {SO}
 sortorder(A) ::= ASC.   { A = SO.ASC; }
@@ -575,162 +575,159 @@ inscollist(A) ::= nm(Y).						{ A = Parse.IdListAppend(parse.Ctx, null, &Y); }
 %destructor term { Expr.Delete(parse.Ctx, $$.Expr); }
 
 %include {
-	// This is a utility routine used to set the ExprSpan.zStart and ExprSpan.zEnd values of pOut so that the span covers the complete
-	// range of text beginning with pStart and going to the end of pEnd.
-	static void spanSet(ExprSpan *pOut, Token *pStart, Token *pEnd)
+	// This is a utility routine used to set the ExprSpan.zStart and ExprSpan.zEnd values of out_ so that the span covers the complete range of text beginning with start and going to the end of end.
+	static void SpanSet(ExprSpan out_, Token start, Token end)
 	{
-		pOut->zStart = pStart->z;
-		pOut->zEnd = &pEnd->z[pEnd->n];
+		out_.Start = start.data;
+		out_.End = end.data.Substring(end.length);
 	}
 
-	// Construct a new Expr object from a single identifier.  Use the new Expr to populate pOut.  Set the span of pOut to be the identifier
-	// that created the expression.
-	static void spanExpr(ExprSpan *pOut, Parse *parse, int op, Token *pValue)
+	// Construct a new Expr object from a single identifier.  Use the new Expr to populate out_.  Set the span of out_ to be the identifier that created the expression.
+	static void SpanExpr(ExprSpan *out_, Parse *parse, TK op, Token *value)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, 0, 0, pValue);
-		pOut->zStart = pValue->z;
-		pOut->zEnd = &pValue->z[pValue->n];
+		out_.Expr = Expr.PExpr_(parse, op, 0, 0, value);
+		out_.Start = value.data;
+		out_.End = value.data.Substring(value.length);
 	}
 }
 
 expr(A) ::= term(X).				{ A = X; }
-expr(A) ::= LP(B) expr(X) RP(E).	{ A.pExpr = X.pExpr; spanSet(&A, &B, &E); }
-term(A) ::= NULL(X).				{ spanExpr(&A, parse, @X, &X); }
-expr(A) ::= id(X).					{ spanExpr(&A, parse, TK_ID, &X); }
-expr(A) ::= JOIN_KW(X).				{ spanExpr(&A, parse, TK_ID, &X); }
+expr(A) ::= LP(B) expr(X) RP(E).	{ A.Expr = X.Expr; SpanSet(&A, &B, &E); }
+term(A) ::= NULL(X).				{ SpanExpr(&A, parse, @X, &X); }
+expr(A) ::= id(X).					{ SpanExpr(&A, parse, TK_ID, &X); }
+expr(A) ::= JOIN_KW(X).				{ SpanExpr(&A, parse, TK_ID, &X); }
 expr(A) ::= nm(X) DOT nm(Y).		{
-	Expr *temp1 = sqlite3PExpr(parse, TK_ID, 0, 0, &X);
-	Expr *temp2 = sqlite3PExpr(parse, TK_ID, 0, 0, &Y);
-	A.pExpr = sqlite3PExpr(parse, TK_DOT, temp1, temp2, 0);
-	spanSet(&A, &X, &Y);
+	Expr temp1 = Expr.PExpr_(parse, TK.ID, 0, 0, &X);
+	Expr temp2 = Expr.PExpr_(parse, TK.ID, 0, 0, &Y);
+	A.Expr = Expr.PExpr_(parse, TK.DOT, temp1, temp2, 0);
+	SpanSet(&A, &X, &Y);
 }
 expr(A) ::= nm(X) DOT nm(Y) DOT nm(Z). {
-	Expr *temp1 = sqlite3PExpr(parse, TK_ID, 0, 0, &X);
-	Expr *temp2 = sqlite3PExpr(parse, TK_ID, 0, 0, &Y);
-	Expr *temp3 = sqlite3PExpr(parse, TK_ID, 0, 0, &Z);
-	Expr *temp4 = sqlite3PExpr(parse, TK_DOT, temp2, temp3, 0);
-	A.pExpr = sqlite3PExpr(parse, TK_DOT, temp1, temp4, 0);
-	spanSet(&A, &X, &Z);
+	Expr temp1 = Expr.PExpr_(parse, TK.ID, 0, 0, &X);
+	Expr temp2 = Expr.PExpr_(parse, TK.ID, 0, 0, &Y);
+	Expr temp3 = Expr.PExpr_(parse, TK.ID, 0, 0, &Z);
+	Expr temp4 = Expr.PExpr_(parse, TK.DOT, temp2, temp3, 0);
+	A.Expr = Expr.PExpr_(parse, TK.DOT, temp1, temp4, 0);
+	SpanSet(&A, &X, &Z);
 }
-term(A) ::= INTEGER|FLOAT|BLOB(X).	{ spanExpr(&A, parse, @X, &X); }
-term(A) ::= STRING(X).              { spanExpr(&A, parse, @X, &X); }
+term(A) ::= INTEGER|FLOAT|BLOB(X).	{ SpanExpr(&A, parse, @X, &X); }
+term(A) ::= STRING(X).              { SpanExpr(&A, parse, @X, &X); }
 expr(A) ::= REGISTER(X).			{
-	// When doing a nested parse, one can include terms in an expression that look like this:   #1 #2 ...  These terms refer to registers
-	// in the virtual machine.  #N is the N-th register.
-	if (parse->Nested == 0)
+	// When doing a nested parse, one can include terms in an expression that look like this:   #1 #2 ...  These terms refer to registers in the virtual machine.  #N is the N-th register.
+	if (parse.Nested == 0)
 	{
-		sqlite3ErrorMsg(parse, "near \"%T\": syntax error", &X);
-		A.pExpr = 0;
+		parse.ErrorMsg("near \"%T\": syntax error", &X);
+		A.Expr = null;
 	}
 	else
 	{
-		A.pExpr = sqlite3PExpr(parse, TK_REGISTER, 0, 0, &X);
-		if (A.pExpr) sqlite3GetInt32(&X.z[1], &A.pExpr->iTable);
+		A.Expr = Expr.PExpr_(parse, TK.REGISTER, 0, 0, &X);
+		if (A.Expr != null) ConvertEx.GetInt32(&X.data[1], &A.Expr.TableIdx);
 	}
-	spanSet(&A, &X, &X);
+	SpanSet(&A, &X, &X);
 }
 expr(A) ::= VARIABLE(X).			{
-	spanExpr(&A, parse, TK_VARIABLE, &X);
-	sqlite3ExprAssignVarNumber(parse, A.pExpr);
-	spanSet(&A, &X, &X);
+	SpanExpr(&A, parse, TK.VARIABLE, &X);
+	Expr.AssignVarNumber(parse, A.Expr);
+	SpanSet(&A, &X, &X);
 }
 expr(A) ::= expr(E) COLLATE ids(C).	{
-	A.pExpr = sqlite3ExprAddCollateToken(parse, E.pExpr, &C);
-	A.zStart = E.zStart;
-	A.zEnd = &C.z[C.n];
+	A.Expr = E.Expr.AddCollateToken(parse, &C);
+	A.Start = E.Start;
+	A.End = &C.data.Substring(C.length);
 }
 %ifndef OMIT_CAST
 expr(A) ::= CAST(X) LP expr(E) AS typetoken(T) RP(Y). {
-  A.pExpr = sqlite3PExpr(parse, TK_CAST, E.pExpr, 0, &T);
-  spanSet(&A, &X, &Y);
+	A.Expr = Expr.PExpr_(parse, TK.CAST, E.Expr, 0, &T);
+	SpanSet(&A, &X, &Y);
 }
 %endif
 expr(A) ::= ID(X) LP distinct(D) exprlist(Y) RP(E). {
-	if (Y && Y->nExpr > parse->Db->Limits[SQLITE_LIMIT_FUNCTION_ARG])
-		sqlite3ErrorMsg(parse, "too many arguments on function %T", &X);
-	A.pExpr = sqlite3ExprFunction(parse, Y, &X);
-	spanSet(&A, &X, &E);
-	if (D && A.pExpr) A.pExpr->flags |= EP_Distinct;
+	if (Y != null && Y.Exprs > parse.Ctx.Limits[(int)LIMIT.FUNCTION_ARG])
+		parse.ErrorMsg("too many arguments on function %T", &X);
+	A.Expr = Expr.Function(parse, Y, &X);
+	SpanSet(&A, &X, &E);
+	if (D && A.Expr != null) A.Expr.Flags |= EP.Distinct;
 }
 expr(A) ::= ID(X) LP STAR RP(E).	{
-	A.pExpr = sqlite3ExprFunction(parse, 0, &X);
-	spanSet(&A, &X, &E);
+	A.Expr = Expr.Function(parse, 0, &X);
+	SpanSet(&A, &X, &E);
 }
 term(A) ::= CTIME_KW(OP).			{
-  /// The CURRENT_TIME, CURRENT_DATE, and CURRENT_TIMESTAMP values are treated as functions that return constants
-  A.pExpr = sqlite3ExprFunction(parse, 0,&OP);
-  if (A.pExpr) A.pExpr->op = TK_CONST_FUNC;  
-  spanSet(&A, &OP, &OP);
+	// The CURRENT_TIME, CURRENT_DATE, and CURRENT_TIMESTAMP values are treated as functions that return constants
+	A.Expr = Expr.Function(parse, 0, &OP);
+	if (A.Expr != null) A.Expr.OP = TK.CONST_FUNC;  
+	SpanSet(&A, &OP, &OP);
 }
 
 %include {
 	// This routine constructs a binary expression node out of two ExprSpan objects and uses the result to populate a new ExprSpan object.
-	static void spanBinaryExpr(ExprSpan *pOut, Parse *parse, int op, ExprSpan *left, ExprSpan *right)
+	static void SpanBinaryExpr(ExprSpan out_, Parse parse, TK op, ExprSpan left, ExprSpan right)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, left->pExpr, right->pExpr, 0);
-		pOut->zStart = left->zStart;
-		pOut->zEnd = right->zEnd;
+		out_.Expr = Expr.PExpr_(parse, op, left.Expr, right.Expr, 0);
+		out_.Start = left.Start;
+		out_.End = right.End;
 	}
 }
 
-expr(A) ::= expr(X) AND(OP) expr(Y).			{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) OR(OP) expr(Y).				{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) LT|GT|GE|LE(OP) expr(Y).	{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) EQ|NE(OP) expr(Y).			{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) BITAND|BITOR|LSHIFT|RSHIFT(OP) expr(Y). { spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) PLUS|MINUS(OP) expr(Y).		{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) STAR|SLASH|REM(OP) expr(Y).	{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-expr(A) ::= expr(X) CONCAT(OP) expr(Y).			{ spanBinaryExpr(&A, parse, @OP, &X, &Y); }
-%type likeop {struct LikeOp}
-likeop(A) ::= LIKE_KW(X).		{ A.eOperator = X; A.bNot = 0; }
-likeop(A) ::= NOT LIKE_KW(X).	{ A.eOperator = X; A.bNot = 1; }
-likeop(A) ::= MATCH(X).			{ A.eOperator = X; A.bNot = 0; }
-likeop(A) ::= NOT MATCH(X).		{ A.eOperator = X; A.bNot = 1; }
+expr(A) ::= expr(X) AND(OP) expr(Y).			{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) OR(OP) expr(Y).				{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) LT|GT|GE|LE(OP) expr(Y).	{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) EQ|NE(OP) expr(Y).			{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) BITAND|BITOR|LSHIFT|RSHIFT(OP) expr(Y). { SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) PLUS|MINUS(OP) expr(Y).		{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) STAR|SLASH|REM(OP) expr(Y).	{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+expr(A) ::= expr(X) CONCAT(OP) expr(Y).			{ SpanBinaryExpr(&A, parse, @OP, &X, &Y); }
+%type likeop {LikeOp}
+likeop(A) ::= LIKE_KW(X).		{ A.Operator = X; A.Not = false; }
+likeop(A) ::= NOT LIKE_KW(X).	{ A.Operator = X; A.Not = true; }
+likeop(A) ::= MATCH(X).			{ A.Operator = X; A.Not = false; }
+likeop(A) ::= NOT MATCH(X).		{ A.Operator = X; A.Not = true; }
 expr(A) ::= expr(X) likeop(OP) expr(Y).  [LIKE_KW]  {
-	ExprList *pList;
-	pList = sqlite3ExprListAppend(parse,0, Y.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, X.pExpr);
-	A.pExpr = sqlite3ExprFunction(parse, pList, &OP.eOperator);
-	if (OP.bNot) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
-	A.zStart = X.zStart;
-	A.zEnd = Y.zEnd;
-	if (A.pExpr) A.pExpr->flags |= EP_InfixFunc;
+	ExprList list;
+	list = Expr.ListAppend(parse, null, Y.Expr);
+	list = Expr.ListAppend(parse, list, X.Expr);
+	A.Expr = Expr.Function(parse, list, &OP.Operator);
+	if (OP.Not) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
+	A.Start = X.Start;
+	A.End = Y.End;
+	if (A.Expr != null) A.Expr.Flags |= EP.InfixFunc;
 }
 expr(A) ::= expr(X) likeop(OP) expr(Y) ESCAPE expr(E).  [LIKE_KW]  {
-	ExprList *pList;
-	pList = sqlite3ExprListAppend(parse,0, Y.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, X.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, E.pExpr);
-	A.pExpr = sqlite3ExprFunction(parse, pList, &OP.eOperator);
-	if( OP.bNot ) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
-	A.zStart = X.zStart;
-	A.zEnd = E.zEnd;
-	if (A.pExpr) A.pExpr->flags |= EP_InfixFunc;
+	ExprList *list;
+	list = Expr.ListAppend(parse, null, Y.Expr);
+	list = Expr.ListAppend(parse, list, X.Expr);
+	list = Expr.ListAppend(parse, list, E.Expr);
+	A.Expr = sqlite3ExprFunction(parse, list, &OP.Operator);
+	if (OP.Not) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
+	A.Start = X.Start;
+	A.End = E.End;
+	if (A.Expr != null) A.Expr.Flags |= EP.InfixFunc;
 }
 
 %include {
 	// Construct an expression node for a unary postfix operator
-	static void spanUnaryPostfix(ExprSpan *pOut, Parse *parse, int op, ExprSpan *pOperand, Token *pPostOp)
+	static void SpanUnaryPostfix(ExprSpan out_, Parse parse, TK op, ExprSpan operand, Token postOp)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, pOperand->pExpr, 0, 0);
-		pOut->zStart = pOperand->zStart;
-		pOut->zEnd = &pPostOp->z[pPostOp->n];
+		out_.Expr = Expr.PExpr_(parse, op, operand.Expr, 0, 0);
+		out_.Start = operand.Start;
+		out_.End = postOp.data.Substring(postOp.length);
 	}                           
 }
 
-expr(A) ::= expr(X) ISNULL|NOTNULL(E).  { spanUnaryPostfix(&A,parse,@E,&X,&E); }
-expr(A) ::= expr(X) NOT NULL(E).		{ spanUnaryPostfix(&A,parse,TK_NOTNULL,&X,&E); }
+expr(A) ::= expr(X) ISNULL|NOTNULL(E).  { SpanUnaryPostfix(&A, parse, @E, &X, &E); }
+expr(A) ::= expr(X) NOT NULL(E).		{ SpanUnaryPostfix(&A, parse, TK.NOTNULL, &X, &E); }
 
 %include {
 	// A routine to convert a binary TK_IS or TK_ISNOT expression into a unary TK_ISNULL or TK_NOTNULL expression.
-	static void binaryToUnaryIfNull(Parse *parse, Expr *pY, Expr *pA, int op)
+	static void BinaryToUnaryIfNull(Parse parse, Expr y, Expr a, TK op)
 	{
-		sqlite3 *db = parse->db;
-		if (db->mallocFailed==0 && pY->op==TK_NULL)
+		Context ctx = parse.Ctx;
+		if (!ctx.MallocFailed && y.OP == TK.NULL)
 		{
-			pA->op = (u8)op;
-			sqlite3ExprDelete(db, pA->pRight);
-			pA->pRight = 0;
+			a.OP = op;
+			Expr.Delete(ctx, a.Right);
+			a.Right = null;
 		}
 	}
 }
@@ -739,215 +736,215 @@ expr(A) ::= expr(X) NOT NULL(E).		{ spanUnaryPostfix(&A,parse,TK_NOTNULL,&X,&E);
 //    expr1 IS NOT expr2
 //
 // If expr2 is NULL then code as TK_ISNULL or TK_NOTNULL.  If expr2 is any other expression, code as TK_IS or TK_ISNOT.
-expr(A) ::= expr(X) IS expr(Y).			{ spanBinaryExpr(&A,parse,TK_IS,&X,&Y); binaryToUnaryIfNull(parse, Y.pExpr, A.pExpr, TK_ISNULL); }
-expr(A) ::= expr(X) IS NOT expr(Y).		{ spanBinaryExpr(&A,parse,TK_ISNOT,&X,&Y); binaryToUnaryIfNull(parse, Y.pExpr, A.pExpr, TK_NOTNULL); }
+expr(A) ::= expr(X) IS expr(Y).			{ SpanBinaryExpr(&A, parse, TK.IS, &X, &Y); BinaryToUnaryIfNull(parse, Y.Expr, A.Expr, TK.ISNULL); }
+expr(A) ::= expr(X) IS NOT expr(Y).		{ SpanBinaryExpr(&A, parse, TK.ISNOT, &X, &Y); BinaryToUnaryIfNull(parse, Y.Expr, A.Expr, TK.NOTNULL); }
 
 %include {
 	// Construct an expression node for a unary prefix operator
-	static void spanUnaryPrefix(ExprSpan *pOut, Parse *parse, int op, ExprSpan *pOperand, Token *pPreOp)
+	static void SpanUnaryPrefix(ExprSpan out_, Parse parse, TK op, ExprSpan operand, Token preOp)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, pOperand->pExpr, 0, 0);
-		pOut->zStart = pPreOp->z;
-		pOut->zEnd = pOperand->zEnd;
+		out_.Expr = Expr.PExpr_(parse, op, operand.Expr, 0, 0);
+		out_.Start = preOp.data
+		out_.End = operand.End;
 	}
 }
 
-expr(A) ::= NOT(B) expr(X).				{ spanUnaryPrefix(&A, parse, @B, &X, &B); }
-expr(A) ::= BITNOT(B) expr(X).			{ spanUnaryPrefix(&A, parse, @B, &X, &B); }
-expr(A) ::= MINUS(B) expr(X). [BITNOT]	{ spanUnaryPrefix(&A, parse, TK_UMINUS, &X, &B); }
-expr(A) ::= PLUS(B) expr(X). [BITNOT]	{ spanUnaryPrefix(&A, parse, TK_UPLUS, &X, &B); }
+expr(A) ::= NOT(B) expr(X).				{ SpanUnaryPrefix(&A, parse, @B, &X, &B); }
+expr(A) ::= BITNOT(B) expr(X).			{ SpanUnaryPrefix(&A, parse, @B, &X, &B); }
+expr(A) ::= MINUS(B) expr(X). [BITNOT]	{ SpanUnaryPrefix(&A, parse, TK.UMINUS, &X, &B); }
+expr(A) ::= PLUS(B) expr(X). [BITNOT]	{ SpanUnaryPrefix(&A, parse, TK.UPLUS, &X, &B); }
 
 %type between_op {int}
 between_op(A) ::= BETWEEN.		{ A = 0; }
 between_op(A) ::= NOT BETWEEN.	{ A = 1; }
 expr(A) ::= expr(W) between_op(N) expr(X) AND expr(Y). [BETWEEN] {
-	ExprList *pList = sqlite3ExprListAppend(parse,0, X.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, Y.pExpr);
-	A.pExpr = sqlite3PExpr(parse, TK_BETWEEN, W.pExpr, 0, 0);
-	if (A.pExpr) A.pExpr->x.pList = pList;
-	else sqlite3ExprListDelete(parse->db, pList);
-	if (N) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
-	A.zStart = W.zStart;
-	A.zEnd = Y.zEnd;
+	ExprList list = Expr.ListAppend(parse, 0, X.Expr);
+	list = Expr.ListAppend(parse, list, Y.Expr);
+	A.Expr = Expr.PExpr_(parse, TK.BETWEEN, W.Expr, 0, 0);
+	if (A.Expr != null) A.Expr.x.List = list;
+	else Expr.ListDelete(parse.Ctx, list);
+	if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
+	A.Start = W.Start;
+	A.End = Y.End;
 }
 %ifndef OMIT_SUBQUERY
 %type in_op {int}
 in_op(A) ::= IN.      { A = 0; }
 in_op(A) ::= NOT IN.  { A = 1; }
 expr(A) ::= expr(X) in_op(N) LP exprlist(Y) RP(E). [IN] {
-	if (Y == 0)
+	if (Y == null)
 	{
 		// Expressions of the form
 		//      expr1 IN ()
 		//      expr1 NOT IN ()
 		// simplify to constants 0 (false) and 1 (true), respectively, regardless of the value of expr1.
-		A.pExpr = sqlite3PExpr(parse, TK_INTEGER, 0, 0, &sqlite3IntTokens[N]);
-		sqlite3ExprDelete(parse->db, X.pExpr);
+		A.Expr = Expr.PExpr_(parse, TK.INTEGER, 0, 0, &g_intTokens[N]);
+		Expr.Delete(parse.Ctx, X.Expr);
 	}
 	else
 	{
-		A.pExpr = sqlite3PExpr(parse, TK_IN, X.pExpr, 0, 0);
-		if (A.pExpr)
+		A.Expr = Expr.PExpr_(parse, TK.IN, X.Expr, 0, 0);
+		if (A.Expr != null)
 		{
-			A.pExpr->x.pList = Y;
-			sqlite3ExprSetHeight(parse, A.pExpr);
+			A.Expr.x.List = Y;
+			Expr.SetHeight(parse, A.pExpr);
 		}
-		else sqlite3ExprListDelete(parse->db, Y);
-		if (N) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
+		else Expr.ListDelete(parse.Ctx, Y);
+		if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
 	}
-	A.zStart = X.zStart;
-	A.zEnd = &E.z[E.n];
+	A.Start = X.Start;
+	A.End = &E.data.Substring(E.length);
 }
 expr(A) ::= LP(B) select(X) RP(E). {
-	A.pExpr = sqlite3PExpr(parse, TK_SELECT, 0, 0, 0);
-	if (A.pExpr)
+	A.Expr = Expr.PExpr_(parse, TK.SELECT, 0, 0, 0);
+	if (A.Expr != null)
 	{
-		A.pExpr->x.pSelect = X;
-		ExprSetProperty(A.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, A.pExpr);
+		A.Expr.x.Select = X;
+		Expr.SetProperty(A.Expr, EP.xIsSelect);
+		Expr.SetHeight(parse, A.Expr);
 	}
-	else sqlite3SelectDelete(parse->db, X);
-	A.zStart = B.z;
-	A.zEnd = &E.z[E.n];
+	else Select.Delete(parse.Ctx, X);
+	A.Start = B.data;
+	A.End = E.data.Substring(E.length);
 }
 expr(A) ::= expr(X) in_op(N) LP select(Y) RP(E).  [IN] {
-	A.pExpr = sqlite3PExpr(parse, TK_IN, X.pExpr, 0, 0);
-	if (A.pExpr)
+	A.Expr = Expr.PExpr_(parse, TK.IN, X.Expr, 0, 0);
+	if (A.Expr)
 	{
-		A.pExpr->x.pSelect = Y;
-		ExprSetProperty(A.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, A.pExpr);
+		A.Expr.x.Select = Y;
+		Expr.SetProperty(A.Expr, EP.xIsSelect);
+		Expr.SetHeight(parse, A.Expr);
 	}
-	else sqlite3SelectDelete(parse->db, Y);
-	if (N) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
-	A.zStart = X.zStart;
-	A.zEnd = &E.z[E.n];
+	else Select.Delete(parse.Ctx, Y);
+	if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
+	A.Start = X.Start;
+	A.End = &E.data.Substring(E.length);
 }
 expr(A) ::= expr(X) in_op(N) nm(Y) dbnm(Z). [IN] {
-	SrcList *pSrc = sqlite3SrcListAppend(parse->db, 0,&Y,&Z);
-	A.pExpr = sqlite3PExpr(parse, TK_IN, X.pExpr, 0, 0);
-	if (A.pExpr)
+	SrcList src = Expr.SrcListAppend(parse.Ctx, 0, &Y, &Z);
+	A.Expr = Expr.PExpr_(parse, TK.IN, X.Expr, 0, 0);
+	if (A.Expr != null)
 	{
-		A.pExpr->x.pSelect = sqlite3SelectNew(parse, 0,pSrc,0,0,0,0,0,0,0);
-		ExprSetProperty(A.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, A.pExpr);
+		A.Expr.x.Select = Select.New(parse, null, src, null, null, null, null, null, null, null);
+		Expr.SetProperty(A.Expr, EP.xIsSelect);
+		Expr.SetHeight(parse, A.Expr);
 	}
-	else sqlite3SrcListDelete(parse->db, pSrc);
-	if (N) A.pExpr = sqlite3PExpr(parse, TK_NOT, A.pExpr, 0, 0);
-	A.zStart = X.zStart;
-	A.zEnd = Z.z ? &Z.z[Z.n] : &Y.z[Y.n];
+	else Expr.SrcListDelete(parse.Ctx, src);
+	if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
+	A.Start = X.Start;
+	A.End = (Z.data != null ? &Z.data.Substring(Z.length) : &Y.data.Substring(Y.length));
 }
 expr(A) ::= EXISTS(B) LP select(Y) RP(E). {
-	Expr *p = A.pExpr = sqlite3PExpr(parse, TK_EXISTS, 0, 0, 0);
+	Expr p = A.Expr = Expr.PExpr_(parse, TK.EXISTS, 0, 0, 0);
 	if (p)
 	{
-		p->x.pSelect = Y;
-		ExprSetProperty(p, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, p);
+		p.x.Select = Y;
+		Expr.SetProperty(p, EP.xIsSelect);
+		Expr.SetHeight(parse, p);
 	}
-	else sqlite3SelectDelete(parse->db, Y);
-	A.zStart = B.z;
-	A.zEnd = &E.z[E.n];
+	else Select.Delete(parse.Ctx, Y);
+	A.Start = B.data;
+	A.End = &E.data.Substring(E.length);
 }
 %endif OMIT_SUBQUERY
 
 // CASE expressions
 expr(A) ::= CASE(C) case_operand(X) case_exprlist(Y) case_else(Z) END(E). {
-	A.pExpr = sqlite3PExpr(parse, TK_CASE, X, Z, 0);
-	if (A.pExpr)
+	A.Expr = Expr.PExpr_(parse, TK.CASE, X, Z, 0);
+	if (A.Expr != null)
 	{
-		A.pExpr->x.pList = Y;
-		sqlite3ExprSetHeight(parse, A.pExpr);
+		A.Expr.x.List = Y;
+		Expr.SetHeight(parse, A.Expr);
 	}
-	else sqlite3ExprListDelete(parse->db, Y);
-	A.zStart = C.z;
-	A.zEnd = &E.z[E.n];
+	else Expr.ListDelete(parse.Ctx, Y);
+	A.Start = C.data;
+	A.End = &E.data.Substring(E.length);
 }
-%type case_exprlist {ExprList *}
-%destructor case_exprlist { sqlite3ExprListDelete(parse->Db, $$); }
+%type case_exprlist {ExprList}
+%destructor case_exprlist { Expr.ListDelete(parse.Ctx, $$); }
 case_exprlist(A) ::= case_exprlist(X) WHEN expr(Y) THEN expr(Z). {
-	A = sqlite3ExprListAppend(parse,X, Y.pExpr);
-	A = sqlite3ExprListAppend(parse,A, Z.pExpr);
+	A = Expr.ListAppend(parse, null, Y.Expr);
+	A = Expr.ListAppend(parse, A, Z.Expr);
 }
 case_exprlist(A) ::= WHEN expr(Y) THEN expr(Z). {
-	A = sqlite3ExprListAppend(parse,0, Y.pExpr);
-	A = sqlite3ExprListAppend(parse,A, Z.pExpr);
+	A = Expr.ListAppend(parse, null, Y.Expr);
+	A = Expr.ListAppend(parse, A, Z.Expr);
 }
-%type case_else {Expr *}
-%destructor case_else { sqlite3ExprDelete(parse->Db, $$); }
-case_else(A) ::=  ELSE expr(X).     { A = X.pExpr; }
-case_else(A) ::=  .                 { A = 0; }
-%type case_operand {Expr *}
-%destructor case_operand { sqlite3ExprDelete(parse->Db, $$); }
-case_operand(A) ::= expr(X).        { A = X.pExpr; } 
-case_operand(A) ::= .               { A = 0; } 
+%type case_else {Expr}
+%destructor case_else { sqlite3ExprDelete(parse.Ctx, $$); }
+case_else(A) ::=  ELSE expr(X).     { A = X.Expr; }
+case_else(A) ::=  .                 { A = null; }
+%type case_operand {Expr}
+%destructor case_operand { Expr.Delete(parse.Ctx, $$); }
+case_operand(A) ::= expr(X).        { A = X.Expr; } 
+case_operand(A) ::= .               { A = null; } 
 
-%type exprlist {ExprList *}
-%destructor exprlist { sqlite3ExprListDelete(parse->Db, $$); }
-%type nexprlist {ExprList*}
-%destructor nexprlist { sqlite3ExprListDelete(parse->Db, $$); }
+%type exprlist {ExprList}
+%destructor exprlist { Expr.ListDelete(parse.Ctx, $$); }
+%type nexprlist {ExprList}
+%destructor nexprlist { Expr.ListDelete(parse.Ctx, $$); }
 
 exprlist(A) ::= nexprlist(X).       { A = X; }
-exprlist(A) ::= .                   { A = 0; }
-nexprlist(A) ::= nexprlist(X) COMMA expr(Y).	{ A = sqlite3ExprListAppend(parse, X, Y.pExpr); }
-nexprlist(A) ::= expr(Y).						{ A = sqlite3ExprListAppend(parse, 0, Y.pExpr); }
+exprlist(A) ::= .                   { A = null; }
+nexprlist(A) ::= nexprlist(X) COMMA expr(Y).	{ A = Expr.ListAppend(parse, X, Y.Expr); }
+nexprlist(A) ::= expr(Y).						{ A = Expr.ListAppend(parse, null, Y.Expr); }
 
 
 ///////////////////////////// The CREATE INDEX command ///////////////////////
 cmd ::= createkw(S) uniqueflag(U) INDEX ifnotexists(NE) nm(X) dbnm(D)
         ON nm(Y) LP idxlist(Z) RP(E). {
-	sqlite3CreateIndex(parse, &X, &D, sqlite3SrcListAppend(parse->Db, 0, &Y, 0), Z, U, &S, &E, SQLITE_SO_ASC, NE);
+	parse.CreateIndex(&X, &D, Parse.SrcListAppend(parse.Ctx, 0, &Y, 0), Z, U, &S, &E, SO.ASC, NE);
 }
 
-%type uniqueflag {int}
-uniqueflag(A) ::= UNIQUE.	{ A = OE_Abort; }
-uniqueflag(A) ::= .			{ A = OE_None; }
+%type uniqueflag {OE}
+uniqueflag(A) ::= UNIQUE.	{ A = OE.Abort; }
+uniqueflag(A) ::= .			{ A = OE.None; }
 
-%type idxlist {ExprList *}
-%destructor idxlist { sqlite3ExprListDelete(parse->Db, $$); }
-%type idxlist_opt {ExprList *}
-%destructor idxlist_opt { sqlite3ExprListDelete(parse->Db, $$); }
+%type idxlist {ExprList}
+%destructor idxlist { Expr.ListDelete(parse.Ctx, $$); }
+%type idxlist_opt {ExprList}
+%destructor idxlist_opt { Expr.ListDelete(parse.Ctx, $$); }
 
-idxlist_opt(A) ::= .                         { A = 0; }
+idxlist_opt(A) ::= .                         { A = null; }
 idxlist_opt(A) ::= LP idxlist(X) RP.         { A = X; }
 idxlist(A) ::= idxlist(X) COMMA nm(Y) collate(C) sortorder(Z).  {
-	Expr *p = sqlite3ExprAddCollateToken(parse, 0, &C);
-	A = sqlite3ExprListAppend(parse,X, p);
-	sqlite3ExprListSetName(parse,A,&Y,1);
-	sqlite3ExprListCheckLength(parse, A, "index");
-	if (A) A->a[A->nExpr-1].sortOrder = (uint8)Z;
+	Expr p = Expr.AddCollateToken(parse, 0, &C);
+	A = Expr.ListAppend(parse, X, p);
+	Expr.ListSetName(parse, A, &Y, 1);
+	Expr.ListCheckLength(parse, A, "index");
+	if (A != null) A.Ids[A.Exprs-1].SortOrder = Z;
 }
 idxlist(A) ::= nm(Y) collate(C) sortorder(Z). {
-	Expr *p = sqlite3ExprAddCollateToken(parse, 0, &C);
-	A = sqlite3ExprListAppend(parse,0, p);
-	sqlite3ExprListSetName(parse, A, &Y, 1);
-	sqlite3ExprListCheckLength(parse, A, "index");
-	if (A) A->a[A->nExpr-1].sortOrder = (uint8)Z;
+	Expr p = Expr.AddCollateToken(parse, 0, &C);
+	A = Expr.ListAppend(parse, 0, p);
+	Expr.ListSetName(parse, A, &Y, 1);
+	Expr.ListCheckLength(parse, A, "index");
+	if (A != null) A.Ids[A.Exprs-1].SortOrder = Z;
 }
 
 %type collate {Token}
-collate(C) ::= .					{ C.z = 0; C.n = 0; }
+collate(C) ::= .					{ C.data = null; C.length = 0; }
 collate(C) ::= COLLATE ids(X).		{ C = X; }
 
 
 ///////////////////////////// The DROP INDEX command /////////////////////////
-cmd ::= DROP INDEX ifexists(E) fullname(X).   { sqlite3DropIndex(parse, X, E); }
+cmd ::= DROP INDEX ifexists(E) fullname(X).   { parse.DropIndex(X, E); }
 
 ///////////////////////////// The VACUUM command /////////////////////////////
 %ifndef OMIT_VACUUM
 %ifndef OMIT_ATTACH
-cmd ::= VACUUM.					{ sqlite3Vacuum(parse); }
-cmd ::= VACUUM nm.				{ sqlite3Vacuum(parse); }
+cmd ::= VACUUM.					{ Vacuum.Vacuum_(parse); }
+cmd ::= VACUUM nm.				{ Vacuum.Vacuum_(parse); }
 %endif
 %endif
 
 ///////////////////////////// The PRAGMA command /////////////////////////////
 %ifndef OMIT_PRAGMA
-cmd ::= PRAGMA nm(X) dbnm(Z).						{ sqlite3Pragma(parse, &X, &Z, 0, 0); }
-cmd ::= PRAGMA nm(X) dbnm(Z) EQ nmnum(Y).			{ sqlite3Pragma(parse, &X, &Z, &Y, 0); }
-cmd ::= PRAGMA nm(X) dbnm(Z) LP nmnum(Y) RP.		{ sqlite3Pragma(parse, &X, &Z, &Y, 0); }
-cmd ::= PRAGMA nm(X) dbnm(Z) EQ minus_num(Y).		{ sqlite3Pragma(parse, &X, &Z, &Y, 1); }
-cmd ::= PRAGMA nm(X) dbnm(Z) LP minus_num(Y) RP.	{ sqlite3Pragma(parse, &X, &Z, &Y, 1); }
+cmd ::= PRAGMA nm(X) dbnm(Z).						{ Pragma.Pragma_(parse, &X, &Z, 0, 0); }
+cmd ::= PRAGMA nm(X) dbnm(Z) EQ nmnum(Y).			{ Pragma.Pragma_(parse, &X, &Z, &Y, 0); }
+cmd ::= PRAGMA nm(X) dbnm(Z) LP nmnum(Y) RP.		{ Pragma.Pragma_(parse, &X, &Z, &Y, 0); }
+cmd ::= PRAGMA nm(X) dbnm(Z) EQ minus_num(Y).		{ Pragma.Pragma_(parse, &X, &Z, &Y, 1); }
+cmd ::= PRAGMA nm(X) dbnm(Z) LP minus_num(Y) RP.	{ Pragma.Pragma_(parse, &X, &Z, &Y, 1); }
 nmnum(A) ::= plus_num(X).				{ A = X; }
 nmnum(A) ::= nm(X).						{ A = X; }
 nmnum(A) ::= ON(X).						{ A = X; }
@@ -964,49 +961,49 @@ number(A) ::= INTEGER|FLOAT(X).			{ A = X; }
 
 cmd ::= createkw trigger_decl(A) BEGIN trigger_cmd_list(S) END(Z). {
 	Token all;
-	all.z = A.z;
-	all.n = (int)(Z.z - A.z) + Z.n;
-	sqlite3FinishTrigger(parse, S, &all);
+	all.data = A.data;
+	all.length = (int)(Z.data - A.data) + Z.length;
+	Trigger.FinishTrigger(parse, S, &all);
 }
 
 trigger_decl(A) ::= temp(T) TRIGGER ifnotexists(NOERR) nm(B) dbnm(Z) 
                     trigger_time(C) trigger_event(D)
                     ON fullname(E) foreach_clause when_clause(G). {
-	sqlite3BeginTrigger(parse, &B, &Z, C, D.a, D.b, E, G, T, NOERR);
-	A = (Z.n==0?B:Z);
+	Trigger.BeginTrigger(parse, &B, &Z, C, D.A, D.B, E, G, T, NOERR);
+	A = (Z.length == 0 ? B : Z);
 }
 
-%type trigger_time {int}
-trigger_time(A) ::= BEFORE.      { A = TK_BEFORE; }
-trigger_time(A) ::= AFTER.       { A = TK_AFTER;  }
-trigger_time(A) ::= INSTEAD OF.  { A = TK_INSTEAD;}
-trigger_time(A) ::= .            { A = TK_BEFORE; }
+%type trigger_time {TK}
+trigger_time(A) ::= BEFORE.      { A = TK.BEFORE; }
+trigger_time(A) ::= AFTER.       { A = TK.AFTER;  }
+trigger_time(A) ::= INSTEAD OF.  { A = TK.INSTEAD;}
+trigger_time(A) ::= .            { A = TK.BEFORE; }
 
-%type trigger_event {struct TrigEvent}
-%destructor trigger_event { sqlite3IdListDelete(parse->db, $$.b); }
-trigger_event(A) ::= DELETE|INSERT(OP).       { A.a = @OP; A.b = 0; }
-trigger_event(A) ::= UPDATE(OP).              { A.a = @OP; A.b = 0; }
-trigger_event(A) ::= UPDATE OF inscollist(X). { A.a = TK_UPDATE; A.b = X; }
+%type trigger_event {TrigEvent}
+%destructor trigger_event { Parse.IdListDelete(parse.Ctx, $$.B); }
+trigger_event(A) ::= DELETE|INSERT(OP).       { A.a = @OP; A.B = nullptr; }
+trigger_event(A) ::= UPDATE(OP).              { A.a = @OP; A.B = nullptr; }
+trigger_event(A) ::= UPDATE OF inscollist(X). { A.a = TK.UPDATE; A.B = X; }
 
 foreach_clause ::= .
 foreach_clause ::= FOR EACH ROW.
 
-%type when_clause {Expr *}
-%destructor when_clause { sqlite3ExprDelete(parse->db, $$); }
-when_clause(A) ::= .             { A = 0; }
-when_clause(A) ::= WHEN expr(X). { A = X.pExpr; }
+%type when_clause {Expr}
+%destructor when_clause { Expr.Delete(parse.Ctx, $$); }
+when_clause(A) ::= .             { A = null; }
+when_clause(A) ::= WHEN expr(X). { A = X.Expr; }
 
-%type trigger_cmd_list {TriggerStep *}
-%destructor trigger_cmd_list { sqlite3DeleteTriggerStep(parse->db, $$); }
+%type trigger_cmd_list {TriggerStep}
+%destructor trigger_cmd_list { Trigger.DeleteTriggerStep(parse.Ctx, $$); }
 trigger_cmd_list(A) ::= trigger_cmd_list(Y) trigger_cmd(X) SEMI. {
-	_assert(Y != 0);
-	Y->pLast->pNext = X;
-	Y->pLast = X;
+	Debug.Assert(Y != null);
+	Y.Last.Next = X;
+	Y.Last = X;
 	A = Y;
 }
 trigger_cmd_list(A) ::= trigger_cmd(X) SEMI. { 
-	_assert(X != 0);
-	X->pLast = X;
+	Debug.Assert(X != null);
+	X.Last = X;
 	A = X;
 }
 
@@ -1014,98 +1011,98 @@ trigger_cmd_list(A) ::= trigger_cmd(X) SEMI. {
 // the same database as the table that the trigger fires on.
 %type trnm {Token}
 trnm(A) ::= nm(X).			{ A = X; }
-trnm(A) ::= nm DOT nm(X).	{ A = X; sqlite3ErrorMsg(parse, "qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers"); }
+trnm(A) ::= nm DOT nm(X).	{ A = X; parse.ErrorMsg("qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers"); }
 
 // Disallow the INDEX BY and NOT INDEXED clauses on UPDATE and DELETE statements within triggers.  We make a specific error message for this
 // since it is an exception to the default grammar rules.
 tridxby ::= .
-tridxby ::= INDEXED BY nm.	{ sqlite3ErrorMsg(parse, "the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"); }
-tridxby ::= NOT INDEXED.	{ sqlite3ErrorMsg(parse, "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"); }
+tridxby ::= INDEXED BY nm.	{ parse.ErrorMsg("the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"); }
+tridxby ::= NOT INDEXED.	{ parse.ErrorMsg("the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"); }
 
-%type trigger_cmd {TriggerStep *}
-%destructor trigger_cmd { sqlite3DeleteTriggerStep(parse->db, $$); }
+%type trigger_cmd {TriggerStep}
+%destructor trigger_cmd { Trigger.DeleteTriggerStep(parse.Ctx, $$); }
 // UPDATE 
-trigger_cmd(A) ::= UPDATE orconf(R) trnm(X) tridxby SET setlist(Y) where_opt(Z).	{ A = sqlite3TriggerUpdateStep(parse->db, &X, Y, Z, R); }
+trigger_cmd(A) ::= UPDATE orconf(R) trnm(X) tridxby SET setlist(Y) where_opt(Z).	{ A = Trigger.UpdateStep(parse.Ctx, &X, Y, Z, R); }
 // INSERT
-trigger_cmd(A) ::= insert_cmd(R) INTO trnm(X) inscollist_opt(F) valuelist(Y).		{ A = sqlite3TriggerInsertStep(parse->db, &X, F, Y.pList, Y.pSelect, R); }
-trigger_cmd(A) ::= insert_cmd(R) INTO trnm(X) inscollist_opt(F) select(S).			{ A = sqlite3TriggerInsertStep(parse->db, &X, F, 0, S, R); }
+trigger_cmd(A) ::= insert_cmd(R) INTO trnm(X) inscollist_opt(F) valuelist(Y).		{ A = Trigger.InsertStep(parse.Ctx, &X, F, Y.List, Y.Select, R); }
+trigger_cmd(A) ::= insert_cmd(R) INTO trnm(X) inscollist_opt(F) select(S).			{ A = Trigger.InsertStep(parse.Ctx, &X, F, 0, S, R); }
 // DELETE
-trigger_cmd(A) ::= DELETE FROM trnm(X) tridxby where_opt(Y).						{ A = sqlite3TriggerDeleteStep(parse->db, &X, Y); }
+trigger_cmd(A) ::= DELETE FROM trnm(X) tridxby where_opt(Y).						{ A = Trigger.DeleteStep(parse.Ctx, &X, Y); }
 // SELECT
-trigger_cmd(A) ::= select(X).														{ A = sqlite3TriggerSelectStep(parse->db, X); }
+trigger_cmd(A) ::= select(X).														{ A = Trigger.SelectStep(parse.Ctx, X); }
 
 // The special RAISE expression that may occur in trigger programs
 expr(A) ::= RAISE(X) LP IGNORE RP(Y).  {
-	A.pExpr = sqlite3PExpr(parse, TK_RAISE, 0, 0, 0); 
-	if (A.pExpr) A.pExpr->affinity = OE_Ignore;
-	A.zStart = X.z;
-	A.zEnd = &Y.z[Y.n];
+	A.Expr = Expr.PExpr_(parse, TK.RAISE, 0, 0, 0); 
+	if (A.Expr != null) A.Expr.Aff = (AFF)OE.Ignore;
+	A.Start = X.data;
+	A.End = &Y.data.Substring(Y.length);
 }
 expr(A) ::= RAISE(X) LP raisetype(T) COMMA nm(Z) RP(Y).  {
-	A.pExpr = sqlite3PExpr(parse, TK_RAISE, 0, 0, &Z); 
-	if (A.pExpr) A.pExpr->affinity = (char)T;
-	A.zStart = X.z;
-	A.zEnd = &Y.z[Y.n];
+	A.Expr = Expr.PExpr_(parse, TK.RAISE, 0, 0, &Z); 
+	if (A.Expr != null) A.Expr.Aff = (AFF)T;
+	A.Start = X.data;
+	A.End = &Y.data.Substring(Y.length);
 }
 %endif OMIT_TRIGGER
 
-%type raisetype {int}
-raisetype(A) ::= ROLLBACK.	{ A = OE_Rollback; }
-raisetype(A) ::= ABORT.		{ A = OE_Abort; }
-raisetype(A) ::= FAIL.      { A = OE_Fail; }
+%type raisetype {OE}
+raisetype(A) ::= ROLLBACK.	{ A = OE.Rollback; }
+raisetype(A) ::= ABORT.		{ A = OE.Abort; }
+raisetype(A) ::= FAIL.      { A = OE.Fail; }
 
 ////////////////////////  DROP TRIGGER statement //////////////////////////////
 %ifndef OMIT_TRIGGER
-cmd ::= DROP TRIGGER ifexists(NOERR) fullname(X). { sqlite3DropTrigger(parse,X,NOERR); }
+cmd ::= DROP TRIGGER ifexists(NOERR) fullname(X). { Trigger.DropTrigger(parse, X, NOERR); }
 %endif
 
 //////////////////////// ATTACH DATABASE file AS name /////////////////////////
 %ifndef OMIT_ATTACH
-cmd ::= ATTACH database_kw_opt expr(F) AS expr(D) key_opt(K).	{ sqlite3Attach(parse, F.pExpr, D.pExpr, K); }
-cmd ::= DETACH database_kw_opt expr(D).							{ sqlite3Detach(parse, D.pExpr); }
+cmd ::= ATTACH database_kw_opt expr(F) AS expr(D) key_opt(K).	{ Attach.Attach_(parse, F.Expr, D.Expr, K); }
+cmd ::= DETACH database_kw_opt expr(D).							{ Attach.Detach(parse, D.Expr); }
 
-%type key_opt {Expr*}
-%destructor key_opt {sqlite3ExprDelete(parse->db, $$);}
-key_opt(A) ::= .					{ A = 0; }
-key_opt(A) ::= KEY expr(X).         { A = X.pExpr; }
+%type key_opt {Expr}
+%destructor key_opt { Expr.Delete(parse.Ctx, $$); }
+key_opt(A) ::= .					{ A = null; }
+key_opt(A) ::= KEY expr(X).         { A = X.Expr; }
 database_kw_opt ::= DATABASE.
 database_kw_opt ::= .
 %endif
 
 ////////////////////////// REINDEX collation //////////////////////////////////
 %ifndef OMIT_REINDEX
-cmd ::= REINDEX.                { sqlite3Reindex(parse, 0, 0); }
-cmd ::= REINDEX nm(X) dbnm(Y).	{ sqlite3Reindex(parse, &X, &Y); }
+cmd ::= REINDEX.                { parse.Reindex(null, null); }
+cmd ::= REINDEX nm(X) dbnm(Y).	{ parse.Reindex(&X, &Y); }
 %endif
 
 /////////////////////////////////// ANALYZE ///////////////////////////////////
 %ifndef OMIT_ANALYZE
-cmd ::= ANALYZE.                { sqlite3Analyze(parse, 0, 0); }
-cmd ::= ANALYZE nm(X) dbnm(Y).  { sqlite3Analyze(parse, &X, &Y); }
+cmd ::= ANALYZE.                { Analyze.Analyze_(parse, null, null); }
+cmd ::= ANALYZE nm(X) dbnm(Y).  { Analyze.Analyze_(parse, &X, &Y); }
 %endif
 
 //////////////////////// ALTER TABLE table ... ////////////////////////////////
 %ifndef OMIT_ALTERTABLE
-cmd ::= ALTER TABLE fullname(X) RENAME TO nm(Z).					{ sqlite3AlterRenameTable(parse, X, &Z); }
-cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt column(Y). { sqlite3AlterFinishAddColumn(parse, &Y); }
-add_column_fullname ::= fullname(X).	{ parse->Db->lookaside.bEnabled = 0; sqlite3AlterBeginAddColumn(parse, X); }
+cmd ::= ALTER TABLE fullname(X) RENAME TO nm(Z).					{ Alter.RenameTable(parse, X, &Z); }
+cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt column(Y). { Alter.FinishAddColumn(parse, &Y); }
+add_column_fullname ::= fullname(X).	{ parse.Ctx.Lookaside.Enabled = false; Alter.BeginAddColumn(parse, X); }
 kwcolumn_opt ::= .
 kwcolumn_opt ::= COLUMNKW.
 %endif
 
 //////////////////////// CREATE VIRTUAL TABLE ... /////////////////////////////
 %ifndef OMIT_VIRTUALTABLE
-cmd ::= create_vtab.						{ sqlite3VtabFinishParse(parse, 0); }
-cmd ::= create_vtab LP vtabarglist RP(X).	{ sqlite3VtabFinishParse(parse, &X); }
+cmd ::= create_vtab.						{ VTable.FinishParse(parse, null); }
+cmd ::= create_vtab LP vtabarglist RP(X).	{ VTable.FinishParse(parse, &X); }
 create_vtab ::= createkw VIRTUAL TABLE ifnotexists(E)
-                nm(X) dbnm(Y) USING nm(Z).	{ sqlite3VtabBeginParse(parse, &X, &Y, &Z, E); }
+                nm(X) dbnm(Y) USING nm(Z).	{ VTable.BeginParse(parse, &X, &Y, &Z, E); }
 vtabarglist ::= vtabarg.
 vtabarglist ::= vtabarglist COMMA vtabarg.
-vtabarg ::= .								{ sqlite3VtabArgInit(parse);}
+vtabarg ::= .								{ VTable.ArgInit(parse);}
 vtabarg ::= vtabarg vtabargtoken.
-vtabargtoken ::= ANY(X).					{ sqlite3VtabArgExtend(parse, &X); }
-vtabargtoken ::= lp anylist RP(X).			{ sqlite3VtabArgExtend(parse, &X); }
-lp ::= LP(X).								{ sqlite3VtabArgExtend(parse, &X); }
+vtabargtoken ::= ANY(X).					{ VTable.ArgExtend(parse, &X); }
+vtabargtoken ::= lp anylist RP(X).			{ VTable.ArgExtend(parse, &X); }
+lp ::= LP(X).								{ VTable.ArgExtend(parse, &X); }
 anylist ::= .
 anylist ::= anylist LP anylist RP.
 anylist ::= anylist ANY.

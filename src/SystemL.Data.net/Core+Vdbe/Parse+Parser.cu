@@ -1,15 +1,12 @@
-/* Driver template for the LEMON parser generator.
-** The author disclaims copyright to this source code.
-*/
-/* First off, code is included that follows the "include" declaration
-** in the input grammar file. */
+// Driver template for the LEMON parser generator. The author disclaims copyright to this source code.
+// First off, code is included that follows the "include" declaration in the input grammar file.
 #include <stdio.h>
 #line 30 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	#include "Core+Vdbe.cu.h"
 
 	#define YYNOERRORRECOVERY 1 // Disable all error recovery processing in the parser push-down automaton.
-	#define yyASSERTCOVERAGE(X) ASSERTCOVERAGE(X) // Make yyASSERTCOVERAGE() the same as testcase()
+	#define yytestcase(X) ASSERTCOVERAGE(X) // Make yyASSERTCOVERAGE() the same as testcase()
 
 	// An instance of this structure holds information about the LIMIT clause of a SELECT statement.
 	struct LimitVal
@@ -42,112 +39,88 @@
 	};
 #line 577 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
-	// This is a utility routine used to set the ExprSpan.zStart and ExprSpan.zEnd values of pOut so that the span covers the complete
-	// range of text beginning with pStart and going to the end of pEnd.
-	static void spanSet(ExprSpan *pOut, Token *pStart, Token *pEnd)
+	// This is a utility routine used to set the ExprSpan.zStart and ExprSpan.zEnd values of out_ so that the span covers the complete range of text beginning with start and going to the end of end.
+	__device__ static void SpanSet(ExprSpan *out_, Token *start, Token *end)
 	{
-		pOut->zStart = pStart->z;
-		pOut->zEnd = &pEnd->z[pEnd->n];
+		out_->Start = start->data;
+		out_->End = &end->data[end->length];
 	}
 
-	// Construct a new Expr object from a single identifier.  Use the new Expr to populate pOut.  Set the span of pOut to be the identifier
-	// that created the expression.
-	static void spanExpr(ExprSpan *pOut, Parse *parse, int op, Token *pValue)
+	// Construct a new Expr object from a single identifier.  Use the new Expr to populate out_.  Set the span of out_ to be the identifier that created the expression.
+	__device__ static void SpanExpr(ExprSpan *out_, Parse *parse, TK op, Token *value)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, 0, 0, pValue);
-		pOut->zStart = pValue->z;
-		pOut->zEnd = &pValue->z[pValue->n];
+		out_->Expr = Expr::PExpr_(parse, op, 0, 0, value);
+		out_->Start = value->data;
+		out_->End = &value->data[value->length];
 	}
-#line 666 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 663 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// This routine constructs a binary expression node out of two ExprSpan objects and uses the result to populate a new ExprSpan object.
-	static void spanBinaryExpr(ExprSpan *pOut, Parse *parse, int op, ExprSpan *left, ExprSpan *right)
+	static void SpanBinaryExpr(ExprSpan *out_, Parse *parse, int op, ExprSpan *left, ExprSpan *right)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, left->pExpr, right->pExpr, 0);
-		pOut->zStart = left->zStart;
-		pOut->zEnd = right->zEnd;
+		out_->Expr = Expr::PExpr_(parse, op, left->Expr, right->Expr, 0);
+		out_->Start = left->Start;
+		out_->End = right->End;
 	}
-#line 711 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 708 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// Construct an expression node for a unary postfix operator
-	static void spanUnaryPostfix(ExprSpan *pOut, Parse *parse, int op, ExprSpan *pOperand, Token *pPostOp)
+	static void SpanUnaryPostfix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *postOp)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, pOperand->pExpr, 0, 0);
-		pOut->zStart = pOperand->zStart;
-		pOut->zEnd = &pPostOp->z[pPostOp->n];
+		out_->Expr = Expr::PExpr_(parse, op, operand->Expr, 0, 0);
+		out_->Start = operand->Start;
+		out_->End = &postOp->data[postOp->length];
 	}                           
-#line 724 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 721 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// A routine to convert a binary TK_IS or TK_ISNOT expression into a unary TK_ISNULL or TK_NOTNULL expression.
-	static void binaryToUnaryIfNull(Parse *parse, Expr *pY, Expr *pA, int op)
+	__device__ static void BinaryToUnaryIfNull(Parse *parse, Expr *y, Expr *a, TK op)
 	{
-		sqlite3 *db = parse->db;
-		if (db->mallocFailed==0 && pY->op==TK_NULL)
+		Context *ctx = parse->Ctx;
+		if (!ctx->MallocFailed && y->OP == TK_NULL)
 		{
-			pA->op = (u8)op;
-			sqlite3ExprDelete(db, pA->pRight);
-			pA->pRight = 0;
+			a->OP = op;
+			Expr::Delete(ctx, a->Right);
+			a->Right = nullptr;
 		}
 	}
-#line 745 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 742 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// Construct an expression node for a unary prefix operator
-	static void spanUnaryPrefix(ExprSpan *pOut, Parse *parse, int op, ExprSpan *pOperand, Token *pPreOp)
+	__device__ static void SpanUnaryPrefix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *preOp)
 	{
-		pOut->pExpr = sqlite3PExpr(parse, op, pOperand->pExpr, 0, 0);
-		pOut->zStart = pPreOp->z;
-		pOut->zEnd = pOperand->zEnd;
+		out_->Expr = Expr::PExpr_(parse, op, operand->Expr, 0, 0);
+		out_->Start = preOp->data;
+		out_->End = operand->End;
 	}
-#line 101 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-/* Next is all token values, in a form suitable for use by makeheaders.
-** This section will be null unless lemon is run with the -m switch.
-*/
-/* 
-** These constants (all generated automatically by the parser generator)
-** specify the various kinds of tokens (terminals) that the parser
-** understands. 
-**
-** Each symbol here is a terminal symbol in the grammar.
-*/
-/* Make sure the INTERFACE macro is defined.
-*/
+#line 96 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
+// Next is all token values, in a form suitable for use by makeheaders. This section will be null unless lemon is run with the -m switch.
+// These constants (all generated automatically by the parser generator) specify the various kinds of tokens (terminals) that the parser understands. 
+// Each symbol here is a terminal symbol in the grammar.
+// Make sure the INTERFACE macro is defined.
 #ifndef INTERFACE
-# define INTERFACE 1
+#define INTERFACE 1
 #endif
-/* The next thing included is series of defines which control
-** various aspects of the generated parser.
-**    YYCODETYPE         is the data type used for storing terminal
-**                       and nonterminal numbers.  "unsigned char" is
-**                       used if there are fewer than 250 terminals
-**                       and nonterminals.  "int" is used otherwise.
-**    YYNOCODE           is a number of type YYCODETYPE which corresponds
-**                       to no legal terminal or nonterminal number.  This
-**                       number is used to fill in empty slots of the hash 
-**                       table.
-**    YYFALLBACK         If defined, this indicates that one or more tokens
-**                       have fall-back values which should be used if the
-**                       original value of the token will not parse.
-**    YYACTIONTYPE       is the data type used for storing terminal
-**                       and nonterminal numbers.  "unsigned char" is
-**                       used if there are fewer than 250 rules and
-**                       states combined.  "int" is used otherwise.
-**    ParserTOKENTYPE     is the data type used for minor tokens given 
-**                       directly to the parser from the tokenizer.
-**    YYMINORTYPE        is the data type used for all minor tokens.
-**                       This is typically a union of many types, one of
-**                       which is ParserTOKENTYPE.  The entry in the union
-**                       for base tokens is called "yy0".
-**    YYSTACKDEPTH       is the maximum depth of the parser's stack.  If
-**                       zero the stack is dynamically sized using realloc()
-**    ParserARG_SDECL     A static variable declaration for the %extra_argument
-**    ParserARG_PDECL     A parameter declaration for the %extra_argument
-**    ParserARG_STORE     Code to store %extra_argument into yypParser
-**    ParserARG_FETCH     Code to extract %extra_argument from yypParser
-**    YYNSTATE           the combined number of states.
-**    YYNRULE            the number of rules in the grammar
-**    YYERRORSYMBOL      is the code number of the error symbol.  If not
-**                       defined, then do no error processing.
-*/
+// The next thing included is series of defines which control various aspects of the generated parser.
+//    YYCODETYPE         is the data type used for storing terminal and nonterminal numbers.  "unsigned char" is
+//                       used if there are fewer than 250 terminals and nonterminals.  "int" is used otherwise.
+//    YYNOCODE           is a number of type YYCODETYPE which corresponds to no legal terminal or nonterminal number.  This
+//                       number is used to fill in empty slots of the hash table.
+//    YYFALLBACK         If defined, this indicates that one or more tokens have fall-back values which should be used if the
+//                       original value of the token will not parse.
+//    YYACTIONTYPE       is the data type used for storing terminal and nonterminal numbers.  "unsigned char" is
+//                       used if there are fewer than 250 rules and states combined.  "int" is used otherwise.
+//    ParserTOKENTYPE     is the data type used for minor tokens given directly to the parser from the tokenizer.
+//    YYMINORTYPE        is the data type used for all minor tokens. This is typically a union of many types, one of
+//                       which is ParserTOKENTYPE.  The entry in the union for base tokens is called "yy0".
+//    YYSTACKDEPTH       is the maximum depth of the parser's stack.  If zero the stack is dynamically sized using realloc()
+//    ParserARG_SDECL     A static variable declaration for the %extra_argument
+//    ParserARG_PDECL     A parameter declaration for the %extra_argument
+//    ParserARG_STORE     Code to store %extra_argument into yypParser
+//    ParserARG_FETCH     Code to extract %extra_argument from yypParser
+//    YYNSTATE           the combined number of states.
+//    YYNRULE            the number of rules in the grammar
+//    YYERRORSYMBOL      is the code number of the error symbol.  If not defined, then do no error processing.
 #define YYCODETYPE unsigned char
 #define YYNOCODE 251
 #define YYACTIONTYPE unsigned short int
@@ -160,23 +133,21 @@ typedef union {
   bool yy2;
   Select * yy3;
   ExprSpan yy4;
-  SO yy5;
-  ExprList * yy6;
-  struct { int Value; int Mask; } yy7;
-  uint8 yy8;
+  OE yy5;
+  SO yy6;
+  ExprList * yy7;
+  struct { int Value; int Mask; } yy8;
   SrcList * yy9;
   SF yy10;
   Expr * yy11;
   LimitVal yy12;
   JT yy13;
   IdList * yy14;
-  ExprList* yy15;
-  OE yy16;
-  ValueList yy17;
-  struct LikeOp yy18;
-  TriggerStep * yy19;
-  struct TrigEvent yy20;
-  Expr* yy21;
+  ValueList yy15;
+  LikeOp yy16;
+  TriggerStep * yy17;
+  TK yy18;
+  TrigEvent yy19;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 100
@@ -192,70 +163,45 @@ typedef union {
 #define YY_ACCEPT_ACTION  (YYNSTATE+YYNRULE+1)
 #define YY_ERROR_ACTION   (YYNSTATE+YYNRULE)
 
-/* The yyzerominor constant is used to initialize instances of
-** YYMINORTYPE objects to zero. */
-static const YYMINORTYPE yyzerominor = { 0 };
+// The yyzerominor constant is used to initialize instances of YYMINORTYPE objects to zero.
+__device__ static const YYMINORTYPE yyzerominor = { 0 };
 
-/* Define the yytestcase() macro to be a no-op if is not already defined
-** otherwise.
-**
-** Applications can choose to define yytestcase() in the %include section
-** to a macro that can assist in verifying code coverage.  For production
-** code the yytestcase() macro should be turned off.  But it is useful
-** for testing.
-*/
-#ifndef yytestcase
-# define yytestcase(X)
+// Define the yytestcase() macro to be a no-op if is not already defined otherwise.
+//
+// Applications can choose to define yytestcase() in the %include section to a macro that can assist in verifying code coverage.  For production
+// code the yytestcase() macro should be turned off.  But it is useful for testing.
+#ifndef yyASSERTCOVERAGE
+#define yyASSERTCOVERAGE(X)
 #endif
 
-
-/* Next are the tables used to determine what action to take based on the
-** current state and lookahead token.  These tables are used to implement
-** functions that take a state number and lookahead value and return an
-** action integer.  
-**
-** Suppose the action integer is N.  Then the action is determined as
-** follows
-**
-**   0 <= N < YYNSTATE                  Shift N.  That is, push the lookahead
-**                                      token onto the stack and goto state N.
-**
-**   YYNSTATE <= N < YYNSTATE+YYNRULE   Reduce by rule N-YYNSTATE.
-**
-**   N == YYNSTATE+YYNRULE              A syntax error has occurred.
-**
-**   N == YYNSTATE+YYNRULE+1            The parser accepts its input.
-**
-**   N == YYNSTATE+YYNRULE+2            No such action.  Denotes unused
-**                                      slots in the yy_action[] table.
-**
-** The action table is constructed as a single large table named yy_action[].
-** Given state S and lookahead X, the action is computed as
-**
-**      yy_action[ yy_shift_ofst[S] + X ]
-**
-** If the index value yy_shift_ofst[S]+X is out of range or if the value
-** yy_lookahead[yy_shift_ofst[S]+X] is not equal to X or if yy_shift_ofst[S]
-** is equal to YY_SHIFT_USE_DFLT, it means that the action is not in the table
-** and that yy_default[S] should be used instead.  
-**
-** The formula above is for computing the action when the lookahead is
-** a terminal symbol.  If the lookahead is a non-terminal (as occurs after
-** a reduce action) then the yy_reduce_ofst[] array is used in place of
-** the yy_shift_ofst[] array and YY_REDUCE_USE_DFLT is used in place of
-** YY_SHIFT_USE_DFLT.
-**
-** The following are the tables generated in this section:
-**
-**  yy_action[]        A single table containing all actions.
-**  yy_lookahead[]     A table containing the lookahead for each entry in
-**                     yy_action.  Used to detect hash collisions.
-**  yy_shift_ofst[]    For each state, the offset into yy_action for
-**                     shifting terminals.
-**  yy_reduce_ofst[]   For each state, the offset into yy_action for
-**                     shifting non-terminals after a reduce.
-**  yy_default[]       Default action for each state.
-*/
+// Next are the tables used to determine what action to take based on the current state and lookahead token.  These tables are used to implement
+// functions that take a state number and lookahead value and return an action integer.  
+//
+// Suppose the action integer is N.  Then the action is determined as follows
+//
+//   0 <= N < YYNSTATE                  Shift N.  That is, push the lookahead token onto the stack and goto state N.
+//   YYNSTATE <= N < YYNSTATE+YYNRULE   Reduce by rule N-YYNSTATE.
+//   N == YYNSTATE+YYNRULE              A syntax error has occurred.
+//   N == YYNSTATE+YYNRULE+1            The parser accepts its input.
+//   N == YYNSTATE+YYNRULE+2            No such action.  Denotes unused slots in the yy_action[] table.
+//
+// The action table is constructed as a single large table named yy_action[]. Given state S and lookahead X, the action is computed as
+//
+//      yy_action[ yy_shift_ofst[S] + X ]
+//
+// If the index value yy_shift_ofst[S]+X is out of range or if the value yy_lookahead[yy_shift_ofst[S]+X] is not equal to X or if yy_shift_ofst[S]
+// is equal to YY_SHIFT_USE_DFLT, it means that the action is not in the table and that yy_default[S] should be used instead.  
+//
+// The formula above is for computing the action when the lookahead is a terminal symbol.  If the lookahead is a non-terminal (as occurs after
+// a reduce action) then the yy_reduce_ofst[] array is used in place of the yy_shift_ofst[] array and YY_REDUCE_USE_DFLT is used in place of YY_SHIFT_USE_DFLT.
+//
+// The following are the tables generated in this section:
+//
+//  yy_action[]        A single table containing all actions.
+//  yy_lookahead[]     A table containing the lookahead for each entry in yy_action.  Used to detect hash collisions.
+//  yy_shift_ofst[]    For each state, the offset into yy_action for shifting terminals.
+//  yy_reduce_ofst[]   For each state, the offset into yy_action for shifting non-terminals after a reduce.
+//  yy_default[]       Default action for each state.
 #define YY_ACTTAB_COUNT (1564)
 static const YYACTIONTYPE yy_action[] = {
  /*     0 */   309,  955,  184,  417,    2,  171,  624,  594,   56,   56,
@@ -726,18 +672,14 @@ static const YYACTIONTYPE yy_default[] = {
  /*   620 */   665,  639,  636,  635,  631,  630,  628,
 };
 
-/* The next table maps tokens into fallback tokens.  If a construct
-** like the following:
-** 
-**      %fallback ID X Y Z.
-**
-** appears in the grammar, then ID becomes a fallback token for X, Y,
-** and Z.  Whenever one of the tokens X, Y, or Z is input to the parser
-** but it does not parse, the type of the token is changed to ID and
-** the parse is retried before an error is thrown.
-*/
+// The next table maps tokens into fallback tokens.  If a construct like the following:
+// 
+//      %fallback ID X Y Z.
+//
+// appears in the grammar, then ID becomes a fallback token for X, Y, and Z.  Whenever one of the tokens X, Y, or Z is input to the parser
+// but it does not parse, the type of the token is changed to ID and the parse is retried before an error is thrown.
 #ifdef YYFALLBACK
-static const YYCODETYPE yyFallback[] = {
+__constant__ static const YYCODETYPE yyFallback[] = {
     0,  /*          $ => nothing */
     0,  /*       SEMI => nothing */
    26,  /*    EXPLAIN => ID */
@@ -806,83 +748,71 @@ static const YYCODETYPE yyFallback[] = {
    26,  /*     RENAME => ID */
    26,  /*   CTIME_KW => ID */
 };
-#endif /* YYFALLBACK */
+#endif
 
-/* The following structure represents a single element of the
-** parser's stack.  Information stored includes:
-**
-**   +  The state number for the parser at this level of the stack.
-**
-**   +  The value of the token stored at this level of the stack.
-**      (In other words, the "major" token.)
-**
-**   +  The semantic value stored at this level of the stack.  This is
-**      the information used by the action routines in the grammar.
-**      It is sometimes called the "minor" token.
-*/
-struct yyStackEntry {
-  YYACTIONTYPE stateno;  /* The state-number */
-  YYCODETYPE major;      /* The major token value.  This is the code
-                         ** number for the token at this stack level */
-  YYMINORTYPE minor;     /* The user-supplied minor token value.  This
-                         ** is the value of the token  */
-};
-typedef struct yyStackEntry yyStackEntry;
+// The following structure represents a single element of the parser's stack.  Information stored includes:
+//
+//   +  The state number for the parser at this level of the stack.
+//
+//   +  The value of the token stored at this level of the stack. (In other words, the "major" token.)
+//
+//   +  The semantic value stored at this level of the stack.  This is the information used by the action routines in the grammar.
+//      It is sometimes called the "minor" token.
+typedef struct yyStackEntry
+{
+	YYACTIONTYPE stateno;  // The state-number
+	YYCODETYPE major;      // The major token value.  This is the code number for the token at this stack level
+	YYMINORTYPE minor;     // The user-supplied minor token value.  This is the value of the token
+} yyStackEntry;
 
-/* The state of the parser is completely contained in an instance of
-** the following structure */
-struct yyParser {
-  int yyidx;                    /* Index of top element in stack */
+// The state of the parser is completely contained in an instance of the following structure
+typedef struct yyParser
+{
+	int yyidx;                    // Index of top element in stack
 #ifdef YYTRACKMAXSTACKDEPTH
-  int yyidxMax;                 /* Maximum value of yyidx */
+	int yyidxMax;                 // Maximum value of yyidx
 #endif
-  int yyerrcnt;                 /* Shifts left before out of the error */
-  ParserARG_SDECL                /* A place to hold %extra_argument */
+	int yyerrcnt;                 // Shifts left before out of the error
+	ParserARG_SDECL                // A place to hold %extra_argument
 #if YYSTACKDEPTH<=0
-  int yystksz;                  /* Current side of the stack */
-  yyStackEntry *yystack;        /* The parser's stack */
+	int yystksz;                  // Current side of the stack
+	yyStackEntry *yystack;        // The parser's stack
 #else
-  yyStackEntry yystack[YYSTACKDEPTH];  /* The parser's stack */
+	yyStackEntry yystack[YYSTACKDEPTH];  // The parser's stack
 #endif
-};
-typedef struct yyParser yyParser;
+} yyParser;
 
 #ifndef NDEBUG
 #include <stdio.h>
-static FILE *yyTraceFILE = 0;
-static char *yyTracePrompt = 0;
-#endif /* NDEBUG */
+static FILE *yyTraceFILE = nullptr;
+static char *yyTracePrompt = nullptr;
+#endif
 
 #ifndef NDEBUG
-/* 
-** Turn parser tracing on by giving a stream to which to write the trace
-** and a prompt to preface each trace message.  Tracing is turned off
-** by making either argument NULL 
-**
-** Inputs:
-** <ul>
-** <li> A FILE* to which trace output should be written.
-**      If NULL, then tracing is turned off.
-** <li> A prefix string written at the beginning of every
-**      line of trace output.  If NULL, then tracing is
-**      turned off.
-** </ul>
-**
-** Outputs:
-** None.
-*/
-void ParserTrace(FILE *TraceFILE, char *zTracePrompt){
-  yyTraceFILE = TraceFILE;
-  yyTracePrompt = zTracePrompt;
-  if( yyTraceFILE==0 ) yyTracePrompt = 0;
-  else if( yyTracePrompt==0 ) yyTraceFILE = 0;
+// 
+// Turn parser tracing on by giving a stream to which to write the trace and a prompt to preface each trace message.  Tracing is turned off
+// by making either argument NULL 
+//
+// Inputs:
+// <ul>
+// <li> A FILE* to which trace output should be written. If NULL, then tracing is turned off.
+// <li> A prefix string written at the beginning of every line of trace output.  If NULL, then tracing is turned off.
+// </ul>
+//
+// Outputs:
+// None.
+__device__ void ParserTrace(FILE *TraceFILE, char *tracePrompt)
+{
+	yyTraceFILE = TraceFILE;
+	yyTracePrompt = tracePrompt;
+	if (!yyTraceFILE) yyTracePrompt = nullptr;
+	else if (!yyTracePrompt) yyTraceFILE = nullptr;
 }
-#endif /* NDEBUG */
+#endif
 
 #ifndef NDEBUG
-/* For tracing shifts, the names of all terminals and nonterminals
-** are required.  The following table supplies these names */
-static const char *const yyTokenName[] = { 
+// For tracing shifts, the names of all terminals and nonterminals are required.  The following table supplies these names
+__constant__ static const char *const yyTokenName[] = {
   "$",             "SEMI",          "EXPLAIN",       "QUERY",       
   "PLAN",          "BEGIN",         "TRANSACTION",   "DEFERRED",    
   "IMMEDIATE",     "EXCLUSIVE",     "COMMIT",        "END",         
@@ -947,12 +877,11 @@ static const char *const yyTokenName[] = {
   "create_vtab",   "vtabarglist",   "vtabarg",       "vtabargtoken",
   "lp",            "anylist",     
 };
-#endif /* NDEBUG */
+#endif
 
 #ifndef NDEBUG
-/* For tracing reduce actions, the names of all rules are required.
-*/
-static const char *const yyRuleName[] = {
+// For tracing reduce actions, the names of all rules are required.
+__constant__ static const char *const yyRuleName[] = {
  /*   0 */ "input ::= cmdlist",
  /*   1 */ "cmdlist ::= cmdlist ecmd",
  /*   2 */ "cmdlist ::= ecmd",
@@ -1281,89 +1210,69 @@ static const char *const yyRuleName[] = {
  /* 325 */ "anylist ::= anylist LP anylist RP",
  /* 326 */ "anylist ::= anylist ANY",
 };
-#endif /* NDEBUG */
-
+#endif
 
 #if YYSTACKDEPTH<=0
-/*
-** Try to increase the size of the parser stack.
-*/
-static void yyGrowStack(yyParser *p){
-  int newSize;
-  yyStackEntry *pNew;
-
-  newSize = p->yystksz*2 + 100;
-  pNew = realloc(p->yystack, newSize*sizeof(pNew[0]));
-  if( pNew ){
-    p->yystack = pNew;
-    p->yystksz = newSize;
+// Try to increase the size of the parser stack.
+__device__ static void yyGrowStack(yyParser *p)
+{
+	int newSize = p->yystksz*2 + 100;
+	yyStackEntry *newEntry = realloc(p->yystack, newSize*sizeof(pNew[0]));
+	if (newEntry)
+	{
+		p->yystack = pNew;
+		p->yystksz = newSize;
 #ifndef NDEBUG
-    if( yyTraceFILE ){
-      fprintf(yyTraceFILE,"%sStack grows to %d entries!\n",
-              yyTracePrompt, p->yystksz);
-    }
+		if (yyTraceFILE)
+			fprintf(yyTraceFILE,"%sStack grows to %d entries!\n", yyTracePrompt, p->yystksz);
 #endif
-  }
+	}
 }
 #endif
 
-/* 
-** This function allocates a new parser.
-** The only argument is a pointer to a function which works like
-** malloc.
-**
-** Inputs:
-** A pointer to the function used to allocate memory.
-**
-** Outputs:
-** A pointer to a parser.  This pointer is used in subsequent calls
-** to Parser and ParserFree.
-*/
-void *ParserAlloc(void *(*mallocProc)(size_t)){
-  yyParser *pParser;
-  pParser = (yyParser*)(*mallocProc)( (size_t)sizeof(yyParser) );
-  if( pParser ){
-    pParser->yyidx = -1;
+// This function allocates a new parser. The only argument is a pointer to a function which works like malloc.
+//
+// Inputs:
+// A pointer to the function used to allocate memory.
+//
+// Outputs:
+// A pointer to a parser.  This pointer is used in subsequent calls to Parser and ParserFree.
+__device__ void *ParserAlloc(void *(*allocProc)(size_t))
+{
+	yyParser *parser = (yyParser *)(*allocProc)((size_t)sizeof(yyParser));
+	if (parser)
+	{
+		parser->yyidx = -1;
 #ifdef YYTRACKMAXSTACKDEPTH
-    pParser->yyidxMax = 0;
+		parser->yyidxMax = 0;
 #endif
 #if YYSTACKDEPTH<=0
-    pParser->yystack = NULL;
-    pParser->yystksz = 0;
-    yyGrowStack(pParser);
+		parser->yystack = NULL;
+		parser->yystksz = 0;
+		yyGrowStack(parser);
 #endif
-  }
-  return pParser;
+	}
+	return parser;
 }
 
-/* The following function deletes the value associated with a
-** symbol.  The symbol can be either a terminal or nonterminal.
-** "yymajor" is the symbol code, and "yypminor" is a pointer to
-** the value.
-*/
-static void yy_destructor(
-  yyParser *yypParser,    /* The parser */
-  YYCODETYPE yymajor,     /* Type code for object to destroy */
-  YYMINORTYPE *yypminor   /* The object to be destroyed */
-){
-  ParserARG_FETCH;
-  switch( yymajor ){
-    /* Here is inserted the actions which take place when a
-    ** terminal or non-terminal is destroyed.  This can happen
-    ** when the symbol is popped from the stack during a
-    ** reduce or during error processing or when a parser is 
-    ** being destroyed before it is finished parsing.
-    **
-    ** Note: during a reduce, the only symbols destroyed are those
-    ** which appear on the RHS of the rule, but which are not used
-    ** inside the C code.
-    */
+// The following function deletes the value associated with a symbol.  The symbol can be either a terminal or nonterminal.
+// "yymajor" is the symbol code, and "yypminor" is a pointer to the value.
+__device__ static void yy_destructor(yyParser *yypParser, YYCODETYPE yymajor, YYMINORTYPE *yypminor)
+{
+	ParserARG_FETCH;
+	switch (yymajor)
+	{
+		// Here is inserted the actions which take place when a terminal or non-terminal is destroyed.  This can happen
+		// when the symbol is popped from the stack during a reduce or during error processing or when a parser is 
+		// being destroyed before it is finished parsing.
+		//
+		// Note: during a reduce, the only symbols destroyed are those which appear on the RHS of the rule, but which are not used inside the C code.
     case 160: /* select */
     case 194: /* oneselect */
 {
 #line 298 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
  Select::Delete(parse->Ctx, (yypminor.yy3)); 
-#line 1366 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1275 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 173: /* term */
@@ -1371,17 +1280,23 @@ static void yy_destructor(
 {
 #line 575 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
  Expr::Delete(parse->Ctx, (yypminor.yy4).Expr); 
-#line 1374 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1283 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 178: /* idxlist_opt */
     case 187: /* idxlist */
+    case 197: /* selcollist */
+    case 200: /* groupby_opt */
+    case 204: /* sclp */
+    case 214: /* sortlist */
+    case 215: /* nexprlist */
+    case 216: /* setlist */
     case 220: /* exprlist */
     case 225: /* case_exprlist */
 {
-#line 909 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3ExprListDelete(parse->Db, (yypminor.yy6)); 
-#line 1384 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 906 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+ Expr::ListDelete(parse->Ctx, (yypminor.yy7)); 
+#line 1299 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 193: /* fullname */
@@ -1391,34 +1306,27 @@ static void yy_destructor(
 {
 #line 405 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
  Parse::SrcListDelete(parse->Ctx, (yypminor.yy9)); 
-#line 1394 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-}
-      break;
-    case 197: /* selcollist */
-    case 200: /* groupby_opt */
-    case 204: /* sclp */
-    case 214: /* sortlist */
-    case 216: /* setlist */
-{
-#line 327 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- Expr::ListDelete(parse->Ctx, (yypminor.yy6)); 
-#line 1405 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1309 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 199: /* where_opt */
     case 201: /* having_opt */
     case 210: /* on_opt */
+    case 224: /* case_operand */
+    case 226: /* case_else */
+    case 236: /* when_clause */
+    case 241: /* key_opt */
 {
 #line 490 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
  Expr::Delete(parse->Ctx, (yypminor.yy11)); 
-#line 1414 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1322 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 202: /* orderby_opt */
 {
 #line 437 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- Expr::ListDelete(parse->Ctx, (yypminor.yy6));
-#line 1421 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+ Expr::ListDelete(parse->Ctx, (yypminor.yy7));
+#line 1329 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 211: /* using_opt */
@@ -1427,298 +1335,227 @@ static void yy_destructor(
 {
 #line 431 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
  Parse::IdListDelete(parse->Ctx, (yypminor.yy14)); 
-#line 1430 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-}
-      break;
-    case 215: /* nexprlist */
-{
-#line 888 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3ExprListDelete(parse->Db, (yypminor.yy15)); 
-#line 1437 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1338 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 219: /* valuelist */
 {
 #line 530 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- Expr::ListDelete(parse->Ctx, (yypminor.yy17).List); Select::Delete(parse->Ctx, (yypminor.yy17).Select); 
-#line 1444 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-}
-      break;
-    case 224: /* case_operand */
-    case 226: /* case_else */
-{
-#line 881 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3ExprDelete(parse->Db, (yypminor.yy11)); 
-#line 1452 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+ Expr::ListDelete(parse->Ctx, (yypminor.yy15).List); Select::Delete(parse->Ctx, (yypminor.yy15).Select); 
+#line 1345 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 232: /* trigger_cmd_list */
     case 237: /* trigger_cmd */
 {
-#line 1000 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3DeleteTriggerStep(parse->db, (yypminor.yy19)); 
-#line 1460 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 997 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+ Trigger::DeleteTriggerStep(parse->Ctx, (yypminor.yy17)); 
+#line 1353 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
     case 234: /* trigger_event */
 {
-#line 986 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3IdListDelete(parse->db, (yypminor.yy20).b); 
-#line 1467 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 983 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+ Parse::IdListDelete(parse->Ctx, (yypminor.yy19).B); 
+#line 1360 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
 }
       break;
-    case 236: /* when_clause */
-{
-#line 995 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
- sqlite3ExprDelete(parse->db, (yypminor.yy11)); 
-#line 1474 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-}
-      break;
-    case 241: /* key_opt */
-{
-#line 1068 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-sqlite3ExprDelete(parse->db, (yypminor.yy21));
-#line 1481 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-}
-      break;
-    default:  break;   /* If no destructor action specified: do nothing */
-  }
+    default:  break; // If no destructor action specified: do nothing
+	}
 }
 
-/*
-** Pop the parser's stack once.
-**
-** If there is a destructor routine associated with the token which
-** is popped from the stack, then call it.
-**
-** Return the major token number for the symbol popped.
-*/
-static int yy_pop_parser_stack(yyParser *pParser){
-  YYCODETYPE yymajor;
-  yyStackEntry *yytos = &pParser->yystack[pParser->yyidx];
+// Pop the parser's stack once.
+//
+// If there is a destructor routine associated with the token which is popped from the stack, then call it.
+//
+// Return the major token number for the symbol popped.
+__device__ static int yy_pop_parser_stack(yyParser *parser)
+{
+	yyStackEntry *yytos = &parser->yystack[parser->yyidx];
 
-  if( pParser->yyidx<0 ) return 0;
+	if (parser->yyidx < 0) return 0;
 #ifndef NDEBUG
-  if( yyTraceFILE && pParser->yyidx>=0 ){
-    fprintf(yyTraceFILE,"%sPopping %s\n",
-      yyTracePrompt,
-      yyTokenName[yytos->major]);
-  }
+	if (yyTraceFILE && parser->yyidx >= 0)
+		fprintf(yyTraceFILE, "%sPopping %s\n", yyTracePrompt, yyTokenName[yytos->major]);
 #endif
-  yymajor = yytos->major;
-  yy_destructor(pParser, yymajor, &yytos->minor);
-  pParser->yyidx--;
-  return yymajor;
+	YYCODETYPE yymajor = yytos->major;
+	yy_destructor(parser, yymajor, &yytos->minor);
+	parser->yyidx--;
+	return yymajor;
 }
 
-/* 
-** Deallocate and destroy a parser.  Destructors are all called for
-** all stack elements before shutting the parser down.
-**
-** Inputs:
-** <ul>
-** <li>  A pointer to the parser.  This should be a pointer
-**       obtained from ParserAlloc.
-** <li>  A pointer to a function used to reclaim memory obtained
-**       from malloc.
-** </ul>
-*/
-void ParserFree(
-  void *p,                    /* The parser to be deleted */
-  void (*freeProc)(void*)     /* Function used to reclaim memory */
-){
-  yyParser *pParser = (yyParser*)p;
-  if( pParser==0 ) return;
-  while( pParser->yyidx>=0 ) yy_pop_parser_stack(pParser);
+// Deallocate and destroy a parser.  Destructors are all called for all stack elements before shutting the parser down.
+//
+// Inputs:
+// <ul>
+// <li>  A pointer to the parser.  This should be a pointer obtained from ParserAlloc.
+// <li>  A pointer to a function used to reclaim memory obtained from malloc.
+// </ul>
+__device__ void ParserFree(void *p, void (*freeProc)(void*))
+{
+	yyParser *parser = (yyParser *)p;
+	if (!parser) return;
+	while (parser->yyidx >= 0) yy_pop_parser_stack(parser);
 #if YYSTACKDEPTH<=0
-  free(pParser->yystack);
+	free(parser->yystack);
 #endif
-  (*freeProc)((void*)pParser);
+	(*freeProc)((void*)parser);
 }
 
-/*
-** Return the peak depth of the stack for a parser.
-*/
+// Return the peak depth of the stack for a parser.
 #ifdef YYTRACKMAXSTACKDEPTH
-int ParserStackPeak(void *p){
-  yyParser *pParser = (yyParser*)p;
-  return pParser->yyidxMax;
+__device__ int ParserStackPeak(void *p)
+{
+	yyParser *parser = (yyParser *)p;
+	return parser->yyidxMax;
 }
 #endif
 
-/*
-** Find the appropriate action for a parser given the terminal
-** look-ahead token iLookAhead.
-**
-** If the look-ahead token is YYNOCODE, then check to see if the action is
-** independent of the look-ahead.  If it is, return the action, otherwise
-** return YY_NO_ACTION.
-*/
-static int yy_find_shift_action(
-  yyParser *pParser,        /* The parser */
-  YYCODETYPE iLookAhead     /* The look-ahead token */
-){
-  int i;
-  int stateno = pParser->yystack[pParser->yyidx].stateno;
+// Find the appropriate action for a parser given the terminal look-ahead token lookAhead.
+//
+// If the look-ahead token is YYNOCODE, then check to see if the action is independent of the look-ahead.  If it is, return the action, otherwise
+// return YY_NO_ACTION.
+__device__ static int yy_find_shift_action(yyParser *parser, YYCODETYPE lookAhead)
+{
+	int stateno = parser->yystack[parser->yyidx].stateno;
  
-  if( stateno>YY_SHIFT_COUNT
-   || (i = yy_shift_ofst[stateno])==YY_SHIFT_USE_DFLT ){
-    return yy_default[stateno];
-  }
-  assert( iLookAhead!=YYNOCODE );
-  i += iLookAhead;
-  if( i<0 || i>=YY_ACTTAB_COUNT || yy_lookahead[i]!=iLookAhead ){
-    if( iLookAhead>0 ){
+	int i;
+	if (stateno > YY_SHIFT_COUNT || (i = yy_shift_ofst[stateno]) == YY_SHIFT_USE_DFLT)
+		return yy_default[stateno];
+	_assert(lookAhead != YYNOCODE);
+	i += lookAhead;
+	if (i < 0 || i >= YY_ACTTAB_COUNT || yy_lookahead[i] != lookAhead)
+	{
+		if (lookAhead > 0)
+		{
 #ifdef YYFALLBACK
-      YYCODETYPE iFallback;            /* Fallback token */
-      if( iLookAhead<sizeof(yyFallback)/sizeof(yyFallback[0])
-             && (iFallback = yyFallback[iLookAhead])!=0 ){
+			YYCODETYPE fallback; // Fallback token
+			if (lookAhead < sizeof(yyFallback) / sizeof(yyFallback[0]) && (fallback = yyFallback[lookAhead]) != 0)
+			{
 #ifndef NDEBUG
-        if( yyTraceFILE ){
-          fprintf(yyTraceFILE, "%sFALLBACK %s => %s\n",
-             yyTracePrompt, yyTokenName[iLookAhead], yyTokenName[iFallback]);
-        }
+				if (yyTraceFILE)
+					fprintf(yyTraceFILE, "%sFALLBACK %s => %s\n", yyTracePrompt, yyTokenName[lookAhead], yyTokenName[fallback]);
 #endif
-        return yy_find_shift_action(pParser, iFallback);
-      }
+				return yy_find_shift_action(parser, fallback);
+			}
 #endif
 #ifdef YYWILDCARD
-      {
-        int j = i - iLookAhead + YYWILDCARD;
-        if( 
+			{
+				int j = i - lookAhead + YYWILDCARD;
+				if (
 #if YY_SHIFT_MIN+YYWILDCARD<0
-          j>=0 &&
+				j >= 0 &&
 #endif
 #if YY_SHIFT_MAX+YYWILDCARD>=YY_ACTTAB_COUNT
-          j<YY_ACTTAB_COUNT &&
+				j < YY_ACTTAB_COUNT &&
 #endif
-          yy_lookahead[j]==YYWILDCARD
-        ){
+				yy_lookahead[j] == YYWILDCARD)
+				{
 #ifndef NDEBUG
-          if( yyTraceFILE ){
-            fprintf(yyTraceFILE, "%sWILDCARD %s => %s\n",
-               yyTracePrompt, yyTokenName[iLookAhead], yyTokenName[YYWILDCARD]);
-          }
-#endif /* NDEBUG */
-          return yy_action[j];
-        }
-      }
-#endif /* YYWILDCARD */
-    }
-    return yy_default[stateno];
-  }else{
-    return yy_action[i];
-  }
+					if (yyTraceFILE)
+						fprintf(yyTraceFILE, "%sWILDCARD %s => %s\n", yyTracePrompt, yyTokenName[lookAhead], yyTokenName[YYWILDCARD]);
+#endif
+					return yy_action[j];
+				}
+			}
+#endif
+		}
+		return yy_default[stateno];
+	}
+	else
+		return yy_action[i];
 }
 
-/*
-** Find the appropriate action for a parser given the non-terminal
-** look-ahead token iLookAhead.
-**
-** If the look-ahead token is YYNOCODE, then check to see if the action is
-** independent of the look-ahead.  If it is, return the action, otherwise
-** return YY_NO_ACTION.
-*/
-static int yy_find_reduce_action(
-  int stateno,              /* Current state number */
-  YYCODETYPE iLookAhead     /* The look-ahead token */
-){
-  int i;
+// Find the appropriate action for a parser given the non-terminal look-ahead token lookAhead.
+//
+// If the look-ahead token is YYNOCODE, then check to see if the action is independent of the look-ahead.  If it is, return the action, otherwise return YY_NO_ACTION.
+__device__ static int yy_find_reduce_action(int stateno, YYCODETYPE lookAhead)
+{
 #ifdef YYERRORSYMBOL
-  if( stateno>YY_REDUCE_COUNT ){
-    return yy_default[stateno];
-  }
+	if (stateno > YY_REDUCE_COUNT)
+		return yy_default[stateno];
 #else
-  assert( stateno<=YY_REDUCE_COUNT );
+	_assert(stateno <= YY_REDUCE_COUNT);
 #endif
-  i = yy_reduce_ofst[stateno];
-  assert( i!=YY_REDUCE_USE_DFLT );
-  assert( iLookAhead!=YYNOCODE );
-  i += iLookAhead;
+	int i = yy_reduce_ofst[stateno];
+	_assert(i != YY_REDUCE_USE_DFLT);
+	_assert(lookAhead != YYNOCODE);
+	i += lookAhead;
 #ifdef YYERRORSYMBOL
-  if( i<0 || i>=YY_ACTTAB_COUNT || yy_lookahead[i]!=iLookAhead ){
-    return yy_default[stateno];
-  }
+	if (i < 0 || i >= YY_ACTTAB_COUNT || yy_lookahead[i] != lookAhead)
+		return yy_default[stateno];
 #else
-  assert( i>=0 && i<YY_ACTTAB_COUNT );
-  assert( yy_lookahead[i]==iLookAhead );
+	_assert(i >= 0 && i < YY_ACTTAB_COUNT);
+	_assert(yy_lookahead[i] == lookAhead);
 #endif
-  return yy_action[i];
+	return yy_action[i];
 }
 
-/*
-** The following routine is called if the stack overflows.
-*/
-static void yyStackOverflow(yyParser *yypParser, YYMINORTYPE *yypMinor){
-   ParserARG_FETCH;
-   yypParser->yyidx--;
+// The following routine is called if the stack overflows.
+__device__ static void yyStackOverflow(yyParser *yypParser, YYMINORTYPE *yypMinor)
+{
+	ParserARG_FETCH;
+	yypParser->yyidx--;
 #ifndef NDEBUG
-   if( yyTraceFILE ){
-     fprintf(yyTraceFILE,"%sStack Overflow!\n",yyTracePrompt);
-   }
+	if (yyTraceFILE)
+		fprintf(yyTraceFILE, "%sStack Overflow!\n", yyTracePrompt);
 #endif
-   while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
-   /* Here code is inserted which will execute if the parser
-   ** stack every overflows */
+    while (yypParser->yyidx >= 0) yy_pop_parser_stack(yypParser);
+	// Here code is inserted which will execute if the parser stack every overflows
 #line 22 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	parse->ErrorMsg("parser stack overflow");
-#line 1666 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-   ParserARG_STORE; /* Suppress warning about unused %extra_argument var */
+#line 1508 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
+	ParserARG_STORE; // Suppress warning about unused %extra_argument var
 }
 
-/*
-** Perform a shift action.
-*/
-static void yy_shift(
-  yyParser *yypParser,          /* The parser to be shifted */
-  int yyNewState,               /* The new state to shift in */
-  int yyMajor,                  /* The major token to shift in */
-  YYMINORTYPE *yypMinor         /* Pointer to the minor token to shift in */
-){
-  yyStackEntry *yytos;
-  yypParser->yyidx++;
+// Perform a shift action.
+__device__ static void yy_shift(yyParser *yypParser, int yyNewState, int yyMajor, YYMINORTYPE *yypMinor)
+{
+	yyStackEntry *yytos;
+	yypParser->yyidx++;
 #ifdef YYTRACKMAXSTACKDEPTH
-  if( yypParser->yyidx>yypParser->yyidxMax ){
-    yypParser->yyidxMax = yypParser->yyidx;
-  }
+	if (yypParser->yyidx > yypParser->yyidxMax)
+		yypParser->yyidxMax = yypParser->yyidx;
 #endif
 #if YYSTACKDEPTH>0 
-  if( yypParser->yyidx>=YYSTACKDEPTH ){
-    yyStackOverflow(yypParser, yypMinor);
-    return;
-  }
+	if (yypParser->yyidx >= YYSTACKDEPTH) //SKY: Error here if you remove the space
+	{
+		yyStackOverflow(yypParser, yypMinor);
+		return;
+	}
 #else
-  if( yypParser->yyidx>=yypParser->yystksz ){
-    yyGrowStack(yypParser);
-    if( yypParser->yyidx>=yypParser->yystksz ){
-      yyStackOverflow(yypParser, yypMinor);
-      return;
-    }
-  }
+	if (yypParser->yyidx >= yypParser->yystksz)
+	{
+		yyGrowStack(yypParser);
+		if (yypParser->yyidx >= yypParser->yystksz)
+		{
+			yyStackOverflow(yypParser, yypMinor);
+			return;
+		}
+	}
 #endif
-  yytos = &yypParser->yystack[yypParser->yyidx];
-  yytos->stateno = (YYACTIONTYPE)yyNewState;
-  yytos->major = (YYCODETYPE)yyMajor;
-  yytos->minor = *yypMinor;
+	yytos = &yypParser->yystack[yypParser->yyidx];
+	yytos->stateno = (YYACTIONTYPE)yyNewState;
+	yytos->major = (YYCODETYPE)yyMajor;
+	yytos->minor = *yypMinor;
 #ifndef NDEBUG
-  if( yyTraceFILE && yypParser->yyidx>0 ){
-    int i;
-    fprintf(yyTraceFILE,"%sShift %d\n",yyTracePrompt,yyNewState);
-    fprintf(yyTraceFILE,"%sStack:",yyTracePrompt);
-    for(i=1; i<=yypParser->yyidx; i++)
-      fprintf(yyTraceFILE," %s",yyTokenName[yypParser->yystack[i].major]);
-    fprintf(yyTraceFILE,"\n");
+	if (yyTraceFILE && yypParser->yyidx > 0)
+	{
+		fprintf(yyTraceFILE, "%sShift %d\n", yyTracePrompt, yyNewState);
+		fprintf(yyTraceFILE, "%sStack:", yyTracePrompt);
+		for (int i = 1; i <= yypParser->yyidx; i++)
+			fprintf(yyTraceFILE, " %s", yyTokenName[yypParser->yystack[i].major]);
+		fprintf(yyTraceFILE, "\n");
   }
 #endif
 }
 
-/* The following table contains information about every rule that
-** is used during the reduce.
-*/
-static const struct {
-  YYCODETYPE lhs;         /* Symbol on the left-hand side of the rule */
-  unsigned char nrhs;     /* Number of right-hand side symbols in the rule */
+// The following table contains information about every rule that is used during the reduce.
+__constant__ static const struct
+{
+	YYCODETYPE lhs; // Symbol on the left-hand side of the rule
+	unsigned char nrhs; // Number of right-hand side symbols in the rule
 } yyRuleInfo[] = {
   { 142, 1 },
   { 143, 2 },
@@ -2049,87 +1886,71 @@ static const struct {
   { 249, 2 },
 };
 
-static void yy_accept(yyParser*);  /* Forward Declaration */
+__device__ static void yy_accept(yyParser *);  // Forward Declaration
 
-/*
-** Perform a reduce action and the shift that must immediately
-** follow the reduce.
-*/
-static void yy_reduce(
-  yyParser *yypParser,         /* The parser */
-  int yyruleno                 /* Number of the rule by which to reduce */
-){
-  int yygoto;                     /* The next state */
-  int yyact;                      /* The next action */
-  YYMINORTYPE yygotominor;        /* The LHS of the rule reduced */
-  yyStackEntry *yymsp;            /* The top of the parser's stack */
-  int yysize;                     /* Amount to pop the stack */
-  ParserARG_FETCH;
-  yymsp = &yypParser->yystack[yypParser->yyidx];
+// Perform a reduce action and the shift that must immediately follow the reduce.
+__device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
+{
+	int yygoto;                     // The next state
+	int yyact;                      // The next action
+	YYMINORTYPE yygotominor;        // The LHS of the rule reduced
+	int yysize;                     // Amount to pop the stack
+	ParserARG_FETCH;
+	yyStackEntry *yymsp = &yypParser->yystack[yypParser->yyidx]; // The top of the parser's stack
 #ifndef NDEBUG
-  if( yyTraceFILE && yyruleno>=0 
-        && yyruleno<(int)(sizeof(yyRuleName)/sizeof(yyRuleName[0])) ){
-    fprintf(yyTraceFILE, "%sReduce [%s].\n", yyTracePrompt,
-      yyRuleName[yyruleno]);
-  }
-#endif /* NDEBUG */
+	if (yyTraceFILE && yyruleno >= 0  && yyruleno < (int)(sizeof(yyRuleName)/sizeof(yyRuleName[0])))
+		fprintf(yyTraceFILE, "%sReduce [%s].\n", yyTracePrompt, yyRuleName[yyruleno]);
+#endif
 
-  /* Silence complaints from purify about yygotominor being uninitialized
-  ** in some cases when it is copied into the stack after the following
-  ** switch.  yygotominor is uninitialized when a rule reduces that does
-  ** not set the value of its left-hand side nonterminal.  Leaving the
-  ** value of the nonterminal uninitialized is utterly harmless as long
-  ** as the value is never used.  So really the only thing this code
-  ** accomplishes is to quieten purify.  
-  **
-  ** 2007-01-16:  The wireshark project (www.wireshark.org) reports that
-  ** without this code, their parser segfaults.  I'm not sure what there
-  ** parser is doing to make this happen.  This is the second bug report
-  ** from wireshark this week.  Clearly they are stressing Lemon in ways
-  ** that it has not been previously stressed...  (SQLite ticket #2172)
-  */
-  /*memset(&yygotominor, 0, sizeof(yygotominor));*/
-  yygotominor = yyzerominor;
+	// Silence complaints from purify about yygotominor being uninitialized in some cases when it is copied into the stack after the following
+	// switch.  yygotominor is uninitialized when a rule reduces that does not set the value of its left-hand side nonterminal.  Leaving the
+	// value of the nonterminal uninitialized is utterly harmless as long as the value is never used.  So really the only thing this code
+	// accomplishes is to quieten purify.  
+	//
+	// 2007-01-16:  The wireshark project (www.wireshark.org) reports that without this code, their parser segfaults.  I'm not sure what there
+	// parser is doing to make this happen.  This is the second bug report from wireshark this week.  Clearly they are stressing Lemon in ways
+	// that it has not been previously stressed...  (SQLite ticket #2172)
+	//: memset(&yygotominor, 0, sizeof(yygotominor));
+	yygotominor = yyzerominor;
 
 
-  switch( yyruleno ){
-  /* Beginning here are the reduction cases.  A typical example
-  ** follows:
-  **   case 0:
-  **  #line <lineno> <grammarfile>
-  **     { ... }           // User supplied code
-  **  #line <lineno> <thisfile>
-  **     break;
-  */
+	switch (yyruleno)
+	{
+  // Beginning here are the reduction cases.  A typical example follows:
+  //   case 0:
+  //  #line <lineno> <grammarfile>
+  //     { ... }           // User supplied code
+  //  #line <lineno> <thisfile>
+  //     break;
       case 5: /* explain ::= */
 #line 73 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->BeginParse(0); }
-#line 2107 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1928 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 6: /* explain ::= EXPLAIN */
 #line 75 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->BeginParse(1); }
-#line 2112 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1933 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 7: /* explain ::= EXPLAIN QUERY PLAN */
 #line 76 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->BeginParse(2); }
-#line 2117 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1938 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 8: /* cmdx ::= cmd */
 #line 78 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->FinishCoding(); }
-#line 2122 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1943 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 9: /* cmd ::= BEGIN transtype trans_opt */
 #line 82 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->BeginTransaction(yymsp[-1].minor.yy1); }
-#line 2127 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1948 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 13: /* transtype ::= */
 #line 87 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = TK_DEFERRED; }
-#line 2132 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1953 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 14: /* transtype ::= DEFERRED */
       case 15: /* transtype ::= IMMEDIATE */ yytestcase(yyruleno==15);
@@ -2138,77 +1959,77 @@ static void yy_reduce(
       case 117: /* multiselect_op ::= EXCEPT|INTERSECT */ yytestcase(yyruleno==117);
 #line 88 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = yymsp[0].major; }
-#line 2141 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1962 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 17: /* cmd ::= COMMIT trans_opt */
       case 18: /* cmd ::= END trans_opt */ yytestcase(yyruleno==18);
 #line 91 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->CommitTransaction(); }
-#line 2147 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1968 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 19: /* cmd ::= ROLLBACK trans_opt */
 #line 93 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->RollbackTransaction(); }
-#line 2152 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1973 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 22: /* cmd ::= SAVEPOINT nm */
 #line 97 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->Savepoint(IPager::SAVEPOINT_BEGIN, &yymsp[0].minor.yy0); }
-#line 2157 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1978 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 23: /* cmd ::= RELEASE savepoint_opt nm */
 #line 98 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->Savepoint(IPager::SAVEPOINT_RELEASE, &yymsp[0].minor.yy0); }
-#line 2162 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1983 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 24: /* cmd ::= ROLLBACK trans_opt TO savepoint_opt nm */
 #line 99 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->Savepoint(IPager::SAVEPOINT_ROLLBACK, &yymsp[0].minor.yy0); }
-#line 2167 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1988 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 26: /* create_table ::= createkw temp TABLE ifnotexists nm dbnm */
 #line 104 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->StartTable(&yymsp[-1].minor.yy0, &yymsp[0].minor.yy0, yymsp[-4].minor.yy2, false, false, yymsp[-2].minor.yy2); }
-#line 2172 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1993 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 27: /* createkw ::= CREATE */
 #line 105 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->Ctx->Lookaside.Enabled = false; yygotominor.yy0 = yymsp[0].minor.yy0; }
-#line 2177 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1998 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 28: /* ifnotexists ::= */
       case 31: /* temp ::= */ yytestcase(yyruleno==31);
       case 109: /* ifexists ::= */ yytestcase(yyruleno==109);
 #line 107 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy2 = false; }
-#line 2184 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2005 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 29: /* ifnotexists ::= IF NOT EXISTS */
       case 30: /* temp ::= TEMP */ yytestcase(yyruleno==30);
       case 108: /* ifexists ::= IF EXISTS */ yytestcase(yyruleno==108);
 #line 108 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy2 = true; }
-#line 2191 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2012 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 32: /* create_table_args ::= LP columnlist conslist_opt RP */
 #line 114 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->EndTable(&yymsp[-1].minor.yy0, &yymsp[0].minor.yy0, nullptr); }
-#line 2196 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2017 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 33: /* create_table_args ::= AS select */
 #line 115 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->EndTable(nullptr, nullptr, yymsp[0].minor.yy3); Select::Delete(parse->Ctx, yymsp[0].minor.yy3); }
-#line 2201 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2022 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 36: /* column ::= columnid type carglist */
 #line 121 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = yymsp[-2].minor.yy0.data; yygotominor.yy0.length = (int)(parse->LastToken.data - yymsp[-2].minor.yy0.data) + parse->LastToken.length; }
-#line 2206 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2027 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 37: /* columnid ::= nm */
 #line 122 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddColumn(&yymsp[0].minor.yy0); yygotominor.yy0 = yymsp[0].minor.yy0; parse->ConstraintName.length = 0; }
-#line 2211 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2032 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 38: /* id ::= ID */
       case 39: /* id ::= INDEXED */ yytestcase(yyruleno==39);
@@ -2235,55 +2056,55 @@ static void yy_reduce(
       case 283: /* trnm ::= nm */ yytestcase(yyruleno==283);
 #line 127 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0 = yymsp[0].minor.yy0; }
-#line 2238 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2059 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 45: /* type ::= typetoken */
 #line 177 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddColumnType(&yymsp[0].minor.yy0); }
-#line 2243 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2064 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 47: /* typetoken ::= typename LP signed RP */
 #line 179 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = yymsp[-3].minor.yy0.data; yygotominor.yy0.length = (int)(&yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length] - yymsp[-3].minor.yy0.data); }
-#line 2248 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2069 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 48: /* typetoken ::= typename LP signed COMMA signed RP */
 #line 180 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = yymsp[-5].minor.yy0.data; yygotominor.yy0.length = (int)(&yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length] - yymsp[-5].minor.yy0.data); }
-#line 2253 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2074 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 50: /* typename ::= typename ids */
 #line 183 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = yymsp[-1].minor.yy0.data; yygotominor.yy0.length = yymsp[0].minor.yy0.length+(int)(yymsp[0].minor.yy0.data - yymsp[-1].minor.yy0.data); }
-#line 2258 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2079 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 55: /* ccons ::= CONSTRAINT nm */
       case 93: /* tcons ::= CONSTRAINT nm */ yytestcase(yyruleno==93);
 #line 190 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->ConstraintName = yymsp[0].minor.yy0; }
-#line 2264 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2085 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 56: /* ccons ::= DEFAULT term */
       case 58: /* ccons ::= DEFAULT PLUS term */ yytestcase(yyruleno==58);
 #line 191 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddDefaultValue(&yymsp[0].minor.yy4); }
-#line 2270 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2091 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 57: /* ccons ::= DEFAULT LP expr RP */
 #line 192 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddDefaultValue(&yymsp[-1].minor.yy4); }
-#line 2275 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2096 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 59: /* ccons ::= DEFAULT MINUS term */
 #line 194 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
 	ExprSpan v;
-	v.Expr = Expr::PExpr(parse, TK_UMINUS, yymsp[0].minor.yy4.Expr, 0, 0);
+	v.Expr = Expr::PExpr_(parse, TK_UMINUS, yymsp[0].minor.yy4.Expr, 0, 0);
 	v.Start = yymsp[-1].minor.yy0.data;
 	v.End = yymsp[0].minor.yy4.End;
 	parse->AddDefaultValue(&v);
 }
-#line 2280 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2101 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 60: /* ccons ::= DEFAULT id */
 #line 201 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
@@ -2292,42 +2113,42 @@ static void yy_reduce(
 	SpanExpr(&v, parse, TK_STRING, &yymsp[0].minor.yy0);
 	parse->AddDefaultValue(&v);
 }
-#line 2285 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2106 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 62: /* ccons ::= NOT NULL onconf */
 #line 209 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->AddNotNull(yymsp[0].minor.yy1); }
-#line 2290 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->AddNotNull(yymsp[0].minor.yy5); }
+#line 2111 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 63: /* ccons ::= PRIMARY KEY sortorder onconf autoinc */
 #line 210 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->AddPrimaryKey(0, yymsp[-1].minor.yy1, yymsp[0].minor.yy1, yymsp[-2].minor.yy5); }
-#line 2295 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->AddPrimaryKey(0, yymsp[-1].minor.yy5, yymsp[0].minor.yy1, yymsp[-2].minor.yy6); }
+#line 2116 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 64: /* ccons ::= UNIQUE onconf */
 #line 211 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->CreateIndex(0, 0, 0, 0, yymsp[0].minor.yy1, 0, 0, 0, 0); }
-#line 2300 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->CreateIndex(0, 0, 0, 0, yymsp[0].minor.yy5, 0, 0, 0, 0); }
+#line 2121 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 65: /* ccons ::= CHECK LP expr RP */
 #line 212 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddCheckConstraint(yymsp[-1].minor.yy4.Expr); }
-#line 2305 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2126 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 66: /* ccons ::= REFERENCES nm idxlist_opt refargs */
 #line 213 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->CreateForeignKey(0, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy6, yymsp[0].minor.yy1); }
-#line 2310 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->CreateForeignKey(0, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy7, yymsp[0].minor.yy1); }
+#line 2131 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 67: /* ccons ::= defer_subclause */
 #line 214 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->DeferForeignKey(yymsp[0].minor.yy1); }
-#line 2315 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2136 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 68: /* ccons ::= COLLATE ids */
 #line 215 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddCollateType(&yymsp[0].minor.yy0); }
-#line 2320 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2141 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 69: /* autoinc ::= */
       case 82: /* defer_subclause ::= NOT DEFERRABLE init_deferred_pred_opt */ yytestcase(yyruleno==82);
@@ -2338,7 +2159,7 @@ static void yy_reduce(
       case 224: /* in_op ::= IN */ yytestcase(yyruleno==224);
 #line 219 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = 0; }
-#line 2331 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2152 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 70: /* autoinc ::= AUTOINCR */
       case 85: /* init_deferred_pred_opt ::= INITIALLY DEFERRED */ yytestcase(yyruleno==85);
@@ -2346,158 +2167,156 @@ static void yy_reduce(
       case 225: /* in_op ::= NOT IN */ yytestcase(yyruleno==225);
 #line 220 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = 1; }
-#line 2339 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2160 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 71: /* refargs ::= */
 #line 225 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_None*0x0101; /* EV: R-19803-45884 */ }
-#line 2344 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2165 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 72: /* refargs ::= refargs refarg */
 #line 226 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = (yymsp[-1].minor.yy1 & ~yymsp[0].minor.yy7.Mask) | yymsp[0].minor.yy7.Value; }
-#line 2349 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy1 = (yymsp[-1].minor.yy1 & ~yymsp[0].minor.yy8.Mask) | yymsp[0].minor.yy8.Value; }
+#line 2170 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 73: /* refarg ::= MATCH nm */
       case 74: /* refarg ::= ON INSERT refact */ yytestcase(yyruleno==74);
 #line 228 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy7.Value = 0;     yygotominor.yy7.Mask = 0x000000; }
-#line 2355 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy8.Value = 0;     yygotominor.yy8.Mask = 0x000000; }
+#line 2176 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 75: /* refarg ::= ON DELETE refact */
 #line 230 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy7.Value = yymsp[0].minor.yy1;     yygotominor.yy7.Mask = 0x0000ff; }
-#line 2360 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy8.Value = yymsp[0].minor.yy1;     yygotominor.yy8.Mask = 0x0000ff; }
+#line 2181 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 76: /* refarg ::= ON UPDATE refact */
 #line 231 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy7.Value = yymsp[0].minor.yy1<<8;  yygotominor.yy7.Mask = 0x00ff00; }
-#line 2365 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy8.Value = yymsp[0].minor.yy1<<8;  yygotominor.yy8.Mask = 0x00ff00; }
+#line 2186 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 77: /* refact ::= SET NULL */
 #line 233 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_SetNull;  /* EV: R-33326-45252 */ }
-#line 2370 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2191 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 78: /* refact ::= SET DEFAULT */
 #line 234 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_SetDflt;  /* EV: R-33326-45252 */ }
-#line 2375 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2196 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 79: /* refact ::= CASCADE */
 #line 235 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_Cascade;  /* EV: R-33326-45252 */ }
-#line 2380 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2201 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 80: /* refact ::= RESTRICT */
 #line 236 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_Restrict; /* EV: R-33326-45252 */ }
-#line 2385 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2206 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 81: /* refact ::= NO ACTION */
 #line 237 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = OE_None;     /* EV: R-33326-45252 */ }
-#line 2390 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2211 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 83: /* defer_subclause ::= DEFERRABLE init_deferred_pred_opt */
       case 99: /* defer_subclause_opt ::= defer_subclause */ yytestcase(yyruleno==99);
-      case 101: /* onconf ::= ON CONFLICT resolvetype */ yytestcase(yyruleno==101);
-      case 104: /* resolvetype ::= raisetype */ yytestcase(yyruleno==104);
 #line 240 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = yymsp[0].minor.yy1; }
-#line 2398 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2217 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 87: /* conslist_opt ::= */
 #line 246 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.length = 0; yygotominor.yy0.data = nullptr; }
-#line 2403 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2222 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 88: /* conslist_opt ::= COMMA conslist */
 #line 247 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0 = yymsp[-1].minor.yy0; }
-#line 2408 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2227 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 91: /* tconscomma ::= COMMA */
 #line 250 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->ConstraintName.length = 0; }
-#line 2413 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2232 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 94: /* tcons ::= PRIMARY KEY LP idxlist autoinc RP onconf */
 #line 253 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->AddPrimaryKey(yymsp[-3].minor.yy6, yymsp[0].minor.yy1, yymsp[-2].minor.yy1, 0); }
-#line 2418 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->AddPrimaryKey(yymsp[-3].minor.yy7, yymsp[0].minor.yy5, yymsp[-2].minor.yy1, (SO)0); }
+#line 2237 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 95: /* tcons ::= UNIQUE LP idxlist RP onconf */
 #line 254 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->CreateIndex(0, 0, 0, yymsp[-2].minor.yy6, yymsp[0].minor.yy1, 0, 0, 0, 0); }
-#line 2423 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->CreateIndex(0, 0, 0, yymsp[-2].minor.yy7, yymsp[0].minor.yy5, 0, 0, 0, 0); }
+#line 2242 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 96: /* tcons ::= CHECK LP expr RP onconf */
 #line 255 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->AddCheckConstraint(yymsp[-2].minor.yy4.Expr); }
-#line 2428 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2247 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 97: /* tcons ::= FOREIGN KEY LP idxlist RP REFERENCES nm idxlist_opt refargs defer_subclause_opt */
 #line 257 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->CreateForeignKey(yymsp[-6].minor.yy6, &yymsp[-3].minor.yy0, yymsp[-2].minor.yy6, yymsp[-1].minor.yy1); parse->DeferForeignKey(yymsp[0].minor.yy1); }
-#line 2433 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ parse->CreateForeignKey(yymsp[-6].minor.yy7, &yymsp[-3].minor.yy0, yymsp[-2].minor.yy7, yymsp[-1].minor.yy1); parse->DeferForeignKey(yymsp[0].minor.yy1); }
+#line 2252 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 100: /* onconf ::= */
+      case 102: /* orconf ::= */ yytestcase(yyruleno==102);
 #line 266 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Default; }
-#line 2438 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy5 = OE_Default; }
+#line 2258 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
-      case 102: /* orconf ::= */
-#line 268 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy8 = OE_Default; }
-#line 2443 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 103: /* orconf ::= OR resolvetype */
-#line 269 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy8 = (uint8)yymsp[0].minor.yy1; }
-#line 2448 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+      case 101: /* onconf ::= ON CONFLICT resolvetype */
+      case 103: /* orconf ::= OR resolvetype */ yytestcase(yyruleno==103);
+      case 104: /* resolvetype ::= raisetype */ yytestcase(yyruleno==104);
+      case 175: /* insert_cmd ::= INSERT orconf */ yytestcase(yyruleno==175);
+#line 267 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy5 = yymsp[0].minor.yy5; }
+#line 2266 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 105: /* resolvetype ::= IGNORE */
 #line 271 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Ignore; }
-#line 2453 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy5 = OE_Ignore; }
+#line 2271 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 106: /* resolvetype ::= REPLACE */
+      case 176: /* insert_cmd ::= REPLACE */ yytestcase(yyruleno==176);
 #line 272 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Replace; }
-#line 2458 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy5 = OE_Replace; }
+#line 2277 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 107: /* cmd ::= DROP TABLE ifexists fullname */
 #line 275 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->DropTable(yymsp[0].minor.yy9, 0, yymsp[-1].minor.yy2); }
-#line 2463 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2282 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 110: /* cmd ::= createkw temp VIEW ifnotexists nm dbnm AS select */
 #line 282 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->CreateView(&yymsp[-7].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, yymsp[0].minor.yy3, yymsp[-6].minor.yy2, yymsp[-4].minor.yy2); }
-#line 2468 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2287 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 111: /* cmd ::= DROP VIEW ifexists fullname */
 #line 283 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { parse->DropTable(yymsp[0].minor.yy9, 1, yymsp[-1].minor.yy2); }
-#line 2473 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2292 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 112: /* cmd ::= select */
 #line 288 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	SelectDest dest = { SRT_Output, 0, 0, 0, 0 };
+	SelectDest dest = { SRT_Output, (AFF)0, 0, 0, 0 };
 	Select::Select_(parse, yymsp[0].minor.yy3, &dest);
-	parse->V->ExplainBegin();
+	Vdbe::ExplainBegin(parse->V);
 	Select::ExplainSelect(parse->V, yymsp[0].minor.yy3);
-	parse->V->ExplainFinish();
+	Vdbe::ExplainFinish(parse->V);
 	Select::Delete(parse->Ctx, yymsp[0].minor.yy3);
 }
-#line 2478 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2297 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 113: /* select ::= oneselect */
 #line 302 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy3 = yymsp[0].minor.yy3; }
-#line 2483 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2302 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 114: /* select ::= select multiselect_op oneselect */
 #line 304 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
@@ -2507,103 +2326,105 @@ static void yy_reduce(
 		Select::Delete(parse->Ctx, yymsp[-2].minor.yy3);
 	yygotominor.yy3 = yymsp[0].minor.yy3;
 }
-#line 2488 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2307 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 116: /* multiselect_op ::= UNION ALL */
 #line 312 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy1 = TK_ALL; }
-#line 2493 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2312 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 118: /* oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt orderby_opt limit_opt */
 #line 316 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy3 = Select::New(parse, yymsp[-6].minor.yy6, yymsp[-5].minor.yy9, yymsp[-4].minor.yy11, yymsp[-3].minor.yy6, yymsp[-2].minor.yy11, yymsp[-1].minor.yy6, yymsp[-7].minor.yy10, yymsp[0].minor.yy12.Limit, yymsp[0].minor.yy12.Offset); }
-#line 2498 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy3 = Select::New(parse, yymsp[-6].minor.yy7, yymsp[-5].minor.yy9, yymsp[-4].minor.yy11, yymsp[-3].minor.yy7, yymsp[-2].minor.yy11, yymsp[-1].minor.yy7, yymsp[-7].minor.yy10, yymsp[0].minor.yy12.Limit, yymsp[0].minor.yy12.Offset); }
+#line 2317 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 119: /* distinct ::= DISTINCT */
 #line 320 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy10 = SF_Distinct; }
-#line 2503 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2322 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 120: /* distinct ::= ALL */
       case 121: /* distinct ::= */ yytestcase(yyruleno==121);
 #line 321 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy10 = (SF)0; }
-#line 2509 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2328 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 122: /* sclp ::= selcollist COMMA */
       case 246: /* idxlist_opt ::= LP idxlist RP */ yytestcase(yyruleno==246);
 #line 330 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = yymsp[-1].minor.yy6; }
-#line 2515 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = yymsp[-1].minor.yy7; }
+#line 2334 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 123: /* sclp ::= */
       case 151: /* orderby_opt ::= */ yytestcase(yyruleno==151);
       case 158: /* groupby_opt ::= */ yytestcase(yyruleno==158);
+      case 239: /* exprlist ::= */ yytestcase(yyruleno==239);
+      case 245: /* idxlist_opt ::= */ yytestcase(yyruleno==245);
 #line 331 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = nullptr; }
-#line 2522 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = nullptr; }
+#line 2343 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 124: /* selcollist ::= sclp expr as */
 #line 332 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy6 = Expr::ListAppend(parse, yymsp[-2].minor.yy6, yymsp[-1].minor.yy4.Expr);
-	if (yymsp[0].minor.yy0.length > 0) Expr::ListSetName(parse, yygotominor.yy6, &yymsp[0].minor.yy0, 1);
-	Expr::ListSetSpan(parse, yygotominor.yy6, &yymsp[-1].minor.yy4);
+	yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-2].minor.yy7, yymsp[-1].minor.yy4.Expr);
+	if (yymsp[0].minor.yy0.length > 0) Expr::ListSetName(parse, yygotominor.yy7, &yymsp[0].minor.yy0, 1);
+	Expr::ListSetSpan(parse, yygotominor.yy7, &yymsp[-1].minor.yy4);
 }
-#line 2527 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2348 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 125: /* selcollist ::= sclp STAR */
 #line 337 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
 	Expr *p = Expr::Expr_(parse->Ctx, TK_ALL, 0);
-	yygotominor.yy6 = Expr::ListAppend(parse, yymsp[-1].minor.yy6, p);
+	yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-1].minor.yy7, p);
 }
-#line 2532 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2353 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 126: /* selcollist ::= sclp nm DOT STAR */
 #line 341 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Expr *right = Expr::PExpr(parse, TK_ALL, 0, 0, &yymsp[0].minor.yy0);
-	Expr *left = Expr::PExpr(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
-	Expr *dot = Expr::PExpr(parse, TK_DOT, left, right, 0);
-	yygotominor.yy6 = Expr::ListAppend(parse, yymsp[-3].minor.yy6, dot);
+	Expr *right = Expr::PExpr_(parse, TK_ALL, 0, 0, &yymsp[0].minor.yy0);
+	Expr *left = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
+	Expr *dot = Expr::PExpr_(parse, TK_DOT, left, right, 0);
+	yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-3].minor.yy7, dot);
 }
-#line 2537 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2358 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 129: /* as ::= */
 #line 352 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.length = 0; }
-#line 2542 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2363 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 130: /* from ::= */
 #line 363 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy9 = (SrcList *)_tagalloc2(parse->Ctx, sizeof(*yygotominor.yy9)); }
-#line 2547 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy9 = (SrcList *)_tagalloc2(parse->Ctx, sizeof(*yygotominor.yy9), true); }
+#line 2368 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 131: /* from ::= FROM seltablist */
 #line 364 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy9 = yymsp[0].minor.yy9; Vdbe::SrcListShiftJoinType(yygotominor.yy9); }
-#line 2552 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy9 = yymsp[0].minor.yy9; Parse::SrcListShiftJoinType(yygotominor.yy9); }
+#line 2373 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 132: /* stl_prefix ::= seltablist joinop */
 #line 367 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy9 = yymsp[-1].minor.yy9; if (_ALWAYS(yygotominor.yy9 && yygotominor.yy9->Srcs > 0)) yygotominor.yy9->Ids[yygotominor.yy9->Srcs-1].Jointype = (JT)yymsp[0].minor.yy13; }
-#line 2557 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2378 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 133: /* stl_prefix ::= */
 #line 368 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy9 = nullptr; }
-#line 2562 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2383 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 134: /* seltablist ::= stl_prefix nm dbnm as indexed_opt on_opt using_opt */
 #line 370 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy9 = parse->SrcListAppendFromTerm(yymsp[-6].minor.yy9, &yymsp[-5].minor.yy0, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0, nullptr, yymsp[-1].minor.yy11, yymsp[0].minor.yy14); parse->SrcListIndexedBy(yygotominor.yy9, &yymsp[-2].minor.yy0); }
-#line 2567 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2388 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 135: /* seltablist ::= stl_prefix LP select RP as on_opt using_opt */
 #line 373 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy9 = parse->SrcListAppendFromTerm(yymsp[-6].minor.yy9, nullptr, nullptr, &yymsp[-2].minor.yy0, yymsp[-4].minor.yy3, yymsp[-1].minor.yy11, yymsp[0].minor.yy14); }
-#line 2572 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2393 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 136: /* seltablist ::= stl_prefix LP seltablist RP as on_opt using_opt */
 #line 375 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
@@ -2619,132 +2440,137 @@ static void yy_reduce(
 			SrcList::SrcListItem *oldItem = yymsp[-4].minor.yy9->Ids;
 			newItem->Name = oldItem->Name;
 			newItem->Database = oldItem->Database;
-			oldItem->Name = old-Item>Database = nullptr;
+			oldItem->Name = oldItem->Database = nullptr;
 		}
 		Parse::SrcListDelete(parse->Ctx, yymsp[-4].minor.yy9);
 	}
 	else
 	{
-		Vdbe::SrcListShiftJoinType(yymsp[-4].minor.yy9);
+		Parse::SrcListShiftJoinType(yymsp[-4].minor.yy9);
 		Select *subquery = Select::New(parse, nullptr, yymsp[-4].minor.yy9, nullptr, nullptr, nullptr, nullptr, SF_NestedFrom, nullptr, nullptr);
 		yygotominor.yy9 = parse->SrcListAppendFromTerm(yymsp[-6].minor.yy9, nullptr, nullptr, &yymsp[-2].minor.yy0, subquery, yymsp[-1].minor.yy11, yymsp[0].minor.yy14);
 	}
 }
-#line 2577 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2398 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 137: /* dbnm ::= */
       case 146: /* indexed_opt ::= */ yytestcase(yyruleno==146);
+      case 249: /* collate ::= */ yytestcase(yyruleno==249);
 #line 401 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = nullptr; yygotominor.yy0.length = 0; }
-#line 2583 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2405 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 139: /* fullname ::= nm dbnm */
 #line 406 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy9 = Parse::SrcListAppend(parse->Ctx, nullptr, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
-#line 2588 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2410 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 140: /* joinop ::= COMMA|JOIN */
 #line 410 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy13 = JT_INNER; }
-#line 2593 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2415 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 141: /* joinop ::= JOIN_KW JOIN */
 #line 411 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy13 = Select::JoinType(parse, &yymsp[-1].minor.yy0, nullptr, nullptr); }
-#line 2598 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2420 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 142: /* joinop ::= JOIN_KW nm JOIN */
 #line 412 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy13 = Select::JoinType(parse, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0, nullptr); }
-#line 2603 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2425 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 143: /* joinop ::= JOIN_KW nm nm JOIN */
 #line 413 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy13 = Select::JoinType(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0); }
-#line 2608 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2430 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 144: /* on_opt ::= ON expr */
       case 161: /* having_opt ::= HAVING expr */ yytestcase(yyruleno==161);
       case 168: /* where_opt ::= WHERE expr */ yytestcase(yyruleno==168);
+      case 234: /* case_else ::= ELSE expr */ yytestcase(yyruleno==234);
+      case 236: /* case_operand ::= expr */ yytestcase(yyruleno==236);
+      case 280: /* when_clause ::= WHEN expr */ yytestcase(yyruleno==280);
+      case 302: /* key_opt ::= KEY expr */ yytestcase(yyruleno==302);
 #line 417 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy11 = yymsp[0].minor.yy4.Expr; }
-#line 2615 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2441 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 145: /* on_opt ::= */
       case 160: /* having_opt ::= */ yytestcase(yyruleno==160);
       case 167: /* where_opt ::= */ yytestcase(yyruleno==167);
+      case 235: /* case_else ::= */ yytestcase(yyruleno==235);
+      case 237: /* case_operand ::= */ yytestcase(yyruleno==237);
+      case 279: /* when_clause ::= */ yytestcase(yyruleno==279);
+      case 301: /* key_opt ::= */ yytestcase(yyruleno==301);
 #line 418 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy11 = nullptr; }
-#line 2622 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2452 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 148: /* indexed_opt ::= NOT INDEXED */
 #line 428 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0.data = nullptr; yygotominor.yy0.length = 1; }
-#line 2627 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2457 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 149: /* using_opt ::= USING LP inscollist RP */
       case 180: /* inscollist_opt ::= LP inscollist RP */ yytestcase(yyruleno==180);
 #line 432 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy14 = yymsp[-1].minor.yy14; }
-#line 2633 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2463 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 150: /* using_opt ::= */
       case 179: /* inscollist_opt ::= */ yytestcase(yyruleno==179);
 #line 433 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy14 = nullptr; }
-#line 2639 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2469 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 152: /* orderby_opt ::= ORDER BY sortlist */
+      case 159: /* groupby_opt ::= GROUP BY nexprlist */ yytestcase(yyruleno==159);
+      case 238: /* exprlist ::= nexprlist */ yytestcase(yyruleno==238);
 #line 442 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = yymsp[0].minor.yy6; }
-#line 2644 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = yymsp[0].minor.yy7; }
+#line 2476 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 153: /* sortlist ::= sortlist COMMA expr sortorder */
 #line 443 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = Expr::ListAppend(parse, yymsp[-3].minor.yy6, yymsp[-1].minor.yy4.Expr); if (yygotominor.yy6) yygotominor.yy6->Ids[yygotominor.yy6->Exprs-1].SortOrder = (SO)yymsp[0].minor.yy5; }
-#line 2649 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-3].minor.yy7, yymsp[-1].minor.yy4.Expr); if (yygotominor.yy7) yygotominor.yy7->Ids[yygotominor.yy7->Exprs-1].SortOrder = (SO)yymsp[0].minor.yy6; }
+#line 2481 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 154: /* sortlist ::= expr sortorder */
 #line 444 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = Expr::ListAppend(parse, nullptr, yymsp[-1].minor.yy4.Expr); if (yygotominor.yy6 && _ALWAYS(yygotominor.yy6->Ids)) yygotominor.yy6->Ids[0].SortOrder = (SO)yymsp[0].minor.yy5; }
-#line 2654 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = Expr::ListAppend(parse, nullptr, yymsp[-1].minor.yy4.Expr); if (yygotominor.yy7 && _ALWAYS(yygotominor.yy7->Ids)) yygotominor.yy7->Ids[0].SortOrder = (SO)yymsp[0].minor.yy6; }
+#line 2486 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 155: /* sortorder ::= ASC */
       case 157: /* sortorder ::= */ yytestcase(yyruleno==157);
 #line 447 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy5 = SO_ASC; }
-#line 2660 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy6 = SO_ASC; }
+#line 2492 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 156: /* sortorder ::= DESC */
 #line 448 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy5 = SO_DESC; }
-#line 2665 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 159: /* groupby_opt ::= GROUP BY nexprlist */
-      case 238: /* exprlist ::= nexprlist */ yytestcase(yyruleno==238);
-#line 454 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = yymsp[0].minor.yy15; }
-#line 2671 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy6 = SO_DESC; }
+#line 2497 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 162: /* limit_opt ::= */
 #line 468 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy12.Limit = nullptr; yygotominor.yy12.Offset = nullptr; }
-#line 2676 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2502 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 163: /* limit_opt ::= LIMIT expr */
 #line 469 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy12.Limit = yymsp[0].minor.yy4.Expr; yygotominor.yy12.Offset = nullptr; }
-#line 2681 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2507 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 164: /* limit_opt ::= LIMIT expr OFFSET expr */
 #line 470 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy12.Limit = yymsp[-2].minor.yy4.Expr; yygotominor.yy12.Offset = yymsp[0].minor.yy4.Expr; }
-#line 2686 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2512 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 165: /* limit_opt ::= LIMIT expr COMMA expr */
 #line 471 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy12.Offset = yymsp[-2].minor.yy4.Expr; yygotominor.yy12.Limit = yymsp[0].minor.yy4.Expr; }
-#line 2691 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2517 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 166: /* cmd ::= DELETE FROM fullname indexed_opt where_opt */
 #line 483 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
@@ -2752,212 +2578,201 @@ static void yy_reduce(
 	parse->SrcListIndexedBy(yymsp[-2].minor.yy9, &yymsp[-1].minor.yy0);
 	Delete::DeleteFrom(parse, yymsp[-2].minor.yy9, yymsp[0].minor.yy11);
 }
-#line 2696 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2522 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 169: /* cmd ::= UPDATE orconf fullname indexed_opt SET setlist where_opt */
 #line 505 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
 	parse->SrcListIndexedBy(yymsp[-4].minor.yy9, &yymsp[-3].minor.yy0);
-	Expr::ListCheckLength(parse, yymsp[-1].minor.yy6, "set list"); 
-	Update::Update_(parse, yymsp[-4].minor.yy9, yymsp[-1].minor.yy6, yymsp[0].minor.yy11, yymsp[-5].minor.yy8);
+	Expr::ListCheckLength(parse, yymsp[-1].minor.yy7, "set list"); 
+	Update::Update_(parse, yymsp[-4].minor.yy9, yymsp[-1].minor.yy7, yymsp[0].minor.yy11, yymsp[-5].minor.yy5);
 }
-#line 2701 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2527 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 170: /* setlist ::= setlist COMMA nm EQ expr */
 #line 514 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = Expr::ListAppend(parse, yymsp[-4].minor.yy6, yymsp[0].minor.yy4.Expr); Expr::ListSetName(parse, yygotominor.yy6, &yymsp[-2].minor.yy0, 1); }
-#line 2706 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-4].minor.yy7, yymsp[0].minor.yy4.Expr); Expr::ListSetName(parse, yygotominor.yy7, &yymsp[-2].minor.yy0, 1); }
+#line 2532 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 171: /* setlist ::= nm EQ expr */
 #line 515 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = Expr::ListAppend(parse, nullptr, yymsp[0].minor.yy4.Expr); Expr::ListSetName(parse, yygotominor.yy6, &yymsp[-2].minor.yy0, 1); }
-#line 2711 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy7 = Expr::ListAppend(parse, nullptr, yymsp[0].minor.yy4.Expr); Expr::ListSetName(parse, yygotominor.yy7, &yymsp[-2].minor.yy0, 1); }
+#line 2537 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 172: /* cmd ::= insert_cmd INTO fullname inscollist_opt valuelist */
 #line 518 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ Insert::Insert_(parse, yymsp[-2].minor.yy9, yymsp[0].minor.yy17.List, yymsp[0].minor.yy17.Select, yymsp[-1].minor.yy14, yymsp[-4].minor.yy16); }
-#line 2716 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ Insert::Insert_(parse, yymsp[-2].minor.yy9, yymsp[0].minor.yy15.List, yymsp[0].minor.yy15.Select, yymsp[-1].minor.yy14, yymsp[-4].minor.yy5); }
+#line 2542 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 173: /* cmd ::= insert_cmd INTO fullname inscollist_opt select */
 #line 519 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ Insert::Insert_(parse, yymsp[-2].minor.yy9, nullptr, yymsp[0].minor.yy3, yymsp[-1].minor.yy14, yymsp[-4].minor.yy16); }
-#line 2721 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ Insert::Insert_(parse, yymsp[-2].minor.yy9, nullptr, yymsp[0].minor.yy3, yymsp[-1].minor.yy14, yymsp[-4].minor.yy5); }
+#line 2547 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 174: /* cmd ::= insert_cmd INTO fullname inscollist_opt DEFAULT VALUES */
 #line 520 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ Insert::Insert_(parse, yymsp[-3].minor.yy9, nullptr, nullptr, yymsp[-2].minor.yy14, yymsp[-5].minor.yy16); }
-#line 2726 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 175: /* insert_cmd ::= INSERT orconf */
-#line 523 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy16 = yymsp[0].minor.yy8; }
-#line 2731 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 176: /* insert_cmd ::= REPLACE */
-#line 524 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy16 = OE_Replace; }
-#line 2736 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ Insert::Insert_(parse, yymsp[-3].minor.yy9, nullptr, nullptr, yymsp[-2].minor.yy14, yymsp[-5].minor.yy5); }
+#line 2552 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 177: /* valuelist ::= VALUES LP nexprlist RP */
 #line 531 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy17.List = yymsp[-1].minor.yy15; yygotominor.yy17.Select = nullptr; }
-#line 2741 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+{ yygotominor.yy15.List = yymsp[-1].minor.yy7; yygotominor.yy15.Select = nullptr; }
+#line 2557 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 178: /* valuelist ::= valuelist COMMA LP exprlist RP */
 #line 535 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Select *right = Select::New(parse, yymsp[-1].minor.yy6, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-	if (yymsp[-4].minor.yy17.List)
+	Select *right = Select::New(parse, yymsp[-1].minor.yy7, nullptr, nullptr, nullptr, nullptr, nullptr, (SF)0, nullptr, nullptr);
+	if (yymsp[-4].minor.yy15.List)
 	{
-		yymsp[-4].minor.yy17.Select = Select::New(parse, yymsp[-4].minor.yy17.List, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-		yymsp[-4].minor.yy17.List = nullptr;
+		yymsp[-4].minor.yy15.Select = Select::New(parse, yymsp[-4].minor.yy15.List, nullptr, nullptr, nullptr, nullptr, nullptr, (SF)0, nullptr, nullptr);
+		yymsp[-4].minor.yy15.List = nullptr;
 	}
-	yygotominor.yy17.List = nullptr;
-	if (yymsp[-4].minor.yy17.Select == nullptr || right == nullptr)
+	yygotominor.yy15.List = nullptr;
+	if (yymsp[-4].minor.yy15.Select == nullptr || right == nullptr)
 	{
 		Select::Delete(parse->Ctx, right);
-		Select::Delete(parse->Ctx, yymsp[-4].minor.yy17.Select);
-		yygotominor.yy17.Select = nullptr;
+		Select::Delete(parse->Ctx, yymsp[-4].minor.yy15.Select);
+		yygotominor.yy15.Select = nullptr;
 	}
 	else
 	{
 		right->OP = TK_ALL;
-		right->Prior = yymsp[-4].minor.yy17.pSelect;
+		right->Prior = yymsp[-4].minor.yy15.Select;
 		right->SelFlags |= SF_Values;
 		right->Prior->SelFlags |= SF_Values;
-		yygotominor.yy17.Select = right;
+		yygotominor.yy15.Select = right;
 	}
 }
-#line 2746 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2562 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 181: /* inscollist ::= inscollist COMMA nm */
 #line 567 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy14 = Parse::IdListAppend(parse->Ctx, yymsp[-2].minor.yy14, &yymsp[0].minor.yy0); }
-#line 2751 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2567 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 182: /* inscollist ::= nm */
 #line 568 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy14 = Parse::IdListAppend(parse->Ctx, nullptr, &yymsp[0].minor.yy0); }
-#line 2756 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2572 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 183: /* expr ::= term */
-#line 596 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 594 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy4 = yymsp[0].minor.yy4; }
-#line 2761 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2577 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 184: /* expr ::= LP expr RP */
-#line 597 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy4.pExpr = yymsp[-1].minor.yy4.pExpr; spanSet(&yygotominor.yy4, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0); }
-#line 2766 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 595 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy4.Expr = yymsp[-1].minor.yy4.Expr; SpanSet(&yygotominor.yy4, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0); }
+#line 2582 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 185: /* term ::= NULL */
       case 190: /* term ::= INTEGER|FLOAT|BLOB */ yytestcase(yyruleno==190);
       case 191: /* term ::= STRING */ yytestcase(yyruleno==191);
-#line 598 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanExpr(&yygotominor.yy4, parse, yymsp[0].major, &yymsp[0].minor.yy0); }
-#line 2773 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 596 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanExpr(&yygotominor.yy4, parse, yymsp[0].major, &yymsp[0].minor.yy0); }
+#line 2589 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 186: /* expr ::= id */
       case 187: /* expr ::= JOIN_KW */ yytestcase(yyruleno==187);
-#line 599 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanExpr(&yygotominor.yy4, parse, TK_ID, &yymsp[0].minor.yy0); }
-#line 2779 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 597 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanExpr(&yygotominor.yy4, parse, TK_ID, &yymsp[0].minor.yy0); }
+#line 2595 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 188: /* expr ::= nm DOT nm */
-#line 601 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 599 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Expr *temp1 = sqlite3PExpr(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
-	Expr *temp2 = sqlite3PExpr(parse, TK_ID, 0, 0, &yymsp[0].minor.yy0);
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_DOT, temp1, temp2, 0);
-	spanSet(&yygotominor.yy4, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
+	Expr *temp1 = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
+	Expr *temp2 = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[0].minor.yy0);
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_DOT, temp1, temp2, 0);
+	SpanSet(&yygotominor.yy4, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2784 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2600 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 189: /* expr ::= nm DOT nm DOT nm */
-#line 607 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 605 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Expr *temp1 = sqlite3PExpr(parse, TK_ID, 0, 0, &yymsp[-4].minor.yy0);
-	Expr *temp2 = sqlite3PExpr(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
-	Expr *temp3 = sqlite3PExpr(parse, TK_ID, 0, 0, &yymsp[0].minor.yy0);
-	Expr *temp4 = sqlite3PExpr(parse, TK_DOT, temp2, temp3, 0);
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_DOT, temp1, temp4, 0);
-	spanSet(&yygotominor.yy4, &yymsp[-4].minor.yy0, &yymsp[0].minor.yy0);
+	Expr *temp1 = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[-4].minor.yy0);
+	Expr *temp2 = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[-2].minor.yy0);
+	Expr *temp3 = Expr::PExpr_(parse, TK_ID, 0, 0, &yymsp[0].minor.yy0);
+	Expr *temp4 = Expr::PExpr_(parse, TK_DOT, temp2, temp3, 0);
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_DOT, temp1, temp4, 0);
+	SpanSet(&yygotominor.yy4, &yymsp[-4].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2789 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2605 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 192: /* expr ::= REGISTER */
-#line 617 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 615 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	// When doing a nested parse, one can include terms in an expression that look like this:   #1 #2 ...  These terms refer to registers
-	// in the virtual machine.  #N is the N-th register.
+	// When doing a nested parse, one can include terms in an expression that look like this:   #1 #2 ...  These terms refer to registers in the virtual machine.  #N is the N-th register.
 	if (parse->Nested == 0)
 	{
-		sqlite3ErrorMsg(parse, "near \"%T\": syntax error", &yymsp[0].minor.yy0);
-		yygotominor.yy4.pExpr = 0;
+		parse->ErrorMsg("near \"%T\": syntax error", &yymsp[0].minor.yy0);
+		yygotominor.yy4.Expr = nullptr;
 	}
 	else
 	{
-		yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_REGISTER, 0, 0, &yymsp[0].minor.yy0);
-		if (yygotominor.yy4.pExpr) sqlite3GetInt32(&yymsp[0].minor.yy0.z[1], &yygotominor.yy4.pExpr->iTable);
+		yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_REGISTER, 0, 0, &yymsp[0].minor.yy0);
+		if (yygotominor.yy4.Expr) ConvertEx::GetInt32(&yymsp[0].minor.yy0.data[1], &yygotominor.yy4.Expr->TableIdx);
 	}
-	spanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
+	SpanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2794 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2610 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 193: /* expr ::= VARIABLE */
-#line 632 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 629 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	spanExpr(&yygotominor.yy4, parse, TK_VARIABLE, &yymsp[0].minor.yy0);
-	sqlite3ExprAssignVarNumber(parse, yygotominor.yy4.pExpr);
-	spanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
+	SpanExpr(&yygotominor.yy4, parse, TK_VARIABLE, &yymsp[0].minor.yy0);
+	Expr::AssignVarNumber(parse, yygotominor.yy4.Expr);
+	SpanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2799 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2615 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 194: /* expr ::= expr COLLATE ids */
-#line 637 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 634 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3ExprAddCollateToken(parse, yymsp[-2].minor.yy4.pExpr, &yymsp[0].minor.yy0);
-	yygotominor.yy4.zStart = yymsp[-2].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	yygotominor.yy4.Expr = yymsp[-2].minor.yy4.Expr->AddCollateToken(parse, &yymsp[0].minor.yy0);
+	yygotominor.yy4.Start = yymsp[-2].minor.yy4.Start;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2804 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2620 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 195: /* expr ::= CAST LP expr AS typetoken RP */
-#line 643 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 640 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-  yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_CAST, yymsp[-3].minor.yy4.pExpr, 0, &yymsp[-1].minor.yy0);
-  spanSet(&yygotominor.yy4, &yymsp[-5].minor.yy0, &yymsp[0].minor.yy0);
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_CAST, yymsp[-3].minor.yy4.Expr, 0, &yymsp[-1].minor.yy0);
+	SpanSet(&yygotominor.yy4, &yymsp[-5].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2809 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2625 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 196: /* expr ::= ID LP distinct exprlist RP */
-#line 648 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 645 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	if (yymsp[-1].minor.yy6 && yymsp[-1].minor.yy6->nExpr > parse->Db->Limits[SQLITE_LIMIT_FUNCTION_ARG])
-		sqlite3ErrorMsg(parse, "too many arguments on function %T", &yymsp[-4].minor.yy0);
-	yygotominor.yy4.pExpr = sqlite3ExprFunction(parse, yymsp[-1].minor.yy6, &yymsp[-4].minor.yy0);
-	spanSet(&yygotominor.yy4, &yymsp[-4].minor.yy0, &yymsp[0].minor.yy0);
-	if (yymsp[-2].minor.yy10 && yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->flags |= EP_Distinct;
+	if (yymsp[-1].minor.yy7 && yymsp[-1].minor.yy7->Exprs > parse->Ctx->Limits[LIMIT_FUNCTION_ARG])
+		parse->ErrorMsg("too many arguments on function %T", &yymsp[-4].minor.yy0);
+	yygotominor.yy4.Expr = Expr::Function(parse, yymsp[-1].minor.yy7, &yymsp[-4].minor.yy0);
+	SpanSet(&yygotominor.yy4, &yymsp[-4].minor.yy0, &yymsp[0].minor.yy0);
+	if (yymsp[-2].minor.yy10 && yygotominor.yy4.Expr) yygotominor.yy4.Expr->Flags |= EP_Distinct;
 }
-#line 2814 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2630 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 197: /* expr ::= ID LP STAR RP */
-#line 655 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 652 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3ExprFunction(parse, 0, &yymsp[-3].minor.yy0);
-	spanSet(&yygotominor.yy4, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0);
+	yygotominor.yy4.Expr = Expr::Function(parse, 0, &yymsp[-3].minor.yy0);
+	SpanSet(&yygotominor.yy4, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2819 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2635 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 198: /* term ::= CTIME_KW */
-#line 659 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 656 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-  /// The CURRENT_TIME, CURRENT_DATE, and CURRENT_TIMESTAMP values are treated as functions that return constants
-  yygotominor.yy4.pExpr = sqlite3ExprFunction(parse, 0,&yymsp[0].minor.yy0);
-  if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->op = TK_CONST_FUNC;  
-  spanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
+	// The CURRENT_TIME, CURRENT_DATE, and CURRENT_TIMESTAMP values are treated as functions that return constants
+	yygotominor.yy4.Expr = Expr::Function(parse, 0, &yymsp[0].minor.yy0);
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->yymsp[0].minor.yy0 = TK_CONST_FUNC;  
+	SpanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
 }
-#line 2824 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2640 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 199: /* expr ::= expr AND expr */
       case 200: /* expr ::= expr OR expr */ yytestcase(yyruleno==200);
@@ -2967,558 +2782,523 @@ static void yy_reduce(
       case 204: /* expr ::= expr PLUS|MINUS expr */ yytestcase(yyruleno==204);
       case 205: /* expr ::= expr STAR|SLASH|REM expr */ yytestcase(yyruleno==205);
       case 206: /* expr ::= expr CONCAT expr */ yytestcase(yyruleno==206);
-#line 676 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanBinaryExpr(&yygotominor.yy4, parse, yymsp[-1].major, &yymsp[-2].minor.yy4, &yymsp[0].minor.yy4); }
-#line 2836 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 673 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanBinaryExpr(&yygotominor.yy4, parse, yymsp[-1].major, &yymsp[-2].minor.yy4, &yymsp[0].minor.yy4); }
+#line 2652 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 207: /* likeop ::= LIKE_KW */
       case 209: /* likeop ::= MATCH */ yytestcase(yyruleno==209);
-#line 685 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy18.eOperator = yymsp[0].minor.yy0; yygotominor.yy18.bNot = 0; }
-#line 2842 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 682 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy16.Operator = yymsp[0].minor.yy0; yygotominor.yy16.Not = false; }
+#line 2658 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 208: /* likeop ::= NOT LIKE_KW */
       case 210: /* likeop ::= NOT MATCH */ yytestcase(yyruleno==210);
-#line 686 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy18.eOperator = yymsp[0].minor.yy0; yygotominor.yy18.bNot = 1; }
-#line 2848 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 683 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy16.Operator = yymsp[0].minor.yy0; yygotominor.yy16.Not = true; }
+#line 2664 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 211: /* expr ::= expr likeop expr */
-#line 689 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 686 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	ExprList *pList;
-	pList = sqlite3ExprListAppend(parse,0, yymsp[0].minor.yy4.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, yymsp[-2].minor.yy4.pExpr);
-	yygotominor.yy4.pExpr = sqlite3ExprFunction(parse, pList, &yymsp[-1].minor.yy18.eOperator);
-	if (yymsp[-1].minor.yy18.bNot) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
-	yygotominor.yy4.zStart = yymsp[-2].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = yymsp[0].minor.yy4.zEnd;
-	if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->flags |= EP_InfixFunc;
+	ExprList *list;
+	list = Expr::ListAppend(parse, nullptr, yymsp[0].minor.yy4.Expr);
+	list = Expr::ListAppend(parse, list, yymsp[-2].minor.yy4.Expr);
+	yygotominor.yy4.Expr = Expr::Function(parse, list, &yymsp[-1].minor.yy16.Operator);
+	if (yymsp[-1].minor.yy16.Not) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
+	yygotominor.yy4.Start = yymsp[-2].minor.yy4.Start;
+	yygotominor.yy4.End = yymsp[0].minor.yy4.End;
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->Flags |= EP_InfixFunc;
 }
-#line 2853 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2669 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 212: /* expr ::= expr likeop expr ESCAPE expr */
-#line 699 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 696 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	ExprList *pList;
-	pList = sqlite3ExprListAppend(parse,0, yymsp[-2].minor.yy4.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, yymsp[-4].minor.yy4.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, yymsp[0].minor.yy4.pExpr);
-	yygotominor.yy4.pExpr = sqlite3ExprFunction(parse, pList, &yymsp[-3].minor.yy18.eOperator);
-	if( yymsp[-3].minor.yy18.bNot ) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
-	yygotominor.yy4.zStart = yymsp[-4].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = yymsp[0].minor.yy4.zEnd;
-	if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->flags |= EP_InfixFunc;
+	ExprList *list;
+	list = Expr::ListAppend(parse, nullptr, yymsp[-2].minor.yy4.Expr);
+	list = Expr::ListAppend(parse, list, yymsp[-4].minor.yy4.Expr);
+	list = Expr::ListAppend(parse, list, yymsp[0].minor.yy4.Expr);
+	yygotominor.yy4.Expr = Expr::Function(parse, list, &yymsp[-3].minor.yy16.Operator);
+	if (yymsp[-3].minor.yy16.Not) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
+	yygotominor.yy4.Start = yymsp[-4].minor.yy4.Start;
+	yygotominor.yy4.End = yymsp[0].minor.yy4.End;
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->Flags |= EP_InfixFunc;
 }
-#line 2858 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2674 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 213: /* expr ::= expr ISNULL|NOTNULL */
-#line 721 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanUnaryPostfix(&yygotominor.yy4,parse,yymsp[0].major,&yymsp[-1].minor.yy4,&yymsp[0].minor.yy0); }
-#line 2863 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 718 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanUnaryPostfix(&yygotominor.yy4, parse, yymsp[0].major, &yymsp[-1].minor.yy4, &yymsp[0].minor.yy0); }
+#line 2679 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 214: /* expr ::= expr NOT NULL */
-#line 722 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanUnaryPostfix(&yygotominor.yy4,parse,TK_NOTNULL,&yymsp[-2].minor.yy4,&yymsp[0].minor.yy0); }
-#line 2868 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 719 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanUnaryPostfix(&yygotominor.yy4, parse, TK_NOTNULL, &yymsp[-2].minor.yy4, &yymsp[0].minor.yy0); }
+#line 2684 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 215: /* expr ::= expr IS expr */
-#line 742 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanBinaryExpr(&yygotominor.yy4,parse,TK_IS,&yymsp[-2].minor.yy4,&yymsp[0].minor.yy4); binaryToUnaryIfNull(parse, yymsp[0].minor.yy4.pExpr, yygotominor.yy4.pExpr, TK_ISNULL); }
-#line 2873 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 739 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanBinaryExpr(&yygotominor.yy4, parse, TK_IS, &yymsp[-2].minor.yy4, &yymsp[0].minor.yy4); BinaryToUnaryIfNull(parse, yymsp[0].minor.yy4.Expr, yygotominor.yy4.Expr, TK_ISNULL); }
+#line 2689 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 216: /* expr ::= expr IS NOT expr */
-#line 743 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanBinaryExpr(&yygotominor.yy4,parse,TK_ISNOT,&yymsp[-3].minor.yy4,&yymsp[0].minor.yy4); binaryToUnaryIfNull(parse, yymsp[0].minor.yy4.pExpr, yygotominor.yy4.pExpr, TK_NOTNULL); }
-#line 2878 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 740 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanBinaryExpr(&yygotominor.yy4, parse, TK_ISNOT, &yymsp[-3].minor.yy4, &yymsp[0].minor.yy4); BinaryToUnaryIfNull(parse, yymsp[0].minor.yy4.Expr, yygotominor.yy4.Expr, TK_NOTNULL); }
+#line 2694 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 217: /* expr ::= NOT expr */
       case 218: /* expr ::= BITNOT expr */ yytestcase(yyruleno==218);
-#line 755 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanUnaryPrefix(&yygotominor.yy4, parse, yymsp[-1].major, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
-#line 2884 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 752 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanUnaryPrefix(&yygotominor.yy4, parse, yymsp[-1].major, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
+#line 2700 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 219: /* expr ::= MINUS expr */
-#line 757 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanUnaryPrefix(&yygotominor.yy4, parse, TK_UMINUS, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
-#line 2889 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 754 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanUnaryPrefix(&yygotominor.yy4, parse, TK_UMINUS, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
+#line 2705 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 220: /* expr ::= PLUS expr */
-#line 758 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ spanUnaryPrefix(&yygotominor.yy4, parse, TK_UPLUS, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
-#line 2894 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 755 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ SpanUnaryPrefix(&yygotominor.yy4, parse, TK_UPLUS, &yymsp[0].minor.yy4, &yymsp[-1].minor.yy0); }
+#line 2710 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 223: /* expr ::= expr between_op expr AND expr */
-#line 763 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 760 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	ExprList *pList = sqlite3ExprListAppend(parse,0, yymsp[-2].minor.yy4.pExpr);
-	pList = sqlite3ExprListAppend(parse,pList, yymsp[0].minor.yy4.pExpr);
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_BETWEEN, yymsp[-4].minor.yy4.pExpr, 0, 0);
-	if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->x.pList = pList;
-	else sqlite3ExprListDelete(parse->db, pList);
-	if (yymsp[-3].minor.yy1) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
-	yygotominor.yy4.zStart = yymsp[-4].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = yymsp[0].minor.yy4.zEnd;
+	ExprList *list = Expr::ListAppend(parse, nullptr, yymsp[-2].minor.yy4.Expr);
+	list = Expr::ListAppend(parse, list, yymsp[0].minor.yy4.Expr);
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_BETWEEN, yymsp[-4].minor.yy4.Expr, 0, 0);
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->x.List = list;
+	else Expr::ListDelete(parse->Ctx, list);
+	if (yymsp[-3].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
+	yygotominor.yy4.Start = yymsp[-4].minor.yy4.Start;
+	yygotominor.yy4.End = yymsp[0].minor.yy4.End;
 }
-#line 2899 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2715 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 226: /* expr ::= expr in_op LP exprlist RP */
-#line 777 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 774 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	if (yymsp[-1].minor.yy6 == 0)
+	if (!yymsp[-1].minor.yy7)
 	{
 		// Expressions of the form
 		//      expr1 IN ()
 		//      expr1 NOT IN ()
 		// simplify to constants 0 (false) and 1 (true), respectively, regardless of the value of expr1.
-		yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_INTEGER, 0, 0, &sqlite3IntTokens[yymsp[-3].minor.yy1]);
-		sqlite3ExprDelete(parse->db, yymsp[-4].minor.yy4.pExpr);
+		yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_INTEGER, 0, 0, &g_intTokens[yymsp[-3].minor.yy1]);
+		Expr::Delete(parse->Ctx, yymsp[-4].minor.yy4.Expr);
 	}
 	else
 	{
-		yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_IN, yymsp[-4].minor.yy4.pExpr, 0, 0);
-		if (yygotominor.yy4.pExpr)
+		yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_IN, yymsp[-4].minor.yy4.Expr, 0, 0);
+		if (yygotominor.yy4.Expr)
 		{
-			yygotominor.yy4.pExpr->x.pList = yymsp[-1].minor.yy6;
-			sqlite3ExprSetHeight(parse, yygotominor.yy4.pExpr);
+			yygotominor.yy4.Expr->x.List = yymsp[-1].minor.yy7;
+			Expr::SetHeight(parse, yygotominor.yy4.Expr);
 		}
-		else sqlite3ExprListDelete(parse->db, yymsp[-1].minor.yy6);
-		if (yymsp[-3].minor.yy1) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
+		else Expr::ListDelete(parse->Ctx, yymsp[-1].minor.yy7);
+		if (yymsp[-3].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
 	}
-	yygotominor.yy4.zStart = yymsp[-4].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	yygotominor.yy4.Start = yymsp[-4].minor.yy4.Start;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2904 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2720 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 227: /* expr ::= LP select RP */
-#line 801 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 798 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_SELECT, 0, 0, 0);
-	if (yygotominor.yy4.pExpr)
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_SELECT, 0, 0, 0);
+	if (yygotominor.yy4.Expr)
 	{
-		yygotominor.yy4.pExpr->x.pSelect = yymsp[-1].minor.yy3;
-		ExprSetProperty(yygotominor.yy4.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, yygotominor.yy4.pExpr);
+		yygotominor.yy4.Expr->x.Select = yymsp[-1].minor.yy3;
+		Expr::SetProperty(yygotominor.yy4.pExpr, EP_xIsSelect);
+		Expr::SetHeight(parse, yygotominor.yy4.Expr);
 	}
-	else sqlite3SelectDelete(parse->db, yymsp[-1].minor.yy3);
-	yygotominor.yy4.zStart = yymsp[-2].minor.yy0.z;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
+	yygotominor.yy4.Start = yymsp[-2].minor.yy0.data;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2909 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2725 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 228: /* expr ::= expr in_op LP select RP */
-#line 813 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 810 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_IN, yymsp[-4].minor.yy4.pExpr, 0, 0);
-	if (yygotominor.yy4.pExpr)
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_IN, yymsp[-4].minor.yy4.Expr, 0, 0);
+	if (yygotominor.yy4.Expr)
 	{
-		yygotominor.yy4.pExpr->x.pSelect = yymsp[-1].minor.yy3;
-		ExprSetProperty(yygotominor.yy4.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, yygotominor.yy4.pExpr);
+		yygotominor.yy4.Expr->x.Select = yymsp[-1].minor.yy3;
+		Expr::SetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
+		Expr::SetHeight(parse, yygotominor.yy4.Expr);
 	}
-	else sqlite3SelectDelete(parse->db, yymsp[-1].minor.yy3);
-	if (yymsp[-3].minor.yy1) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
-	yygotominor.yy4.zStart = yymsp[-4].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
+	if (yymsp[-3].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
+	yygotominor.yy4.Start = yymsp[-4].minor.yy4.Start;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2914 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2730 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 229: /* expr ::= expr in_op nm dbnm */
-#line 826 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 823 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	SrcList *pSrc = sqlite3SrcListAppend(parse->db, 0,&yymsp[-1].minor.yy0,&yymsp[0].minor.yy0);
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_IN, yymsp[-3].minor.yy4.pExpr, 0, 0);
-	if (yygotominor.yy4.pExpr)
+	SrcList *src = Expr::SrcListAppend(parse->Ctx, 0, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_IN, yymsp[-3].minor.yy4.Expr, 0, 0);
+	if (yygotominor.yy4.Expr)
 	{
-		yygotominor.yy4.pExpr->x.pSelect = sqlite3SelectNew(parse, 0,pSrc,0,0,0,0,0,0,0);
-		ExprSetProperty(yygotominor.yy4.pExpr, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, yygotominor.yy4.pExpr);
+		yygotominor.yy4.Expr->x.Select = Select::New(parse, nullptr, src, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+		Expr::SetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
+		Expr::SetHeight(parse, yygotominor.yy4.Expr);
 	}
-	else sqlite3SrcListDelete(parse->db, pSrc);
-	if (yymsp[-2].minor.yy1) yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_NOT, yygotominor.yy4.pExpr, 0, 0);
-	yygotominor.yy4.zStart = yymsp[-3].minor.yy4.zStart;
-	yygotominor.yy4.zEnd = yymsp[0].minor.yy0.z ? &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n] : &yymsp[-1].minor.yy0.z[yymsp[-1].minor.yy0.n];
+	else Expr::SrcListDelete(parse->Ctx, src);
+	if (yymsp[-2].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
+	yygotominor.yy4.Start = yymsp[-3].minor.yy4.Start;
+	yygotominor.yy4.End = (yymsp[0].minor.yy0.data ? &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length] : &yymsp[-1].minor.yy0.data[yymsp[-1].minor.yy0.length]);
 }
-#line 2919 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2735 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 230: /* expr ::= EXISTS LP select RP */
-#line 840 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 837 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Expr *p = yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_EXISTS, 0, 0, 0);
+	Expr *p = yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_EXISTS, 0, 0, 0);
 	if (p)
 	{
-		p->x.pSelect = yymsp[-1].minor.yy3;
-		ExprSetProperty(p, EP_xIsSelect);
-		sqlite3ExprSetHeight(parse, p);
+		p->x.Select = yymsp[-1].minor.yy3;
+		Expr::SetProperty(p, EP_xIsSelect);
+		Expr::SetHeight(parse, p);
 	}
-	else sqlite3SelectDelete(parse->db, yymsp[-1].minor.yy3);
-	yygotominor.yy4.zStart = yymsp[-3].minor.yy0.z;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
+	yygotominor.yy4.Start = yymsp[-3].minor.yy0.data;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2924 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2740 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 231: /* expr ::= CASE case_operand case_exprlist case_else END */
-#line 855 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 852 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_CASE, yymsp[-3].minor.yy11, yymsp[-1].minor.yy11, 0);
-	if (yygotominor.yy4.pExpr)
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_CASE, yymsp[-3].minor.yy11, yymsp[-1].minor.yy11, 0);
+	if (yygotominor.yy4.Expr)
 	{
-		yygotominor.yy4.pExpr->x.pList = yymsp[-2].minor.yy6;
-		sqlite3ExprSetHeight(parse, yygotominor.yy4.pExpr);
+		yygotominor.yy4.Expr->x.List = yymsp[-2].minor.yy7;
+		Expr::SetHeight(parse, yygotominor.yy4.Expr);
 	}
-	else sqlite3ExprListDelete(parse->db, yymsp[-2].minor.yy6);
-	yygotominor.yy4.zStart = yymsp[-4].minor.yy0.z;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	else Expr::ListDelete(parse->Ctx, yymsp[-2].minor.yy7);
+	yygotominor.yy4.Start = yymsp[-4].minor.yy0.data;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 2929 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2745 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 232: /* case_exprlist ::= case_exprlist WHEN expr THEN expr */
-#line 868 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 865 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,yymsp[-4].minor.yy6, yymsp[-2].minor.yy4.pExpr);
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,yygotominor.yy6, yymsp[0].minor.yy4.pExpr);
+	yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-4].minor.yy7, yymsp[-2].minor.yy4.Expr);
+	yygotominor.yy7 = Expr::ListAppend(parse, yygotominor.yy7, yymsp[0].minor.yy4.Expr);
 }
-#line 2934 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2750 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 233: /* case_exprlist ::= WHEN expr THEN expr */
-#line 872 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 869 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,0, yymsp[-2].minor.yy4.pExpr);
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,yygotominor.yy6, yymsp[0].minor.yy4.pExpr);
+	yygotominor.yy7 = Expr::ListAppend(parse, nullptr, yymsp[-2].minor.yy4.Expr);
+	yygotominor.yy7 = Expr::ListAppend(parse, yygotominor.yy7, yymsp[0].minor.yy4.Expr);
 }
-#line 2939 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 234: /* case_else ::= ELSE expr */
-      case 236: /* case_operand ::= expr */ yytestcase(yyruleno==236);
-      case 280: /* when_clause ::= WHEN expr */ yytestcase(yyruleno==280);
-#line 878 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy11 = yymsp[0].minor.yy4.pExpr; }
-#line 2946 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 235: /* case_else ::= */
-      case 237: /* case_operand ::= */ yytestcase(yyruleno==237);
-      case 279: /* when_clause ::= */ yytestcase(yyruleno==279);
-#line 879 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy11 = 0; }
-#line 2953 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 239: /* exprlist ::= */
-      case 245: /* idxlist_opt ::= */ yytestcase(yyruleno==245);
-#line 891 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy6 = 0; }
-#line 2959 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2755 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 240: /* nexprlist ::= nexprlist COMMA expr */
-#line 892 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy15 = sqlite3ExprListAppend(parse, yymsp[-2].minor.yy15, yymsp[0].minor.yy4.pExpr); }
-#line 2964 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 889 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-2].minor.yy7, yymsp[0].minor.yy4.Expr); }
+#line 2760 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 241: /* nexprlist ::= expr */
-#line 893 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy15 = sqlite3ExprListAppend(parse, 0, yymsp[0].minor.yy4.pExpr); }
-#line 2969 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 890 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy7 = Expr::ListAppend(parse, 0, yymsp[0].minor.yy4.Expr); }
+#line 2765 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 242: /* cmd ::= createkw uniqueflag INDEX ifnotexists nm dbnm ON nm LP idxlist RP */
-#line 898 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 895 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	sqlite3CreateIndex(parse, &yymsp[-6].minor.yy0, &yymsp[-5].minor.yy0, sqlite3SrcListAppend(parse->Db, 0, &yymsp[-3].minor.yy0, 0), yymsp[-1].minor.yy6, yymsp[-9].minor.yy1, &yymsp[-10].minor.yy0, &yymsp[0].minor.yy0, SQLITE_SO_ASC, yymsp[-7].minor.yy2);
+	parse->CreateIndex(&yymsp[-6].minor.yy0, &yymsp[-5].minor.yy0, Parse::SrcListAppend(parse->Ctx, 0, &yymsp[-3].minor.yy0, 0), yymsp[-1].minor.yy7, yymsp[-9].minor.yy5, &yymsp[-10].minor.yy0, &yymsp[0].minor.yy0, SO_ASC, yymsp[-7].minor.yy2);
 }
-#line 2974 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2770 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 243: /* uniqueflag ::= UNIQUE */
       case 296: /* raisetype ::= ABORT */ yytestcase(yyruleno==296);
-#line 903 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Abort; }
-#line 2980 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 900 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy5 = OE_Abort; }
+#line 2776 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 244: /* uniqueflag ::= */
-#line 904 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_None; }
-#line 2985 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 901 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy5 = OE_None; }
+#line 2781 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 247: /* idxlist ::= idxlist COMMA nm collate sortorder */
-#line 913 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 910 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	Expr *p = sqlite3ExprAddCollateToken(parse, 0, &yymsp[-1].minor.yy0);
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,yymsp[-4].minor.yy6, p);
-	sqlite3ExprListSetName(parse,yygotominor.yy6,&yymsp[-2].minor.yy0,1);
-	sqlite3ExprListCheckLength(parse, yygotominor.yy6, "index");
-	if (yygotominor.yy6) yygotominor.yy6->a[yygotominor.yy6->nExpr-1].sortOrder = (uint8)yymsp[0].minor.yy5;
+	Expr *p = Expr::AddCollateToken(parse, 0, &yymsp[-1].minor.yy0);
+	yygotominor.yy7 = Expr::ListAppend(parse, yymsp[-4].minor.yy7, p);
+	Expr::ListSetName(parse, yygotominor.yy7, &yymsp[-2].minor.yy0, 1);
+	Expr::ListCheckLength(parse, yygotominor.yy7, "index");
+	if (yygotominor.yy7) yygotominor.yy7->Ids[yygotominor.yy7->Exprs-1].SortOrder = yymsp[0].minor.yy6;
 }
-#line 2990 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2786 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 248: /* idxlist ::= nm collate sortorder */
-#line 920 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 917 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
 	Expr *p = sqlite3ExprAddCollateToken(parse, 0, &yymsp[-1].minor.yy0);
-	yygotominor.yy6 = sqlite3ExprListAppend(parse,0, p);
-	sqlite3ExprListSetName(parse, yygotominor.yy6, &yymsp[-2].minor.yy0, 1);
-	sqlite3ExprListCheckLength(parse, yygotominor.yy6, "index");
-	if (yygotominor.yy6) yygotominor.yy6->a[yygotominor.yy6->nExpr-1].sortOrder = (uint8)yymsp[0].minor.yy5;
+	yygotominor.yy7 = Expr::ListAppend(parse, 0, p);
+	Expr::ListSetName(parse, yygotominor.yy7, &yymsp[-2].minor.yy0, 1);
+	Expr::ListCheckLength(parse, yygotominor.yy7, "index");
+	if (yygotominor.yy7) yygotominor.yy7->Ids[yygotominor.yy7->Exprs-1].SortOrder = yymsp[0].minor.yy6;
 }
-#line 2995 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 249: /* collate ::= */
-#line 929 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy0.z = 0; yygotominor.yy0.n = 0; }
-#line 3000 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2791 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 251: /* cmd ::= DROP INDEX ifexists fullname */
-#line 934 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3DropIndex(parse, yymsp[0].minor.yy9, yymsp[-1].minor.yy2); }
-#line 3005 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 931 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ parse->DropIndex(yymsp[0].minor.yy9, yymsp[-1].minor.yy2); }
+#line 2796 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 252: /* cmd ::= VACUUM */
       case 253: /* cmd ::= VACUUM nm */ yytestcase(yyruleno==253);
-#line 939 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Vacuum(parse); }
-#line 3011 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 936 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Vacuum::Vacuum_(parse); }
+#line 2802 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 254: /* cmd ::= PRAGMA nm dbnm */
-#line 946 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Pragma(parse, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0, 0, 0); }
-#line 3016 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 943 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Pragma::Pragma_(parse, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0, 0, 0); }
+#line 2807 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 255: /* cmd ::= PRAGMA nm dbnm EQ nmnum */
-#line 947 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Pragma(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, 0); }
-#line 3021 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 944 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Pragma::Pragma_(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, 0); }
+#line 2812 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 256: /* cmd ::= PRAGMA nm dbnm LP nmnum RP */
-#line 948 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Pragma(parse, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, 0); }
-#line 3026 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 945 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Pragma::Pragma_(parse, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, 0); }
+#line 2817 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 257: /* cmd ::= PRAGMA nm dbnm EQ minus_num */
-#line 949 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Pragma(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, 1); }
-#line 3031 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 946 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Pragma::Pragma_(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, 1); }
+#line 2822 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 258: /* cmd ::= PRAGMA nm dbnm LP minus_num RP */
-#line 950 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Pragma(parse, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, 1); }
-#line 3036 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 947 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Pragma::Pragma_(parse, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0, &yymsp[-1].minor.yy0, 1); }
+#line 2827 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 268: /* cmd ::= createkw trigger_decl BEGIN trigger_cmd_list END */
-#line 965 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 962 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
 	Token all;
-	all.z = yymsp[-3].minor.yy0.z;
-	all.n = (int)(yymsp[0].minor.yy0.z - yymsp[-3].minor.yy0.z) + yymsp[0].minor.yy0.n;
-	sqlite3FinishTrigger(parse, yymsp[-1].minor.yy19, &all);
+	all.data = yymsp[-3].minor.yy0.data;
+	all.length = (int)(yymsp[0].minor.yy0.data - yymsp[-3].minor.yy0.data) + yymsp[0].minor.yy0.length;
+	Trigger::FinishTrigger(parse, yymsp[-1].minor.yy17, &all);
 }
-#line 3041 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2832 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 269: /* trigger_decl ::= temp TRIGGER ifnotexists nm dbnm trigger_time trigger_event ON fullname foreach_clause when_clause */
-#line 974 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 971 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	sqlite3BeginTrigger(parse, &yymsp[-7].minor.yy0, &yymsp[-6].minor.yy0, yymsp[-5].minor.yy1, yymsp[-4].minor.yy20.a, yymsp[-4].minor.yy20.b, yymsp[-2].minor.yy9, yymsp[0].minor.yy11, yymsp[-10].minor.yy2, yymsp[-8].minor.yy2);
-	yygotominor.yy0 = (yymsp[-6].minor.yy0.n==0?yymsp[-7].minor.yy0:yymsp[-6].minor.yy0);
+	Trigger::BeginTrigger(parse, &yymsp[-7].minor.yy0, &yymsp[-6].minor.yy0, yymsp[-5].minor.yy18, yymsp[-4].minor.yy19.yygotominor.yy0, yymsp[-4].minor.yy19.yymsp[-7].minor.yy0, yymsp[-2].minor.yy9, yymsp[0].minor.yy11, yymsp[-10].minor.yy2, yymsp[-8].minor.yy2);
+	yygotominor.yy0 = (yymsp[-6].minor.yy0.length == 0 ? yymsp[-7].minor.yy0 : yymsp[-6].minor.yy0);
 }
-#line 3046 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2837 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 270: /* trigger_time ::= BEFORE */
       case 273: /* trigger_time ::= */ yytestcase(yyruleno==273);
-#line 980 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = TK_BEFORE; }
-#line 3052 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 977 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy18 = TK_BEFORE; }
+#line 2843 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 271: /* trigger_time ::= AFTER */
-#line 981 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = TK_AFTER;  }
-#line 3057 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 978 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy18 = TK_AFTER;  }
+#line 2848 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 272: /* trigger_time ::= INSTEAD OF */
-#line 982 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = TK_INSTEAD;}
-#line 3062 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 979 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy18 = TK_INSTEAD;}
+#line 2853 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 274: /* trigger_event ::= DELETE|INSERT */
       case 275: /* trigger_event ::= UPDATE */ yytestcase(yyruleno==275);
-#line 987 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy20.a = yymsp[0].major; yygotominor.yy20.b = 0; }
-#line 3068 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 984 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy19.yygotominor.yy19 = yymsp[0].major; yygotominor.yy19.B = nullptr; }
+#line 2859 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 276: /* trigger_event ::= UPDATE OF inscollist */
-#line 989 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy20.a = TK_UPDATE; yygotominor.yy20.b = yymsp[0].minor.yy14; }
-#line 3073 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 986 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy19.yygotominor.yy19 = TK_UPDATE; yygotominor.yy19.B = yymsp[0].minor.yy14; }
+#line 2864 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 281: /* trigger_cmd_list ::= trigger_cmd_list trigger_cmd SEMI */
-#line 1001 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 998 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	_assert(yymsp[-2].minor.yy19 != 0);
-	yymsp[-2].minor.yy19->pLast->pNext = yymsp[-1].minor.yy19;
-	yymsp[-2].minor.yy19->pLast = yymsp[-1].minor.yy19;
-	yygotominor.yy19 = yymsp[-2].minor.yy19;
+	_assert(yymsp[-2].minor.yy17 != nullptr);
+	yymsp[-2].minor.yy17->Last->Next = yymsp[-1].minor.yy17;
+	yymsp[-2].minor.yy17->Last = yymsp[-1].minor.yy17;
+	yygotominor.yy17 = yymsp[-2].minor.yy17;
 }
-#line 3078 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2869 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 282: /* trigger_cmd_list ::= trigger_cmd SEMI */
-#line 1007 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1004 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { 
-	_assert(yymsp[-1].minor.yy19 != 0);
-	yymsp[-1].minor.yy19->pLast = yymsp[-1].minor.yy19;
-	yygotominor.yy19 = yymsp[-1].minor.yy19;
+	_assert(yymsp[-1].minor.yy17 != nullptr);
+	yymsp[-1].minor.yy17->Last = yymsp[-1].minor.yy17;
+	yygotominor.yy17 = yymsp[-1].minor.yy17;
 }
-#line 3083 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2874 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 284: /* trnm ::= nm DOT nm */
-#line 1017 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1014 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { yygotominor.yy0 = yymsp[0].minor.yy0; sqlite3ErrorMsg(parse, "qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers"); }
-#line 3088 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2879 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 286: /* tridxby ::= INDEXED BY nm */
-#line 1022 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1019 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { sqlite3ErrorMsg(parse, "the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"); }
-#line 3093 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2884 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 287: /* tridxby ::= NOT INDEXED */
-#line 1023 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1020 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 { sqlite3ErrorMsg(parse, "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"); }
-#line 3098 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2889 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 288: /* trigger_cmd ::= UPDATE orconf trnm tridxby SET setlist where_opt */
-#line 1028 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy19 = sqlite3TriggerUpdateStep(parse->db, &yymsp[-4].minor.yy0, yymsp[-1].minor.yy6, yymsp[0].minor.yy11, yymsp[-5].minor.yy8); }
-#line 3103 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1025 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy17 = Trigger::UpdateStep(parse->Ctx, &yymsp[-4].minor.yy0, yymsp[-1].minor.yy7, yymsp[0].minor.yy11, yymsp[-5].minor.yy5); }
+#line 2894 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 289: /* trigger_cmd ::= insert_cmd INTO trnm inscollist_opt valuelist */
-#line 1030 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy19 = sqlite3TriggerInsertStep(parse->db, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy14, yymsp[0].minor.yy17.pList, yymsp[0].minor.yy17.pSelect, yymsp[-4].minor.yy16); }
-#line 3108 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1027 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy17 = Trigger::InsertStep(parse->Ctx, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy14, yymsp[0].minor.yy15.List, yymsp[0].minor.yy15.Select, yymsp[-4].minor.yy5); }
+#line 2899 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 290: /* trigger_cmd ::= insert_cmd INTO trnm inscollist_opt select */
-#line 1031 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy19 = sqlite3TriggerInsertStep(parse->db, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy14, 0, yymsp[0].minor.yy3, yymsp[-4].minor.yy16); }
-#line 3113 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1028 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy17 = Trigger::InsertStep(parse->Ctx, &yymsp[-2].minor.yy0, yymsp[-1].minor.yy14, 0, yymsp[0].minor.yy3, yymsp[-4].minor.yy5); }
+#line 2904 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 291: /* trigger_cmd ::= DELETE FROM trnm tridxby where_opt */
-#line 1033 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy19 = sqlite3TriggerDeleteStep(parse->db, &yymsp[-2].minor.yy0, yymsp[0].minor.yy11); }
-#line 3118 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1030 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy17 = Trigger::DeleteStep(parse->Ctx, &yymsp[-2].minor.yy0, yymsp[0].minor.yy11); }
+#line 2909 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 292: /* trigger_cmd ::= select */
-#line 1035 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy19 = sqlite3TriggerSelectStep(parse->db, yymsp[0].minor.yy3); }
-#line 3123 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1032 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy17 = Trigger::SelectStep(parse->Ctx, yymsp[0].minor.yy3); }
+#line 2914 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 293: /* expr ::= RAISE LP IGNORE RP */
-#line 1038 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1035 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_RAISE, 0, 0, 0); 
-	if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->affinity = OE_Ignore;
-	yygotominor.yy4.zStart = yymsp[-3].minor.yy0.z;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_RAISE, 0, 0, 0); 
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->Aff = OE_Ignore;
+	yygotominor.yy4.Start = yymsp[-3].minor.yy0.data;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 3128 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2919 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 294: /* expr ::= RAISE LP raisetype COMMA nm RP */
-#line 1044 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+#line 1041 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 {
-	yygotominor.yy4.pExpr = sqlite3PExpr(parse, TK_RAISE, 0, 0, &yymsp[-1].minor.yy0); 
-	if (yygotominor.yy4.pExpr) yygotominor.yy4.pExpr->affinity = (char)yymsp[-3].minor.yy1;
-	yygotominor.yy4.zStart = yymsp[-5].minor.yy0.z;
-	yygotominor.yy4.zEnd = &yymsp[0].minor.yy0.z[yymsp[0].minor.yy0.n];
+	yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_RAISE, 0, 0, &yymsp[-1].minor.yy0); 
+	if (yygotominor.yy4.Expr) yygotominor.yy4.Expr->Aff = (AFF)yymsp[-3].minor.yy5;
+	yygotominor.yy4.Start = yymsp[-5].minor.yy0.data;
+	yygotominor.yy4.End = &yymsp[0].minor.yy0.data[yymsp[0].minor.yy0.length];
 }
-#line 3133 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 2924 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 295: /* raisetype ::= ROLLBACK */
-#line 1053 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Rollback; }
-#line 3138 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1050 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy5 = OE_Rollback; }
+#line 2929 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 297: /* raisetype ::= FAIL */
-#line 1055 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy1 = OE_Fail; }
-#line 3143 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1052 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ yygotominor.yy5 = OE_Fail; }
+#line 2934 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 298: /* cmd ::= DROP TRIGGER ifexists fullname */
-#line 1059 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3DropTrigger(parse,yymsp[0].minor.yy9,yymsp[-1].minor.yy2); }
-#line 3148 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1056 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Trigger::DropTrigger(parse, yymsp[0].minor.yy9, yymsp[-1].minor.yy2); }
+#line 2939 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 299: /* cmd ::= ATTACH database_kw_opt expr AS expr key_opt */
-#line 1064 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Attach(parse, yymsp[-3].minor.yy4.pExpr, yymsp[-1].minor.yy4.pExpr, yymsp[0].minor.yy21); }
-#line 3153 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1061 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ sqlite3Attach(parse, yymsp[-3].minor.yy4.Expr, yymsp[-1].minor.yy4.Expr, yymsp[0].minor.yy11); }
+#line 2944 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 300: /* cmd ::= DETACH database_kw_opt expr */
-#line 1065 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Detach(parse, yymsp[0].minor.yy4.pExpr); }
-#line 3158 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 301: /* key_opt ::= */
-#line 1069 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy21 = 0; }
-#line 3163 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-        break;
-      case 302: /* key_opt ::= KEY expr */
-#line 1070 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ yygotominor.yy21 = yymsp[0].minor.yy4.pExpr; }
-#line 3168 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1062 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ sqlite3Detach(parse, yymsp[0].minor.yy4.Expr); }
+#line 2949 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 305: /* cmd ::= REINDEX */
-#line 1077 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Reindex(parse, 0, 0); }
-#line 3173 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1074 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ parse->Reindex(nullptr, nullptr); }
+#line 2954 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 306: /* cmd ::= REINDEX nm dbnm */
-#line 1078 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Reindex(parse, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
-#line 3178 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1075 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ parse->Reindex(&yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
+#line 2959 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 307: /* cmd ::= ANALYZE */
-#line 1083 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Analyze(parse, 0, 0); }
-#line 3183 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1080 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Analyze::Analyze_(parse, nullptr, nullptr); }
+#line 2964 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 308: /* cmd ::= ANALYZE nm dbnm */
-#line 1084 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3Analyze(parse, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
-#line 3188 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1081 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Analyze::Analyze_(parse, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
+#line 2969 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 309: /* cmd ::= ALTER TABLE fullname RENAME TO nm */
-#line 1089 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3AlterRenameTable(parse, yymsp[-3].minor.yy9, &yymsp[0].minor.yy0); }
-#line 3193 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1086 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Alter::RenameTable(parse, yymsp[-3].minor.yy9, &yymsp[0].minor.yy0); }
+#line 2974 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 310: /* cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt column */
-#line 1090 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3AlterFinishAddColumn(parse, &yymsp[0].minor.yy0); }
-#line 3198 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1087 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ Alter::FinishAddColumn(parse, &yymsp[0].minor.yy0); }
+#line 2979 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 311: /* add_column_fullname ::= fullname */
-#line 1091 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ parse->Db->lookaside.bEnabled = 0; sqlite3AlterBeginAddColumn(parse, yymsp[0].minor.yy9); }
-#line 3203 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1088 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ parse->Ctx->Lookaside.Enabled = false; Alter::BeginAddColumn(parse, yymsp[0].minor.yy9); }
+#line 2984 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 314: /* cmd ::= create_vtab */
-#line 1098 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3VtabFinishParse(parse, 0); }
-#line 3208 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1095 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ VTable::FinishParse(parse, nullptr); }
+#line 2989 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 315: /* cmd ::= create_vtab LP vtabarglist RP */
-#line 1099 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3VtabFinishParse(parse, &yymsp[0].minor.yy0); }
-#line 3213 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1096 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ VTable::FinishParse(parse, &yymsp[0].minor.yy0); }
+#line 2994 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 316: /* create_vtab ::= createkw VIRTUAL TABLE ifnotexists nm dbnm USING nm */
-#line 1101 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3VtabBeginParse(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, yymsp[-4].minor.yy2); }
-#line 3218 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1098 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ VTable::BeginParse(parse, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, yymsp[-4].minor.yy2); }
+#line 2999 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 319: /* vtabarg ::= */
-#line 1104 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3VtabArgInit(parse);}
-#line 3223 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1101 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ VTable::ArgInit(parse);}
+#line 3004 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       case 321: /* vtabargtoken ::= ANY */
       case 322: /* vtabargtoken ::= lp anylist RP */ yytestcase(yyruleno==322);
       case 323: /* lp ::= LP */ yytestcase(yyruleno==323);
-#line 1106 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
-{ sqlite3VtabArgExtend(parse, &yymsp[0].minor.yy0); }
-#line 3230 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
+#line 1103 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
+{ VTable::ArgExtend(parse, &yymsp[0].minor.yy0); }
+#line 3011 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
         break;
       default:
       /* (0) input ::= cmdlist */ yytestcase(yyruleno==0);
@@ -3557,256 +3337,212 @@ static void yy_reduce(
       /* (325) anylist ::= anylist LP anylist RP */ yytestcase(yyruleno==325);
       /* (326) anylist ::= anylist ANY */ yytestcase(yyruleno==326);
         break;
-  };
-  yygoto = yyRuleInfo[yyruleno].lhs;
-  yysize = yyRuleInfo[yyruleno].nrhs;
-  yypParser->yyidx -= yysize;
-  yyact = yy_find_reduce_action(yymsp[-yysize].stateno,(YYCODETYPE)yygoto);
-  if( yyact < YYNSTATE ){
+	};
+	yygoto = yyRuleInfo[yyruleno].lhs;
+	yysize = yyRuleInfo[yyruleno].nrhs;
+	yypParser->yyidx -= yysize;
+	yyact = yy_find_reduce_action(yymsp[-yysize].stateno, (YYCODETYPE)yygoto);
+	if (yyact < YYNSTATE)
+	{
 #ifdef NDEBUG
-    /* If we are not debugging and the reduce action popped at least
-    ** one element off the stack, then we can push the new element back
-    ** onto the stack here, and skip the stack overflow test in yy_shift().
-    ** That gives a significant speed improvement. */
-    if( yysize ){
-      yypParser->yyidx++;
-      yymsp -= yysize-1;
-      yymsp->stateno = (YYACTIONTYPE)yyact;
-      yymsp->major = (YYCODETYPE)yygoto;
-      yymsp->minor = yygotominor;
-    }else
-#endif
-    {
-      yy_shift(yypParser,yyact,yygoto,&yygotominor);
+    // If we are not debugging and the reduce action popped at least one element off the stack, then we can push the new element back
+    // onto the stack here, and skip the stack overflow test in yy_shift(). That gives a significant speed improvement.
+	if (yysize)
+	{
+		yypParser->yyidx++;
+		yymsp -= yysize-1;
+		yymsp->stateno = (YYACTIONTYPE)yyact;
+		yymsp->major = (YYCODETYPE)yygoto;
+		yymsp->minor = yygotominor;
     }
-  }else{
-    assert( yyact == YYNSTATE + YYNRULE + 1 );
-    yy_accept(yypParser);
-  }
-}
-
-/*
-** The following code executes when the parse fails
-*/
-#ifndef YYNOERRORRECOVERY
-static void yy_parse_failed(
-  yyParser *yypParser           /* The parser */
-){
-  ParserARG_FETCH;
-#ifndef NDEBUG
-  if( yyTraceFILE ){
-    fprintf(yyTraceFILE,"%sFail!\n",yyTracePrompt);
-  }
+	else
 #endif
-  while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
-  /* Here code is inserted which will be executed whenever the
-  ** parser fails */
-  ParserARG_STORE; /* Suppress warning about unused %extra_argument variable */
+	{
+		yy_shift(yypParser, yyact, yygoto, &yygotominor);
+	}
+	else
+	{
+		_assert( yyact == YYNSTATE + YYNRULE + 1 );
+		yy_accept(yypParser);
+	}
 }
-#endif /* YYNOERRORRECOVERY */
 
-/*
-** The following code executes when a syntax error first occurs.
-*/
-static void yy_syntax_error(
-  yyParser *yypParser,           /* The parser */
-  int yymajor,                   /* The major type of the error token */
-  YYMINORTYPE yyminor            /* The minor type of the error token */
-){
-  ParserARG_FETCH;
+// The following code executes when the parse fails
+#ifndef YYNOERRORRECOVERY
+__device__ static void yy_parse_failed(yyParser *yypParser)
+{
+	ParserARG_FETCH;
+#ifndef NDEBUG
+	if (yyTraceFILE)
+		fprintf(yyTraceFILE, "%sFail!\n", yyTracePrompt);
+#endif
+	while (yypParser->yyidx >= 0) yy_pop_parser_stack(yypParser);
+	// Here code is inserted which will be executed whenever the parser fails
+	ParserARG_STORE; // Suppress warning about unused %extra_argument variable
+}
+#endif
+
+// The following code executes when a syntax error first occurs.
+__device__ static void yy_syntax_error(yyParser *yypParser, int yymajor, YYMINORTYPE yyminor)
+{
+	ParserARG_FETCH;
 #define TOKEN (yyminor.yy0)
 #line 18 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	_assert(TOKEN.data[0]); // The tokenizer always gives us a token
 	parse->ErrorMsg("near \"%T\": syntax error", &TOKEN);
-#line 3331 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.c"
-  ParserARG_STORE; /* Suppress warning about unused %extra_argument variable */
+#line 3104 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.cu"
+	ParserARG_STORE; // Suppress warning about unused %extra_argument variable
 }
 
-/*
-** The following is executed when the parser accepts
-*/
-static void yy_accept(
-  yyParser *yypParser           /* The parser */
-){
-  ParserARG_FETCH;
+// The following is executed when the parser accepts
+__device__ static void yy_accept(yyParser *yypParser)
+{
+	ParserARG_FETCH;
 #ifndef NDEBUG
-  if( yyTraceFILE ){
-    fprintf(yyTraceFILE,"%sAccept!\n",yyTracePrompt);
-  }
+	if (yyTraceFILE)
+		fprintf(yyTraceFILE, "%sAccept!\n", yyTracePrompt);
 #endif
-  while( yypParser->yyidx>=0 ) yy_pop_parser_stack(yypParser);
-  /* Here code is inserted which will be executed whenever the
-  ** parser accepts */
-  ParserARG_STORE; /* Suppress warning about unused %extra_argument variable */
+	while (yypParser->yyidx >= 0) yy_pop_parser_stack(yypParser);
+	// Here code is inserted which will be executed whenever the parser accepts
+	ParserARG_STORE; // Suppress warning about unused %extra_argument variable
 }
 
-/* The main parser program.
-** The first argument is a pointer to a structure obtained from
-** "ParserAlloc" which describes the current state of the parser.
-** The second argument is the major token number.  The third is
-** the minor token.  The fourth optional argument is whatever the
-** user wants (and specified in the grammar) and is available for
-** use by the action routines.
-**
-** Inputs:
-** <ul>
-** <li> A pointer to the parser (an opaque structure.)
-** <li> The major token number.
-** <li> The minor token number.
-** <li> An option argument of a grammar-specified type.
-** </ul>
-**
-** Outputs:
-** None.
-*/
-void Parser(
-  void *yyp,                   /* The parser */
-  int yymajor,                 /* The major token code number */
-  ParserTOKENTYPE yyminor       /* The value for the token */
-  ParserARG_PDECL               /* Optional %extra_argument parameter */
-){
-  YYMINORTYPE yyminorunion;
-  int yyact;            /* The parser action. */
-  int yyendofinput;     /* True if we are at the end of input */
+// The main parser program.
+// The first argument is a pointer to a structure obtained from "ParserAlloc" which describes the current state of the parser.
+// The second argument is the major token number.  The third is the minor token.  The fourth optional argument is whatever the
+// user wants (and specified in the grammar) and is available for use by the action routines.
+//
+// Inputs:
+// <ul>
+// <li> A pointer to the parser (an opaque structure.)
+// <li> The major token number.
+// <li> The minor token number.
+// <li> An option argument of a grammar-specified type.
+// </ul>
+//
+// Outputs:
+// None.
+void Parser(void *yyp, int yymajor, ParserTOKENTYPE yyminor, ParserARG_PDECL)
+{
+	YYMINORTYPE yyminorunion;
+	int yyact;            // The parser action.
+	int yyendofinput;     // True if we are at the end of input
 #ifdef YYERRORSYMBOL
-  int yyerrorhit = 0;   /* True if yymajor has invoked an error */
+	int yyerrorhit = 0;   // True if yymajor has invoked an error
 #endif
-  yyParser *yypParser;  /* The parser */
+	yyParser *yypParser;  // The parser
 
-  /* (re)initialize the parser, if necessary */
-  yypParser = (yyParser*)yyp;
-  if( yypParser->yyidx<0 ){
+	// (re)initialize the parser, if necessary
+	yypParser = (yyParser *)yyp;
+	if (yypParser->yyidx < 0)
+	{
 #if YYSTACKDEPTH<=0
-    if( yypParser->yystksz <=0 ){
-      /*memset(&yyminorunion, 0, sizeof(yyminorunion));*/
-      yyminorunion = yyzerominor;
-      yyStackOverflow(yypParser, &yyminorunion);
-      return;
-    }
+		if (yypParser->yystksz <= 0)
+		{
+		//: memset(&yyminorunion, 0, sizeof(yyminorunion));
+			yyminorunion = yyzerominor;
+			yyStackOverflow(yypParser, &yyminorunion);
+			return;
+		}
 #endif
-    yypParser->yyidx = 0;
-    yypParser->yyerrcnt = -1;
-    yypParser->yystack[0].stateno = 0;
-    yypParser->yystack[0].major = 0;
-  }
-  yyminorunion.yy0 = yyminor;
-  yyendofinput = (yymajor==0);
-  ParserARG_STORE;
+		yypParser->yyidx = 0;
+		yypParser->yyerrcnt = -1;
+		yypParser->yystack[0].stateno = 0;
+		yypParser->yystack[0].major = 0;
+	}
+	yyminorunion.yy0 = yyminor;
+	yyendofinput = (yymajor==0);
+	ParserARG_STORE;
 
 #ifndef NDEBUG
-  if( yyTraceFILE ){
-    fprintf(yyTraceFILE,"%sInput %s\n",yyTracePrompt,yyTokenName[yymajor]);
-  }
+	if (yyTraceFILE)
+		fprintf(yyTraceFILE, "%sInput %s\n", yyTracePrompt, yyTokenName[yymajor]);
 #endif
 
-  do{
-    yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
-    if( yyact<YYNSTATE ){
-      assert( !yyendofinput );  /* Impossible to shift the $ token */
-      yy_shift(yypParser,yyact,yymajor,&yyminorunion);
-      yypParser->yyerrcnt--;
-      yymajor = YYNOCODE;
-    }else if( yyact < YYNSTATE + YYNRULE ){
-      yy_reduce(yypParser,yyact-YYNSTATE);
-    }else{
-      assert( yyact == YY_ERROR_ACTION );
-#ifdef YYERRORSYMBOL
-      int yymx;
-#endif
+	do
+	{
+		yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
+		if (yyact < YYNSTATE)
+		{
+			_assert(!yyendofinput); // Impossible to shift the $ token
+			yy_shift(yypParser, yyact, yymajor, &yyminorunion);
+			yypParser->yyerrcnt--;
+			yymajor = YYNOCODE;
+		}
+		else if (yyact < YYNSTATE + YYNRULE)
+			yy_reduce(yypParser,yyact-YYNSTATE);
+		else
+		{
+			_assert(yyact == YY_ERROR_ACTION);
 #ifndef NDEBUG
-      if( yyTraceFILE ){
-        fprintf(yyTraceFILE,"%sSyntax Error!\n",yyTracePrompt);
-      }
+			if (yyTraceFILE)
+				fprintf(yyTraceFILE, "%sSyntax Error!\n", yyTracePrompt);
 #endif
 #ifdef YYERRORSYMBOL
-      /* A syntax error has occurred.
-      ** The response to an error depends upon whether or not the
-      ** grammar defines an error token "ERROR".  
-      **
-      ** This is what we do if the grammar does define ERROR:
-      **
-      **  * Call the %syntax_error function.
-      **
-      **  * Begin popping the stack until we enter a state where
-      **    it is legal to shift the error symbol, then shift
-      **    the error symbol.
-      **
-      **  * Set the error count to three.
-      **
-      **  * Begin accepting and shifting new tokens.  No new error
-      **    processing will occur until three tokens have been
-      **    shifted successfully.
-      **
-      */
-      if( yypParser->yyerrcnt<0 ){
-        yy_syntax_error(yypParser,yymajor,yyminorunion);
-      }
-      yymx = yypParser->yystack[yypParser->yyidx].major;
-      if( yymx==YYERRORSYMBOL || yyerrorhit ){
+			// A syntax error has occurred. The response to an error depends upon whether or not the grammar defines an error token "ERROR".  
+			//
+			// This is what we do if the grammar does define ERROR:
+			//  * Call the %syntax_error function.
+			//  * Begin popping the stack until we enter a state where it is legal to shift the error symbol, then shift the error symbol.
+			//  * Set the error count to three.
+			//  * Begin accepting and shifting new tokens.  No new error processing will occur until three tokens have been shifted successfully.
+			if (yypParser->yyerrcnt < 0)
+				yy_syntax_error(yypParser, yymajor, yyminorunion);
+			int yymx = yypParser->yystack[yypParser->yyidx].major;
+			if (yymx == YYERRORSYMBOL || yyerrorhit)
+			{
 #ifndef NDEBUG
-        if( yyTraceFILE ){
-          fprintf(yyTraceFILE,"%sDiscard input token %s\n",
-             yyTracePrompt,yyTokenName[yymajor]);
-        }
+				if (yyTraceFILE)
+					fprintf(yyTraceFILE,"%sDiscard input token %s\n", yyTracePrompt,yyTokenName[yymajor]);
 #endif
-        yy_destructor(yypParser, (YYCODETYPE)yymajor,&yyminorunion);
-        yymajor = YYNOCODE;
-      }else{
-         while(
-          yypParser->yyidx >= 0 &&
-          yymx != YYERRORSYMBOL &&
-          (yyact = yy_find_reduce_action(
-                        yypParser->yystack[yypParser->yyidx].stateno,
-                        YYERRORSYMBOL)) >= YYNSTATE
-        ){
-          yy_pop_parser_stack(yypParser);
-        }
-        if( yypParser->yyidx < 0 || yymajor==0 ){
-          yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
-          yy_parse_failed(yypParser);
-          yymajor = YYNOCODE;
-        }else if( yymx!=YYERRORSYMBOL ){
-          YYMINORTYPE u2;
-          u2.YYERRSYMDT = 0;
-          yy_shift(yypParser,yyact,YYERRORSYMBOL,&u2);
-        }
-      }
-      yypParser->yyerrcnt = 3;
-      yyerrorhit = 1;
+				yy_destructor(yypParser, (YYCODETYPE)yymajor,&yyminorunion);
+				yymajor = YYNOCODE;
+			}
+			else
+			{
+				while (yypParser->yyidx >= 0 && yymx != YYERRORSYMBOL && (yyact = yy_find_reduce_action(yypParser->yystack[yypParser->yyidx].stateno, YYERRORSYMBOL)) >= YYNSTATE)
+					yy_pop_parser_stack(yypParser);
+				if (yypParser->yyidx < 0 || yymajor == 0)
+				{
+					yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
+					yy_parse_failed(yypParser);
+					yymajor = YYNOCODE;
+				}
+				else if (yymx != YYERRORSYMBOL)
+				{
+					YYMINORTYPE u2;
+					u2.YYERRSYMDT = 0;
+					yy_shift(yypParser,yyact,YYERRORSYMBOL,&u2);
+				}
+			}
+			yypParser->yyerrcnt = 3;
+			yyerrorhit = 1;
 #elif defined(YYNOERRORRECOVERY)
-      /* If the YYNOERRORRECOVERY macro is defined, then do not attempt to
-      ** do any kind of error recovery.  Instead, simply invoke the syntax
-      ** error routine and continue going as if nothing had happened.
-      **
-      ** Applications can set this macro (for example inside %include) if
-      ** they intend to abandon the parse upon the first syntax error seen.
-      */
-      yy_syntax_error(yypParser,yymajor,yyminorunion);
-      yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
-      yymajor = YYNOCODE;
+			// If the YYNOERRORRECOVERY macro is defined, then do not attempt to do any kind of error recovery.  Instead, simply invoke the syntax
+			// error routine and continue going as if nothing had happened.
+			//
+			// Applications can set this macro (for example inside %include) if they intend to abandon the parse upon the first syntax error seen.
+			yy_syntax_error(yypParser,yymajor,yyminorunion);
+			yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
+			yymajor = YYNOCODE;
       
-#else  /* YYERRORSYMBOL is not defined */
-      /* This is what we do if the grammar does not define ERROR:
-      **
-      **  * Report an error message, and throw away the input token.
-      **
-      **  * If the input token is $, then fail the parse.
-      **
-      ** As before, subsequent error messages are suppressed until
-      ** three input tokens have been successfully shifted.
-      */
-      if( yypParser->yyerrcnt<=0 ){
-        yy_syntax_error(yypParser,yymajor,yyminorunion);
-      }
-      yypParser->yyerrcnt = 3;
-      yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
-      if( yyendofinput ){
-        yy_parse_failed(yypParser);
-      }
-      yymajor = YYNOCODE;
+#else  // YYERRORSYMBOL is not defined
+			// This is what we do if the grammar does not define ERROR:
+			//  * Report an error message, and throw away the input token.
+			//  * If the input token is $, then fail the parse.
+			//
+			// As before, subsequent error messages are suppressed until three input tokens have been successfully shifted.
+			if (yypParser->yyerrcnt <= 0)
+				yy_syntax_error(yypParser, yymajor, yyminorunion);
+			yypParser->yyerrcnt = 3;
+			yy_destructor(yypParser, (YYCODETYPE)yymajor, &yyminorunion);
+			if (yyendofinput)
+				yy_parse_failed(yypParser);
+			yymajor = YYNOCODE;
 #endif
-    }
-  }while( yymajor!=YYNOCODE && yypParser->yyidx>=0 );
-  return;
+		}
+	}
+	while (yymajor != YYNOCODE && yypParser->yyidx >= 0);
+	return;
 }
