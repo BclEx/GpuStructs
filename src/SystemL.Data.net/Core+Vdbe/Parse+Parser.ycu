@@ -622,7 +622,7 @@ expr(A) ::= REGISTER(X).			{
 	else
 	{
 		A.Expr = Expr::PExpr_(parse, TK_REGISTER, 0, 0, &X);
-		if (A.Expr) ConvertEx::GetInt32(&X.data[1], &A.Expr->TableIdx);
+		if (A.Expr) ConvertEx::Atoi(&X.data[1], &A.Expr->TableIdx);
 	}
 	SpanSet(&A, &X, &X);
 }
@@ -787,7 +787,7 @@ expr(A) ::= expr(X) in_op(N) LP exprlist(Y) RP(E). [IN] {
 		if (A.Expr)
 		{
 			A.Expr->x.List = Y;
-			Expr::SetHeight(parse, A.Expr);
+			A.Expr->SetHeight(parse);
 		}
 		else Expr::ListDelete(parse->Ctx, Y);
 		if (N) A.Expr = Expr::PExpr_(parse, TK_NOT, A.Expr, 0, 0);
@@ -800,8 +800,8 @@ expr(A) ::= LP(B) select(X) RP(E). {
 	if (A.Expr)
 	{
 		A.Expr->x.Select = X;
-		Expr::SetProperty(A.pExpr, EP_xIsSelect);
-		Expr::SetHeight(parse, A.Expr);
+		ExprSetProperty(A.Expr, EP_xIsSelect);
+		A.Expr->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, X);
 	A.Start = B.data;
@@ -812,8 +812,8 @@ expr(A) ::= expr(X) in_op(N) LP select(Y) RP(E).  [IN] {
 	if (A.Expr)
 	{
 		A.Expr->x.Select = Y;
-		Expr::SetProperty(A.Expr, EP_xIsSelect);
-		Expr::SetHeight(parse, A.Expr);
+		ExprSetProperty(A.Expr, EP_xIsSelect);
+		A.Expr->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, Y);
 	if (N) A.Expr = Expr::PExpr_(parse, TK_NOT, A.Expr, 0, 0);
@@ -821,15 +821,15 @@ expr(A) ::= expr(X) in_op(N) LP select(Y) RP(E).  [IN] {
 	A.End = &E.data[E.length];
 }
 expr(A) ::= expr(X) in_op(N) nm(Y) dbnm(Z). [IN] {
-	SrcList *src = Expr::SrcListAppend(parse->Ctx, 0, &Y, &Z);
+	SrcList *src = Parse::SrcListAppend(parse->Ctx, 0, &Y, &Z);
 	A.Expr = Expr::PExpr_(parse, TK_IN, X.Expr, 0, 0);
 	if (A.Expr)
 	{
-		A.Expr->x.Select = Select::New(parse, nullptr, src, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-		Expr::SetProperty(A.Expr, EP_xIsSelect);
-		Expr::SetHeight(parse, A.Expr);
+		A.Expr->x.Select = Select::New(parse, nullptr, src, nullptr, nullptr, nullptr, nullptr, (SF)0, nullptr, nullptr);
+		ExprSetProperty(A.Expr, EP_xIsSelect);
+		A.Expr->SetHeight(parse);
 	}
-	else Expr::SrcListDelete(parse->Ctx, src);
+	else Parse::SrcListDelete(parse->Ctx, src);
 	if (N) A.Expr = Expr::PExpr_(parse, TK_NOT, A.Expr, 0, 0);
 	A.Start = X.Start;
 	A.End = (Z.data ? &Z.data[Z.length] : &Y.data[Y.length]);
@@ -839,8 +839,8 @@ expr(A) ::= EXISTS(B) LP select(Y) RP(E). {
 	if (p)
 	{
 		p->x.Select = Y;
-		Expr::SetProperty(p, EP_xIsSelect);
-		Expr::SetHeight(parse, p);
+		ExprSetProperty(p, EP_xIsSelect);
+		p->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, Y);
 	A.Start = B.data;
@@ -854,7 +854,7 @@ expr(A) ::= CASE(C) case_operand(X) case_exprlist(Y) case_else(Z) END(E). {
 	if (A.Expr)
 	{
 		A.Expr->x.List = Y;
-		Expr::SetHeight(parse, A.Expr);
+		A.Expr->SetHeight(parse);
 	}
 	else Expr::ListDelete(parse->Ctx, Y);
 	A.Start = C.data;
@@ -908,15 +908,15 @@ uniqueflag(A) ::= .			{ A = OE_None; }
 idxlist_opt(A) ::= .                         { A = nullptr; }
 idxlist_opt(A) ::= LP idxlist(X) RP.         { A = X; }
 idxlist(A) ::= idxlist(X) COMMA nm(Y) collate(C) sortorder(Z).  {
-	Expr *p = Expr::AddCollateToken(parse, 0, &C);
+	Expr *p = Expr::AddCollateToken(parse, nullptr, &C);
 	A = Expr::ListAppend(parse, X, p);
 	Expr::ListSetName(parse, A, &Y, 1);
 	Expr::ListCheckLength(parse, A, "index");
 	if (A) A->Ids[A->Exprs-1].SortOrder = Z;
 }
 idxlist(A) ::= nm(Y) collate(C) sortorder(Z). {
-	Expr *p = sqlite3ExprAddCollateToken(parse, 0, &C);
-	A = Expr::ListAppend(parse, 0, p);
+	Expr *p = Expr::AddCollateToken(parse, nullptr, &C);
+	A = Expr::ListAppend(parse, nullptr, p);
 	Expr::ListSetName(parse, A, &Y, 1);
 	Expr::ListCheckLength(parse, A, "index");
 	if (A) A->Ids[A->Exprs-1].SortOrder = Z;

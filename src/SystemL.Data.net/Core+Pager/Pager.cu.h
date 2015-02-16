@@ -205,7 +205,7 @@ namespace Core
 		__device__ const VSystem *get_Vfs();
 		__device__ VFile *get_File();
 		__device__ const char *get_Journalname();
-		__device__ int get_NoSync();
+		__device__ bool get_NoSync();
 #ifdef HAS_CODEC
 		__device__ void SetCodec(void *(*codec)(void *,void *, Pid, int), void (*codecSizeChange)(void *, int, int), void (*codecFree)(void *), void *codecArg);
 		__device__ void *GetCodec();

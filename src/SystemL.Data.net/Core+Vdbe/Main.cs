@@ -1931,7 +1931,7 @@ namespace Core
                         // is built using separate source files.
                         string word = (string)args[0];
                         int n = word.Length;
-                        rc = (sqlite3KeywordCode(word, n) != TK.ID ? N_KEYWORD : 0);
+                        rc = (KeywordCode(word, n) != TK.ID ? N_KEYWORD : 0);
                         break;
                     }
 #endif

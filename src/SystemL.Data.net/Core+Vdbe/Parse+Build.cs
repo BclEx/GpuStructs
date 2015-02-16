@@ -927,7 +927,7 @@ namespace Core
             for (j = 0; j < ident.Length; j++)
                 if (!char.IsLetterOrDigit(ident[j]) && ident[j] != '_')
                     break;
-            bool needQuote = char.IsDigit(ident[0]) || sqlite3KeywordCode(ident, j) != TK.ID;
+            bool needQuote = char.IsDigit(ident[0]) || KeywordCode(ident, j) != TK.ID;
             if (!needQuote) needQuote = (j < ident.Length && ident[j] != 0);
             else { if (i == z.Length) z.Append('\0'); z[i++] = '"'; }
             for (j = 0; j < ident.Length; j++)
@@ -2551,7 +2551,7 @@ namespace Core
             for (int i = 0; i < ctx.DBs.length; i++)
             {
                 Context.DB dbObj = ctx.DBs[i];
-                if (dbObj.Bt != null && (dbName == null || !string.Equals(dbName, dbObj.zName))
+                if (dbObj.Bt != null && (dbName == null || !string.Equals(dbName, dbObj.zName)))
                     CodeVerifySchema(i);
             }
         }

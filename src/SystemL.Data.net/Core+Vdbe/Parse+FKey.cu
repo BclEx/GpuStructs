@@ -235,7 +235,7 @@ namespace Core
 					left->Aff = colObj->Affinity;
 					const char *collName = colObj->Coll;
 					if (collName == 0) collName = ctx->DefaultColl->Name;
-					left = left->AddCollateString(parse, collName);
+					left = Expr::AddCollateString(parse, left, collName);
 				}
 				else
 				{

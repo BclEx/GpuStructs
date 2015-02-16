@@ -294,10 +294,10 @@ static int keywordCode( string z, int iOffset, int n )
       }
       return TK_ID;
     }
-    static int sqlite3KeywordCode( string z, int n )
-    {
-      return keywordCode( z, 0, n );
-    }
+    //static int sqlite3KeywordCode( string z, int n )
+    //{
+    //  return keywordCode( z, 0, n );
+    //}
     public const int SQLITE_N_KEYWORD = 121;//#define SQLITE_N_KEYWORD 121
   }
 }

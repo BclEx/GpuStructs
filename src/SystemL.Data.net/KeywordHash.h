@@ -265,7 +265,8 @@ __device__ static int KeywordCode(const char *z, int n)
 	}
 	return TK_ID;
 }
-int sqlite3KeywordCode(const unsigned char *z, int n){
-	return KeywordCode((char*)z, n);
-}
+//int sqlite3KeywordCode(const unsigned char *z, int n)
+//{
+//	return KeywordCode((char *)z, n);
+//}
 #define SQLITE_N_KEYWORD 121

@@ -42,7 +42,7 @@ namespace Core
 			dup->TableIdx = list->Ids[colId].Alias;
 		}
 		if (expr->OP == TK_COLLATE)
-			dup = dup->AddCollateString(parse, expr->u.Token);
+			dup = Expr::AddCollateString(parse, dup, expr->u.Token);
 
 		// Before calling sqlite3ExprDelete(), set the EP_Static flag. This prevents ExprDelete() from deleting the Expr structure itself,
 		// allowing it to be repopulated by the memcpy() on the following line. The pExpr->u.zToken might point into memory that will be freed by the

@@ -2308,7 +2308,7 @@ end_playback:
 			VSystem::OPEN fout = (VSystem::OPEN)0; // VFS flags returned by xOpen()
 			rc = vfs->Open(pager->Filename, pager->File, vfsFlags, &fout);
 			_assert(!memoryDB);
-			readOnly = (fout & VSystem::OPEN_READONLY);
+			readOnly = ((fout & VSystem::OPEN_READONLY) != 0);
 
 			// If the file was successfully opened for read/write access, choose a default page size in case we have to create the
 			// database file. The default page size is the maximum of:
@@ -2345,7 +2345,7 @@ end_playback:
 			tempFile = true;
 			pager->State = Pager::PAGER_READER;
 			pager->Lock = VFile::LOCK_EXCLUSIVE;
-			readOnly = (vfsFlags & VSystem::OPEN_READONLY);
+			readOnly = ((vfsFlags & VSystem::OPEN_READONLY) != 0);
 		}
 
 		// The following call to PagerSetPagesize() serves to set the value of Pager.pageSize and to allocate the Pager.pTmpSpace buffer.
@@ -3550,7 +3550,7 @@ commit_phase_one_exit:
 		return Journal;
 	}
 
-	__device__ int Pager::get_NoSync()
+	__device__ bool Pager::get_NoSync()
 	{
 		return NoSync;
 	}

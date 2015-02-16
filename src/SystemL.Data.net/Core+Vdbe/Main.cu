@@ -1820,7 +1820,7 @@ error_out:
 			// is built using separate source files.
 			const char *word = va_arg(args, const char*);
 			int n = _strlen30(word);
-			rc = (sqlite3KeywordCode((uint8 *)word, n) != TK_ID ? N_KEYWORD : 0);
+			rc = (KeywordCode((uint8 *)word, n) != TK_ID ? N_KEYWORD : 0);
 			break; }
 #endif 
 		case TESTCTRL_SCRATCHMALLOC: {

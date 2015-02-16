@@ -691,6 +691,8 @@ namespace Core
 	};
 	__device__ EP2 inline operator|=(EP2 a, int b) { return (EP2)(a | b); }
 
+	__constant__ extern const Token g_intTokens[];
+
 	class Vdbe;
 	struct ExprSpan;
 	struct ExprList;
@@ -741,8 +743,8 @@ namespace Core
 		Table *Table;
 
 		__device__ AFF Affinity();
-		__device__ Expr *AddCollateToken(Parse *parse, Token *collName);
-		__device__ Expr *AddCollateString(Parse *parse, const char *z);
+		__device__ static Expr *AddCollateToken(Parse *parse, Expr *expr, Token *collName);
+		__device__ static Expr *AddCollateString(Parse *parse, Expr *expr, const char *z);
 		__device__ Expr *SkipCollate();
 		__device__ CollSeq *CollSeq(Parse *parse);
 		__device__ AFF CompareAffinity(AFF aff2);

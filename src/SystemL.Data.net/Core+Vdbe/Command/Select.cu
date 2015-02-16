@@ -1596,7 +1596,7 @@ multi_select_end:
 					{
 						coll = MultiSelectCollSeq(parse, p, permutes[i]);
 						if (!coll) coll = ctx->DefaultColl;
-						orderBy->Ids[i].Expr = term->AddCollateString(parse, coll->Name);
+						orderBy->Ids[i].Expr = Expr::AddCollateString(parse, term, coll->Name);
 					}
 					keyMerge->Colls[i] = coll;
 					keyMerge->SortOrders[i] = orderBy->Ids[i].SortOrder;

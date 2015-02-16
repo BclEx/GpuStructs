@@ -2,7 +2,7 @@
 
 namespace Core
 {
-	const Token _IntTokens[] = {
+	__constant__ const Token g_intTokens[] = {
 		{ "0", 1 },
 		{ "1", 1 }
 	};
@@ -35,9 +35,8 @@ namespace Core
 		return expr->Aff;
 	}
 
-	__device__ Expr *Expr::AddCollateToken(Parse *parse, Token *collName)
+	__device__ Expr *Expr::AddCollateToken(Parse *parse, Expr *expr, Token *collName)
 	{
-		Expr *expr = this;
 		if (collName->length > 0)
 		{
 			Expr *newExpr = Expr::Alloc(parse->Ctx, TK_COLLATE, collName, 1);
@@ -51,13 +50,13 @@ namespace Core
 		return expr;
 	}
 
-	__device__ Expr *Expr::AddCollateString(Parse *parse, const char *z)
+	__device__ Expr *Expr::AddCollateString(Parse *parse, Expr *expr, const char *z)
 	{
 		_assert(z);
 		Token s;
 		s.data = z;
 		s.length = _strlen30(z);
-		return AddCollateToken(parse, &s);
+		return AddCollateToken(parse, expr, &s);
 	}
 
 	__device__ Expr *Expr::SkipCollate()
@@ -371,7 +370,7 @@ namespace Core
 		{
 			Delete(ctx, left);
 			Delete(ctx, right);
-			return Alloc(ctx, TK_INTEGER, &_IntTokens[0], false);
+			return Alloc(ctx, TK_INTEGER, &g_intTokens[0], false);
 		}
 		else
 		{
@@ -1239,7 +1238,7 @@ no_mem:
 				v->Comment("Init EXISTS result");
 			}
 			Expr::Delete(parse->Ctx, sel->Limit);
-			sel->Limit = PExpr_(parse, TK_INTEGER, 0, 0, &_IntTokens[1]);
+			sel->Limit = PExpr_(parse, TK_INTEGER, 0, 0, &g_intTokens[1]);
 			sel->LimitId = 0;
 			if (Select::Select_(parse, sel, &dest))
 				return 0;

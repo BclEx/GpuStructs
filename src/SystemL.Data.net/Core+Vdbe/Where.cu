@@ -896,12 +896,12 @@ findTerm_success:
 			sCollSeqName.data = (noCase ? "NOCASE" : "BINARY");
 			sCollSeqName.length = 6;
 			Expr *newExpr1 = Expr::Dup(ctx, left, 0);
-			newExpr1 = Expr::PExpr_(parse, TK_GE, newExpr1->AddCollateToken(parse, &sCollSeqName), str1, 0);
+			newExpr1 = Expr::PExpr_(parse, TK_GE, Expr::AddCollateToken(parse, newExpr1, &sCollSeqName), str1, 0);
 			int idxNew1 = WhereClauseInsert(wc, newExpr1, TERM_VIRTUAL|TERM_DYNAMIC);
 			ASSERTCOVERAGE(idxNew1 == 0);
 			ExprAnalyze(src, wc, idxNew1);
 			Expr *newExpr2 = Expr::Dup(ctx, left, 0);
-			newExpr2 = Expr::PExpr_(parse, TK_LT, newExpr2->AddCollateToken(parse, &sCollSeqName), str2, 0);
+			newExpr2 = Expr::PExpr_(parse, TK_LT, Expr::AddCollateToken(parse, newExpr2, &sCollSeqName), str2, 0);
 			int idxNew2 = WhereClauseInsert(wc, newExpr2, TERM_VIRTUAL|TERM_DYNAMIC);
 			ASSERTCOVERAGE(idxNew2 == 0);
 			ExprAnalyze(src, wc, idxNew2);

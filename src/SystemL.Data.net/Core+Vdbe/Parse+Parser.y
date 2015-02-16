@@ -787,7 +787,7 @@ expr(A) ::= expr(X) in_op(N) LP exprlist(Y) RP(E). [IN] {
 		if (A.Expr != null)
 		{
 			A.Expr.x.List = Y;
-			Expr.SetHeight(parse, A.pExpr);
+			A.Expr.SetHeight(parse);
 		}
 		else Expr.ListDelete(parse.Ctx, Y);
 		if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
@@ -800,8 +800,8 @@ expr(A) ::= LP(B) select(X) RP(E). {
 	if (A.Expr != null)
 	{
 		A.Expr.x.Select = X;
-		Expr.SetProperty(A.Expr, EP.xIsSelect);
-		Expr.SetHeight(parse, A.Expr);
+		ExprSetProperty(A.Expr, EP.xIsSelect);
+		A.Expr.SetHeight(parse);
 	}
 	else Select.Delete(parse.Ctx, X);
 	A.Start = B.data;
@@ -812,8 +812,8 @@ expr(A) ::= expr(X) in_op(N) LP select(Y) RP(E).  [IN] {
 	if (A.Expr)
 	{
 		A.Expr.x.Select = Y;
-		Expr.SetProperty(A.Expr, EP.xIsSelect);
-		Expr.SetHeight(parse, A.Expr);
+		ExprSetProperty(A.Expr, EP.xIsSelect);
+		A.Expr.SetHeight(parse);
 	}
 	else Select.Delete(parse.Ctx, Y);
 	if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
@@ -821,15 +821,15 @@ expr(A) ::= expr(X) in_op(N) LP select(Y) RP(E).  [IN] {
 	A.End = &E.data.Substring(E.length);
 }
 expr(A) ::= expr(X) in_op(N) nm(Y) dbnm(Z). [IN] {
-	SrcList src = Expr.SrcListAppend(parse.Ctx, 0, &Y, &Z);
+	SrcList src = Parse.SrcListAppend(parse.Ctx, 0, &Y, &Z);
 	A.Expr = Expr.PExpr_(parse, TK.IN, X.Expr, 0, 0);
 	if (A.Expr != null)
 	{
 		A.Expr.x.Select = Select.New(parse, null, src, null, null, null, null, null, null, null);
-		Expr.SetProperty(A.Expr, EP.xIsSelect);
-		Expr.SetHeight(parse, A.Expr);
+		ExprSetProperty(A.Expr, EP.xIsSelect);
+		A.Expr.SetHeight(parse);
 	}
-	else Expr.SrcListDelete(parse.Ctx, src);
+	else Parse.SrcListDelete(parse.Ctx, src);
 	if (N) A.Expr = Expr.PExpr_(parse, TK.NOT, A.Expr, 0, 0);
 	A.Start = X.Start;
 	A.End = (Z.data != null ? &Z.data.Substring(Z.length) : &Y.data.Substring(Y.length));
@@ -839,8 +839,8 @@ expr(A) ::= EXISTS(B) LP select(Y) RP(E). {
 	if (p)
 	{
 		p.x.Select = Y;
-		Expr.SetProperty(p, EP.xIsSelect);
-		Expr.SetHeight(parse, p);
+		ExprSetProperty(p, EP.xIsSelect);
+		p.SetHeight(parse);
 	}
 	else Select.Delete(parse.Ctx, Y);
 	A.Start = B.data;
@@ -854,7 +854,7 @@ expr(A) ::= CASE(C) case_operand(X) case_exprlist(Y) case_else(Z) END(E). {
 	if (A.Expr != null)
 	{
 		A.Expr.x.List = Y;
-		Expr.SetHeight(parse, A.Expr);
+		A.ExprSetHeight(parse);
 	}
 	else Expr.ListDelete(parse.Ctx, Y);
 	A.Start = C.data;

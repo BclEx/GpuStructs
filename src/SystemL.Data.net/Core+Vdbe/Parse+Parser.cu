@@ -2713,7 +2713,7 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	else
 	{
 		yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_REGISTER, 0, 0, &yymsp[0].minor.yy0);
-		if (yygotominor.yy4.Expr) ConvertEx::GetInt32(&yymsp[0].minor.yy0.data[1], &yygotominor.yy4.Expr->TableIdx);
+		if (yygotominor.yy4.Expr) ConvertEx::Atoi(&yymsp[0].minor.yy0.data[1], &yygotominor.yy4.Expr->TableIdx);
 	}
 	SpanSet(&yygotominor.yy4, &yymsp[0].minor.yy0, &yymsp[0].minor.yy0);
 }
@@ -2895,7 +2895,7 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 		if (yygotominor.yy4.Expr)
 		{
 			yygotominor.yy4.Expr->x.List = yymsp[-1].minor.yy7;
-			Expr::SetHeight(parse, yygotominor.yy4.Expr);
+			yygotominor.yy4.Expr->SetHeight(parse);
 		}
 		else Expr::ListDelete(parse->Ctx, yymsp[-1].minor.yy7);
 		if (yymsp[-3].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
@@ -2912,8 +2912,8 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	if (yygotominor.yy4.Expr)
 	{
 		yygotominor.yy4.Expr->x.Select = yymsp[-1].minor.yy3;
-		Expr::SetProperty(yygotominor.yy4.pExpr, EP_xIsSelect);
-		Expr::SetHeight(parse, yygotominor.yy4.Expr);
+		ExprSetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
+		yygotominor.yy4.Expr->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
 	yygotominor.yy4.Start = yymsp[-2].minor.yy0.data;
@@ -2928,8 +2928,8 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	if (yygotominor.yy4.Expr)
 	{
 		yygotominor.yy4.Expr->x.Select = yymsp[-1].minor.yy3;
-		Expr::SetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
-		Expr::SetHeight(parse, yygotominor.yy4.Expr);
+		ExprSetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
+		yygotominor.yy4.Expr->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
 	if (yymsp[-3].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
@@ -2946,8 +2946,8 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	if (yygotominor.yy4.Expr)
 	{
 		yygotominor.yy4.Expr->x.Select = Select::New(parse, nullptr, src, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-		Expr::SetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
-		Expr::SetHeight(parse, yygotominor.yy4.Expr);
+		ExprSetProperty(yygotominor.yy4.Expr, EP_xIsSelect);
+		yygotominor.yy4.Expr->SetHeight(parse);
 	}
 	else Expr::SrcListDelete(parse->Ctx, src);
 	if (yymsp[-2].minor.yy1) yygotominor.yy4.Expr = Expr::PExpr_(parse, TK_NOT, yygotominor.yy4.Expr, 0, 0);
@@ -2963,8 +2963,8 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	if (p)
 	{
 		p->x.Select = yymsp[-1].minor.yy3;
-		Expr::SetProperty(p, EP_xIsSelect);
-		Expr::SetHeight(parse, p);
+		ExprSetProperty(p, EP_xIsSelect);
+		p->Expr->SetHeight(parse);
 	}
 	else Select::Delete(parse->Ctx, yymsp[-1].minor.yy3);
 	yygotominor.yy4.Start = yymsp[-3].minor.yy0.data;
@@ -2979,7 +2979,7 @@ __device__ static void yy_reduce(yyParser *yypParser, int yyruleno)
 	if (yygotominor.yy4.Expr)
 	{
 		yygotominor.yy4.Expr->x.List = yymsp[-2].minor.yy7;
-		Expr::SetHeight(parse, yygotominor.yy4.Expr);
+		yygotominor.yy4.Expr->SetHeight(parse);
 	}
 	else Expr::ListDelete(parse->Ctx, yymsp[-2].minor.yy7);
 	yygotominor.yy4.Start = yymsp[-4].minor.yy0.data;

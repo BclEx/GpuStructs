@@ -431,11 +431,11 @@ namespace Core { namespace Command
 		{
 			Btree *bt = dbAsObj->Bt;
 			_assert(bt != nullptr);
-			bool b = (right ? ConvertEx::GetBoolean(right, 0) : -1);
+			int b = (right ? (int)ConvertEx::GetBoolean(right, 0) : -1);
 			if (id2->length == 0 && b >= 0)
 				for (int ii = 0; ii < ctx->DBs.length; ii++)
-					ctx->DBs[ii].Bt->SecureDelete(b);
-			b = bt->SecureDelete(b);
+					ctx->DBs[ii].Bt->SecureDelete(b != 0);
+			b = (bt->SecureDelete(b) ? 1 : 0);
 			ReturnSingleInt(parse, "secure_delete", b);
 		}
 

@@ -905,7 +905,7 @@ primary_key_exit:
 			if (!_isalnum(ident[j]) && ident[j] != '_')
 				break;
 		bool needQuote = (_isdigit(ident[0]) || KeywordCode((const char *)ident, j) != TK_ID);
-		if (!needQuote) needQuote = ident[j];
+		if (!needQuote) needQuote = (ident[j] != 0);
 		else z[i++] = '"';
 		for (j = 0; ident[j]; j++)
 		{
