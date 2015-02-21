@@ -74,9 +74,7 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Tokenize.cu" />
-    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Prepare.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Rowset.cu" />
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Table.cu" />

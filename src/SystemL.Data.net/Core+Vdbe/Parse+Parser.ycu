@@ -51,7 +51,7 @@ To register
 	// TK_DELETE, or TK_INSTEAD.  If the event is of the form
 	//      UPDATE ON (a,b,c)
 	// Then the "b" IdList records the list "a,b,c".
-	struct TrigEvent { int A; IdList *B; };
+	struct TrigEvent { TK A_; IdList *B_; };
 
 	// An instance of this structure holds the ATTACH key and the key type.
 	struct AttachKey { int Type; Token Key; };
@@ -83,7 +83,7 @@ cmd ::= BEGIN transtype(Y) trans_opt.	{ parse->BeginTransaction(Y); }
 trans_opt ::= .
 trans_opt ::= TRANSACTION.
 trans_opt ::= TRANSACTION nm.
-%type transtype {int}
+%type transtype {TK}
 transtype(A) ::= .				{ A = TK_DEFERRED; }
 transtype(A) ::= DEFERRED(X).	{ A = @X; }
 transtype(A) ::= IMMEDIATE(X).	{ A = @X; }
@@ -632,7 +632,7 @@ expr(A) ::= VARIABLE(X).			{
 	SpanSet(&A, &X, &X);
 }
 expr(A) ::= expr(E) COLLATE ids(C).	{
-	A.Expr = E.Expr->AddCollateToken(parse, &C);
+	A.Expr = Expr::AddCollateToken(parse, E.Expr, &C);
 	A.Start = E.Start;
 	A.End = &C.data[C.length];
 }
@@ -653,11 +653,11 @@ expr(A) ::= ID(X) LP STAR RP(E).	{
 	A.Expr = Expr::Function(parse, 0, &X);
 	SpanSet(&A, &X, &E);
 }
-term(A) ::= CTIME_KW(OP).			{
+term(A) ::= CTIME_KW(OP_).			{
 	// The CURRENT_TIME, CURRENT_DATE, and CURRENT_TIMESTAMP values are treated as functions that return constants
-	A.Expr = Expr::Function(parse, 0, &OP);
+	A.Expr = Expr::Function(parse, 0, &OP_);
 	if (A.Expr) A.Expr->OP = TK_CONST_FUNC;  
-	SpanSet(&A, &OP, &OP);
+	SpanSet(&A, &OP_, &OP_);
 }
 
 %include {
@@ -969,7 +969,7 @@ cmd ::= createkw trigger_decl(A) BEGIN trigger_cmd_list(S) END(Z). {
 trigger_decl(A) ::= temp(T) TRIGGER ifnotexists(NOERR) nm(B) dbnm(Z) 
                     trigger_time(C) trigger_event(D)
                     ON fullname(E) foreach_clause when_clause(G). {
-	Trigger::BeginTrigger(parse, &B, &Z, C, D.A, D.B, E, G, T, NOERR);
+	Trigger::BeginTrigger(parse, &B, &Z, C, D.A_, D.B_, E, G, T, NOERR);
 	A = (Z.length == 0 ? B : Z);
 }
 
@@ -980,10 +980,10 @@ trigger_time(A) ::= INSTEAD OF.  { A = TK_INSTEAD;}
 trigger_time(A) ::= .            { A = TK_BEFORE; }
 
 %type trigger_event {TrigEvent}
-%destructor trigger_event { Parse::IdListDelete(parse->Ctx, $$.B); }
-trigger_event(A) ::= DELETE|INSERT(OP).       { A.A = @OP; A.B = nullptr; }
-trigger_event(A) ::= UPDATE(OP).              { A.A = @OP; A.B = nullptr; }
-trigger_event(A) ::= UPDATE OF inscollist(X). { A.A = TK_UPDATE; A.B = X; }
+%destructor trigger_event { Parse::IdListDelete(parse->Ctx, $$.B_); }
+trigger_event(A) ::= DELETE|INSERT(OP).       { A.A_ = @OP; A.B_ = nullptr; }
+trigger_event(A) ::= UPDATE(OP).              { A.A_ = @OP; A.B_ = nullptr; }
+trigger_event(A) ::= UPDATE OF inscollist(X). { A.A_ = TK_UPDATE; A.B_ = X; }
 
 foreach_clause ::= .
 foreach_clause ::= FOR EACH ROW.
@@ -1011,13 +1011,13 @@ trigger_cmd_list(A) ::= trigger_cmd(X) SEMI. {
 // the same database as the table that the trigger fires on.
 %type trnm {Token}
 trnm(A) ::= nm(X).			{ A = X; }
-trnm(A) ::= nm DOT nm(X).	{ A = X; sqlite3ErrorMsg(parse, "qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers"); }
+trnm(A) ::= nm DOT nm(X).	{ A = X; parse->ErrorMsg("qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers"); }
 
 // Disallow the INDEX BY and NOT INDEXED clauses on UPDATE and DELETE statements within triggers.  We make a specific error message for this
 // since it is an exception to the default grammar rules.
 tridxby ::= .
-tridxby ::= INDEXED BY nm.	{ sqlite3ErrorMsg(parse, "the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"); }
-tridxby ::= NOT INDEXED.	{ sqlite3ErrorMsg(parse, "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"); }
+tridxby ::= INDEXED BY nm.	{ parse->ErrorMsg("the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"); }
+tridxby ::= NOT INDEXED.	{ parse->ErrorMsg("the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"); }
 
 %type trigger_cmd {TriggerStep *}
 %destructor trigger_cmd { Trigger::DeleteTriggerStep(parse->Ctx, $$); }
@@ -1034,7 +1034,7 @@ trigger_cmd(A) ::= select(X).														{ A = Trigger::SelectStep(parse->Ctx,
 // The special RAISE expression that may occur in trigger programs
 expr(A) ::= RAISE(X) LP IGNORE RP(Y).  {
 	A.Expr = Expr::PExpr_(parse, TK_RAISE, 0, 0, 0); 
-	if (A.Expr) A.Expr->Aff = OE_Ignore;
+	if (A.Expr) A.Expr->Aff = (AFF)OE_Ignore;
 	A.Start = X.data;
 	A.End = &Y.data[Y.length];
 }
@@ -1058,8 +1058,8 @@ cmd ::= DROP TRIGGER ifexists(NOERR) fullname(X). { Trigger::DropTrigger(parse, 
 
 //////////////////////// ATTACH DATABASE file AS name /////////////////////////
 %ifndef OMIT_ATTACH
-cmd ::= ATTACH database_kw_opt expr(F) AS expr(D) key_opt(K).	{ sqlite3Attach(parse, F.Expr, D.Expr, K); }
-cmd ::= DETACH database_kw_opt expr(D).							{ sqlite3Detach(parse, D.Expr); }
+cmd ::= ATTACH database_kw_opt expr(F) AS expr(D) key_opt(K).	{ Attach::Attach_(parse, F.Expr, D.Expr, K); }
+cmd ::= DETACH database_kw_opt expr(D).							{ Attach::Detach(parse, D.Expr); }
 
 %type key_opt {Expr *}
 %destructor key_opt { Expr::Delete(parse->Ctx, $$); }
