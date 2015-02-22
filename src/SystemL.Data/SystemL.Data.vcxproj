@@ -41,7 +41,9 @@
     <ClInclude Include="..\SystemL.Data.net\Core+Vdbe\VdbeInt.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
+    <ClCompile Include="Program.cu" />
     <ClCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Opcodes.cu" />
     <ClCompile Include="..\SystemL.Data.net\Shell.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -93,7 +95,9 @@
     <ClCompile Include="..\SystemL.Data.net\Core+Vdbe\Where.cu" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
+    <CudaCompile Include="Program.cu" />
     <CudaCompile Include="..\SystemL.Data.net\CompileTime.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Opcodes.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Shell.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\BContext.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\BContext+Notify.cu" />
@@ -188,14 +192,14 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_LIB;TEST;THREADSAFE;ENABLE_ATOMIC_WRITE;OMIT_WAL;EXPENSIVE_ASSERT;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;HAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;ENABLE_STAT3;SOUNDEX;ENABLE_TREE_EXPLAIN;MAX_EXPR_DEPTH;ENABLE_UNLOCK_NOTIFY;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;VDBE_PROFILE;%(PreprocessorDefinitions);_DEBUG;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_xLIB;TEST;THREADSAFE;ENABLE_ATOMIC_WRITE;OMIT_WAL;EXPENSIVE_ASSERT;CHECK_PAGES;ENABLE_MEMORY_MANAGEMENT;xHAS_CODEC;ENABLE_OVERSIZE_CELL_CHECK;ENABLE_STAT3;SOUNDEX;ENABLE_TREE_EXPLAIN;MAX_EXPR_DEPTH;ENABLE_UNLOCK_NOTIFY;xOMIT_GET_TABLE;xOMIT_VIRTUALTABLE;xOMIT_INCRBLOB;xOMIT_TRACE;VDBE_PROFILE;%(PreprocessorDefinitions);_DEBUG;</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)src\Runtime;$(SolutionDir)src\SystemL.net;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TargetMachine>MachineX64</TargetMachine>
       <AdditionalDependencies>Runtime.$(LC)$(LD)D.lib;SystemL.$(LC)$(LD)D.lib;cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OutDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(CudaToolkitLibDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -221,7 +225,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <TargetMachine>MachineX64</TargetMachine>
       <AdditionalDependencies>Runtime.$(LC)$(LD).lib;SystemL.$(LC)$(LD).lib;cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OutDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(CudaToolkitLibDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>

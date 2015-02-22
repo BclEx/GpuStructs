@@ -1,9 +1,17 @@
 #include "vdbeInt.cu.h"
 
 #pragma region Preamble
-// Properties of opcodes.  The OPFLG_INITIALIZER macro is created by mkopcodeh.awk during compilation.  Data is obtained
-// from the comments following the "case OP_xxxx:" statements in the vdbe.c file.  
-const unsigned char _opcodeProperty[] = OPFLG_INITIALIZER;
+namespace Core {
+
+	// Properties of opcodes.  The OPFLG_INITIALIZER macro is created by mkopcodeh.awk during compilation.  Data is obtained
+	// from the comments following the "case OP_xxxx:" statements in the vdbe.c file.  
+	const unsigned char _opcodeProperty[] = OPFLG_INITIALIZER;
+
+#ifdef TEST
+	__device__ extern int g_search_count;
+#endif
+
+}
 #pragma endregion
 
 #pragma region Aux
@@ -1819,9 +1827,6 @@ __device__ void Vdbe::Delete(Vdbe *p)
 	_tagfree(ctx, p);
 }
 
-#ifdef TEST
-extern int _search_count;
-#endif
 __device__ RC Vdbe::CursorMoveto(VdbeCursor *p)
 {
 	if (p->DeferredMoveto)
@@ -1834,7 +1839,7 @@ __device__ RC Vdbe::CursorMoveto(VdbeCursor *p)
 		if (res != 0) return SysEx_CORRUPT_BKPT;
 		p->RowidIsValid = true;
 #ifdef TEST
-		_search_count++;
+		g_search_count++;
 #endif
 		p->DeferredMoveto = false;
 		p->CacheStatus = CACHE_STALE;

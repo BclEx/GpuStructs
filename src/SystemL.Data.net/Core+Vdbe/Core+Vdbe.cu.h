@@ -1223,20 +1223,21 @@ namespace Core
 		__device__ int RunParser(const char *sql, char **errMsg);
 		__device__ static int Dequote(char *z);
 #pragma endregion
+	};
 
-		// The interface to the LEMON-generated parser
+	// The interface to the LEMON-generated parser
 #pragma region From: Parse+Parser_cu
-		__device__ static void *ParserAlloc(void *(*)(size_t));
-		__device__ static void ParserFree(void *, void(*)(void *));
-		__device__ static void Parser(void *, int, Token, Parse *);
+	__device__ extern "C" void *ParserAlloc(void *(*)(size_t));
+	__device__ extern "C" void ParserFree(void *, void(*)(void *));
+	__device__ extern "C" void Parser(void *, int, Token, Parse *);
 #ifdef YYTRACKMAXSTACKDEPTH
-		__device__ static int ParserStackPeak(void *);
+	__device__ extern "C"  int ParserStackPeak(void *);
 #endif
 #ifdef _DEBUG
-		__device__ static void ParserTrace(FILE *, char *);
+	__device__ extern "C" void ParserTrace(FILE *, char *);
 #endif
+
 #pragma endregion
-	};
 
 	struct AuthContext
 	{
@@ -1557,18 +1558,21 @@ namespace Core {
 
 #pragma endregion
 
-#pragma region Codec + Cerod
-
+#pragma region HasCodec
 #ifdef HAS_CODEC
-	__device__ int sqlite3_key(Context *ctx, const void *key, int keyLength);
-	__device__ int sqlite3_rekey(Context *ctx, const void *key, int keyLenegth);
-	__device__ void sqlite3_activate_see(const char *passPhrase);
-#endif
-
+	struct Codec
+	{
+		__device__ static RC Attach(Context *ctx, int dbsLength, const void *key, int keyLength);
+		__device__ static void GetKey(Context *ctx, int, void **key, int *keyLength);
+		// pragma
+		__device__ static int Key(Context *ctx, const void *key, int keyLength);
+		__device__ static int Rekey(Context *ctx, const void *key, int keyLenegth);
+		__device__ static void ActivateSee(const char *passPhrase);
 #ifdef ENABLE_CEROD
-	__device__ void sqlite3_activate_cerod(const char *passPhrase);
+		__device__ static void ActivateCerod(const char *passPhrase);
 #endif
-
+	};
+#endif
 #pragma endregion
 
 #pragma region Command
@@ -1741,11 +1745,6 @@ namespace Core {
 			bool IsPCacheInit;					// True after malloc is initialized
 		};
 
-		static _WSD GlobalStatics g_globalStatics;
-		static _WSD FuncDefHash g_globalFunctions;
-#define Main_GlobalStatics _GLOBAL(GlobalStatics, Main::g_globalStatics)
-#define Main_GlobalFunctions _GLOBAL(FuncDefHash, Main::g_globalFunctions)
-
 		__device__ static RC Initialize();
 		__device__ static RC Shutdown();
 
@@ -1830,7 +1829,7 @@ namespace Core {
 #ifndef OMIT_WAL
 		__device__ static RC Checkpoint(Context *ctx, int db, IPager::CHECKPOINT mode, int *logsOut, int *ckptsOut);
 #endif
-		__device__ static bool TempInMemory(Context *ctx);
+		// BContext::TempInMemory -> __device__ static bool TempInMemory(Context *ctx);
 		__device__ static const char *ErrMsg(Context *ctx);
 		__device__ static const void *ErrMsg16(Context *ctx);
 		__device__ static RC ErrCode(Context *ctx);
@@ -1886,6 +1885,11 @@ namespace Core {
 		__device__ inline static int CtxChanges(Context *ctx) { return ctx->Changes; }
 		__device__ inline static int CtxTotalChanges(Context *ctx) { return ctx->TotalChanges; }
 	};
+
+	__device__ extern _WSD Main::GlobalStatics g_globalStatics;
+	__device__ extern _WSD FuncDefHash g_globalFunctions;
+#define Main_GlobalStatics _GLOBAL(Main::GlobalStatics, g_globalStatics)
+#define Main_GlobalFunctions _GLOBAL(FuncDefHash, g_globalFunctions)
 
 #pragma endregion
 }

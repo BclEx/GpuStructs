@@ -30,7 +30,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Debug.cu|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v110</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
@@ -72,7 +72,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TargetMachine>MachineX64</TargetMachine>
       <AdditionalDependencies>Runtime.$(LC)$(LD)D.lib;cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OutDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(CudaToolkitLibDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -98,7 +98,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <TargetMachine>MachineX64</TargetMachine>
       <AdditionalDependencies>Runtime.$(LC)$(LD).lib;cudart.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OutDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(CudaToolkitLibDir);$(SolutionDir)packages\GpuStructs.1.0.0\lib\native;$(SolutionDir)packages\freeglut.2.8.0\lib\$(PlatformName);</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -109,9 +109,6 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Bitvec.cu.obj" "$(IntDir)ConvertEx.cu.obj" "$(IntDir)GpuVSystem.cu.obj" "$(IntDir)Hash.cu.obj" "$(IntDir)IO.JournalVFile.cu.obj" "$(IntDir)IO.MemoryVFile.cu.obj" "$(IntDir)IO.VFile.cu.obj" "$(IntDir)StatusEx.cu.obj" "$(IntDir)SysEx.cu.obj" "$(IntDir)SysEx+Random.cu.obj" "$(IntDir)SysEx+Utf.cu.obj" "$(IntDir)VSystem.cu.obj" -o "$(OutDir)SystemL.$(LC)$(LD).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="Program.cpp" />
-  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SystemL.net\Core\Bitvec.cu.h" />
     <ClInclude Include="..\SystemL.net\Core\Hash.cu.h" />
@@ -127,6 +124,7 @@
     <ClInclude Include="..\SystemL.net\Core\IO\IO.VFile.cu.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cpu|x64'">
+    <ClCompile Include="Program.cu" />
     <ClCompile Include="..\SystemL.net\Core\SysEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\Bitvec.cu" />
     <ClCompile Include="..\SystemL.net\Core\Hash.cu" />

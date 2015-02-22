@@ -87,14 +87,28 @@ namespace Core
 		VSystem::OPEN Mode;
 	};
 
-	__constant__ static OpenMode _cacheModes[] =
+
+	//SKY TODO: transfer host to constant
+//#if __CUDACC__
+//	__constant__ static OpenMode _cacheModes[3];
+//	__constant__ static OpenMode h_cacheModes[3] =
+//#else
+//	static OpenMode _cacheModes[] =
+//#endif
+	__constant__ static OpenMode _cacheModes[3] =
 	{
 		{ "shared",  VSystem::OPEN_SHAREDCACHE },
 		{ "private", VSystem::OPEN_PRIVATECACHE },
 		{ nullptr, (VSystem::OPEN)0 }
 	};
 
-	__constant__ static OpenMode _openModes[] =
+#if __CUDACC__
+	__constant__ static OpenMode _openModes[5];
+	static OpenMode h_openModes[] =
+#else
+	static OpenMode _openModes[] =
+#endif
+	//__constant__ static OpenMode _openModes[5] =
 	{
 		{ "ro",  VSystem::OPEN_READONLY },
 		{ "rw",  VSystem::OPEN_READWRITE }, 

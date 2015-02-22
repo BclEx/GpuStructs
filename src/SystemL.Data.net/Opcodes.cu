@@ -1,3 +1,5 @@
+#include "Opcodes.h"
+
 /* Automatically generated.  Do not edit */
 /* See the mkopcodec.awk script for details. */
 #if !defined(OMIT_EXPLAIN) || !defined(NDEBUG) || defined(VDBE_PROFILE) || defined(_DEBUG)

@@ -684,8 +684,8 @@ namespace Core { namespace Command
 			{
 				if (sample->DLts > 0)
 				{
-					tRowcnt sumEq;  // Sum of the nEq values
-					for (int i = 0, sumEq = 0; i <= idxId-1; i++) sumEq += idx->Samples[i].Eqs;
+					tRowcnt sumEq = 0;  // Sum of the nEq values
+					for (int i = 0; i <= idxId-1; i++) sumEq += idx->Samples[i].Eqs;
 					idx->AvgEq = (sample->Lts - sumEq) / sample->DLts;
 				}
 				if (idx->AvgEq <= 0) idx->AvgEq = 1;

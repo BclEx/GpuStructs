@@ -96,7 +96,7 @@ namespace Core { namespace Command
 		// empty.  Only the journal header is written.  Apparently it takes more time to parse and run the PRAGMA to turn journalling off than it does
 		// to write the journal header file.
 		int db = ctx->DBs.length; // Number of attached databases
-		char *sql = (Main::TempInMemory(ctx) ? "ATTACH ':memory:' AS vacuum_db;" : "ATTACH '' AS vacuum_db;"); // SQL statements
+		char *sql = (ctx->TempInMemory() ? "ATTACH ':memory:' AS vacuum_db;" : "ATTACH '' AS vacuum_db;"); // SQL statements
 		RC rc = ExecSql(ctx, errMsg, sql); // Return code from service routines      
 		Context::DB *dbObj = nullptr; // Database to detach at end of vacuum
 		if (ctx->DBs.length > db)

@@ -104,7 +104,7 @@ namespace Core
 #endif
 
 	// The following singleton contains the global configuration for the SQLite library.
-	_WSD Main::GlobalStatics Main::g_globalStatics =
+	__device__ _WSD Main::GlobalStatics g_globalStatics =
 	{
 		ALLOW_COVERING_INDEX_SCAN,		// UseCis
 		//{0,0,0,0,0,0,0,0,0,0,0,0,0},	// pcache2
@@ -115,6 +115,8 @@ namespace Core
 		// All the rest should always be initialized to zero
 		false							// IsPCacheInit
 	};
+
+	__device__ _WSD FuncDefHash g_globalFunctions;
 
 	__device__ RC Main::Initialize()
 	{
@@ -1557,7 +1559,6 @@ opendb_out:
 	//	SysEx_LOG(RC_CANTOPEN, "cannot open file at line %d of [%.10s]", lineno, 20+sqlite3_sourceid());
 	//	return RC_CANTOPEN;
 	//}
-
 
 #pragma region Column Metadata
 #ifdef ENABLE_COLUMN_METADATA

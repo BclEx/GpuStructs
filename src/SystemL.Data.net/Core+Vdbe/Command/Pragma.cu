@@ -1,6 +1,14 @@
 // pragma.c
 #include "..\VdbeInt.cu.h"
 
+namespace Core {
+	__device__ extern char *g_temp_directory;
+	__device__ extern char *g_data_directory;
+#ifndef OMIT_COMPILEOPTION_DIAGS
+	__device__ extern const char *CompileTimeGet(int id);
+#endif
+}
+
 namespace Core { namespace Command
 {
 	// moved to ConvertEx
@@ -299,8 +307,6 @@ namespace Core { namespace Command
 		"unlocked", "shared", "reserved", "pending", "exclusive"
 	};
 
-	extern char *g_temp_directory;
-	extern char *g_data_directory;
 	__device__ void Pragma::Pragma_(Parse *parse, Token *id1, Token *id2, Token *value, bool minusFlag)
 	{
 		Context *ctx = parse->Ctx; // The database connection
@@ -1112,9 +1118,9 @@ namespace Core { namespace Command
 			if (right)
 			{
 				if (ConvertEx::GetBoolean(right, 0))
-					Parse::ParserTrace(stderr, "parser: ");
+					ParserTrace(stderr, "parser: ");
 				else
-					Parse::ParserTrace(nullptr, nullptr);
+					ParserTrace(nullptr, nullptr);
 			}
 		}
 #endif
@@ -1357,7 +1363,6 @@ namespace Core { namespace Command
 		// Return the names of all compile-time options used in this build, one option per row.
 		else if (!_strcmp(left, "compile_options"))
 		{
-			extern __device__ const char *CompileTimeGet(int id);
 			v->SetNumCols(1);
 			parse->Mems = 1;
 			v->SetColName(0, COLNAME_NAME, "compile_option", DESTRUCTOR_STATIC);
@@ -1449,9 +1454,9 @@ namespace Core { namespace Command
 
 #ifdef HAS_CODEC
 		else if (!_strcmp(left, "key") && right)
-			sqlite3_key(ctx, right, _strlen30(right));
+			Codec::Key(ctx, right, _strlen30(right));
 		else if (!_strcmp(left, "rekey") && right)
-			sqlite3_rekey(ctx, right, _strlen30(right));
+			Codec::Rekey(ctx, right, _strlen30(right));
 		else if (right && (!_strcmp(left, "hexkey") || !_strcmp(left, "hexrekey")))
 		{
 			int i, h1, h2;
@@ -1463,9 +1468,9 @@ namespace Core { namespace Command
 				key[i/2] = (h2 & 0x0f) | ((h1 & 0xf)<<4);
 			}
 			if ((left[3] & 0xf) == 0xb)
-				sqlite3_key(ctx, key, i/2);
+				Codec::Key(ctx, key, i/2);
 			else
-				sqlite3_rekey(ctx, key, i/2);
+				Codec::Rekey(ctx, key, i/2);
 		}
 #endif
 
@@ -1474,11 +1479,11 @@ namespace Core { namespace Command
 		{
 #ifdef HAS_CODEC
 			if (!_strncmp(right, "see-", 4))
-				sqlite3_activate_see(&right[4]);
+				Codec::ActivateSee(&right[4]);
 #endif
 #ifdef ENABLE_CEROD
 			if (!_strncmp(right, "cerod-", 6))
-				sqlite3_activate_cerod(&right[6]);
+				Codec::ActivateCerod(&right[6]);
 #endif
 		}
 #endif

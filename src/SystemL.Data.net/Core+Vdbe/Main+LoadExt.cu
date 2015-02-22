@@ -409,7 +409,7 @@ namespace Core
 	__device__ RC Main::LoadExtension(Context *ctx, const char *fileName, const char *procName, char **errMsgOut)
 	{
 		MutexEx::Enter(ctx->Mutex);
-		RC rc = LoadExtension(ctx, fileName, procName, errMsgOut);
+		RC rc = LoadExtension_(ctx, fileName, procName, errMsgOut);
 		rc = ApiExit(ctx, rc);
 		MutexEx::Leave(ctx->Mutex);
 		return rc;

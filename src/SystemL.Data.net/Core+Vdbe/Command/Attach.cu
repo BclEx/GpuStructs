@@ -120,8 +120,6 @@ namespace Core { namespace Command
 			rc = RC_NOMEM;
 
 #ifdef HAS_CODEC
-		extern RC sqlite3CodecAttach(Context*, int, const void*, int);
-		extern void sqlite3CodecGetKey(Context*, int, void**, int*);
 		if (rc == RC_OK)
 		{
 			int keyLength;
@@ -139,14 +137,14 @@ namespace Core { namespace Command
 			case TYPE_BLOB:
 				keyLength = Vdbe::Value_Bytes(argv[2]);
 				key = (char *)Vdbe::Value_Blob(argv[2]);
-				rc = sqlite3CodecAttach(ctx, ctx->DBs.length-1, key, keyLength);
+				rc = Codec::Attach(ctx, ctx->DBs.length-1, key, keyLength);
 				break;
 
 			case TYPE_NULL:
 				// No key specified.  Use the key from the main database
-				sqlite3CodecGetKey(ctx, 0, (void**)&key, &keyLength);
+				Codec::GetKey(ctx, 0, (void**)&key, &keyLength);
 				if (keyLength > 0 || ctx->DBs[0].Bt->GetReserve() > 0)
-					rc = sqlite3CodecAttach(ctx, ctx->DBs.length-1, key, keyLength);
+					rc = Codec::Attach(ctx, ctx->DBs.length-1, key, keyLength);
 				break;
 			}
 		}

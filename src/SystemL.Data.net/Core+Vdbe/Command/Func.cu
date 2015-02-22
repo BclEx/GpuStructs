@@ -2,6 +2,13 @@
 #include "..\VdbeInt.cu.h"
 #include <stdlib.h>
 
+namespace Core {
+#ifndef OMIT_COMPILEOPTION_DIAGS
+	__device__ extern bool CompileTimeOptionUsed(const char *optName);
+	__device__ extern const char *CompileTimeGet(int id);
+#endif
+}
+
 namespace Core { namespace Command
 {
 	__device__ CollSeq *Func::GetFuncCollSeq(FuncContext *fctx)
@@ -573,7 +580,6 @@ namespace Core { namespace Command
 
 
 #ifndef OMIT_COMPILEOPTION_DIAGS
-	extern __device__ bool CompileTimeOptionUsed(const char *optName);
 	__device__ static void CompileoptionusedFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);
@@ -583,7 +589,7 @@ namespace Core { namespace Command
 			Vdbe::Result_Int(fctx, CompileTimeOptionUsed(optName));
 	}
 
-	extern __device__ const char *CompileTimeGet(int id);
+
 	__device__ static void CompileoptiongetFunc(FuncContext *fctx, int argc, Mem **argv)
 	{
 		_assert(argc == 1);

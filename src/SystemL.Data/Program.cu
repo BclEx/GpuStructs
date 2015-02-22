@@ -1,12 +1,17 @@
 #ifndef _LIB
-#if XX
 
 #define VISUAL
-#include <RuntimeEx.h>
+#include "..\SystemL.Data.net\Core+Vdbe\Core+Vdbe.cu.h"
+#include <stdio.h>
+#include <string.h>
+using namespace Core;
+using namespace Core::IO;
 
+static void TestVFS();
+
+#if __CUDACC__
 void __main(cudaRuntimeHost &r);
-
-int main(int argc, char **argv)
+void main(int argc, char **argv)
 {
 	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
 
@@ -20,36 +25,37 @@ int main(int argc, char **argv)
 
 	// run
 	//Visual::Main(); atexit(Visual::Dispose);
-	
+
 	cudaRuntimeEnd(runtimeHost);
 
 	cudaDeviceReset();
 	//printf("End.");
 	//char c; scanf("%c", &c);
-	return 1;
 }
 
+void __main(cudaRuntimeHost &r)
+{	
+	cudaRuntimeSetHeap(r.heap);
+	MainTest<<<1, 1>>>(r.heap);
+}
+
+__global__ void main(int argc, char **argv)
 #else
-
-#include "..\SystemL.net\Core\Core.cu.h"
-#include <stdio.h>
-#include <string.h>
-using namespace Core;
-using namespace Core::IO;
-
-static void TestVFS();
-
-void main()
+__global__ void main(int argc, char **argv)
+#endif
 {
-	SysEx::Initialize();
+	Main::Initialize();
+	//
 	TestVFS();
+	//
+	Main::Shutdown();
 }
 
-static void TestVFS()
+__device__ static void TestVFS()
 {
-	auto vfs = VSystem::Find("win32");
+	auto vfs = VSystem::FindVfs("win32");
 	auto file = (VFile *)_alloc(vfs->SizeOsFile);
-	auto rc = vfs->Open("C:\\T_\\Test.db", file, (VSystem::OPEN)((int)VSystem::OPEN_CREATE | (int)VSystem::OPEN_READWRITE | (int)VSystem::OPEN_MAIN_DB), nullptr);
+	auto rc = vfs->Open("C:\\T_\\Test.db", file, VSystem::OPEN_CREATE | VSystem::OPEN_READWRITE | VSystem::OPEN_MAIN_DB, nullptr);
 	file->Write4(0, 123145);
 	file->Close();
 }
@@ -60,5 +66,5 @@ static void TestVFS()
 //	int ops[] = { 5, 1, 1, 1, 0 };
 //	Core::Bitvec_BuiltinTest(400, ops);
 //}
-#endif
+
 #endif
