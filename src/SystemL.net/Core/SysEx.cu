@@ -17,7 +17,7 @@ namespace Core
 #endif
 
 	// The following singleton contains the global configuration for the SQLite library.
-	_WSD SysEx::GlobalStatics SysEx::g_GlobalStatics =
+	__device__ _WSD SysEx::GlobalStatics g_GlobalStatics =
 	{
 		CORE_DEFAULT_MEMSTATUS,		// Memstat
 		true,						// CoreMutex

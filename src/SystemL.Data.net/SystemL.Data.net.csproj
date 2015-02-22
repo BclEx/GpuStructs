@@ -88,6 +88,7 @@
     <Content Include="Core+Vdbe\Parse+Parser.h">
       <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </Content>
+    <Content Include="Core+Vdbe\Parser.orig.h" />
     <Content Include="_hwtime.h" />
     <Content Include="Core+Vdbe\VdbeInt.cu.h" />
     <Content Include="Core+Vdbe\Vdbe.cu.h" />

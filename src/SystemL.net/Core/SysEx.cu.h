@@ -112,9 +112,6 @@ namespace Core
 #endif
 		};
 
-		__device__ static _WSD GlobalStatics g_GlobalStatics;
-#define SysEx_GlobalStatics _GLOBAL(SysEx::GlobalStatics, SysEx::g_GlobalStatics)
-
 		__device__ inline static RC AutoInitialize() { return RC_OK; }
 		__device__ static RC PreInitialize(MutexEx &masterMutex);
 		__device__ static void PostInitialize(MutexEx masterMutex);
@@ -183,4 +180,7 @@ namespace Core
 #endif
 #pragma endregion
 	};
+
+	__device__ extern _WSD SysEx::GlobalStatics g_GlobalStatics;
+#define SysEx_GlobalStatics _GLOBAL(SysEx::GlobalStatics, g_GlobalStatics)
 }

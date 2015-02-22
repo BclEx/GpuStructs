@@ -7,7 +7,7 @@
 // RUNTIME
 //__device__ static cudaRuntime __curt = { -2 };
 //__device__ static int (*cudaRuntimeInitialize)(cudaRuntime *curt) = nullptr;
-
+__device__ unsigned char __one;
 
 //////////////////////
 // UTF

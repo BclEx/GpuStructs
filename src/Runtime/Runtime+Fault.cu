@@ -3,7 +3,7 @@
 #ifndef OMIT_BUILTIN_TEST
 
 typedef struct BenignMallocHooks BenignMallocHooks;
-static _WSD struct BenignMallocHooks
+__device__ static _WSD struct BenignMallocHooks
 {
 	void (*BenignBegin)();
 	void (*BenignEnd)();
