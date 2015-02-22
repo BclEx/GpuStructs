@@ -643,7 +643,7 @@ namespace Core {
 
 	__device__ Mem *Vdbe::ValueNew(Context *ctx)
 	{
-		Mem *p = (Mem *)_tagalloc(ctx, sizeof(*p));
+		Mem *p = (Mem *)_tagalloc2(ctx, sizeof(*p), true);
 		if (p)
 		{
 			p->Flags = MEM_Null;

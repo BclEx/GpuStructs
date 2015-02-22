@@ -758,7 +758,7 @@ namespace Core
 		Context *ctx = parse->Ctx;
 		if (!list)
 		{
-			list = (ExprList *)_tagalloc(ctx, sizeof(ExprList));
+			list = (ExprList *)_tagalloc2(ctx, sizeof(ExprList), true);
 			if (!list)
 				goto no_mem;
 			list->Ids = (ExprList::ExprListItem *)_tagalloc(ctx, sizeof(list->Ids[0]));

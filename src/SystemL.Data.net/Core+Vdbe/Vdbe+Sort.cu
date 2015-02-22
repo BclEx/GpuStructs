@@ -272,7 +272,7 @@ namespace Core
 	{
 		_assert(cursor->KeyInfo && !cursor->Bt);
 		VdbeSorter *sorter; // The new sorter
-		cursor->Sorter = sorter = (VdbeSorter *)_tagalloc(ctx, sizeof(VdbeSorter));
+		cursor->Sorter = sorter = (VdbeSorter *)_tagalloc2(ctx, sizeof(VdbeSorter), true);
 		if (!sorter)
 			return RC_NOMEM;
 
@@ -560,7 +560,7 @@ namespace Core
 		_assert(iters > 0);
 		int n = 2; while (n < iters) n += n; // Power of 2 >= iters
 		int bytes = n * (sizeof(int) + sizeof(VdbeSorterIter)); // Bytes of space required for aIter/aTree
-		sorter->Iters = (VdbeSorterIter *)_tagalloc(ctx, bytes);
+		sorter->Iters = (VdbeSorterIter *)_tagalloc2(ctx, bytes, true);
 		if (!sorter->Iters) return RC_NOMEM;
 		sorter->Trees = (int *)&sorter->Iters[n];
 		sorter->Trees.length = n;

@@ -15,7 +15,7 @@ namespace Core
 		VSystem *vfs = nullptr;
 		MutexEx mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_MASTER);
 		MutexEx::Enter(mutex);
-		for (vfs = _vfsList; vfs && _strcmp(name, vfs->Name); vfs = vfs->Next) { }
+		for (vfs = _vfsList; vfs && name && _strcmp(name, vfs->Name); vfs = vfs->Next) { }
 		MutexEx::Leave(mutex);
 		return vfs;
 	}

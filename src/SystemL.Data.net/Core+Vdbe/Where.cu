@@ -575,7 +575,7 @@ findTerm_success:
 			{
 				_assert((orTerm->WtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
 				chngToIN = 0;
-				WhereAndInfo *andInfo = (WhereAndInfo *)_tagalloc2(ctx, sizeof(*andInfo), true);
+				WhereAndInfo *andInfo = (WhereAndInfo *)_tagalloc(ctx, sizeof(*andInfo));
 				if (andInfo)
 				{
 					WhereTerm *andTerm;
@@ -1423,7 +1423,7 @@ findTerm_success:
 		}
 
 		// Allocate the sqlite3_index_info structure
-		IIndexInfo *idxInfo = (IIndexInfo *)_tagalloc(parse->Ctx, sizeof(IIndexInfo) + (sizeof(IIndexInfo::Constraint) + sizeof(IIndexInfo::ConstraintUsage))*terms + sizeof(IIndexInfo::Orderby)*orderBys);
+		IIndexInfo *idxInfo = (IIndexInfo *)_tagalloc2(parse->Ctx, sizeof(IIndexInfo) + (sizeof(IIndexInfo::Constraint) + sizeof(IIndexInfo::ConstraintUsage))*terms + sizeof(IIndexInfo::Orderby)*orderBys, true);
 		if (!idxInfo)
 		{
 			parse->ErrorMsg("out of memory");

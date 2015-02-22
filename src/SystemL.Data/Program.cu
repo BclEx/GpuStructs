@@ -7,6 +7,7 @@
 using namespace Core;
 using namespace Core::IO;
 
+static void TestDB();
 static void TestVFS();
 
 #if __CUDACC__
@@ -46,16 +47,24 @@ __global__ void main(int argc, char **argv)
 {
 	Main::Initialize();
 	//
-	TestVFS();
+	//TestVFS();
+	TestDB();
 	//
 	Main::Shutdown();
 }
 
+__device__ static void TestDB()
+{
+	Context *ctx;
+	Main::Open("C:\\T_\\Test.db", &ctx);
+	Main::Close(ctx);
+}
+
 __device__ static void TestVFS()
 {
-	auto vfs = VSystem::FindVfs("win32");
+	auto vfs = VSystem::FindVfs(nullptr);
 	auto file = (VFile *)_alloc(vfs->SizeOsFile);
-	auto rc = vfs->Open("C:\\T_\\Test.db", file, VSystem::OPEN_CREATE | VSystem::OPEN_READWRITE | VSystem::OPEN_MAIN_DB, nullptr);
+	auto rc = vfs->Open("C:\\T_\\Test2.db", file, VSystem::OPEN_CREATE | VSystem::OPEN_READWRITE | VSystem::OPEN_MAIN_DB, nullptr);
 	file->Write4(0, 123145);
 	file->Close();
 }

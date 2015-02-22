@@ -288,18 +288,18 @@ __device__ inline static void *_alloc(size_t size) { return (char *)malloc(size)
 __device__ inline static void *_alloc2(size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
 __device__ inline static void *_tagalloc(void *tag, size_t size) { return (char *)malloc(size); }
 __device__ inline static void *_tagalloc2(void *tag, size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
-__device__ inline static int _allocsize(void *p)
-{
-	_assert(_memdbg_hastype(p, MEMTYPE_HEAP));
-	_assert(_memdbg_nottype(p, MEMTYPE_DB));
-	return 0; 
-}
-__device__ inline static int _tagallocsize(void *tag, void *p)
-{
-	_assert(_memdbg_hastype(p, MEMTYPE_HEAP));
-	_assert(_memdbg_nottype(p, MEMTYPE_DB));
-	return 0; 
-}
+__device__ inline static int _allocsize(void *p) { return _msize(p); }
+//{
+//	_assert(_memdbg_hastype(p, MEMTYPE_HEAP));
+//	_assert(_memdbg_nottype(p, MEMTYPE_DB));
+//	return 0; 
+//}
+__device__ inline static int _tagallocsize(void *tag, void *p) { return _msize(p); }
+//{
+//	_assert(_memdbg_hastype(p, MEMTYPE_HEAP));
+//	_assert(_memdbg_nottype(p, MEMTYPE_DB));
+//	return 0; 
+//}
 __device__ inline static void _free(void *p) { free(p); }
 __device__ inline static void _tagfree(void *tag, void *p) { free(p); }
 #if __CUDACC__

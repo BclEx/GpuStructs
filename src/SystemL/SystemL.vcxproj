@@ -129,6 +129,7 @@
     <ClCompile Include="..\SystemL.net\Core\Bitvec.cu" />
     <ClCompile Include="..\SystemL.net\Core\Hash.cu" />
     <ClCompile Include="..\SystemL.net\Core\MathEx.cu" />
+    <ClCompile Include="..\SystemL.net\Core\MutexEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <ClCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />
@@ -145,6 +146,7 @@
     <CudaCompile Include="..\SystemL.net\Core\Bitvec.cu" />
     <CudaCompile Include="..\SystemL.net\Core\Hash.cu" />
     <CudaCompile Include="..\SystemL.net\Core\MathEx.cu" />
+    <CudaCompile Include="..\SystemL.net\Core\MutexEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\ConvertEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\StatusEx.cu" />
     <CudaCompile Include="..\SystemL.net\Core\SysEx+Random.cu" />

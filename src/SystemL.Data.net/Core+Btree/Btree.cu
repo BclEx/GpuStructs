@@ -1172,9 +1172,9 @@ ptrmap_exit:
 		const bool tempDB = (filename == nullptr || filename[0] == 0);
 
 		// Set the variable isMemdb to true for an in-memory database, or false for a file-based database.
-		const int memoryDB = (filename && _strcmp(filename, ":memory:") == 0) ||
+		const bool memoryDB = ((filename && _strcmp(filename, ":memory:") == 0) ||
 			(tempDB && ctx->TempInMemory()) ||
-			(vfsFlags & VSystem::OPEN_MEMORY) != 0;
+			(vfsFlags & VSystem::OPEN_MEMORY) != 0);
 
 		_assert(ctx != nullptr);
 		_assert(vfs != nullptr);
@@ -1203,7 +1203,7 @@ ptrmap_exit:
 
 		RC rc = RC_OK; // Result code from this function
 		BtShared *bt = nullptr; // Shared part of btree structure
-		MutexEx mutexOpen;
+		MutexEx mutexOpen = MutexEx::Empty;
 #if !defined(OMIT_SHARED_CACHE) && !defined(OMIT_DISKIO)
 		// If this Btree is a candidate for shared cache, try to find an existing BtShared object that we can share with
 		if (!tempDB && (!memoryDB || (vfsFlags & VSystem::OPEN_URI) != 0))
@@ -1397,10 +1397,11 @@ btree_open_out:
 			// do not change the pager-cache size.
 			if (p->Schema(0, nullptr) == nullptr)
 				p->Bt->Pager->SetCacheSize(DEFAULT_CACHE_SIZE);
-#if THREADSAFE
-		_assert(MutexEx::Held(mutexOpen));
-		MutexEx::Leave(mutexOpen);
-#endif
+		if (mutexOpen.Tag)
+		{
+			_assert(MutexEx::Held(mutexOpen));
+			MutexEx::Leave(mutexOpen);
+		}
 		return rc;
 	}
 

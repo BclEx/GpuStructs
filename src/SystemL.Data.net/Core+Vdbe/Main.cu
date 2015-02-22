@@ -1080,7 +1080,7 @@ _out:
 
 #pragma endregion
 
-	__device__ static RC CreateCollation(Context *ctx, const char *name,  TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*), void (*del)(void*))
+	__device__ static RC CreateCollation(Context *ctx, const char *name, TEXTENCODE encode, void *ctx2, int (*compare)(void*,int,const void*,int,const void*), void (*del)(void*))
 	{
 		int nameLength = _strlen30(name);
 		_assert(MutexEx::Held(ctx->Mutex));
@@ -1413,7 +1413,7 @@ _out:
 #endif
 
 		// Enable the lookaside-malloc subsystem
-		SysEx::SetupLookaside(ctx, 0, SysEx_GlobalStatics.LookasideSize, SysEx_GlobalStatics.Lookasides);
+		SysEx::SetupLookaside(ctx, nullptr, SysEx_GlobalStatics.LookasideSize, SysEx_GlobalStatics.Lookasides);
 
 		Main::WalAutocheckpoint(ctx, DEFAULT_WAL_AUTOCHECKPOINT);
 

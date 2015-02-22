@@ -81,7 +81,7 @@ namespace Core
 		CollSeq *coll = (CollSeq *)ctx->CollSeqs.Find(name, nameLength);
 		if (!coll && create)
 		{
-			coll = (CollSeq *)_tagalloc(ctx, 3*sizeof(*coll) + nameLength + 1);
+			coll = (CollSeq *)_tagalloc2(ctx, 3*sizeof(*coll) + nameLength + 1, true);
 			if (coll)
 			{
 				coll[0].Name = (char *)&coll[3];
@@ -207,7 +207,7 @@ namespace Core
 
 		// If the createFlag parameter is true and the search did not reveal an exact match for the name, number of arguments and encoding, then add a
 		// new entry to the hash table and return it.
-		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)_tagalloc(ctx, sizeof(*best)+nameLength+1)) != nullptr)
+		if (createFlag && bestScore < FUNC_PERFECT_MATCH && (best = (FuncDef *)_tagalloc2(ctx, sizeof(*best)+nameLength+1, true)) != nullptr)
 		{
 			best->Name = (char *)&best[1];
 			best->Args = (uint16)args;

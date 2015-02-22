@@ -1,6 +1,6 @@
 ﻿namespace Core
 {
-	class MutexEx 
+	struct MutexEx 
 	{
 	public:
 		enum MUTEX
@@ -19,12 +19,12 @@
 
 		void *Tag;
 
-		__device__ inline static MutexEx Alloc(MUTEX id)
-		{ 
-			MutexEx m;
-			m.Tag = (void *)1;
-			return m;
-		}
+		__device__ static MutexEx Empty;
+		__device__ static MutexEx NotEmpty;
+		__device__ static RC Init();
+		__device__ static RC End();
+
+		__device__ inline static MutexEx Alloc(MUTEX id) { return NotEmpty; }
 		__device__ inline static void Enter(MutexEx mutex) { }
 		__device__ inline static void Leave(MutexEx mutex) { }
 		__device__ inline static bool Held(MutexEx mutex) { return true; }

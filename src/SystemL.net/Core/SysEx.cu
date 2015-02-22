@@ -95,7 +95,7 @@ namespace Core
 		// Make sure the mutex subsystem is initialized.  If unable to initialize the mutex subsystem, return early with the error.
 		// If the system is so sick that we are unable to allocate a mutex, there is not much SQLite is going to be able to do.
 		// The mutex subsystem must take care of serializing its own initialization.
-		rc = RC_OK; //MutexEx::Init();
+		rc = MutexEx::Init();
 		if (rc) return rc;
 
 		// Initialize the malloc() system and the recursive pInitMutex mutex. This operation is protected by the STATIC_MASTER mutex.  Note that
@@ -175,7 +175,7 @@ namespace Core
 		//}
 		if (SysEx_GlobalStatics.IsMutexInit)
 		{
-			//MutexEx::End();
+			MutexEx::End();
 			SysEx_GlobalStatics.IsMutexInit = false;
 		}
 		return RC_OK;
