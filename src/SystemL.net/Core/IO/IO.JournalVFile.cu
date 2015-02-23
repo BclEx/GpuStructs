@@ -18,7 +18,7 @@ namespace Core { namespace IO
 		__device__ RC CreateFile();
 	public:
 		//bool Opened;
-		__device__ virtual RC Close();
+		__device__ virtual RC Close_();
 		__device__ virtual RC Read(void *buffer, int amount, int64 offset);
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
@@ -45,7 +45,7 @@ namespace Core { namespace IO
 				{
 					// If an error occurred while writing to the file, close it before returning. This way, SQLite uses the in-memory journal data to 
 					// roll back changes made to the internal page-cache before this function was called.
-					Real->Close();
+					Real->Close_();
 					Real = nullptr;
 				}
 			}
@@ -53,10 +53,10 @@ namespace Core { namespace IO
 		return rc;
 	}
 
-	__device__ RC JournalVFile::Close()
+	__device__ RC JournalVFile::Close_()
 	{
 		if (Real)
-			Real->Close();
+			Real->Close_();
 		_free(Buffer);
 		return RC_OK;
 	}

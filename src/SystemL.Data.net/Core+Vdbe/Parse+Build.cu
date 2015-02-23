@@ -144,7 +144,7 @@ namespace Core
 		CookieGoto = 0;
 	}
 
-	__device__ void Parse::NestedParse(const char *format, va_list args)
+	__device__ void Parse::NestedParse(const char *format, va_list &args)
 	{
 		if (Errs)
 			return;
@@ -361,7 +361,7 @@ namespace Core
 
 		// Do not delete the table until the reference count reaches zero.
 		if (!table) return;
-		if ((!ctx || ctx->BusyHandler == nullptr) && --table->Refs > 0) return;
+		if ((!ctx || ctx->BytesFreed == 0) && --table->Refs > 0) return;
 
 		// Record the number of outstanding lookaside allocations in schema Tables prior to doing any free() operations.  Since schema Tables do not use
 		// lookaside, this number should not change.
@@ -658,6 +658,7 @@ begin_table_error:
 		return;
 	}
 
+	#define FSTRCMP(x, y) (__curtCtypeMap[*(unsigned char *)(x)] == __curtCtypeMap[*(unsigned char *)(y)] && !_strcmp((x)+1,(y)+1))
 	__device__ void Parse::AddColumn(Token *name)
 	{
 		Table *table;
@@ -676,7 +677,7 @@ begin_table_error:
 			return;
 		for (int i = 0; i < table->Cols.length; i++)
 		{
-			if (_strcmp(nameAsString, table->Cols[i].Name))
+			if (FSTRCMP(nameAsString, table->Cols[i].Name))
 			{
 				ErrorMsg("duplicate column name: %s", nameAsString);
 				_tagfree(ctx, nameAsString);

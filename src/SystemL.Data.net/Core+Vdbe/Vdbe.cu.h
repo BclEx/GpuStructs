@@ -356,11 +356,11 @@ namespace Core
 		__device__ void ChangeToNoop(int addr);
 		__device__ void ChangeP4(int addr, const char *p4, int n);
 #ifndef NDEBUG
-		__device__ void Comment(const char *fmt, va_list args);
-		__device__ void NoopComment(const char *fmt, va_list args);
+		__device__ void Comment(const char *fmt, va_list &args);
+		__device__ void NoopComment(const char *fmt, va_list &args);
 #else
-		__device__ inline void Comment(const char *fmt, va_list args) { }
-		__device__ inline void NoopComment(const char *fmt, va_list args) { }
+		__device__ inline void Comment(const char *fmt, va_list &args) { }
+		__device__ inline void NoopComment(const char *fmt, va_list &args) { }
 #endif
 #if __CUDACC__
 		__device__ inline static void Comment(const char *fmt) { va_list args; va_start(args, nullptr); Comment(fmt, args); va_end(args); }
@@ -535,7 +535,7 @@ namespace Core
 #endif
 #if defined(ENABLE_TREE_EXPLAIN)
 		__device__ static void ExplainBegin(Vdbe *p);
-		__device__ static void ExplainPrintf(Vdbe *p, const char *fmt, va_list args);
+		__device__ static void ExplainPrintf(Vdbe *p, const char *fmt, va_list &args);
 		__device__ static void ExplainNL(Vdbe *p);
 		__device__ static void ExplainPush(Vdbe *p);
 		__device__ static void ExplainPop(Vdbe *p);
@@ -573,6 +573,6 @@ namespace Core
 #pragma endregion
 	};
 
-	__device__ inline Vdbe::OPFLAG operator|=(Vdbe::OPFLAG a, int b) { return (Vdbe::OPFLAG)(a | b); }
+	__device__ inline void operator|=(Vdbe::OPFLAG &a, int b) { a = (Vdbe::OPFLAG)(a | b); }
 	__device__ inline Vdbe::OPFLAG operator|(Vdbe::OPFLAG a, Vdbe::OPFLAG b) { return (Vdbe::OPFLAG)((int)a | (int)b); }
 }

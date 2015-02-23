@@ -31,7 +31,7 @@ To register
 	#include "Core+Vdbe.cu.h"
 
 	#define YYNOERRORRECOVERY 1 // Disable all error recovery processing in the parser push-down automaton.
-	#define yytestcase(X) ASSERTCOVERAGE(X) // Make yyASSERTCOVERAGE() the same as testcase()
+	#define yyASSERTCOVERAGE(X) ASSERTCOVERAGE(X) // Make yyASSERTCOVERAGE() the same as testcase()
 
 	// An instance of this structure holds information about the LIMIT clause of a SELECT statement.
 	struct LimitVal

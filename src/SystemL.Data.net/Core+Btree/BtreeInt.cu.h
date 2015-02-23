@@ -179,6 +179,6 @@ namespace Core
 		TextBuilder ErrMsg; // Accumulate the error message text here
 	} IntegrityCk;
 
-	BTS __device__ inline operator|=(BTS a, int b) { return (BTS)(a | b); }
-	BTS __device__ inline operator&=(BTS a, int b) { return (BTS)(a & b); }
+	__device__ inline void operator|=(BTS &a, int b) { a = (BTS)(a | b); }
+	__device__ inline void operator&=(BTS &a, int b) { a = (BTS)(a & b); }
 }

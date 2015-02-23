@@ -326,7 +326,7 @@ namespace Core { namespace Command
 			return;
 
 		char *left = Parse::NameFromToken(ctx, id); // Nul-terminated UTF-8 string <id>
-		if( !left ) return;
+		if (!left) return;
 		char *right = (minusFlag ? _mtagprintf(ctx, "-%T", value) : Parse::NameFromToken(ctx, value)); // Nul-terminated UTF-8 string <value>, or NULL
 
 		_assert(id2 != nullptr);
@@ -341,7 +341,7 @@ namespace Core { namespace Command
 		fcntls[1] = left;
 		fcntls[2] = right;
 		fcntls[3] = nullptr;
-		ctx->BusyHandler->Busys = 0;
+		ctx->BusyHandler.Busys = 0;
 		RC rc = Main::FileControl(ctx, dbName, VFile::FCNTL_PRAGMA, (void *)fcntls); // return value form SQLITE_FCNTL_PRAGMA
 		if (rc == RC_OK)
 		{

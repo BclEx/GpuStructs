@@ -32,7 +32,7 @@ namespace Core { namespace IO
 		__device__ virtual RC Read(void *buffer, int amount, int64 offset);
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
-		__device__ virtual RC Close();
+		__device__ virtual RC Close_();
 		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 	};
@@ -110,7 +110,7 @@ namespace Core { namespace IO
 		return RC_OK;
 	}
 
-	__device__ RC MemoryVFile::Close()
+	__device__ RC MemoryVFile::Close_()
 	{
 		Truncate(0);
 		return RC_OK;

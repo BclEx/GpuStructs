@@ -313,7 +313,7 @@ namespace Core
 		RC_ = RC_OK;
 		_assert(HasExplain == 0);
 		ResultSet = nullptr;
-		ctx->BusyHandler->Busys = 0;
+		ctx->BusyHandler.Busys = 0;
 		CHECK_FOR_INTERRUPT;
 #if !defined(OMIT_TRACE) && defined(ENABLE_IOTRACE)
 		IOTraceSql();

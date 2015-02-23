@@ -53,10 +53,31 @@ __global__ void main(int argc, char **argv)
 	Main::Shutdown();
 }
 
+__device__ static bool MyCallback(void *args, int argsLength, char **args2, char **cols)
+{
+	return true;
+}
+
 __device__ static void TestDB()
 {
+	//SysEx_LOG(RC_OK, "START\n");
+	//ParserTrace(stderr, "p: ");
+
+	// open
 	Context *ctx;
 	Main::Open("C:\\T_\\Test.db", &ctx);
+
+	// run query
+	char *errMsg = nullptr;
+	Main::Exec(ctx, "Select * From MyTable;", MyCallback, nullptr, &errMsg);
+	/*Main::Exec(ctx, "PRAGMA database_list;", MyCallback, nullptr, &errMsg);*/
+	if (errMsg)
+	{
+		_printf("Error: %s\n", errMsg);
+		_free(errMsg);
+	}
+
+	// close
 	Main::Close(ctx);
 }
 

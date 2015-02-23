@@ -92,7 +92,8 @@ namespace Core { namespace IO
 		__device__ virtual RC Read(void *buffer, int amount, int64 offset) = 0;
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset) = 0;
 		__device__ virtual RC Truncate(int64 size) = 0;
-		__device__ virtual RC Close() = 0;
+		__device__ inline RC Close() { if (!Opened) return RC_OK; Opened = false; return Close_(); }
+		__device__ virtual RC Close_() = 0;
 		__device__ virtual RC Sync(SYNC flags) = 0;
 		__device__ virtual RC get_FileSize(int64 &size) = 0;
 
@@ -149,6 +150,6 @@ namespace Core { namespace IO
 		__device__ static int MemoryVFileSize() ;
 	};
 
-	__device__ VFile::SYNC inline operator|(VFile::SYNC a, VFile::SYNC b) { return (VFile::SYNC)((int)a | (int)b); }
-	__device__ VFile::SYNC inline operator|=(VFile::SYNC a, int b) { return (VFile::SYNC)(a | b); }
+	__device__ inline void operator|=(VFile::SYNC &a, int b) { a = (VFile::SYNC)(a | b); }
+	__device__ inline VFile::SYNC operator|(VFile::SYNC a, VFile::SYNC b) { return (VFile::SYNC)((int)a | (int)b); }
 }}

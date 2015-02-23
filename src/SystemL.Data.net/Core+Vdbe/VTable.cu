@@ -479,7 +479,7 @@ namespace Core
 		_assert((table->TabFlags & TF_Virtual) != 0);
 
 		RC rc = RC_OK;
-		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(Parse), false);
+		Parse *parse = (Parse *)_stackalloc(ctx, sizeof(Parse), true);
 		if (!parse)
 			rc = RC_NOMEM;
 		else

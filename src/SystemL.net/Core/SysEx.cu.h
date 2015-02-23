@@ -3,35 +3,36 @@ namespace Core
 {
 #pragma region Log & Trace
 
-#ifdef _DEBUG
-	extern bool OSTrace;
-	extern bool IOTrace;
-#ifdef __CUDACC__
-	__device__ inline static void SysEx_LOG(RC rc, const char *fmt) { }
-	template <typename T1> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1) { }
-	template <typename T1, typename T2> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2) { }
-	template <typename T1, typename T2, typename T3> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
-	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
-	__device__ inline static void SysEx_OSTRACE(const char *fmt) { }
-	template <typename T1> __device__ inline static void SysEx_OSTRACE(const char *fmt, T1 arg1) { }
-	template <typename T1, typename T2> __device__ inline static void SysEx_OSTRACE(const char *fmt, T1 arg1, T2 arg2) { }
-	template <typename T1, typename T2, typename T3> __device__ inline static void SysEx_OSTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
-	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_OSTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
-	__device__ inline static void SysEx_IOTRACE(const char *fmt) { }
-	template <typename T1> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1) { }
-	template <typename T1, typename T2> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2) { }
-	template <typename T1, typename T2, typename T3> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
-	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
+#if _DEBUG
+	__device__ extern bool IOTrace;
+#define SysEx_LOG(RC, X, ...) { _printf(X, __VA_ARGS__); }
+#define SysEx_IOTRACE(X, ...) if (IOTrace) { _printf("IO: "X, __VA_ARGS__); }
 #else
-	__device__ inline static void SysEx_LOG(RC rc, const char *fmt, ...) { }
-	__device__ inline static void SysEx_OSTRACE(const char *fmt, ...) { }
-	__device__ inline static void SysEx_IOTRACE(const char *fmt, ...) { }
+#define SysEx_LOG(RC, X, ...)
+#define SysEx_IOTRACE(X, ...)
 #endif
-#else
-#define SysEx_LOG(X, ...) ((void)0)
-#define SysEx_OSTRACE(X, ...) ((void)0)
-#define SysEx_IOTRACE(X, ...) ((void)0)
-#endif
+
+	//#ifdef _DEBUG
+	//	extern bool IOTrace;
+	//#ifdef __CUDACC__
+	//	__device__ inline static void SysEx_LOG(RC rc, const char *fmt) { }
+	//	template <typename T1> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1) { }
+	//	template <typename T1, typename T2> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2) { }
+	//	template <typename T1, typename T2, typename T3> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
+	//	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_LOG(RC rc, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
+	//	__device__ inline static void SysEx_IOTRACE(const char *fmt) { }
+	//	template <typename T1> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1) { }
+	//	template <typename T1, typename T2> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2) { }
+	//	template <typename T1, typename T2, typename T3> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { }
+	//	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void SysEx_IOTRACE(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { }
+	//#else
+	//	__device__ inline static void SysEx_LOG(RC rc, const char *fmt, ...) { }
+	//	__device__ inline static void SysEx_IOTRACE(const char *fmt, ...) { }
+	//#endif
+	//#else
+	//#define SysEx_LOG(X, ...) ((void)0)
+	//#define SysEx_IOTRACE(X, ...) ((void)0)
+	//#endif
 
 #pragma endregion
 
@@ -134,7 +135,7 @@ namespace Core
 			CONFIG_URI = 17,			// int
 			CONFIG_SQLLOG = 21,			// xSqllog, void*
 		};
-		__device__ static RC Config(CONFIG op, va_list args);
+		__device__ static RC Config(CONFIG op, va_list &args);
 #if __CUDACC__
 		__device__ inline static void Config(CONFIG op) { va_list args; va_start(args, nullptr); Config(op, args); va_end(args); }
 		template <typename T1> __device__ inline static void Config(CONFIG op, T1 arg1) { va_list args; va_start(args, arg1); Config(op, args); va_end(args); }

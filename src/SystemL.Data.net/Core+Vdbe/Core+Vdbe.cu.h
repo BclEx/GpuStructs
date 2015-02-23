@@ -127,7 +127,7 @@ namespace Core
 		FUNC_LENGTH = 0x40,			// Built-in length() function
 		FUNC_TYPEOF = 0x80,			// Built-in typeof() function
 	};
-	__device__ inline FUNC operator|=(FUNC a, int b) { return (FUNC)(a | b); }
+	__device__ inline void operator|=(FUNC &a, int b) { a = (FUNC)(a | b); }
 	__device__ inline FUNC operator|(FUNC a, FUNC b) { return (FUNC)((int)a | (int)b); }
 
 	struct FuncDestructor
@@ -399,7 +399,7 @@ namespace Core
 		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
 		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
 	};
-	__device__ inline AFF operator|=(AFF a, int b) { return (AFF)(a | b); }
+	__device__ inline void operator|=(AFF &a, int b) { a = (AFF)(a | b); }
 	__device__ inline AFF operator|(AFF a, AFF b) { return (AFF)((int)a | (int)b); }
 
 #define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
@@ -428,7 +428,7 @@ namespace Core
 		JT_OUTER = 0x0020,		// The "OUTER" keyword is present
 		JT_ERROR = 0x0040,		// unknown or unsupported join type
 	};
-	__device__ inline JT operator|=(JT a, int b) { return (JT)(a | b); }
+	__device__ inline void operator|=(JT &a, int b) { a = (JT)(a | b); }
 	__device__ inline JT operator|(JT a, JT b) { return (JT)((int)a | (int)b); }
 
 	struct Select;
@@ -475,7 +475,7 @@ namespace Core
 		WHERE_ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
 		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
-	__device__ inline WHERE operator|=(WHERE a, int b) { return (WHERE)(a | b); }
+	__device__ inline void operator|=(WHERE &a, int b) { a = (WHERE)(a | b); }
 	__device__ inline WHERE operator|(WHERE a, WHERE b) { return (WHERE)((int)a | (int)b); }
 
 	struct WhereTerm;
@@ -565,8 +565,8 @@ namespace Core
 		NC_IsCheck = 0x04,			// True if resolving names in a CHECK constraint
 		NC_InAggFunc = 0x08,		// True if analyzing arguments to an agg func
 	};
-	__device__ inline NC operator|=(NC a, int b) { return (NC)(a | b); }
-	__device__ inline NC operator&=(NC a, int b) { return (NC)(a & b); }
+	__device__ inline void operator|=(NC &a, int b) { a = (NC)(a | b); }
+	__device__ inline void operator&=(NC &a, int b) { a = (NC)(a & b); }
 
 	struct NameContext
 	{
@@ -593,8 +593,8 @@ namespace Core
 		SF_Materialize = 0x0100,	// Force materialization of views
 		SF_NestedFrom = 0x0200,		// Part of a parenthesized FROM clause
 	};
-	__device__ inline SF operator|=(SF a, int b) { return (SF)(a | b); }
-	__device__ inline SF operator&=(SF a, int b) { return (SF)(a & b); }
+	__device__ inline void operator|=(SF &a, int b) { a = (SF)(a | b); }
+	__device__ inline void operator&=(SF &a, int b) { a = (SF)(a & b); }
 
 	enum SRT : uint8
 	{
@@ -680,16 +680,16 @@ namespace Core
 		EP_TokenOnly = 0x4000,		// Expr struct is EXPR_TOKENONLYSIZE bytes only
 		EP_Static = 0x8000,			// Held in memory not obtained from malloc()
 	};
-	__device__ EP inline operator|(EP a, EP b) { return (EP)((int)a | (int)b); }
-	__device__ EP inline operator|=(EP a, int b) { return (EP)(a | b); }
-	__device__ EP inline operator&=(EP a, int b) { return (EP)(a & b); }
+	__device__ inline void operator|=(EP &a, int b) { a = (EP)(a | b); }
+	__device__ inline void operator&=(EP &a, int b) { a = (EP)(a & b); }
+	__device__ inline EP operator|(EP a, EP b) { return (EP)((int)a | (int)b); }
 
 	enum EP2 : uint8
 	{
 		EP2_MallocedToken = 0x0001,	// Need to sqlite3DbFree() Expr.zToken
 		EP2_Irreducible = 0x0002,	// Cannot EXPRDUP_REDUCE this Expr
 	};
-	__device__ EP2 inline operator|=(EP2 a, int b) { return (EP2)(a | b); }
+	__device__ inline void operator|=(EP2 &a, int b) { a = (EP2)(a | b); }
 
 	__constant__ extern const Token g_intTokens[];
 
@@ -1083,7 +1083,7 @@ namespace Core
 		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
 
 #pragma region From: Main_c
-		__device__ void ErrorMsg(const char *fmt, va_list args);
+		__device__ void ErrorMsg(const char *fmt, va_list &args);
 #if __CUDACC__
 		__device__ inline void ErrorMsg(const char *fmt) { va_list args; va_start(args, nullptr); ErrorMsg(fmt, args); va_end(args); }
 		template <typename T1> __device__ inline void ErrorMsg(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); ErrorMsg(fmt, args); va_end(args); }
@@ -1111,7 +1111,7 @@ namespace Core
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
 #endif
 		__device__ void FinishCoding();
-		__device__ void NestedParse(const char *fmt, va_list args);
+		__device__ void NestedParse(const char *fmt, va_list &args);
 #if __CUDACC__
 		__device__ inline void NestedParse(const char *fmt) { va_list args; va_start(args, nullptr); NestedParse(fmt, args); va_end(args); }
 		template <typename T1> __device__ inline void NestedParse(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); NestedParse(fmt, args); va_end(args); }
@@ -1256,7 +1256,7 @@ namespace Core {
 		COLFLAG_PRIMKEY = 0x0001,		// Column is part of the primary key
 		COLFLAG_HIDDEN = 0x0002,		// A hidden column in a virtual table
 	};
-	__device__ COLFLAG inline operator|=(COLFLAG a, int b) { return (COLFLAG)(a | b); }
+	__device__ inline void operator|=(COLFLAG &a, int b) { a = (COLFLAG)(a | b); }
 
 	struct Column
 	{
@@ -1333,7 +1333,7 @@ namespace Core {
 		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
 		TF_Virtual = 0x10,			// Is a virtual table
 	};
-	__device__ inline TF operator|=(TF a, int b) { return (TF)(a | b); }
+	__device__ inline void operator|=(TF &a, int b) { a = (TF)(a | b); }
 
 	struct Index;
 	struct Select;
@@ -1473,7 +1473,7 @@ namespace Core {
 		TRIGGER_BEFORE = 1,
 		TRIGGER_AFTER = 2,
 	};
-	__device__ inline TRIGGER operator|=(TRIGGER a, int b) { return (TRIGGER)(a | b); }
+	__device__ inline void operator|=(TRIGGER &a, int b) { a = (TRIGGER)(a | b); }
 	__device__ inline TRIGGER operator|(TRIGGER a, TRIGGER b) { return (TRIGGER)((int)a | (int)b); }
 
 	struct TriggerStep;
@@ -1692,7 +1692,7 @@ namespace Core {
 			return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
 		}
 
-		__device__ static void Error(Context *ctx, RC errCode, const char *fmt, va_list args);
+		__device__ static void Error(Context *ctx, RC errCode, const char *fmt, va_list &args);
 #if __CUDACC__
 		__device__ inline static void Error(Context *ctx, RC errCode, const char *fmt) { va_list args; va_start(args, nullptr); Error(ctx, errCode, fmt, args); va_end(args); }
 		template <typename T1> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Error(ctx, errCode, fmt, args); va_end(args); }
@@ -1757,7 +1757,7 @@ namespace Core {
 			CONFIG_GETPCACHE2 = 19,				// sqlite3_pcache_methods2*
 			CONFIG_COVERING_INDEX_SCAN = 20,	// int
 		};
-		__device__ static RC Config(CONFIG op, va_list args);
+		__device__ static RC Config(CONFIG op, va_list &args);
 #if __CUDACC__
 		__device__ inline static RC Config(CONFIG op) { va_list args; va_start(args, nullptr); RC r = Config(op, args); va_end(args); return r; }
 		template <typename T1> __device__ inline static RC Config(CONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = Config(op, args); va_end(args); return r; }
@@ -1775,7 +1775,7 @@ namespace Core {
 			CTXCONFIG_ENABLE_FKEY = 1002,  // int int*
 			CTXCONFIG_ENABLE_TRIGGER = 1003,  // int int*
 		};
-		__device__ static RC CtxConfig(Context *ctx, CTXCONFIG op, va_list args);
+		__device__ static RC CtxConfig(Context *ctx, CTXCONFIG op, va_list &args);
 #if __CUDACC__
 		__device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op) { va_list args; va_start(args, nullptr); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
 		template <typename T1> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
@@ -1875,7 +1875,7 @@ namespace Core {
 			TESTCTRL_EXPLAIN_STMT            =19,
 			TESTCTRL_LAST                    =19,
 		};
-		__device__ RC Main::TestControl(TESTCTRL op, va_list args);
+		__device__ RC Main::TestControl(TESTCTRL op, va_list &args);
 		__device__ static Btree *DbNameToBtree(Context *ctx, const char *dbName);
 		__device__ static const char *CtxFilename(Context *ctx, const char *dbName);
 		__device__ static int CtxReadonly(Context *ctx, const char *dbName);

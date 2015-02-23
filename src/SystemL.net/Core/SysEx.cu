@@ -3,7 +3,6 @@
 
 namespace Core
 {
-	bool OSTrace;
 	bool IOTrace;
 
 #pragma region Initialize/Shutdown/Config
@@ -63,6 +62,7 @@ namespace Core
 
 	__device__ RC SysEx::PreInitialize(MutexEx &masterMutex)
 	{
+		IOTrace = true;
 		// If SQLite is already completely initialized, then this call to sqlite3_initialize() should be a no-op.  But the initialization
 		// must be complete.  So isInit must not be set until the very end of this routine.
 		if (SysEx_GlobalStatics.IsInit) return RC_OK;
@@ -181,7 +181,7 @@ namespace Core
 		return RC_OK;
 	}
 
-	__device__ RC SysEx::Config(CONFIG op, va_list args)
+	__device__ RC SysEx::Config(CONFIG op, va_list &args)
 	{
 		// sqlite3_config() shall return SQLITE_MISUSE if it is invoked while the SQLite library is in use.
 		if (SysEx_GlobalStatics.IsInit) return SysEx_MISUSE_BKPT;

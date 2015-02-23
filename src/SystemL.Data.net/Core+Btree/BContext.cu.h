@@ -56,7 +56,7 @@ namespace Core
 		array_t<DB> DBs;					// All backends / Number of backends currently in use
 		FLAG Flags;							// Miscellaneous flags. See below
 		int ActiveVdbeCnt;					// Number of VDBEs currently executing
-		BusyHandlerType *BusyHandler;		// Busy callback
+		BusyHandlerType BusyHandler;		// Busy callback
 		DB DBStatics[2];					// Static space for the 2 default backends
 		Savepoint *Savepoints;				// List of active savepoints
 		int BusyTimeout;					// Busy handler timeout, in msec
@@ -100,8 +100,8 @@ namespace Core
 #pragma endregion
 
 	};
-	__device__ inline BContext::FLAG operator|=(BContext::FLAG a, int b) { return (BContext::FLAG)(a | b); }
-	__device__ inline BContext::FLAG operator&=(BContext::FLAG a, int b) { return (BContext::FLAG)(a & b); }
+	__device__ inline void operator|=(BContext::FLAG &a, int b) { a = (BContext::FLAG)(a | b); }
+	__device__ inline void operator&=(BContext::FLAG &a, int b) { a = (BContext::FLAG)(a & b); }
 	__device__ inline BContext::FLAG operator|(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a | (int)b); }
 	__device__ inline BContext::FLAG operator&(BContext::FLAG a, BContext::FLAG b) { return (BContext::FLAG)((int)a & (int)b); }
 

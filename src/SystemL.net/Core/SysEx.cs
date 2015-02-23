@@ -35,14 +35,11 @@ namespace Core
         #region Log & Trace
 
 #if DEBUG
-        internal static bool OSTrace = false;
         internal static bool IOTrace = true;
         internal static void LOG(RC rc, string format, params object[] args) { Console.WriteLine("l:" + string.Format(format, args)); }
-        internal static void OSTRACE(string format, params object[] args) { if (OSTrace) Console.WriteLine("a:" + string.Format(format, args)); }
         internal static void IOTRACE(string format, params object[] args) { if (IOTrace) Console.WriteLine("i:" + string.Format(format, args)); }
 #else
         internal static void LOG(RC rc, string x, params object[] args) { }
-        internal static void OSTRACE(string format, params object[] args) { }
         internal static void IOTRACE(string format, params object[] args) { }
 #endif
         //internal static RC LOG2(RC rc, string func, string path)

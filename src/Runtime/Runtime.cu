@@ -357,7 +357,7 @@ __device__ void TextBuilder::AppendSpace(int length)
 }
 
 __constant__ static const char _ord[] = "thstndrd";
-__device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_list args) //: was: vxprintf
+__device__ void TextBuilder::AppendFormat(bool useExtended, const char *fmt, va_list &args) //: was: vxprintf
 {
 	char buf[BUFSIZE]; // Conversion buffer
 	char *bufpt = nullptr; // Pointer to the conversion buffer
@@ -925,7 +925,7 @@ __device__ void TextBuilder::Init(TextBuilder *b, char *text, int capacity, int 
 	b->AllocFailed = false;
 }
 
-__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *length)
+__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list &args, int *length)
 {
 	//if (!RuntimeInitialize()) return nullptr;
 	_assert(tag != nullptr);
@@ -940,7 +940,7 @@ __device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *len
 	return z;
 }
 
-__device__ char *_vmprintf(const char *fmt, va_list args, int *length)
+__device__ char *_vmprintf(const char *fmt, va_list &args, int *length)
 {
 	//if (!RuntimeInitialize()) return nullptr;
 	char base[PRINT_BUF_SIZE];
@@ -952,7 +952,7 @@ __device__ char *_vmprintf(const char *fmt, va_list args, int *length)
 	return b.ToString();
 }
 
-__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list args, int *length)
+__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list &args, int *length)
 {
 	if (bufLen <= 0) return (char *)buf;
 	TextBuilder b;

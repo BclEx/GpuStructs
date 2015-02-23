@@ -79,11 +79,11 @@ void *__wsdfind(void *k, int l);
 // UTF
 #pragma region UTF
 
-//#define _strskiputf8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
-template <typename T> __device__ inline void _strskiputf8(const T *z)
-{
-	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
-}
+#define _strskiputf8(z) { if ((*(z++)) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; } }
+//template <typename T> __device__ inline void _strskiputf8(const T *z)
+//{
+//	if (*(z++) >= 0xc0) while ((*z & 0xc0) == 0x80) { z++; }
+//}
 __device__ unsigned int _utf8read(const unsigned char **z);
 __device__ int _utf8charlength(const char *z, int bytes);
 #if _DEBUG
@@ -306,11 +306,11 @@ __device__ inline static void _tagfree(void *tag, void *p) { free(p); }
 __device__ inline static void *_stackalloc(void *tag, size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
 __device__ inline static void _stackfree(void *tag, void *p) { free(p); }
 #else
-__device__ inline static void *_stackalloc(void *tag, size_t size, bool clear) { char *b = (char *)alloca(size); if (clear) _memset(b, 0, size); return b; }
-__device__ inline static void _stackfree(void *tag, void *p) { }
+__device__ inline static void *_stackalloc(void *tag, size_t size, bool clear) { char *b = (char *)malloc(size); if (clear) _memset(b, 0, size); return b; }
+__device__ inline static void _stackfree(void *tag, void *p) { free(p); }
 #endif
-__device__ inline static void *_realloc(void *old, size_t newSize) { return nullptr; }
-__device__ inline static void *_tagrealloc(void *tag, void *old, size_t newSize) { return nullptr; }
+__device__ inline static void *_realloc(void *old, size_t newSize) { return realloc(old, newSize); }
+__device__ inline static void *_tagrealloc(void *tag, void *old, size_t newSize) { return realloc(old, newSize); }
 __device__ inline static bool _heapnearlyfull() { return false; }
 
 __device__ inline static void *_tagrealloc_or_free(void *tag, void *old, size_t newSize)
@@ -368,7 +368,7 @@ public:
 	bool Overflowed;    // Becomes true if string size exceeds limits
 
 	__device__ void AppendSpace(int length);
-	__device__ void AppendFormat(bool useExtended, const char *fmt, va_list args);
+	__device__ void AppendFormat(bool useExtended, const char *fmt, va_list &args);
 	__device__ void Append(const char *z, int length);
 	__device__ char *ToString();
 	__device__ void Reset();
@@ -401,7 +401,7 @@ public:
 //////////////////////
 // SNPRINTF
 #pragma region SNPRINTF
-__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list args, int *length);
+__device__ char *__vsnprintf(const char *buf, size_t bufLen, const char *fmt, va_list &args, int *length);
 #if __CUDACC__
 __device__ inline static char *__snprintf(const char *buf, size_t bufLen, const char *fmt) { va_list args; va_start(args, nullptr); char *z = __vsnprintf(buf, bufLen, fmt, args, nullptr); va_end(args); return z; }
 template <typename T1> __device__ inline static char *__snprintf(const char *buf, size_t bufLen, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); char *z = __vsnprintf(buf, bufLen, fmt, args, nullptr); va_end(args); return z; }
@@ -441,8 +441,8 @@ __device__ inline static char *__snprintf(const char *buf, size_t bufLen, const 
 //////////////////////
 // MPRINTF
 #pragma region MPRINTF
-__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list args, int *length);
-__device__ char *_vmprintf(const char *fmt, va_list args, int *length);
+__device__ char *_vmtagprintf(void *tag, const char *fmt, va_list &args, int *length);
+__device__ char *_vmprintf(const char *fmt, va_list &args, int *length);
 #if __CUDACC__
 __device__ inline char *_mprintf(const char *fmt) { va_list args; va_start(args, nullptr); char *z = _vmprintf(fmt, args, nullptr); va_end(args); return z; }
 template <typename T1> __device__ inline char *_mprintf(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); char *z = _vmprintf(fmt, args, nullptr); va_end(args); return z; }

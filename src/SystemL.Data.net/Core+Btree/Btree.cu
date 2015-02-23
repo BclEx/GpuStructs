@@ -5652,7 +5652,7 @@ cleardatabasepage_out:
 #pragma region Integrity Check
 #ifndef OMIT_INTEGRITY_CHECK
 
-	__device__ static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, va_list args)
+	__device__ static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, va_list &args)
 	{
 		//va_list ap;
 		if (!check->MaxErrors) return;

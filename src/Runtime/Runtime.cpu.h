@@ -107,7 +107,10 @@ template <typename T1, typename T2, typename T3, typename T4, typename T5, typen
 //////////////////////
 // STDARG
 #pragma region STDARG
-// included in stdargs.h
+//included in stdargs.h
+//#define va_start _crt_va_start
+//#define va_arg _crt_va_arg
+//#define va_end _crt_va_end
 #pragma endregion
 
 //////////////////////

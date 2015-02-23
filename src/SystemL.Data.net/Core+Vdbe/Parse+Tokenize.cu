@@ -290,7 +290,7 @@ namespace Core
 		Context *ctx = Ctx;       // The database connection
 		int maxSqlLength = ctx->Limits[LIMIT_SQL_LENGTH]; // Max length of an SQL string
 		if (ctx->ActiveVdbeCnt == 0)
-			ctx->u1.IsInterrupted = 0;
+			ctx->u1.IsInterrupted = false;
 		RC = RC_OK;
 		Tail = sql;
 		void *engine = ParserAlloc((void *(*)(size_t))_alloc); // The LEMON-generated LALR(1) parser

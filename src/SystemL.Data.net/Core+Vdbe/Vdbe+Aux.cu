@@ -507,7 +507,7 @@ __device__ void Vdbe::ChangeP4(int addr, const char *p4, int n)
 }
 
 #ifndef NDEBUG
-__device__ void Vdbe::Comment(const char *format, va_list args)
+__device__ void Vdbe::Comment(const char *format, va_list &args)
 {
 	_assert(Ops.length > 0 || !Ops.data);
 	_assert(!Ops.data || !Ops[Ops.length-1].Comment || Ctx->MallocFailed);
@@ -518,7 +518,7 @@ __device__ void Vdbe::Comment(const char *format, va_list args)
 		Ops[Ops.length-1].Comment = _vmtagprintf(Ctx, format, args, nullptr);
 	}
 }
-__device__ void Vdbe::NoopComment(const char *format, va_list args)
+__device__ void Vdbe::NoopComment(const char *format, va_list &args)
 {
 	AddOp0(OP_Noop);
 	_assert(Ops.length > 0 || !Ops.data);
@@ -630,7 +630,7 @@ __device__ static char *DisplayP4(Vdbe::VdbeOp *op, char *temp, int tempLength)
 			temp[0] = 0;
 		} }
 	}
-	_assert(!p4);
+	_assert(p4);
 	return p4;
 }
 #endif
@@ -1736,7 +1736,7 @@ __device__ RC Vdbe::Reset()
 	// Save profiling information from this VDBE run.
 #ifdef VDBE_PROFILE
 	{
-		FILE *out_ = fopen("vdbe_profile.out", "a");
+		FILE *out_ = fopen("x64\\vdbe_profile.out", "a");
 		if (out_)
 		{
 			int i;

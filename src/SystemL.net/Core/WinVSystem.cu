@@ -1,5 +1,6 @@
 ﻿// os_win.c
 #define OS_WIN 1
+#define POWERSAFE_OVERWRITE 1
 #if OS_WIN // This file is used for Windows only
 #include <windows.h>
 #include <new.h>
@@ -11,7 +12,7 @@ namespace Core
 
 #if defined(TEST) || defined(_DEBUG)
 	bool OsTrace = true;
-#define OSTRACE(X, ...) if (OsTrace) { _dprintf(X, __VA_ARGS__); }
+#define OSTRACE(X, ...) if (OsTrace) { _dprintf("OS: "X, __VA_ARGS__); }
 #else
 #define OSTRACE(X, ...)
 #endif
@@ -177,7 +178,7 @@ namespace Core
 		__device__ virtual RC Read(void *buffer, int amount, int64 offset);
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
-		__device__ virtual RC Close();
+		__device__ virtual RC Close_();
 		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 
@@ -195,8 +196,7 @@ namespace Core
 		//__device__ virtual RC ShmMap(int region, int sizeRegion, bool isWrite, void volatile **pp);
 	};
 
-	WinVFile::WINFILE inline operator|=(WinVFile::WINFILE a, int b) { return (WinVFile::WINFILE)(a | b); }
-	//WinVFile::WINFILE inline operator&=(WinVFile::WINFILE a, int b) { return (WinVFile::WINFILE)(a & b); }
+	__device__ inline void operator|=(WinVFile::WINFILE &a, int b) { a = (WinVFile::WINFILE)(a | b); }
 
 #pragma endregion
 
@@ -1547,7 +1547,7 @@ namespace Core
 	}
 
 #define MX_CLOSE_ATTEMPT 3
-	RC WinVFile::Close()
+	RC WinVFile::Close_()
 	{
 #ifndef OMIT_WAL
 		_assert(Shm == 0);
@@ -2138,7 +2138,7 @@ namespace Core
 				if (p->File.H != NULL && p->File.H != INVALID_HANDLE_VALUE)
 				{
 					SimulateIOErrorBenign(true);
-					p->File.Close();
+					p->File.Close_();
 					SimulateIOErrorBenign(false);
 				}
 				if (deleteFlag)
@@ -2731,8 +2731,8 @@ shmpage_out:
 			file->Opened = true;
 			file->Vfs = this;
 			file->H = h;
-			//if (sqlite3_uri_boolean(name, "psow", POWERSAFE_OVERWRITE))
-			//	file->CtrlFlags |= WinVFile::WINFILE_PSOW;
+			if (VSystem::UriBoolean(name, "psow", POWERSAFE_OVERWRITE))
+				file->CtrlFlags |= WinVFile::WINFILE_PSOW;
 			file->LastErrno = NO_ERROR;
 			file->Path = name;
 			OpenCounter(+1);
