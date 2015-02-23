@@ -8,7 +8,7 @@ namespace Core
 #define CTIMEOPT_VAL_(opt) #opt
 #define CTIMEOPT_VAL(opt) CTIMEOPT_VAL_(opt)
 
-	static const char *const _compileOpt[] = {
+	__constant__ static const char *const _compileOpt[] = {
 #ifdef _32BIT_ROWID
 		"32BIT_ROWID",
 #endif

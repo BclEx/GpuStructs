@@ -94,7 +94,6 @@ namespace Core
 		}
 
 exec_out:
-
 		if (stmt) stmt->Finalize();
 		_tagfree(ctx, colsNames);
 

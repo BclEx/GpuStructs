@@ -356,11 +356,11 @@ namespace Core
 		__device__ void ChangeToNoop(int addr);
 		__device__ void ChangeP4(int addr, const char *p4, int n);
 #ifndef NDEBUG
-		__device__ void Comment(const char *fmt, va_list &args);
-		__device__ void NoopComment(const char *fmt, va_list &args);
+		__device__ void Comment(const char *fmt, va_list *args);
+		__device__ void NoopComment(const char *fmt, va_list *args);
 #else
-		__device__ inline void Comment(const char *fmt, va_list &args) { }
-		__device__ inline void NoopComment(const char *fmt, va_list &args) { }
+		__device__ inline void Comment(const char *fmt, va_list *args) { }
+		__device__ inline void NoopComment(const char *fmt, va_list *args) { }
 #endif
 #if __CUDACC__
 		__device__ inline static void Comment(const char *fmt) { va_list args; va_start(args, nullptr); Comment(fmt, args); va_end(args); }
@@ -387,8 +387,8 @@ namespace Core
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); NoopComment(fmt, args); va_end(args); }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void NoopComment(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); NoopComment(fmt, args); va_end(args); }
 #else
-		__device__ inline void Comment(const char *fmt, ...) { va_list args; va_start(args, fmt); Comment(fmt, args); va_end(args); }
-		__device__ inline void NoopComment(const char *fmt, ...) { va_list args; va_start(args, fmt); NoopComment(fmt, args); va_end(args); }
+		__device__ inline void Comment(const char *fmt, ...) { va_list args; va_start(args, fmt); Comment(fmt, &args); va_end(args); }
+		__device__ inline void NoopComment(const char *fmt, ...) { va_list args; va_start(args, fmt); NoopComment(fmt, &args); va_end(args); }
 #endif
 		__device__ VdbeOp *GetOp(int addr);
 		__device__ void UsesBtree(int i);
@@ -535,7 +535,7 @@ namespace Core
 #endif
 #if defined(ENABLE_TREE_EXPLAIN)
 		__device__ static void ExplainBegin(Vdbe *p);
-		__device__ static void ExplainPrintf(Vdbe *p, const char *fmt, va_list &args);
+		__device__ static void ExplainPrintf(Vdbe *p, const char *fmt, va_list *args);
 		__device__ static void ExplainNL(Vdbe *p);
 		__device__ static void ExplainPush(Vdbe *p);
 		__device__ static void ExplainPop(Vdbe *p);
@@ -553,7 +553,7 @@ namespace Core
 		{
 			va_list args;
 			va_start(args, fmt);
-			ExplainPrintf(p, fmt, args);
+			ExplainPrintf(p, fmt, &args);
 			va_end(args);
 		}
 #endif

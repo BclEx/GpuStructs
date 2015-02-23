@@ -36,7 +36,7 @@ namespace Core
 		__device__ virtual RC Read(void *buffer, int amount, int64 offset);
 		__device__ virtual RC Write(const void *buffer, int amount, int64 offset);
 		__device__ virtual RC Truncate(int64 size);
-		__device__ virtual RC Close();
+		__device__ virtual RC Close_();
 		__device__ virtual RC Sync(SYNC flags);
 		__device__ virtual RC get_FileSize(int64 &size);
 
@@ -83,7 +83,7 @@ namespace Core
 
 #pragma region GpuVFile
 
-	__device__ RC GpuVFile::Close()
+	__device__ RC GpuVFile::Close_()
 	{
 		OSTRACE("CLOSE %d\n", H);
 		return RC_OK;

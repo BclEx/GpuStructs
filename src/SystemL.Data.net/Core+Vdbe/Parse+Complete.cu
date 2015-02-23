@@ -152,14 +152,14 @@ namespace Core
 		::RC rc = RC_NOMEM;
 #ifndef OMIT_AUTOINIT
 		rc = Main::Initialize();
-		if (rc) return rc;
+		if (rc) return (rc != 0);
 #endif
 		Mem *val = Vdbe::ValueNew(0);
 		Vdbe::ValueSetStr(val, -1, sql, TEXTENCODE_UTF16NATIVE, DESTRUCTOR_STATIC);
 		char const *sql8 = (const char *)Vdbe::ValueText(val, TEXTENCODE_UTF8);
 		rc = (sql8 ? (::RC)Parse::Complete(sql8) : RC_NOMEM);
 		Vdbe::ValueFree(val);
-		return Main::ApiExit(nullptr, rc);
+		return (Main::ApiExit(nullptr, rc) != 0);
 	}
 #endif
 

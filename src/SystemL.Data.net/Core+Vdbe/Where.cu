@@ -224,7 +224,7 @@ namespace Core
 			_memcpy(wc->Slots.data, old, sizeof(wc->Slots[0])*wc->Terms);
 			if (old != wc->Statics)
 				_tagfree(ctx, old);
-			wc->Slots.length = _tagallocsize(ctx, wc->Slots.data)/sizeof(wc->Slots[0]);
+			wc->Slots.length = (int)_tagallocsize(ctx, wc->Slots.data)/sizeof(wc->Slots[0]);
 		}
 		int idx;
 		WhereTerm *term = &wc->Slots[idx = wc->Terms++];

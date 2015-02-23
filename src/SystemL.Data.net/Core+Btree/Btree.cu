@@ -1203,7 +1203,7 @@ ptrmap_exit:
 
 		RC rc = RC_OK; // Result code from this function
 		BtShared *bt = nullptr; // Shared part of btree structure
-		MutexEx mutexOpen = MutexEx::Empty;
+		MutexEx mutexOpen = MutexEx_Empty;
 #if !defined(OMIT_SHARED_CACHE) && !defined(OMIT_DISKIO)
 		// If this Btree is a candidate for shared cache, try to find an existing BtShared object that we can share with
 		if (!tempDB && (!memoryDB || (vfsFlags & VSystem::OPEN_URI) != 0))
@@ -5652,7 +5652,7 @@ cleardatabasepage_out:
 #pragma region Integrity Check
 #ifndef OMIT_INTEGRITY_CHECK
 
-	__device__ static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, va_list &args)
+	__device__ static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, va_list *args)
 	{
 		//va_list ap;
 		if (!check->MaxErrors) return;
@@ -5667,18 +5667,18 @@ cleardatabasepage_out:
 			check->MallocFailed = true;
 	}
 #if __CUDACC__
-	__device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt) { va_list args; va_start(args, nullptr); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
-	template <typename T1> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
-	template <typename T1, typename T2> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
-	template <typename T1, typename T2, typename T3> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
-	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
-	template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); CheckAppendMsg(check, msg1, fmt, args); va_end(args); }
+	__device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt) { va_list args; va_start(args, nullptr); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
+	template <typename T1> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
+	template <typename T1, typename T2> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2) { va_list args; va_start(args, arg1, arg2); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
+	template <typename T1, typename T2, typename T3> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
+	template <typename T1, typename T2, typename T3, typename T4, typename T5> __device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5); CheckAppendMsg(check, msg1, fmt, &args); va_end(args); }
 #else
 	__device__ inline static void CheckAppendMsg(IntegrityCk *check, char *msg1, const char *fmt, ...)
 	{
 		va_list args;
 		va_start(args, fmt);
-		CheckAppendMsg(check, msg1, fmt, args);
+		CheckAppendMsg(check, msg1, fmt, &args);
 		va_end(args);
 	}
 #endif

@@ -61,6 +61,7 @@
     <Content Include="Core\MutexEx.cu.h" />
     <Content Include="Core\RC.cu.h" />
     <None Include="Core\MathEx.cu" />
+    <None Include="Core\MutexEx.cu" />
     <None Include="Core\SysEx+Random.cu" />
     <None Include="Core\StatusEx.cu" />
     <Content Include="Core\SysEx.cu.h" />

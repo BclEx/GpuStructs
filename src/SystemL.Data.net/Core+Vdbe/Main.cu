@@ -14,7 +14,7 @@ namespace Core
 
 #pragma region From: Util_c
 
-	__device__ void Parse::ErrorMsg(const char *fmt, va_list &args)
+	__device__ void Parse::ErrorMsg(const char *fmt, va_list *args)
 	{
 		Context *ctx = Ctx;
 		char *msg = _vmtagprintf(ctx, fmt, args, nullptr);
@@ -29,7 +29,7 @@ namespace Core
 		}
 	}
 
-	__device__ void Main::Error(Context *ctx, RC errCode, const char *fmt, va_list &args)
+	__device__ void Main::Error(Context *ctx, RC errCode, const char *fmt, va_list *args)
 	{
 		if (ctx && (ctx->Err || (ctx->Err = Vdbe::ValueNew(ctx)) != nullptr))
 		{
@@ -179,7 +179,7 @@ namespace Core
 		return RC_OK;
 	}
 
-	__device__ RC Main::Config(CONFIG op, va_list &args)
+	__device__ RC Main::Config(CONFIG op, va_list *args)
 	{
 		if (op < CONFIG_PAGECACHE) return SysEx::Config((SysEx::CONFIG)op, args);
 		RC rc = RC_OK;
@@ -220,7 +220,7 @@ namespace Core
 		{ Main::CTXCONFIG_ENABLE_FKEY,    Context::FLAG_ForeignKeys   },
 		{ Main::CTXCONFIG_ENABLE_TRIGGER, Context::FLAG_EnableTrigger },
 	};
-	__device__ RC Main::CtxConfig(Context *ctx, CTXCONFIG op, va_list &args)
+	__device__ RC Main::CtxConfig(Context *ctx, CTXCONFIG op, va_list *args)
 	{
 		RC rc;
 		switch (op)
@@ -1703,7 +1703,7 @@ error_out:
 	extern __device__ void Random_PrngRestoreState();
 	extern __device__ void Random_PrngResetState();
 	extern __device__ int Bitvec_BuiltinTest(int size, int *ops);
-	__device__ RC Main::TestControl(TESTCTRL op, va_list &args)
+	__device__ RC Main::TestControl(TESTCTRL op, va_list *args)
 	{
 		int rc = 0;
 #ifndef OMIT_BUILTIN_TEST

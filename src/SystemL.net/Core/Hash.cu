@@ -86,7 +86,7 @@ namespace Core
 			return false;
 		_free(hash->Table);
 		hash->Table = newTable;
-		hash->TableSize = newSize = _allocsize(newTable) / sizeof(Hash::HTable);
+		hash->TableSize = newSize = (int)_allocsize(newTable) / sizeof(Hash::HTable);
 		_memset(newTable, 0, newSize * sizeof(Hash::HTable));
 		HashElem *elem, *nextElem;
 		for (elem = hash->First, hash->First = nullptr; elem; elem = nextElem)

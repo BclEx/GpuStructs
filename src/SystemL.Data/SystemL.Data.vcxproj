@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <LD>V</LD>
-    <LC>20</LC>
+    <LC>35</LC>
   </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
@@ -98,7 +98,9 @@
     <CudaCompile Include="Program.cu" />
     <CudaCompile Include="..\SystemL.Data.net\CompileTime.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Opcodes.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Shell.cu" />
+    <CudaCompile Include="..\SystemL.Data.net\Shell.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\BContext.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\BContext+Notify.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Btree\Btree.cu" />
@@ -128,7 +130,7 @@
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Complete.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+FKey.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Tokenize.cu" />
-    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.c" />
+    <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Prepare.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Rowset.cu" />
     <CudaCompile Include="..\SystemL.Data.net\Core+Vdbe\Table.cu" />

@@ -7,52 +7,6 @@
 using namespace Core;
 using namespace Core::IO;
 
-static void TestDB();
-static void TestVFS();
-
-#if __CUDACC__
-void __main(cudaRuntimeHost &r);
-void main(int argc, char **argv)
-{
-	cudaRuntimeHost runtimeHost = cudaRuntimeInit(256, 4096);
-
-	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
-	//IVisualRender* render = new RuntimeVisualRender(runtimeHost); if (!Visual::InitGL(render, &argc, argv)) return 0;
-	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
-
-	// test
-	__main(runtimeHost);
-	cudaRuntimeExecute(runtimeHost);
-
-	// run
-	//Visual::Main(); atexit(Visual::Dispose);
-
-	cudaRuntimeEnd(runtimeHost);
-
-	cudaDeviceReset();
-	//printf("End.");
-	//char c; scanf("%c", &c);
-}
-
-void __main(cudaRuntimeHost &r)
-{	
-	cudaRuntimeSetHeap(r.heap);
-	MainTest<<<1, 1>>>(r.heap);
-}
-
-__global__ void main(int argc, char **argv)
-#else
-__global__ void main(int argc, char **argv)
-#endif
-{
-	Main::Initialize();
-	//
-	//TestVFS();
-	TestDB();
-	//
-	Main::Shutdown();
-}
-
 __device__ static bool MyCallback(void *args, int argsLength, char **args2, char **cols)
 {
 	return true;
@@ -69,8 +23,8 @@ __device__ static void TestDB()
 
 	// run query
 	char *errMsg = nullptr;
-	Main::Exec(ctx, "Select * From MyTable;", MyCallback, nullptr, &errMsg);
-	/*Main::Exec(ctx, "PRAGMA database_list;", MyCallback, nullptr, &errMsg);*/
+	//Main::Exec(ctx, "Select * From MyTable;", MyCallback, nullptr, &errMsg);
+	Main::Exec(ctx, "PRAGMA database_list;", MyCallback, nullptr, &errMsg);
 	if (errMsg)
 	{
 		_printf("Error: %s\n", errMsg);
@@ -96,5 +50,50 @@ __device__ static void TestVFS()
 //	int ops[] = { 5, 1, 1, 1, 0 };
 //	Core::Bitvec_BuiltinTest(400, ops);
 //}
+
+#if __CUDACC__
+__global__ void GMain(void *r) { _runtimeSetHeap(r);
+#else
+__global__ void main(int argc, char **argv) {
+#endif
+	Main::Initialize();
+	//
+	//TestVFS();
+	TestDB();
+	//
+	Main::Shutdown();
+}
+
+
+#if __CUDACC__
+void __main(cudaDeviceHeap &r)
+{	
+	cudaDeviceHeapSelect(r);
+	GMain<<<1, 1>>>(r.heap); cudaDeviceHeapSynchronize(r);
+}
+
+int main(int argc, char **argv)
+{
+	cudaDeviceHeap runtimeHost = cudaDeviceHeapCreate(256, 4096);
+
+	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
+	//IVisualRender *render = new RuntimeVisualRender(runtimeHost);
+	//if (!Visual::InitGL(render, &argc, argv)) return 0;
+	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
+
+	// test
+	__main(runtimeHost);
+
+	// run
+	//Visual::Main();
+
+	cudaDeviceHeapDestroy(runtimeHost);
+
+	cudaDeviceReset();
+	//printf("End.");
+	//char c; scanf("%c", &c);
+	return 0;
+}
+#endif
 
 #endif

@@ -181,7 +181,7 @@ namespace Core
 		return RC_OK;
 	}
 
-	__device__ RC SysEx::Config(CONFIG op, va_list &args)
+	__device__ RC SysEx::Config(CONFIG op, va_list *args)
 	{
 		// sqlite3_config() shall return SQLITE_MISUSE if it is invoked while the SQLite library is in use.
 		if (SysEx_GlobalStatics.IsInit) return SysEx_MISUSE_BKPT;
@@ -300,7 +300,7 @@ namespace Core
 			_benignalloc_begin();
 			start = _alloc(size * count); // IMP: R-61949-35727
 			_benignalloc_end();
-			if (start) count = _allocsize(start) / size;
+			if (start) count = (int)_allocsize(start) / size;
 		}
 		else
 			start = buf;

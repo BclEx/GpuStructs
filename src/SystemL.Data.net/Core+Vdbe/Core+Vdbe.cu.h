@@ -195,28 +195,28 @@ namespace Core
 	{
 	public:
 		int Version;
-		__device__ RC (*Create)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ RC (*Connect)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
-		__device__ RC (*BestIndex)(IVTable *vtab, IIndexInfo *);
-		__device__ RC (*Disconnect)(IVTable *vtab);
-		__device__ RC (*Destroy)(IVTable *vtab);
-		__device__ RC (*Open)(IVTable *vtab, IVTableCursor **cursors);
-		__device__ RC (*Close)(IVTableCursor*);
-		__device__ RC (*Filter)(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
-		__device__ RC (*Next)(IVTableCursor*);
-		__device__ RC (*Eof)(IVTableCursor*);
-		__device__ RC (*Column)(IVTableCursor *, FuncContext *, int);
-		__device__ RC (*Rowid)(IVTableCursor *, int64 *rowid);
-		__device__ RC (*Update)(IVTable *, int, Mem **, int64 *);
-		__device__ RC (*Begin)(IVTable *vtab);
-		__device__ RC (*Sync)(IVTable *vtab);
-		__device__ RC (*Commit)(IVTable *vtab);
-		__device__ RC (*Rollback)(IVTable *vtab);
-		__device__ RC (*FindFunction)(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
-		__device__ RC (*Rename)(IVTable *vtab, const char *new_);
-		__device__ RC (*Savepoint)(IVTable *vtab, int);
-		__device__ RC (*Release)(IVTable *vtab, int);
-		__device__ RC (*RollbackTo)(IVTable *vtab, int);
+		RC (*Create)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		RC (*Connect)(Context *, void *aux, int argc, const char *const *argv, IVTable **vtabs, char **);
+		RC (*BestIndex)(IVTable *vtab, IIndexInfo *);
+		RC (*Disconnect)(IVTable *vtab);
+		RC (*Destroy)(IVTable *vtab);
+		RC (*Open)(IVTable *vtab, IVTableCursor **cursors);
+		RC (*Close)(IVTableCursor*);
+		RC (*Filter)(IVTableCursor*, int idxNum, const char *idxStr, int argc, Mem **argv);
+		RC (*Next)(IVTableCursor*);
+		RC (*Eof)(IVTableCursor*);
+		RC (*Column)(IVTableCursor *, FuncContext *, int);
+		RC (*Rowid)(IVTableCursor *, int64 *rowid);
+		RC (*Update)(IVTable *, int, Mem **, int64 *);
+		RC (*Begin)(IVTable *vtab);
+		RC (*Sync)(IVTable *vtab);
+		RC (*Commit)(IVTable *vtab);
+		RC (*Rollback)(IVTable *vtab);
+		RC (*FindFunction)(IVTable *vtab, int argsLength, const char *name, void (**func)(FuncContext *, int, Mem **), void **args);
+		RC (*Rename)(IVTable *vtab, const char *new_);
+		RC (*Savepoint)(IVTable *vtab, int);
+		RC (*Release)(IVTable *vtab, int);
+		RC (*RollbackTo)(IVTable *vtab, int);
 	};
 
 	enum INDEX_CONSTRAINT : uint8
@@ -1083,7 +1083,7 @@ namespace Core
 		TriggerPrg *TriggerPrg;		// Linked list of coded triggers
 
 #pragma region From: Main_c
-		__device__ void ErrorMsg(const char *fmt, va_list &args);
+		__device__ void ErrorMsg(const char *fmt, va_list *args);
 #if __CUDACC__
 		__device__ inline void ErrorMsg(const char *fmt) { va_list args; va_start(args, nullptr); ErrorMsg(fmt, args); va_end(args); }
 		template <typename T1> __device__ inline void ErrorMsg(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); ErrorMsg(fmt, args); va_end(args); }
@@ -1097,7 +1097,7 @@ namespace Core
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); ErrorMsg(fmt, args); va_end(args); }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline void ErrorMsg(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); ErrorMsg(fmt, args); va_end(args); }
 #else
-		__device__ inline void ErrorMsg(const char *fmt, ...) { va_list args; va_start(args, fmt); ErrorMsg(fmt, args); va_end(args); }
+		__device__ inline void ErrorMsg(const char *fmt, ...) { va_list args; va_start(args, fmt); ErrorMsg(fmt, &args); va_end(args); }
 #endif
 #pragma endregion
 
@@ -1106,12 +1106,12 @@ namespace Core
 #pragma endregion
 
 #pragma region From: Parse+Build_cu
-		__device__ void BeginParse(bool explainFlag);
+		__device__ void BeginParse(int explainFlag);
 #ifndef OMIT_SHARED_CACHE
 		__device__ void TableLock(int db, int table, bool isWriteLock, const char *name);
 #endif
 		__device__ void FinishCoding();
-		__device__ void NestedParse(const char *fmt, va_list &args);
+		__device__ void NestedParse(const char *fmt, va_list *args);
 #if __CUDACC__
 		__device__ inline void NestedParse(const char *fmt) { va_list args; va_start(args, nullptr); NestedParse(fmt, args); va_end(args); }
 		template <typename T1> __device__ inline void NestedParse(const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); NestedParse(fmt, args); va_end(args); }
@@ -1119,7 +1119,7 @@ namespace Core
 		template <typename T1, typename T2, typename T3> __device__ inline void NestedParse(const char *fmt, T1 arg1, T2 arg2, T3 arg3) { va_list args; va_start(args, arg1, arg2, arg3); NestedParse(fmt, args); va_end(args); }
 		template <typename T1, typename T2, typename T3, typename T4> __device__ inline void NestedParse(const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4) { va_list args; va_start(args, arg1, arg2, arg3, arg4); NestedParse(fmt, args); va_end(args); }
 #else
-		__device__ inline void NestedParse(const char *fmt, ...) { va_list args; va_start(args, fmt); NestedParse(fmt, args); va_end(args); }
+		__device__ inline void NestedParse(const char *fmt, ...) { va_list args; va_start(args, fmt); NestedParse(fmt, &args); va_end(args); }
 #endif
 		__device__ static Table *FindTable(Context *ctx, const char *name, const char *dbName);
 		__device__ Table *LocateTable(bool isView, const char *name, const char *dbName);
@@ -1692,7 +1692,7 @@ namespace Core {
 			return (RC)(rc & (ctx ? ctx->ErrMask : 0xff));
 		}
 
-		__device__ static void Error(Context *ctx, RC errCode, const char *fmt, va_list &args);
+		__device__ static void Error(Context *ctx, RC errCode, const char *fmt, va_list *args);
 #if __CUDACC__
 		__device__ inline static void Error(Context *ctx, RC errCode, const char *fmt) { va_list args; va_start(args, nullptr); Error(ctx, errCode, fmt, args); va_end(args); }
 		template <typename T1> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1) { va_list args; va_start(args, arg1); Error(ctx, errCode, fmt, args); va_end(args); }
@@ -1706,7 +1706,7 @@ namespace Core {
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9); Error(ctx, errCode, fmt, args); va_end(args); }
 		template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename TA> __device__ inline static void Error(Context *ctx, RC errCode, const char *fmt, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, TA argA) { va_list args; va_start(args, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, argA); Error(ctx, errCode, fmt, args); va_end(args); }
 #else
-		__device__ inline void static Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args; va_start(args, fmt); Error(ctx, errCode, fmt, args); va_end(args); }
+		__device__ inline void static Error(Context *ctx, RC errCode, const char *fmt, ...) { va_list args; va_start(args, fmt); Error(ctx, errCode, fmt, &args); va_end(args); }
 #endif
 		__device__ static bool SafetyCheckOk(Context *ctx);
 		__device__ static bool SafetyCheckSickOrOk(Context *ctx);
@@ -1757,7 +1757,7 @@ namespace Core {
 			CONFIG_GETPCACHE2 = 19,				// sqlite3_pcache_methods2*
 			CONFIG_COVERING_INDEX_SCAN = 20,	// int
 		};
-		__device__ static RC Config(CONFIG op, va_list &args);
+		__device__ static RC Config(CONFIG op, va_list *args);
 #if __CUDACC__
 		__device__ inline static RC Config(CONFIG op) { va_list args; va_start(args, nullptr); RC r = Config(op, args); va_end(args); return r; }
 		template <typename T1> __device__ inline static RC Config(CONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = Config(op, args); va_end(args); return r; }
@@ -1775,7 +1775,7 @@ namespace Core {
 			CTXCONFIG_ENABLE_FKEY = 1002,  // int int*
 			CTXCONFIG_ENABLE_TRIGGER = 1003,  // int int*
 		};
-		__device__ static RC CtxConfig(Context *ctx, CTXCONFIG op, va_list &args);
+		__device__ static RC CtxConfig(Context *ctx, CTXCONFIG op, va_list *args);
 #if __CUDACC__
 		__device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op) { va_list args; va_start(args, nullptr); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
 		template <typename T1> __device__ inline static RC CtxConfig(Context *ctx, CTXCONFIG op, T1 arg1) { va_list args; va_start(args, arg1); RC r = CtxConfig(ctx, op, args); va_end(args); return r; }
@@ -1875,7 +1875,7 @@ namespace Core {
 			TESTCTRL_EXPLAIN_STMT            =19,
 			TESTCTRL_LAST                    =19,
 		};
-		__device__ RC Main::TestControl(TESTCTRL op, va_list &args);
+		__device__ RC Main::TestControl(TESTCTRL op, va_list *args);
 		__device__ static Btree *DbNameToBtree(Context *ctx, const char *dbName);
 		__device__ static const char *CtxFilename(Context *ctx, const char *dbName);
 		__device__ static int CtxReadonly(Context *ctx, const char *dbName);

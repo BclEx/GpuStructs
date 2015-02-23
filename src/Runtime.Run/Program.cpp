@@ -10,10 +10,9 @@ int main(int argc, char **argv)
 	//cudaDeviceFalloc fallocHost = cudaDeviceFallocCreate(100, 1024);
 
 	// First initialize OpenGL context, so we can properly set the GL for CUDA. This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
-	IVisualRender* render = new RuntimeVisualRender(runtimeHost);
-	//IVisualRender* render = new FallocVisualRender(fallocHost);
-	if (!Visual::InitGL(render, &argc, argv))
-		return 0;
+	IVisualRender *render = new RuntimeVisualRender(runtimeHost);
+	//IVisualRender *render = new FallocVisualRender(fallocHost);
+	if (!Visual::InitGL(render, &argc, argv)) return 0;
 	cudaGLSetGLDevice(gpuGetMaxGflopsDeviceId());
 
 	// test

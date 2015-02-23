@@ -4,7 +4,7 @@
 
 namespace Core
 {
-	__device__ void Parse::BeginParse(bool explainFlag)
+	__device__ void Parse::BeginParse(int explainFlag)
 	{
 		Explain = explainFlag;
 		VarsSeen = 0;
@@ -144,7 +144,7 @@ namespace Core
 		CookieGoto = 0;
 	}
 
-	__device__ void Parse::NestedParse(const char *format, va_list &args)
+	__device__ void Parse::NestedParse(const char *format, va_list *args)
 	{
 		if (Errs)
 			return;
@@ -2242,7 +2242,7 @@ exit_drop_index:
 				return src;
 			}
 			src = newSrc;
-			int got = (_tagallocsize(ctx, newSrc) - sizeof(*src))/sizeof(src->Ids[0])+1;
+			int got = ((int)_tagallocsize(ctx, newSrc) - sizeof(*src))/sizeof(src->Ids[0])+1;
 			src->Allocs = (uint16)got;
 		}
 		// Move existing slots that come after the newly inserted slots out of the way

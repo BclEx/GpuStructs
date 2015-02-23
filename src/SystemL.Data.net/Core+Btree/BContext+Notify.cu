@@ -6,7 +6,7 @@
 
 #define AssertMutexHeld() _assert(MutexEx::Held(MutexEx::Alloc(MutexEx::MUTEX_STATIC_MASTER)))
 
-static BContext *_WSD g_blockedList = nullptr;
+__device__ static BContext *_WSD g_blockedList = nullptr;
 
 #ifndef NDEBUG
 __device__ static void CheckListProperties(BContext *ctx)

@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <LD>V</LD>
-    <LC>20</LC>
+    <LC>35</LC>
   </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug.cpu|x64">
@@ -80,7 +80,7 @@
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
     </CudaCompile>
     <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Bitvec.cu.obj" "$(IntDir)ConvertEx.cu.obj" "$(IntDir)GpuVSystem.cu.obj" "$(IntDir)Hash.cu.obj" "$(IntDir)IO.JournalVFile.cu.obj" "$(IntDir)IO.MemoryVFile.cu.obj" "$(IntDir)IO.VFile.cu.obj" "$(IntDir)StatusEx.cu.obj" "$(IntDir)SysEx.cu.obj" "$(IntDir)SysEx+Random.cu.obj" "$(IntDir)SysEx+Utf.cu.obj" "$(IntDir)VSystem.cu.obj" -o "$(OutDir)SystemL.$(LC)$(LD)D.lib"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Bitvec.cu.obj" "$(IntDir)ConvertEx.cu.obj" "$(IntDir)GpuVSystem.cu.obj" "$(IntDir)Hash.cu.obj" "$(IntDir)MathEx.cu.obj" "$(IntDir)MutexEx.cu.obj" "$(IntDir)IO.JournalVFile.cu.obj" "$(IntDir)IO.MemoryVFile.cu.obj" "$(IntDir)IO.VFile.cu.obj" "$(IntDir)StatusEx.cu.obj" "$(IntDir)SysEx.cu.obj" "$(IntDir)SysEx+Random.cu.obj" "$(IntDir)VSystem.cu.obj" -o "$(OutDir)SystemL.$(LC)$(LD)D.lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release.cpu|x64' Or '$(Configuration)|$(Platform)'=='Release.cu|x64'">
@@ -106,7 +106,7 @@
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
     </CudaCompile>
     <PostBuildEvent>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Bitvec.cu.obj" "$(IntDir)ConvertEx.cu.obj" "$(IntDir)GpuVSystem.cu.obj" "$(IntDir)Hash.cu.obj" "$(IntDir)IO.JournalVFile.cu.obj" "$(IntDir)IO.MemoryVFile.cu.obj" "$(IntDir)IO.VFile.cu.obj" "$(IntDir)StatusEx.cu.obj" "$(IntDir)SysEx.cu.obj" "$(IntDir)SysEx+Random.cu.obj" "$(IntDir)SysEx+Utf.cu.obj" "$(IntDir)VSystem.cu.obj" -o "$(OutDir)SystemL.$(LC)$(LD).lib"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Bitvec.cu.obj" "$(IntDir)ConvertEx.cu.obj" "$(IntDir)GpuVSystem.cu.obj" "$(IntDir)Hash.cu.obj" "$(IntDir)MathEx.cu.obj" "$(IntDir)MutexEx.cu.obj" "$(IntDir)IO.JournalVFile.cu.obj" "$(IntDir)IO.MemoryVFile.cu.obj" "$(IntDir)IO.VFile.cu.obj" "$(IntDir)StatusEx.cu.obj" "$(IntDir)SysEx.cu.obj" "$(IntDir)SysEx+Random.cu.obj" "$(IntDir)VSystem.cu.obj" -o "$(OutDir)SystemL.$(LC)$(LD).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

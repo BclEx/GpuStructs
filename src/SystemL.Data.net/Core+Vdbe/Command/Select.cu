@@ -2712,6 +2712,7 @@ multi_select_end:
 		SrcList *tabList = p->Src; // List of tables to select from
 		ExprList *list = p->EList; // List of columns to extract.
 
+		RC rc = RC_ERROR; // Value to return from this function
 		if (parse->Errs || ctx->MallocFailed)
 			goto select_end;
 		bool isAgg = ((p->SelFlags & SF_Aggregate) != 0); // True for select lists like "count(*)"
@@ -2830,7 +2831,6 @@ multi_select_end:
 		DistinctCtx sDistinct; // Info on how to code the DISTINCT keyword
 		sDistinct.IsTnct = ((p->SelFlags & SF_Distinct) != 0);
 
-		RC rc = RC_ERROR; // Value to return from this function
 #ifndef OMIT_COMPOUND_SELECT
 		// If there is are a sequence of queries, do the earlier ones first.
 		if (p->Prior)
