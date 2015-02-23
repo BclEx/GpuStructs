@@ -248,7 +248,7 @@ namespace Core { namespace Command
 		if (!table) goto exit_rename_table;
 		int db = Prepare::SchemaToIndex(ctx, table->Schema); // Database that contains the table
 		char *dbName = ctx->DBs[db].Name; // Name of database iDb
-		ctx->Flags |= Context::FLAG_PreferBuiltin;
+		ctx->Flags |= BContext::FLAG_PreferBuiltin;
 
 		// Get a NULL terminated version of the new table name.
 		char *nameAsString = Parse::NameFromToken(ctx, name); // NULL-terminated version of pName
@@ -493,7 +493,7 @@ exit_rename_table:
 			char *end = &colDefAsString[colDef->length-1];
 			while (end > colDefAsString && (*end == ';' || _isspace(*end))) *end-- = '\0';
 			Context::FLAG savedDbFlags = ctx->Flags;
-			ctx->Flags |= Context::FLAG_PreferBuiltin;
+			ctx->Flags |= BContext::FLAG_PreferBuiltin;
 			parse->NestedParse( 
 				"UPDATE \"%w\".%s SET "
 				"sql = substr(sql,1,%d) || ', ' || %Q || substr(sql,%d) "
@@ -584,6 +584,7 @@ exit_begin_add_column:
 		Parse::SrcListDelete(ctx, src);
 		return;
 	}
+
 } }
 #endif
 #pragma endregion

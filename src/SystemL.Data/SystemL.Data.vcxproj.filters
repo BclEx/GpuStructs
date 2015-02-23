@@ -202,6 +202,7 @@
       <Filter>Core+Vdbe</Filter>
     </ClCompile>
     <ClCompile Include="Program.cu" />
+    <ClCompile Include="..\SystemL.Data.net\Opcodes.cu" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\SystemL.Data.net\Core+Vdbe\Parse+Parser.ycu">

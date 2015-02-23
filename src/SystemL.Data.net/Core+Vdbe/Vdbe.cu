@@ -2089,7 +2089,7 @@ op_column_out:
 							{
 								ExpirePreparedStatements(ctx);
 								Parse::ResetAllSchemasOfConnection(ctx);
-								ctx->Flags = (ctx->Flags | Context::FLAG_InternChanges);
+								ctx->Flags |= Context::FLAG_InternChanges;
 							}
 						}
 
