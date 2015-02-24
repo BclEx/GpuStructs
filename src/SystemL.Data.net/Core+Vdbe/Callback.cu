@@ -26,13 +26,13 @@ namespace Core
 #endif
 	}
 
-	static const TEXTENCODE _SynthCollSeq_TextEncodes[] = { TEXTENCODE_UTF16BE, TEXTENCODE_UTF16LE, TEXTENCODE_UTF8 };
+	__device__ static const TEXTENCODE _textEncodes[] = { TEXTENCODE_UTF16BE, TEXTENCODE_UTF16LE, TEXTENCODE_UTF8 };
 	__device__ static RC SynthCollSeq(Context *ctx, CollSeq *coll)
 	{
 		char *z = coll->Name;
 		for (int i = 0; i < 3; i++)
 		{
-			CollSeq *coll2 = Callback::FindCollSeq(ctx, _SynthCollSeq_TextEncodes[i], z, false);
+			CollSeq *coll2 = Callback::FindCollSeq(ctx, _textEncodes[i], z, false);
 			if (coll2->Cmp)
 			{
 				_memcpy(coll, coll2, sizeof(CollSeq));
