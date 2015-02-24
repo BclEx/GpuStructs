@@ -58,7 +58,7 @@ __global__ void main(int argc, char **argv) {
 #endif
 	Main::Initialize();
 	//
-	//TestVFS();
+	TestVFS();
 	TestDB();
 	//
 	Main::Shutdown();

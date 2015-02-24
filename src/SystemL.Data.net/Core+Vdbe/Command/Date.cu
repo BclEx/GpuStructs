@@ -293,9 +293,12 @@ zulu_time:
 	__device__ static int OsLocaltime(time_t *t, tm *tm_)
 	{
 		int rc;
-#if (!defined(HAVE_LOCALTIME_R) || !HAVE_LOCALTIME_R) && (!defined(HAVE_LOCALTIME_S) || !HAVE_LOCALTIME_S)
-#if THREADSAFE > 0
-		MutexEx *mutex = MutexEx::Alloc(MUTEX_STATIC_MASTER);
+#if __CUDACC__
+		//*tm_ = 0;
+		rc = 0;
+#elif ((!defined(HAVE_LOCALTIME_R) || !HAVE_LOCALTIME_R) && (!defined(HAVE_LOCALTIME_S) || !HAVE_LOCALTIME_S))
+#if THREADSAFE
+		MutexEx mutex = MutexEx::Alloc(MutexEx::MUTEX_STATIC_MASTER);
 #endif
 		MutexEx::Enter(mutex);
 		tm *x = localtime(t);

@@ -99,7 +99,12 @@ namespace Core { namespace Command
 		const char *Name; // Name of the pragma
 		Context::FLAG Mask; // Mask for the db->flags value
 	};
-	__constant__ static const sPragmaType _pragmas[] =
+#if __CUDACC__
+	__constant__ static sPragmaType _pragmas[19];
+	static const sPragmaType h_pragmas[19] =
+#else
+	static const sPragmaType _pragmas[19] =
+#endif
 	{
 		{"full_column_names",        Context::FLAG_FullColNames},
 		{"short_column_names",       Context::FLAG_ShortColNames},
@@ -112,7 +117,7 @@ namespace Core { namespace Command
 #ifndef OMIT_AUTOMATIC_INDEX
 		{"automatic_index",          Context::FLAG_AutoIndex},
 #endif
-#ifdef DEBUG
+#ifdef _DEBUG
 		{"sql_trace",                Context::FLAG_SqlTrace},
 		{"vdbe_listing",             Context::FLAG_VdbeListing},
 		{"vdbe_trace",               Context::FLAG_VdbeTrace},
@@ -154,7 +159,7 @@ namespace Core { namespace Command
 					{
 						Context::FLAG mask = p->Mask; // Mask of bits to set or clear.
 						if (ctx->AutoCommit == 0)
-							mask &= ~(Context::FLAG_ForeignKeys); // Foreign key support may not be enabled or disabled while not in auto-commit mode.
+							mask &= ~Context::FLAG_ForeignKeys; // Foreign key support may not be enabled or disabled while not in auto-commit mode.
 						if (ConvertEx::GetBoolean(right, 0))
 							ctx->Flags |= mask;
 						else
@@ -271,7 +276,7 @@ namespace Core { namespace Command
 		{OP_Concat,       3,  2,  2},
 		{OP_ResultRow,    2,  1,  0},
 	};
-	const struct EncodeName
+	struct EncodeName
 	{
 		char *Name;
 		TEXTENCODE Encode;
@@ -302,7 +307,7 @@ namespace Core { namespace Command
 		{OP_ReadCookie,      0,  1,  0},    // 1
 		{OP_ResultRow,       1,  1,  0}
 	};
-	static const char *const _lockNames[] =
+	__constant__ static const char *const _lockNames[] =
 	{
 		"unlocked", "shared", "reserved", "pending", "exclusive"
 	};
@@ -584,9 +589,9 @@ namespace Core { namespace Command
 			else
 			{
 				Btree::AUTOVACUUM auto_ = GetAutoVacuum(right);
-				_assert(auto_ >= 0 && auto_ <= 2);
+				_assert(auto_ <= 2);
 				ctx->NextAutovac = auto_;
-				if (_ALWAYS(auto_ >= 0))
+				//if (_ALWAYS(auto_ >= 0))
 				{
 					// Call SetAutoVacuum() to set initialize the internal auto and incr-vacuum flags. This is required in case this connection
 					// creates the database file. It is important that it is created as an auto-vacuum capable db.
@@ -1118,7 +1123,11 @@ namespace Core { namespace Command
 			if (right)
 			{
 				if (ConvertEx::GetBoolean(right, 0))
+#if __CUDACC__
+					ParserTrace(nullptr, "parser: ");
+#else
 					ParserTrace(stderr, "parser: ");
+#endif
 				else
 					ParserTrace(nullptr, nullptr);
 			}

@@ -238,7 +238,7 @@ namespace Core
                         col = index.Columns[i];
                         Column colObj = table.Cols[col];
                         if (table.PKey == col) col = -1;
-                        left.TableIdx = regDataId + col + 1;
+                        left.TableId = regDataId + col + 1;
                         left.Aff = colObj.Affinity;
                         string collName = colObj.Coll;
                         if (collName == null) collName = ctx.DefaultColl.Name;
@@ -246,7 +246,7 @@ namespace Core
                     }
                     else
                     {
-                        left.TableIdx = regDataId;
+                        left.TableId = regDataId;
                         left.Aff = AFF.INTEGER;
                     }
                 }
@@ -266,9 +266,9 @@ namespace Core
                 Expr right = Expr.Expr(ctx, TK.COLUMN, null); // Column ref to child table
                 if (left != null && right != null)
                 {
-                    left.TableIdx = regDataId;
+                    left.TableId = regDataId;
                     left.Aff = AFF.INTEGER;
-                    right.TableIdx = src.Ids[0].Cursor;
+                    right.TableId = src.Ids[0].Cursor;
                     right.ColumnIdx = -1;
                 }
                 Expr eq = Expr.PExpr(parse, TK.NE, left, right, 0); // Expression (pLeft = pRight)

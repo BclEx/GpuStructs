@@ -54,7 +54,7 @@ namespace Core
 		{
 			_assert(tableList);
 			for (int src = 0; _ALWAYS(src < tableList->Srcs); src++)
-				if (expr->TableIdx == tableList->Ids[src].Cursor)
+				if (expr->TableId == tableList->Ids[src].Cursor)
 				{
 					table = tableList->Ids[src].Table;
 					break;

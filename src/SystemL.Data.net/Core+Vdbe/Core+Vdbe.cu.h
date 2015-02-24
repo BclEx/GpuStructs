@@ -127,7 +127,7 @@ namespace Core
 		FUNC_LENGTH = 0x40,			// Built-in length() function
 		FUNC_TYPEOF = 0x80,			// Built-in typeof() function
 	};
-	__device__ inline void operator|=(FUNC &a, int b) { a = (FUNC)(a | b); }
+	__device__ inline void operator|=(FUNC &a, FUNC b) { a = (FUNC)(a | b); }
 	__device__ inline FUNC operator|(FUNC a, FUNC b) { return (FUNC)((int)a | (int)b); }
 
 	struct FuncDestructor
@@ -399,7 +399,7 @@ namespace Core
 		AFF_BIT_STOREP2 = 0x10,	// Store result in reg[P2] rather than jump
 		AFF_BIT_NULLEQ = 0x80,  // NULL=NULL
 	};
-	__device__ inline void operator|=(AFF &a, int b) { a = (AFF)(a | b); }
+	__device__ inline void operator|=(AFF &a, AFF b) { a = (AFF)(a | b); }
 	__device__ inline AFF operator|(AFF a, AFF b) { return (AFF)((int)a | (int)b); }
 
 #define IsNumericAffinity(X) ((X) >= AFF_NUMERIC)
@@ -428,7 +428,7 @@ namespace Core
 		JT_OUTER = 0x0020,		// The "OUTER" keyword is present
 		JT_ERROR = 0x0040,		// unknown or unsupported join type
 	};
-	__device__ inline void operator|=(JT &a, int b) { a = (JT)(a | b); }
+	__device__ inline void operator|=(JT &a, JT b) { a = (JT)(a | b); }
 	__device__ inline JT operator|(JT a, JT b) { return (JT)((int)a | (int)b); }
 
 	struct Select;
@@ -475,7 +475,7 @@ namespace Core
 		WHERE_ONETABLE_ONLY = 0x0040,	// Only code the 1st table in pTabList
 		WHERE_AND_ONLY = 0x0080,		// Don't use indices for OR terms
 	};
-	__device__ inline void operator|=(WHERE &a, int b) { a = (WHERE)(a | b); }
+	__device__ inline void operator|=(WHERE &a, WHERE b) { a = (WHERE)(a | b); }
 	__device__ inline WHERE operator|(WHERE a, WHERE b) { return (WHERE)((int)a | (int)b); }
 
 	struct WhereTerm;
@@ -565,8 +565,9 @@ namespace Core
 		NC_IsCheck = 0x04,			// True if resolving names in a CHECK constraint
 		NC_InAggFunc = 0x08,		// True if analyzing arguments to an agg func
 	};
-	__device__ inline void operator|=(NC &a, int b) { a = (NC)(a | b); }
-	__device__ inline void operator&=(NC &a, int b) { a = (NC)(a & b); }
+	__device__ inline void operator|=(NC &a, NC b) { a = (NC)(a | b); }
+	__device__ inline void operator&=(NC &a, NC b) { a = (NC)(a & b); }
+	__device__ inline NC operator~(NC a) { return (NC)(~(int)a); }
 
 	struct NameContext
 	{
@@ -593,8 +594,11 @@ namespace Core
 		SF_Materialize = 0x0100,	// Force materialization of views
 		SF_NestedFrom = 0x0200,		// Part of a parenthesized FROM clause
 	};
-	__device__ inline void operator|=(SF &a, int b) { a = (SF)(a | b); }
-	__device__ inline void operator&=(SF &a, int b) { a = (SF)(a & b); }
+	__device__ inline void operator|=(SF &a, SF b) { a = (SF)(a | b); }
+	__device__ inline void operator&=(SF &a, SF b) { a = (SF)(a & b); }
+	__device__ inline SF operator|(SF a, SF b) { return (SF)((int)a | (int)b); }
+	__device__ inline SF operator&(SF a, SF b) { return (SF)((int)a & (int)b); }
+	__device__ inline SF operator~(SF a) { return (SF)(~(int)a); }
 
 	enum SRT : uint8
 	{
@@ -680,8 +684,8 @@ namespace Core
 		EP_TokenOnly = 0x4000,		// Expr struct is EXPR_TOKENONLYSIZE bytes only
 		EP_Static = 0x8000,			// Held in memory not obtained from malloc()
 	};
-	__device__ inline void operator|=(EP &a, int b) { a = (EP)(a | b); }
-	__device__ inline void operator&=(EP &a, int b) { a = (EP)(a & b); }
+	__device__ inline void operator|=(EP &a, EP b) { a = (EP)(a | b); }
+	__device__ inline void operator&=(EP &a, EP b) { a = (EP)(a & b); }
 	__device__ inline EP operator|(EP a, EP b) { return (EP)((int)a | (int)b); }
 
 	enum EP2 : uint8
@@ -689,7 +693,7 @@ namespace Core
 		EP2_MallocedToken = 0x0001,	// Need to sqlite3DbFree() Expr.zToken
 		EP2_Irreducible = 0x0002,	// Cannot EXPRDUP_REDUCE this Expr
 	};
-	__device__ inline void operator|=(EP2 &a, int b) { a = (EP2)(a | b); }
+	__device__ inline void operator|=(EP2 &a, EP2 b) { a = (EP2)(a | b); }
 
 	__constant__ extern const Token g_intTokens[];
 
@@ -726,7 +730,7 @@ namespace Core
 		// TK_COLUMN: cursor number of table holding column
 		// TK_REGISTER: register number
 		// TK_TRIGGER: 1 -> new, 0 -> old
-		int TableIdx;            
+		int TableId;            
 		// TK_COLUMN: column index.  -1 for rowid.
 		// TK_VARIABLE: variable number (always >= 1).
 		yVars ColumnIdx;
@@ -836,7 +840,7 @@ namespace Core
 #define ExprClearProperty(x,p)   (x)->Flags&=~(p)
 
 #define EXPR_FULLSIZE           sizeof(Expr)				// Full size
-#define EXPR_REDUCEDSIZE        offsetof(Expr, TableIdx)	// Common features
+#define EXPR_REDUCEDSIZE        offsetof(Expr, TableId)	// Common features
 #define EXPR_TOKENONLYSIZE      offsetof(Expr, Left)		// Fewer features
 #define EXPRDUP_REDUCE         0x0001  // Used reduced-size Expr nodes
 
@@ -1233,14 +1237,14 @@ namespace Core
 
 	// The interface to the LEMON-generated parser
 #pragma region From: Parse+Parser_cu
-	__device__ void *ParserAlloc(void *(*)(size_t));
-	__device__ void ParserFree(void *, void(*)(void *));
-	__device__ void Parser(void *, int, Token, Parse *);
+	extern "C" __device__ void *ParserAlloc(void *(*)(size_t));
+	extern "C" __device__ void ParserFree(void *, void(*)(void *));
+	extern "C" __device__ void Parser(void *, int, Token, Parse *);
 #ifdef YYTRACKMAXSTACKDEPTH
-	__device__ int ParserStackPeak(void *);
+	extern "C" __device__ int ParserStackPeak(void *);
 #endif
 #ifdef _DEBUG
-	__device__ void ParserTrace(FILE *, char *);
+	extern "C" __device__ void ParserTrace(void *, char *);
 #endif
 
 #pragma endregion
@@ -1262,7 +1266,7 @@ namespace Core {
 		COLFLAG_PRIMKEY = 0x0001,		// Column is part of the primary key
 		COLFLAG_HIDDEN = 0x0002,		// A hidden column in a virtual table
 	};
-	__device__ inline void operator|=(COLFLAG &a, int b) { a = (COLFLAG)(a | b); }
+	__device__ inline void operator|=(COLFLAG &a, COLFLAG b) { a = (COLFLAG)(a | b); }
 
 	struct Column
 	{
@@ -1339,7 +1343,7 @@ namespace Core {
 		TF_Autoincrement = 0x08,    // Integer primary key is autoincrement
 		TF_Virtual = 0x10,			// Is a virtual table
 	};
-	__device__ inline void operator|=(TF &a, int b) { a = (TF)(a | b); }
+	__device__ inline void operator|=(TF &a, TF b) { a = (TF)(a | b); }
 
 	struct Index;
 	struct Select;
@@ -1479,7 +1483,7 @@ namespace Core {
 		TRIGGER_BEFORE = 1,
 		TRIGGER_AFTER = 2,
 	};
-	__device__ inline void operator|=(TRIGGER &a, int b) { a = (TRIGGER)(a | b); }
+	__device__ inline void operator|=(TRIGGER &a, TRIGGER b) { a = (TRIGGER)(a | b); }
 	__device__ inline TRIGGER operator|(TRIGGER a, TRIGGER b) { return (TRIGGER)((int)a | (int)b); }
 
 	struct TriggerStep;

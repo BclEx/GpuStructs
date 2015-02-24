@@ -953,7 +953,7 @@ namespace Core
                 case TK.BLOB: return true;
                 case TK.COLUMN:
                     {
-                        Debug.Assert(expr.TableIdx >= 0); // p cannot be part of a CHECK constraint
+                        Debug.Assert(expr.TableId >= 0); // p cannot be part of a CHECK constraint
                         return expr.ColumnIdx < 0 && (aff == AFF.INTEGER || aff == AFF.NUMERIC);
                     }
                 default: return false;
@@ -1087,7 +1087,7 @@ namespace Core
                 parse.QueryLoops = savedNQueryLoop;
             }
             else
-                expr.TableIdx = tableIdx;
+                expr.TableId = tableIdx;
             return type;
         }
 
@@ -1128,8 +1128,8 @@ namespace Core
                         // If the 'x' expression is a column value, or the SELECT... statement returns a column value, then the affinity of that
                         // column is used to build the index keys. If both 'x' and the SELECT... statement are columns, then numeric affinity is used
                         // if either column has NUMERIC or INTEGER affinity. If neither 'x' nor the SELECT... statement are columns, then numeric affinity is used.
-                        expr.TableIdx = parse.Tabs++;
-                        int addr = v.AddOp2(OP.OpenEphemeral, (int)expr.TableIdx, !isRowid); // Address of OP_OpenEphemeral instruction
+                        expr.TableId = parse.Tabs++;
+                        int addr = v.AddOp2(OP.OpenEphemeral, (int)expr.TableId, !isRowid); // Address of OP_OpenEphemeral instruction
                         if (mayHaveNull == 0) v.ChangeP5(BTREE_UNORDERED);
                         KeyInfo keyInfo = new KeyInfo(); // Keyinfo for the generated table
                         keyInfo.Fields = 1;
@@ -1141,9 +1141,9 @@ namespace Core
                             // Generate code to write the results of the select into the temporary table allocated and opened above.
                             Debug.Assert(!isRowid);
                             SelectDest dest = new SelectDest();
-                            SelectDestInit(dest, SRT.Set, expr.TableIdx);
+                            SelectDestInit(dest, SRT.Set, expr.TableId);
                             dest.AffSdst = affinity;
-                            Debug.Assert((expr.TableIdx & 0x0000FFFF) == expr.TableIdx);
+                            Debug.Assert((expr.TableId & 0x0000FFFF) == expr.TableId);
                             expr.x.Select.LimitId = 0;
                             if (Select(parse, expr.x.Select, ref dest) != 0)
                                 return 0;
@@ -1181,14 +1181,14 @@ namespace Core
                                 // Evaluate the expression and insert it into the temp table
                                 int valToIns = 0;
                                 if (isRowid && e2.IsInteger(ref valToIns))
-                                    v.AddOp3(OP.InsertInt, expr.TableIdx, r2, valToIns);
+                                    v.AddOp3(OP.InsertInt, expr.TableId, r2, valToIns);
                                 else
                                 {
                                     int r3 = ExprCodeTarget(parse, e2, r1);
                                     if (isRowid)
                                     {
                                         v.AddOp2(OP.MustBeInt, r3, v.CurrentAddr() + 2);
-                                        v.AddOp3(OP.Insert, expr.TableIdx, r2, r3);
+                                        v.AddOp3(OP.Insert, expr.TableId, r2, r3);
                                     }
                                     else
                                     {
@@ -1276,7 +1276,7 @@ namespace Core
             else
             {
                 int addr1 = v.AddOp1(OP.NotNull, r1);
-                v.AddOp2(OP.Rewind, expr.TableIdx, destIfFalse);
+                v.AddOp2(OP.Rewind, expr.TableId, destIfFalse);
                 v.AddOp2(OP.Goto, 0, destIfNull);
                 v.JumpHere(addr1);
             }
@@ -1301,7 +1301,7 @@ namespace Core
                     // of a "NOT NULL" constraint in the database schema.
                     //
                     // Also run this branch if NULL is equivalent to FALSE for this particular IN operator.
-                    v.AddOp4Int(OP.NotFound, expr.TableIdx, destIfFalse, r1, 1);
+                    v.AddOp4Int(OP.NotFound, expr.TableId, destIfFalse, r1, 1);
                 }
                 else
                 {
@@ -1315,7 +1315,7 @@ namespace Core
                     // tests the RHS for NULLs.  If the RHS contains a NULL then jump to destIfNull.  If there are no NULLs in the RHS then
                     // jump to destIfFalse.
                     int j2 = v.AddOp1(OP.NotNull, rhsHasNull);
-                    int j3 = v.AddOp4Int(OP.Found, expr.TableIdx, 0, rhsHasNull, 1);
+                    int j3 = v.AddOp4Int(OP.Found, expr.TableId, 0, rhsHasNull, 1);
                     v.AddOp2(OP.Integer, -1, rhsHasNull);
                     v.JumpHere(j3);
                     v.AddOp2(OP.AddImm, rhsHasNull, 1);
@@ -1626,14 +1626,14 @@ namespace Core
                 // Otherwise, fall thru into the TK_COLUMN case
                 case TK.COLUMN:
                     {
-                        if (expr.TableIdx < 0)
+                        if (expr.TableId < 0)
                         {
                             // This only happens when coding check constraints
                             Debug.Assert(parse.CkBase > 0);
                             inReg = expr.ColumnIdx + parse.CkBase;
                         }
                         else
-                            inReg = CodeGetColumn(parse, expr.Table, expr.ColumnIdx, expr.TableIdx, target, (byte)expr->OP2);
+                            inReg = CodeGetColumn(parse, expr.Table, expr.ColumnIdx, expr.TableId, target, (byte)expr->OP2);
                         break;
                     }
 
@@ -1696,7 +1696,7 @@ namespace Core
 
                 case TK.REGISTER:
                     {
-                        inReg = expr.TableIdx;
+                        inReg = expr.TableId;
                         break;
                     }
 
@@ -2058,14 +2058,14 @@ namespace Core
                         //   p1==1   ->    old.a         p1==4   ->    new.a
                         //   p1==2   ->    old.b         p1==5   ->    new.b  
                         Table table = expr.Table;
-                        int p1 = expr.TableIdx * (table.Cols.length + 1) + 1 + expr.ColumnIdx;
-                        Debug.Assert(expr.TableIdx == 0 || expr.TableIdx == 1);
+                        int p1 = expr.TableId * (table.Cols.length + 1) + 1 + expr.ColumnIdx;
+                        Debug.Assert(expr.TableId == 0 || expr.TableId == 1);
                         Debug.Assert(expr.ColumnIdx >= -1 && expr.ColumnIdx < table.Cols.length);
                         Debug.Assert(table.PKey < 0 || expr.ColumnIdx != table.PKey);
                         Debug.Assert(p1 >= 0 && p1 < (table.Cols.length * 2 + 2)); //? Is this suppose to be different
 
                         v.AddOp2(OP.Param, p1, target);
-                        VdbeComment(v, "%s.%s -> $%d", (expr.TableIdx != 0 ? "new" : "old"), (expr.ColumnIdx < 0 ? "rowid" : expr.Table.Cols[expr.ColumnIdx].Name), target);
+                        VdbeComment(v, "%s.%s -> $%d", (expr.TableId != 0 ? "new" : "old"), (expr.ColumnIdx < 0 ? "rowid" : expr.Table.Cols[expr.ColumnIdx].Name), target);
 
 #if !OMIT_FLOATING_POINT
                         // If the column has REAL affinity, it may currently be stored as an integer. Use OP_RealAffinity to make sure it is really real.
@@ -2200,7 +2200,7 @@ namespace Core
         {
             Debug.Assert(target > 0 && target <= parse.Mems);
             if (expr != null && expr.OP == TK.REGISTER)
-                parse.V.AddOp2(OP.Copy, expr.TableIdx, target);
+                parse.V.AddOp2(OP.Copy, expr.TableId, target);
             else
             {
                 int inReg = CodeTarget(parse, expr, target);
@@ -2241,13 +2241,13 @@ namespace Core
             {
                 case TK.AGG_COLUMN:
                     {
-                        Vdbe.ExplainPrintf(v, "AGG{%d:%d}", expr.TableIdx, expr.ColumnIdx);
+                        Vdbe.ExplainPrintf(v, "AGG{%d:%d}", expr.TableId, expr.ColumnIdx);
                         break;
                     }
 
                 case TK.COLUMN:
                     {
-                        if (expr.TableIdx < 0) // This only happens when coding check constraints
+                        if (expr.TableId < 0) // This only happens when coding check constraints
                             Vdbe.ExplainPrintf(v, "COLUMN(%d)", expr.ColumnIdx);
                         else
                             Vdbe.ExplainPrintf(v, "{%d:%d}", expr.Table, expr.ColumnIdx);
@@ -2297,7 +2297,7 @@ namespace Core
 
                 case TK.REGISTER:
                     {
-                        Vdbe.ExplainPrintf(v, "REGISTER(%d)", expr.TableIdx);
+                        Vdbe.ExplainPrintf(v, "REGISTER(%d)", expr.TableId);
                         break;
                     }
 
@@ -2434,7 +2434,7 @@ namespace Core
                         // If the opcode is TK_TRIGGER, then the expression is a reference to a column in the new.* or old.* pseudo-tables available to
                         // trigger programs. In this case Expr.iTable is set to 1 for the new.* pseudo-table, or 0 for the old.* pseudo-table. Expr.iColumn
                         // is set to the column of the pseudo-table to read, or to -1 to read the rowid field.
-                        Vdbe.ExplainPrintf(v, "%s(%d)", (expr.TableIdx ? "NEW" : "OLD"), expr.ColumnIdx);
+                        Vdbe.ExplainPrintf(v, "%s(%d)", (expr.TableId ? "NEW" : "OLD"), expr.ColumnIdx);
                         break;
                     }
 
@@ -2592,7 +2592,7 @@ namespace Core
                 Debug.Assert(r2 == r1);
                 expr.OP2 = expr.OP;
                 expr.OP = TK.REGISTER;
-                expr.TableIdx = r2;
+                expr.TableId = r2;
                 return WRC.Prune;
             }
             return WRC.Continue;
@@ -2644,7 +2644,7 @@ namespace Core
             compRight.Left = exprX;
             compRight.Right = expr.x.List.Ids[1].Expr;
             int regFree1 = 0; // Temporary use register
-            exprX.TableIdx = CodeTemp(parse, exprX, ref regFree1);
+            exprX.TableId = CodeTemp(parse, exprX, ref regFree1);
             exprX.OP = TK.REGISTER;
             if (jumpIfTrue)
                 IfTrue(parse, exprAnd, dest, jumpIfNull);
@@ -2940,7 +2940,7 @@ namespace Core
             if (Compare(a.Left, b.Left) != 0) return 2;
             if (Compare(a.Right, b.Right) != 0) return 2;
             if (ListCompare(a.x.List, b.x.List) != 0) return 2;
-            if (a.TableIdx != b.TableIdx || a.ColumnIdx != b.ColumnIdx) return 2;
+            if (a.TableId != b.TableId || a.ColumnIdx != b.ColumnIdx) return 2;
             if (E.ExprHasProperty(a, EP.IntValue))
             {
                 if (!E.ExprHasProperty(b, EP.IntValue) || a.u.I != b.u.I) return 2;
@@ -2987,7 +2987,7 @@ namespace Core
                 SrcCount p = walker.u.SrcCount;
                 SrcList src = p.Src;
                 for (i = 0; i < src.Srcs; i++)
-                    if (expr.TableIdx == src.Ids[i].Cursor) break;
+                    if (expr.TableId == src.Ids[i].Cursor) break;
                 if (i < src.Srcs)
                     p.This++;
                 else
@@ -3046,7 +3046,7 @@ namespace Core
                             for (i = 0, item = srcList.Ids[0]; i < srcList.Srcs; i++, item = srcList.Ids[i])
                             {
                                 Debug.Assert(!E.ExprHasAnyProperty(expr, EP.TokenOnly | EP.Reduced));
-                                if (expr.TableIdx == item.Cursor)
+                                if (expr.TableId == item.Cursor)
                                 {
                                     // If we reach this point, it means that pExpr refers to a table that is in the FROM clause of the aggregate query.  
                                     //
@@ -3054,13 +3054,13 @@ namespace Core
                                     int k;
                                     AggInfo.AggInfoColumn col;
                                     for (k = 0, col = aggInfo.Columns.data[0]; k < aggInfo.Columns.length; k++, col = aggInfo.Columns.data[k])
-                                        if (col.TableID == expr.TableIdx && col.Column == expr.ColumnIdx)
+                                        if (col.TableID == expr.TableId && col.Column == expr.ColumnIdx)
                                             break;
                                     if ((k >= aggInfo->Columns.length) && (k = AddAggInfoColumn(ctx, aggInfo)) >= 0)
                                     {
                                         col = aggInfo.Cols[k];
                                         col.Table = expr.Table;
-                                        col.TableID = expr.TableIdx;
+                                        col.TableID = expr.TableId;
                                         col.Column = expr.ColumnIdx;
                                         col.Mem = ++parse.Mems;
                                         col.SorterColumn = -1;
@@ -3073,7 +3073,7 @@ namespace Core
                                             for (int j = 0; j < n; j++, term = gb.Ids[j])
                                             {
                                                 Expr e = term.Expr;
-                                                if (e.OP == TK.COLUMN && e.TableIdx == expr.TableIdx && e.iColumn == expr.iColumn)
+                                                if (e.OP == TK.COLUMN && e.TableId == expr.TableId && e.iColumn == expr.iColumn)
                                                 {
                                                     col.SorterColumn = j;
                                                     break;

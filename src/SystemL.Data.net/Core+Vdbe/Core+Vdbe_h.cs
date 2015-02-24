@@ -647,7 +647,7 @@ namespace Core
         // TK_COLUMN: cursor number of table holding column
         // TK_REGISTER: register number
         // TK_TRIGGER: 1 -> new, 0 -> old
-        public int TableIdx;
+        public int TableId;
         // TK_COLUMN: column index.  -1 for rowid.
         // TK_VARIABLE: variable number (always >= 1).
         public yVars ColumnIdx;
@@ -678,7 +678,7 @@ namespace Core
 #if MAX_EXPR_DEPTH
             p.Height = Height;
 #endif
-            p.TableIdx = TableIdx;
+            p.TableId = TableId;
             p.ColumnIdx = ColumnIdx;
             p.Agg = Agg;
             p.RightJoinTable = RightJoinTable;
@@ -704,7 +704,7 @@ namespace Core
         public static void ExprClearProperty(Expr e, EP p) { e.Flags &= ~p; }
 
         public const int EXPR_FULLSIZE = -1; //sizeof(Expr)           // Full size
-        public const int EXPR_REDUCEDSIZE = -1; //offsetof(Expr, TableIdx)  // Common features
+        public const int EXPR_REDUCEDSIZE = -1; //offsetof(Expr, TableId)  // Common features
         public const int EXPR_TOKENONLYSIZE = -1; //offsetof(Expr, Left)   // Fewer features
         public const int EXPRDUP_REDUCE = 0x0001;  // Used reduced-size Expr nodes
     }

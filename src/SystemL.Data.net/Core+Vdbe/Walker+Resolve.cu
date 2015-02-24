@@ -39,7 +39,7 @@ namespace Core
 			if (!dup) return;
 			if (list->Ids[colId].Alias == 0)
 				list->Ids[colId].Alias = (uint16)(++parse->Alias.length);
-			dup->TableIdx = list->Ids[colId].Alias;
+			dup->TableId = list->Ids[colId].Alias;
 		}
 		if (expr->OP == TK_COLLATE)
 			dup = Expr::AddCollateString(parse, dup, expr->u.Token);
@@ -101,7 +101,7 @@ namespace Core
 		_assert(!ExprHasAnyProperty(expr, EP_TokenOnly|EP_Reduced));
 
 		// Initialize the node to no-match
-		expr->TableIdx = -1;
+		expr->TableId = -1;
 		expr->Table = nullptr;
 		ExprSetIrreducible(expr);
 
@@ -182,7 +182,7 @@ namespace Core
 				}
 				if (match)
 				{
-					expr->TableIdx = match->Cursor;
+					expr->TableId = match->Cursor;
 					expr->Table = match->Table;
 					schema = expr->Table->Schema;
 				}
@@ -197,12 +197,12 @@ namespace Core
 				_assert(op == TK_DELETE || op == TK_UPDATE || op == TK_INSERT);
 				if (op != TK_DELETE && !_strcmp("new", tableName))
 				{
-					expr->TableIdx = 1;
+					expr->TableId = 1;
 					table = parse->TriggerTab;
 				}
 				else if (op != TK_INSERT && !_strcmp("old", tableName))
 				{
-					expr->TableIdx = 0;
+					expr->TableId = 0;
 					table = parse->TriggerTab;
 				}
 				if (table)
@@ -227,7 +227,7 @@ namespace Core
 						cnt++;
 						if (colId < 0)
 							expr->Aff = AFF_INTEGER;
-						else if (expr->TableIdx == 0)
+						else if (expr->TableId == 0)
 						{
 							ASSERTCOVERAGE(colId == 31);
 							ASSERTCOVERAGE(colId == 32);
@@ -330,7 +330,7 @@ namespace Core
 			ASSERTCOVERAGE(n == BMS-1);
 			if (n >= BMS)
 				n = BMS-1;
-			_assert(match->Cursor == expr->TableIdx);
+			_assert(match->Cursor == expr->TableId);
 			match->ColUsed |= ((Bitmask)1) << n;
 		}
 
@@ -365,7 +365,7 @@ lookupname_end:
 		{
 			SrcList::SrcListItem *item = &src->Ids[srcId];
 			p->Table = item->Table;
-			p->TableIdx = item->Cursor;
+			p->TableId = item->Cursor;
 			if (p->Table->PKey == colId)
 				p->ColumnIdx = -1;
 			else
@@ -410,7 +410,7 @@ lookupname_end:
 			SrcList::SrcListItem *item = srcList->Ids; 
 			expr->OP = TK_COLUMN;
 			expr->Table = item->Table;
-			expr->TableIdx = item->Cursor;
+			expr->TableId = item->Cursor;
 			expr->ColumnIdx = -1;
 			expr->Affinity = AFF_INTEGER;
 			break; }

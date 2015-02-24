@@ -1664,7 +1664,7 @@ end_playback:
 #ifdef TEST
 		g_opentemp_count++; // Used for testing and analysis only
 #endif
-		vfsFlags |= ((int)VSystem::OPEN_READWRITE | (int)VSystem::OPEN_CREATE | (int)VSystem::OPEN_EXCLUSIVE | (int)VSystem::OPEN_DELETEONCLOSE);
+		vfsFlags |= (VSystem::OPEN_READWRITE | VSystem::OPEN_CREATE | VSystem::OPEN_EXCLUSIVE | VSystem::OPEN_DELETEONCLOSE);
 		RC rc = pager->Vfs->Open(nullptr, file, vfsFlags, nullptr);
 		_assert(rc != RC_OK || file->Opened);
 		return rc;

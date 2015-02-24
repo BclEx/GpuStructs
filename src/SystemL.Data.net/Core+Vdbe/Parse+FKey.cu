@@ -231,7 +231,7 @@ namespace Core
 					col = index->Columns[i];
 					Column *colObj = &table->Cols[col];
 					if (table->PKey == col) col = -1;
-					left->TableIdx = regDataId + col + 1;
+					left->TableId = regDataId + col + 1;
 					left->Aff = colObj->Affinity;
 					const char *collName = colObj->Coll;
 					if (collName == 0) collName = ctx->DefaultColl->Name;
@@ -239,7 +239,7 @@ namespace Core
 				}
 				else
 				{
-					left->TableIdx = regDataId;
+					left->TableId = regDataId;
 					left->Aff = AFF_INTEGER;
 				}
 			}
@@ -259,9 +259,9 @@ namespace Core
 			Expr *right = Expr::Expr_(ctx, TK_COLUMN, 0); // Column ref to child table
 			if (left && right)
 			{
-				left->TableIdx = regDataId;
+				left->TableId = regDataId;
 				left->Aff = AFF_INTEGER;
-				right->TableIdx = src->Ids[0].Cursor;
+				right->TableId = src->Ids[0].Cursor;
 				right->ColumnIdx= -1;
 			}
 			Expr *eq = Expr::PExpr_(parse, TK_NE, left, right, 0); // Expression (left = right)

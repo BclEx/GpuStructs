@@ -44,7 +44,7 @@ namespace Core
                 if (dup == null) return;
                 if (list.Ids[colId].Alias == 0)
                     list.Ids[colId].Alias = (ushort)(++parse.Alias.length);
-                dup.TableIdx = list.Ids[colId].Alias;
+                dup.TableId = list.Ids[colId].Alias;
             }
             if (expr.OP == TK.COLLATE)
                 dup = Expr.AddCollateString(parse, dup, expr.u.Token);
@@ -105,7 +105,7 @@ namespace Core
             Debug.Assert(!E.ExprHasAnyProperty(expr, EP.TokenOnly | EP.Reduced));
 
             // Initialize the node to no-match
-            expr.TableIdx = -1;
+            expr.TableId = -1;
             expr.Table = null;
             E.ExprSetIrreducible(expr);
 
@@ -188,7 +188,7 @@ namespace Core
                     }
                     if (match != null)
                     {
-                        expr.TableIdx = match.Cursor;
+                        expr.TableId = match.Cursor;
                         expr.Table = match.Table;
                         schema = expr.Table.Schema;
                     }
@@ -203,12 +203,12 @@ namespace Core
                     Debug.Assert(op == TK.DELETE || op == TK.UPDATE || op == TK.INSERT);
                     if (op != TK.DELETE && string.Equals("new", tableName, StringComparison.InvariantCultureIgnoreCase))
                     {
-                        expr.TableIdx = 1;
+                        expr.TableId = 1;
                         table = parse.TriggerTab;
                     }
                     else if (op != TK.INSERT && string.Equals("old", tableName, StringComparison.InvariantCultureIgnoreCase))
                     {
-                        expr.TableIdx = 0;
+                        expr.TableId = 0;
                         table = parse.TriggerTab;
                     }
                     if (table != null)
@@ -233,7 +233,7 @@ namespace Core
                             cnt++;
                             if (colId < 0)
                                 expr.Aff = AFF.INTEGER;
-                            else if (expr.TableIdx == 0)
+                            else if (expr.TableId == 0)
                             {
                                 C.ASSERTCOVERAGE(colId == 31);
                                 C.ASSERTCOVERAGE(colId == 32);
@@ -336,7 +336,7 @@ namespace Core
                 C.ASSERTCOVERAGE(n == BMS - 1);
                 if (n >= BMS)
                     n = BMS - 1;
-                Debug.Assert(match.Cursor == expr.TableIdx);
+                Debug.Assert(match.Cursor == expr.TableId);
                 match.ColUsed |= ((Bitmask)1) << n;
             }
 
@@ -371,7 +371,7 @@ namespace Core
             {
                 SrcList.SrcListItem item = src.Ids[srcId];
                 p.Table = item.Table;
-                p.TableIdx = item.Cursor;
+                p.TableId = item.Cursor;
                 if (p.Table.PKey == colId)
                     p.ColumnIdx = -1;
                 else
@@ -416,7 +416,7 @@ namespace Core
                         SrcList.SrcListItem item = srcList.Ids[0];
                         expr.OP = TK.COLUMN;
                         expr.Table = item.Table;
-                        expr.TableIdx = item.Cursor;
+                        expr.TableId = item.Cursor;
                         expr.ColumnIdx = -1;
                         expr.Aff = AFF.INTEGER;
                         break;

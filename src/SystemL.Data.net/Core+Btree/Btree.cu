@@ -4448,7 +4448,7 @@ freepage_out:
 				if (bt->BtsFlags & BTS_SECURE_DELETE)
 				{
 					int off = PTR_TO_INT(divs[i]) - PTR_TO_INT(parent->Data);
-					if ((off + (int)newPages[i]) > (int)bt->UsableSize)
+					if ((off + PTR_TO_INT(newPages[i])) > (int)bt->UsableSize)
 					{
 						rc = SysEx_CORRUPT_BKPT;
 						_memset(oldPages, 0, (i + 1) * sizeof(MemPage *));

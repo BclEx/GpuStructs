@@ -106,7 +106,7 @@ namespace Core { namespace Command
 		SysEx::PutRandom(sizeof(p->Prn), &p->Prn);
 		Vdbe::Result_Blob(fctx, p, sizeof(p), _free);
 	}
-	__device__ static const FuncDef Stat3InitFuncdef =
+	__device__ static const FuncDef _stat3InitFuncdef =
 	{
 		2,					// nArg
 		TEXTENCODE_UTF8,	// iPrefEnc
@@ -303,7 +303,7 @@ namespace Core { namespace Command
 			v->AddOp2(OP_Integer, 0, regNumLt);
 			v->AddOp2(OP_Integer, -1, regNumDLt);
 			v->AddOp3(OP_Null, 0, regSample, regAccum);
-			v->AddOp4(OP_Function, 1, regCount, regAccum, (char*)&_stat3GetFuncdef, Vdbe::P4T_FUNCDEF);
+			v->AddOp4(OP_Function, 1, regCount, regAccum, (char*)&_stat3InitFuncdef, Vdbe::P4T_FUNCDEF);
 			v->ChangeP5(2);
 #endif
 

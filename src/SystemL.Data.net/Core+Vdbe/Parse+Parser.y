@@ -622,7 +622,7 @@ expr(A) ::= REGISTER(X).			{
 	else
 	{
 		A.Expr = Expr.PExpr_(parse, TK.REGISTER, 0, 0, &X);
-		if (A.Expr != null) ConvertEx.GetInt32(&X.data[1], &A.Expr.TableIdx);
+		if (A.Expr != null) ConvertEx.GetInt32(&X.data[1], &A.Expr.TableId);
 	}
 	SpanSet(&A, &X, &X);
 }

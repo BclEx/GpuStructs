@@ -51,9 +51,9 @@ namespace Core
 		newSelect->Limit = limit;
 		newSelect->Offset = offset;
 		_assert(offset == nullptr || limit != nullptr);
-		newSelect->AddrOpenEphms[0] = -1;
-		newSelect->AddrOpenEphms[1] = -1;
-		newSelect->AddrOpenEphms[2] = -1;
+		newSelect->AddrOpenEphms[0] = (::OP)-1;
+		newSelect->AddrOpenEphms[1] = (::OP)-1;
+		newSelect->AddrOpenEphms[2] = (::OP)-1;
 		if (ctx->MallocFailed)
 		{
 			ClearSelect(ctx, newSelect);
@@ -76,21 +76,27 @@ namespace Core
 	}
 
 	/// 0123456789 123456789 123456789 123
-	static const char _keyTexts[] = "naturaleftouterightfullinnercross";
-	static const struct
+	__constant__ static const char _keyTexts[] = "naturaleftouterightfullinnercross";
+	struct keywords_t
 	{
 		uint8 I;        // Beginning of keyword text in zKeyText[]
 		uint8 Chars;    // Length of the keyword in characters
 		JT Code;     // Join type mask
-	} _keywords[] =
+	};
+#if __CUDACC__
+	__constant__ static keywords_t _keywords[7];
+	static const keywords_t h_keywords[7] =
+#else
+	static const keywords_t _keywords[7] =
+#endif
 	{
-		/* natural */ { 0,  7, JT_NATURAL                },
-		/* left    */ { 6,  4, JT_LEFT|JT_OUTER          },
-		/* outer   */ { 10, 5, JT_OUTER                  },
-		/* right   */ { 14, 5, JT_RIGHT|JT_OUTER         },
-		/* full    */ { 19, 4, JT_LEFT|JT_RIGHT|JT_OUTER },
-		/* inner   */ { 23, 5, JT_INNER                  },
-		/* cross   */ { 28, 5, JT_INNER|JT_CROSS         },
+		{ 0,  7, JT_NATURAL                },	// natural
+		{ 6,  4, JT_LEFT|JT_OUTER          },	// left
+		{ 10, 5, JT_OUTER                  },	// outer
+		{ 14, 5, JT_RIGHT|JT_OUTER         },	// right
+		{ 19, 4, JT_LEFT|JT_RIGHT|JT_OUTER },	// full
+		{ 23, 5, JT_INNER                  },	// inner
+		{ 28, 5, JT_INNER|JT_CROSS         },	// cross
 	};
 
 	__device__ JT Select::JoinType(Parse *parse, Token *a, Token *b, Token *c)
@@ -178,7 +184,7 @@ namespace Core
 			ExprSetProperty(eq, EP_FromJoin);
 			_assert(!ExprHasAnyProperty(eq, EP_TokenOnly|EP_Reduced));
 			ExprSetIrreducible(eq);
-			eq->RightJoinTable = (int16)e2->Table;
+			eq->RightJoinTable = (int16)e2->TableId;
 		}
 		*where_ = Expr::And(ctx, *where_, eq);
 	}
@@ -318,7 +324,7 @@ namespace Core
 	}
 
 #ifndef OMIT_SUBQUERY
-	static bool CheckForMultiColumnSelectError(Parse *parse, SelectDest *dest, int exprs)
+	__device__ static bool CheckForMultiColumnSelectError(Parse *parse, SelectDest *dest, int exprs)
 	{
 		SRT dest2 = dest->Dest;
 		if (exprs > 1 && (dest2 == SRT_Mem || dest2 == SRT_Set))
@@ -717,7 +723,7 @@ namespace Core
 			while (nc && !table)
 			{
 				SrcList *tabList = nc->SrcList;
-				for (j = 0; j < tabList->Srcs && tabList->Ids[j].Cursor != expr->TableIdx; j++);
+				for (j = 0; j < tabList->Srcs && tabList->Ids[j].Cursor != expr->TableId; j++);
 				if (j < tabList->Srcs)
 				{
 					table = tabList->Ids[j].Table;
@@ -867,7 +873,7 @@ namespace Core
 				int colId = p->ColumnIdx;
 				int j;
 				for (j = 0; _ALWAYS(j < tabList->Srcs); j++)
-					if (tabList->Ids[j].Cursor == p->TableIdx) break;
+					if (tabList->Ids[j].Cursor == p->TableId) break;
 				_assert(j < tabList->Srcs);
 				Table *table = tabList->Ids[j].Table;
 				if (colId < 0) colId = table->PKey;
@@ -1227,7 +1233,7 @@ namespace Core
 				unionTab = parse->Tabs++;
 				_assert(!p->OrderBy);
 				int addr = v->AddOp2(OP_OpenEphemeral, unionTab, 0);
-				assert(p->AddrOpenEphms[0] == -1);
+				_assert(p->AddrOpenEphms[0] == (::OP)-1);
 				p->AddrOpenEphms[0] = addr;
 				p->Rightmost->SelFlags |= SF_UsesEphemeral;
 				_assert(p->EList);
@@ -1305,7 +1311,7 @@ namespace Core
 			_assert(!p->OrderBy);
 
 			int addr = v->AddOp2(OP_OpenEphemeral, tab1, 0);
-			_assert(p->AddrOpenEphms[0] == -1);
+			_assert(p->AddrOpenEphms[0] == (::OP)-1);
 			p->AddrOpenEphms[0] = addr;
 			p->Rightmost->SelFlags |= SF_UsesEphemeral;
 			_assert(p->EList);
@@ -1320,7 +1326,7 @@ namespace Core
 
 			// Code the current SELECT into temporary table "tab2"
 			addr = v->AddOp2(OP_OpenEphemeral, tab2, 0);
-			_assert(p->AddrOpenEphms[1] == -1);
+			_assert(p->AddrOpenEphms[1] == (::OP)-1);
 			p->AddrOpenEphms[1] = addr;
 			p->Prior = nullptr;
 			Expr *limit = p->Limit;
@@ -1403,12 +1409,12 @@ namespace Core
 					if (addr < 0)
 					{
 						// If [0] is unused then [1] is also unused.  So we can always safely abort as soon as the first unused slot is found
-						_assert(loop->AddrOpenEphms[1] < 0);
+						_assert(loop->AddrOpenEphms[1] == (::OP)-1);
 						break;
 					}
 					v->ChangeP2(addr, cols);
 					v->ChangeP4(addr, (char *)keyInfo, Vdbe::P4T_KEYINFO);
-					loop->AddrOpenEphms[i] = -1;
+					loop->AddrOpenEphms[i] = (::OP)-1;
 				}
 			}
 			_tagfree(ctx, keyInfo);
@@ -1824,7 +1830,7 @@ multi_select_end:
 	__device__ static Expr *SubstExpr(Context *ctx, Expr *expr, int tableId, ExprList *list)
 	{
 		if (!expr) return nullptr;
-		if (expr->OP == TK_COLUMN && expr->TableIdx == tableId)
+		if (expr->OP == TK_COLUMN && expr->TableId == tableId)
 		{
 			if (expr->ColumnIdx < 0)
 				expr->OP = TK_NULL;
@@ -2941,7 +2947,7 @@ multi_select_end:
 			if (addrSortIndex >= 0 && !orderBy)
 			{
 				v->ChangeToNoop(addrSortIndex);
-				p->AddrOpenEphms[2] = -1;
+				p->AddrOpenEphms[2] = (::OP)-1;
 			}
 
 			// Use the standard inner loop.

@@ -282,7 +282,7 @@ namespace Core
             if (p == null) return 0;
             if (p.OP == TK.COLUMN)
             {
-                mask = GetMask(maskSet, p.TableIdx);
+                mask = GetMask(maskSet, p.TableId);
                 return mask;
             }
             mask = ExprTableUsage(maskSet, p.Right);
@@ -437,10 +437,10 @@ namespace Core
                                 Expr x = term.Expr.Right.SkipCollate();
                                 Debug.Assert(x.OP == TK.COLUMN);
                                 for (j = 0; j < equivsLength; j += 2)
-                                    if (equivs[j] == x.TableIdx && equivs[j + 1] == x.ColumnIdx) break;
+                                    if (equivs[j] == x.TableId && equivs[j + 1] == x.ColumnIdx) break;
                                 if (j == equivsLength)
                                 {
-                                    equivs[j] = x.TableIdx;
+                                    equivs[j] = x.TableId;
                                     equivs[j + 1] = x.ColumnIdx;
                                     equivsLength += 2;
                                 }
@@ -792,7 +792,7 @@ namespace Core
                 WO opMask = ((term.PrereqRight & prereqLeft) == 0 ? WO.ALL : WO.EQUIV);
                 if (left.OP == TK.COLUMN)
                 {
-                    term.LeftCursor = left.TableIdx;
+                    term.LeftCursor = left.TableId;
                     term.u.LeftColumn = left.ColumnIdx;
                     term.EOperator = OperatorMask(op) & opMask;
                 }
@@ -829,7 +829,7 @@ namespace Core
                     }
                     ExprCommute(parse, dup);
                     left = dup.Left;
-                    newTerm.LeftCursor = left.TableIdx;
+                    newTerm.LeftCursor = left.TableId;
                     newTerm.u.LeftColumn = left.ColumnIdx;
                     C.ASSERTCOVERAGE((prereqLeft | extraRight) != prereqLeft);
                     newTerm.PrereqRight = prereqLeft | extraRight;
@@ -941,7 +941,7 @@ namespace Core
                     C.ASSERTCOVERAGE(idxNew == 0);
                     WhereTerm newTerm = wc.Slots[idxNew];
                     newTerm.PrereqRight = prereqExpr;
-                    newTerm.LeftCursor = left.TableIdx;
+                    newTerm.LeftCursor = left.TableId;
                     newTerm.u.LeftColumn = left.ColumnIdx;
                     newTerm.EOperator = WO.MATCH;
                     newTerm.Parent = idxTerm;
@@ -967,7 +967,7 @@ namespace Core
                 {
                     WhereTerm newTerm = wc.Slots[idxNew];
                     newTerm.PrereqRight = 0;
-                    newTerm.LeftCursor = left.TableIdx;
+                    newTerm.LeftCursor = left.TableId;
                     newTerm.u.LeftColumn = left.ColumnIdx;
                     newTerm.EOperator = WO.GT;
                     newTerm.Parent = idxTerm;
@@ -989,7 +989,7 @@ namespace Core
             for (int i = 0; i < list.Exprs; i++)
             {
                 Expr expr = list.Ids[i].Expr.SkipCollate();
-                if (expr.OP == TK.COLUMN && expr.ColumnIdx == index.Columns[column] && expr.TableIdx == baseId)
+                if (expr.OP == TK.COLUMN && expr.ColumnIdx == index.Columns[column] && expr.TableId == baseId)
                 {
                     CollSeq coll = list.Ids[i].Expr.CollSeq(parse);
                     if (C._ALWAYS(coll != null) && string.Equals(coll.Name, collName))
@@ -1015,7 +1015,7 @@ namespace Core
             {
                 Expr expr = distinct.Ids[i].Expr.SkipCollate();
                 if (expr.OP != TK.COLUMN) return false;
-                WhereTerm term = FindTerm(wc, expr.TableIdx, expr.ColumnIdx, ~(Bitmask)0, WO.EQ, 0);
+                WhereTerm term = FindTerm(wc, expr.TableId, expr.ColumnIdx, ~(Bitmask)0, WO.EQ, 0);
                 if (term != null)
                 {
                     Expr x = term.Expr;
@@ -1023,7 +1023,7 @@ namespace Core
                     CollSeq p2 = expr.CollSeq(parse);
                     if (p1 == p2) continue;
                 }
-                if (expr.TableIdx != baseId) return false;
+                if (expr.TableId != baseId) return false;
                 mask |= (((Bitmask)1) << i);
             }
             for (i = eqCols; mask != null && i < index.Columns.length; i++)
@@ -1049,7 +1049,7 @@ namespace Core
             for (i = 0; i < distinct.Exprs; i++)
             {
                 Expr expr = distinct.Ids[i].Expr.SkipCollate();
-                if (expr.OP == TK.COLUMN && expr.TableIdx == baseId && expr.ColumnIdx < 0) return true;
+                if (expr.OP == TK.COLUMN && expr.TableId == baseId && expr.ColumnIdx < 0) return true;
             }
 
             // Loop through all indices on the table, checking each to see if it makes the DISTINCT qualifier redundant. It does so if:
@@ -1437,7 +1437,7 @@ namespace Core
                 for (i = 0; i < n; i++)
                 {
                     Expr expr = orderBy.Ids[i].Expr;
-                    if (expr.OP != TK.COLUMN || expr.TableIdx != src.Cursor) break;
+                    if (expr.OP != TK.COLUMN || expr.TableId != src.Cursor) break;
                 }
                 if (i == n)
                     orderBys = n;
@@ -2006,7 +2006,7 @@ namespace Core
                 // If the next term of the ORDER BY clause refers to anything other than a column in the "base" table, then this index will not be of any
                 // further use in handling the ORDER BY.
                 Expr obExpr = obItem.Expr.SkipCollate(); // The expression of the ORDER BY pOBItem
-                if (obExpr.OP != TK.COLUMN || obExpr.TableIdx != baseId)
+                if (obExpr.OP != TK.COLUMN || obExpr.TableId != baseId)
                     break;
 
                 // Find column number and collating sequence for the next entry in the index
@@ -2062,8 +2062,8 @@ namespace Core
                     Expr right = constraint.Expr.Right;
                     if (right.OP == TK.COLUMN)
                     {
-                        WHERETRACE("       .. isOrderedColumn(tab=%d,col=%d)", right.TableIdx, right.ColumnIdx);
-                        isEq = IsOrderedColumn(p, right.TableIdx, right.ColumnIdx);
+                        WHERETRACE("       .. isOrderedColumn(tab=%d,col=%d)", right.TableId, right.ColumnIdx);
+                        isEq = IsOrderedColumn(p, right.TableId, right.ColumnIdx);
                         WHERETRACE(" -> isEq=%d\n", isEq);
                         // If the constraint is of the form X=Y where Y is an ordered value in an outer loop, then make sure the sort order of Y matches the
                         // sort order required for X.
@@ -2676,7 +2676,7 @@ namespace Core
                     C.ASSERTCOVERAGE(rev);
                     rev = !rev;
                 }
-                int tableId = x.TableIdx;
+                int tableId = x.TableId;
                 v.AddOp2(rev ? OP.Last : OP.Rewind, tableId, 0);
                 Debug.Assert((level.Plan.WsFlags & WHERE_IN_ABLE) != 0);
                 if (level.u.in_.InLoops.length == 0)

@@ -577,4 +577,14 @@ __device__ inline void _setstring(char **z, void *tag, const char *fmt, ...)
 
 #pragma endregion
 
+//////////////////////
+// FILE
+#pragma region FILE
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ > 200
+//struct FILE
+//{
+//};
+#endif
+#pragma endregion
+
 //#endif // __RUNTIME_H__

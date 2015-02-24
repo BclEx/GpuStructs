@@ -4,7 +4,7 @@
 
 namespace Core { namespace Command
 {
-	static RC VacuumFinalize(Context *ctx, Vdbe *stmt, char **errMsg)
+	__device__ static RC VacuumFinalize(Context *ctx, Vdbe *stmt, char **errMsg)
 	{
 		RC rc = stmt->Finalize();
 		if (rc)
@@ -12,7 +12,7 @@ namespace Core { namespace Command
 		return rc;
 	}
 
-	static RC ExecSql(Context *ctx, char **errMsg, const char *sql)
+	__device__ static RC ExecSql(Context *ctx, char **errMsg, const char *sql)
 	{
 		if (!sql) return RC_NOMEM;
 		Vdbe *stmt;
@@ -26,7 +26,7 @@ namespace Core { namespace Command
 		return VacuumFinalize(ctx, stmt, errMsg);
 	}
 
-	static RC ExecExecSql(Context *ctx, char **errMsg, const char *sql)
+	__device__ static RC ExecExecSql(Context *ctx, char **errMsg, const char *sql)
 	{
 		Vdbe *stmt;
 		RC rc = Prepare::Prepare_(ctx, sql, -1, &stmt, nullptr);
@@ -55,7 +55,7 @@ namespace Core { namespace Command
 		return;
 	}
 
-	static const unsigned char _runVacuum_copy[] = {
+	__device__ static const unsigned char _runVacuum_copy[] = {
 		Btree::META_SCHEMA_VERSION,     1,  // Add one to the old schema cookie
 		Btree::META_DEFAULT_CACHE_SIZE, 0,  // Preserve the default page cache size
 		Btree::META_TEXT_ENCODING,      0,  // Preserve the text encoding

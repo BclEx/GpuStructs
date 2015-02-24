@@ -961,7 +961,7 @@ no_mem:
 		case TK_STRING: return aff == AFF_TEXT;
 		case TK_BLOB: return true;
 		case TK_COLUMN:
-			_assert(expr->TableIdx >= 0); // p cannot be part of a CHECK constraint
+			_assert(expr->TableId >= 0); // p cannot be part of a CHECK constraint
 			return expr->ColumnIdx < 0 && (aff == AFF_INTEGER || aff == AFF_NUMERIC);
 		default: return false;
 		}
@@ -1094,7 +1094,7 @@ no_mem:
 			parse->QueryLoops = savedQueryLoops;
 		}
 		else
-			expr->TableIdx = tableIdx;
+			expr->TableId = tableIdx;
 		return type;
 	}
 
@@ -1133,8 +1133,8 @@ no_mem:
 			// If the 'x' expression is a column value, or the SELECT... statement returns a column value, then the affinity of that
 			// column is used to build the index keys. If both 'x' and the SELECT... statement are columns, then numeric affinity is used
 			// if either column has NUMERIC or INTEGER affinity. If neither 'x' nor the SELECT... statement are columns, then numeric affinity is used.
-			expr->TableIdx = parse->Tabs++;
-			int addr = v->AddOp2(OP_OpenEphemeral, expr->TableIdx, !isRowid); // Address of OP_OpenEphemeral instruction
+			expr->TableId = parse->Tabs++;
+			int addr = v->AddOp2(OP_OpenEphemeral, expr->TableId, !isRowid); // Address of OP_OpenEphemeral instruction
 			if (!mayHaveNull) v->ChangeP5(Btree::OPEN_UNORDERED);
 			KeyInfo keyInfo; // Keyinfo for the generated table
 			_memset(&keyInfo, 0, sizeof(keyInfo));
@@ -1147,9 +1147,9 @@ no_mem:
 				// Generate code to write the results of the select into the temporary table allocated and opened above.
 				_assert(!isRowid);
 				SelectDest dest;
-				Select::DestInit(&dest, SRT_Set, expr->TableIdx);
+				Select::DestInit(&dest, SRT_Set, expr->TableId);
 				dest.AffSdst = affinity;
-				_assert((expr->TableIdx&0x0000FFFF) == expr->TableIdx);
+				_assert((expr->TableId&0x0000FFFF) == expr->TableId);
 				expr->x.Select->LimitId = 0;
 				if (Select::Select_(parse, expr->x.Select, &dest))
 					return 0;
@@ -1187,20 +1187,20 @@ no_mem:
 					// Evaluate the expression and insert it into the temp table
 					int valToIns;
 					if (isRowid && e2->IsInteger(&valToIns))
-						v->AddOp3(OP_InsertInt, expr->TableIdx, r2, valToIns);
+						v->AddOp3(OP_InsertInt, expr->TableId, r2, valToIns);
 					else
 					{
 						int r3 = CodeTarget(parse, e2, r1);
 						if (isRowid)
 						{
 							v->AddOp2(OP_MustBeInt, r3, v->CurrentAddr()+2);
-							v->AddOp3(OP_Insert, expr->TableIdx, r2, r3);
+							v->AddOp3(OP_Insert, expr->TableId, r2, r3);
 						}
 						else
 						{
 							v->AddOp4(OP_MakeRecord, r3, 1, r2, (char *)&affinity, 1);
 							CacheAffinityChange(parse, r3, 1);
-							v->AddOp2(OP_IdxInsert, expr->TableIdx, r2);
+							v->AddOp2(OP_IdxInsert, expr->TableId, r2);
 						}
 					}
 				}
@@ -1278,7 +1278,7 @@ no_mem:
 		else
 		{
 			int addr1 = v->AddOp1(OP_NotNull, r1);
-			v->AddOp2(OP_Rewind, expr->TableIdx, destIfFalse);
+			v->AddOp2(OP_Rewind, expr->TableId, destIfFalse);
 			v->AddOp2(OP_Goto, 0, destIfNull);
 			v->JumpHere(addr1);
 		}
@@ -1287,7 +1287,7 @@ no_mem:
 		{
 			// In this case, the RHS is the ROWID of table b-tree
 			v->AddOp2(OP_MustBeInt, r1, destIfFalse);
-			v->AddOp3(OP_NotExists, expr->TableIdx, destIfFalse, r1);
+			v->AddOp3(OP_NotExists, expr->TableId, destIfFalse, r1);
 		}
 		else
 		{
@@ -1303,7 +1303,7 @@ no_mem:
 				// of a "NOT NULL" constraint in the database schema.
 				//
 				// Also run this branch if NULL is equivalent to FALSE for this particular IN operator.
-				v->AddOp4Int(OP_NotFound, expr->TableIdx, destIfFalse, r1, 1);
+				v->AddOp4Int(OP_NotFound, expr->TableId, destIfFalse, r1, 1);
 			}
 			else
 			{
@@ -1311,13 +1311,13 @@ no_mem:
 
 				// First check to see if the LHS is contained in the RHS. If so, then the presence of NULLs in the RHS does not matter, so jump
 				// over all of the code that follows.
-				int j1 = v->AddOp4Int(OP_Found, expr->TableIdx, 0, r1, 1);
+				int j1 = v->AddOp4Int(OP_Found, expr->TableId, 0, r1, 1);
 
 				// Here we begin generating code that runs if the LHS is not contained within the RHS.  Generate additional code that
 				// tests the RHS for NULLs.  If the RHS contains a NULL then jump to destIfNull.  If there are no NULLs in the RHS then
 				// jump to destIfFalse.
 				int j2 = v->AddOp1(OP_NotNull, rhsHasNull);
-				int j3 = v->AddOp4Int(OP_Found, expr->TableIdx, 0, rhsHasNull, 1);
+				int j3 = v->AddOp4Int(OP_Found, expr->TableId, 0, rhsHasNull, 1);
 				v->AddOp2(OP_Integer, -1, rhsHasNull);
 				v->JumpHere(j3);
 				v->AddOp2(OP_AddImm, rhsHasNull, 1);
@@ -1630,14 +1630,14 @@ no_mem:
 			} }
 							// Otherwise, fall thru into the TK_COLUMN case
 		case TK_COLUMN: {
-			if (expr->TableIdx < 0)
+			if (expr->TableId < 0)
 			{
 				// This only happens when coding check constraints
 				_assert(parse->CkBase > 0);
 				inReg = expr->ColumnIdx + parse->CkBase;
 			}
 			else
-				inReg = CodeGetColumn(parse, expr->Table, expr->ColumnIdx, expr->TableIdx, target, expr->OP2);
+				inReg = CodeGetColumn(parse, expr->Table, expr->ColumnIdx, expr->TableId, target, expr->OP2);
 			break; }
 
 		case TK_INTEGER: {
@@ -1686,7 +1686,7 @@ no_mem:
 			break; }
 
 		case TK_REGISTER: {
-			inReg = expr->TableIdx;
+			inReg = expr->TableId;
 			break; }
 
 		case TK_AS: {
@@ -2035,13 +2035,13 @@ no_mem:
 			//   p1==1   ->    old.a         p1==4   ->    new.a
 			//   p1==2   ->    old.b         p1==5   ->    new.b       
 			Core::Table *table = expr->Table;
-			int p1 = expr->TableIdx * (table->Cols.length + 1) + 1 + expr->ColumnIdx;
-			_assert(expr->TableIdx == 0 || expr->TableIdx == 1);
+			int p1 = expr->TableId * (table->Cols.length + 1) + 1 + expr->ColumnIdx;
+			_assert(expr->TableId == 0 || expr->TableId == 1);
 			_assert(expr->ColumnIdx >= -1 && expr->ColumnIdx < table->Cols.length);
 			_assert(table->PKey < 0 || expr->ColumnIdx != table->PKey);
 			_assert(p1 >= 0 && p1 < (table->Cols.length*2+2));
 			v->AddOp2(OP_Param, p1, target);
-			v->Comment("%s.%s -> $%d", (expr->TableIdx ? "new" : "old"), (expr->ColumnIdx < 0 ? "rowid" : expr->Table->Cols[expr->ColumnIdx].Name), target);
+			v->Comment("%s.%s -> $%d", (expr->TableId ? "new" : "old"), (expr->ColumnIdx < 0 ? "rowid" : expr->Table->Cols[expr->ColumnIdx].Name), target);
 
 #ifndef OMIT_FLOATING_POINT
 			// If the column has REAL affinity, it may currently be stored as an integer. Use OP_RealAffinity to make sure it is really real.
@@ -2087,7 +2087,7 @@ no_mem:
 				Expr cacheX = *x; // Cached expression X
 				ASSERTCOVERAGE(x->OP == TK_COLUMN);
 				ASSERTCOVERAGE(x->OP == TK_REGISTER);
-				cacheX.TableIdx = CodeTemp(parse, x, &regFree1);
+				cacheX.TableId = CodeTemp(parse, x, &regFree1);
 				ASSERTCOVERAGE(regFree1 == 0);
 				cacheX.OP = TK_REGISTER;
 				opCompare.OP = TK_EQ;
@@ -2171,7 +2171,7 @@ no_mem:
 	{
 		_assert(target > 0 && target <= parse->Mems);
 		if (expr && expr->OP == TK_REGISTER)
-			parse->V->AddOp2(OP_Copy, expr->TableIdx, target);
+			parse->V->AddOp2(OP_Copy, expr->TableId, target);
 		else
 		{
 			int inReg = CodeTarget(parse, expr, target);
@@ -2194,7 +2194,7 @@ no_mem:
 		{  
 			int mem = ++parse->Mems;
 			v->AddOp2(OP_Copy, inReg, mem);
-			expr->TableIdx = mem;
+			expr->TableId = mem;
 			expr->OP2 = expr->OP;
 			expr->OP = TK_REGISTER;
 		}
@@ -2211,11 +2211,11 @@ no_mem:
 		switch (op)
 		{
 		case TK_AGG_COLUMN: {
-			Vdbe::ExplainPrintf(v, "AGG{%d:%d}", expr->TableIdx, expr->ColumnIdx);
+			Vdbe::ExplainPrintf(v, "AGG{%d:%d}", expr->TableId, expr->ColumnIdx);
 			break; }
 
 		case TK_COLUMN: {
-			if (expr->TableIdx < 0) // This only happens when coding check constraints
+			if (expr->TableId < 0) // This only happens when coding check constraints
 				Vdbe::ExplainPrintf(v, "COLUMN(%d)", expr->ColumnIdx);
 			else
 				Vdbe::ExplainPrintf(v, "{%d:%d}", expr->Table, expr->ColumnIdx);
@@ -2251,7 +2251,7 @@ no_mem:
 			break; }
 
 		case TK_REGISTER: {
-			Vdbe::ExplainPrintf(v, "REGISTER(%d)", expr->TableIdx);
+			Vdbe::ExplainPrintf(v, "REGISTER(%d)", expr->TableId);
 			break; }
 
 		case TK_AS: {
@@ -2370,7 +2370,7 @@ no_mem:
 			// If the opcode is TK_TRIGGER, then the expression is a reference to a column in the new.* or old.* pseudo-tables available to
 			// trigger programs. In this case Expr.iTable is set to 1 for the new.* pseudo-table, or 0 for the old.* pseudo-table. Expr.iColumn
 			// is set to the column of the pseudo-table to read, or to -1 to read the rowid field.
-			Vdbe::ExplainPrintf(v, "%s(%d)", (expr->TableIdx ? "NEW" : "OLD"), expr->ColumnIdx);
+			Vdbe::ExplainPrintf(v, "%s(%d)", (expr->TableId ? "NEW" : "OLD"), expr->ColumnIdx);
 			break; }
 
 		case TK_CASE: {
@@ -2513,7 +2513,7 @@ no_mem:
 			_assert(r2 == r1);
 			expr->OP2 = expr->OP;
 			expr->OP = TK_REGISTER;
-			expr->TableIdx = r2;
+			expr->TableId = r2;
 			return WRC_Prune;
 		}
 		return WRC_Continue;
@@ -2565,7 +2565,7 @@ no_mem:
 		compRight.Left = &exprX;
 		compRight.Right = expr->x.List->Ids[1].Expr;
 		int regFree1 = 0; // Temporary use register
-		exprX.TableIdx = Expr::CodeTemp(parse, &exprX, &regFree1);
+		exprX.TableId = Expr::CodeTemp(parse, &exprX, &regFree1);
 		exprX.OP = TK_REGISTER;
 		if (jumpIfTrue)
 			exprAnd.IfTrue(parse, dest, jumpIfNull);
@@ -2839,7 +2839,7 @@ no_mem:
 		if (Compare(a->Left, b->Left)) return 2;
 		if (Compare(a->Right, b->Right)) return 2;
 		if (ListCompare(a->x.List, b->x.List)) return 2;
-		if (a->TableIdx != b->TableIdx || a->ColumnIdx != b->ColumnIdx) return 2;
+		if (a->TableId != b->TableId || a->ColumnIdx != b->ColumnIdx) return 2;
 		if (ExprHasProperty(a, EP_IntValue))
 		{
 			if (!ExprHasProperty(b, EP_IntValue) || a->u.I != b->u.I) return 2;
@@ -2886,7 +2886,7 @@ no_mem:
 			SrcCount *p = walker->u.SrcCount;
 			SrcList *src = p->Src;
 			for (i = 0; i < src->Srcs; i++)
-				if (expr->TableIdx == src->Ids[i].Cursor) break;
+				if (expr->TableId == src->Ids[i].Cursor) break;
 			if (i < src->Srcs)
 				p->This++;
 			else
@@ -2945,7 +2945,7 @@ no_mem:
 				for (i = 0, item = srcList->Ids; i < srcList->Srcs; i++, item++)
 				{
 					_assert(!ExprHasAnyProperty(expr, EP_TokenOnly|EP_Reduced));
-					if (expr->TableIdx == item->Cursor)
+					if (expr->TableId == item->Cursor)
 					{
 						// If we reach this point, it means that pExpr refers to a table that is in the FROM clause of the aggregate query.  
 						//
@@ -2953,13 +2953,13 @@ no_mem:
 						int k;
 						AggInfo::AggInfoColumn *col;
 						for (k = 0, col = aggInfo->Columns.data; k < aggInfo->Columns.length; k++, col++)
-							if (col->TableID == expr->TableIdx && col->Column == expr->ColumnIdx)
+							if (col->TableID == expr->TableId && col->Column == expr->ColumnIdx)
 								break;
 						if ((k >= aggInfo->Columns.length) && (k = AddAggInfoColumn(ctx, aggInfo)) >= 0)
 						{
 							col = &aggInfo->Columns[k];
 							col->Table = expr->Table;
-							col->TableID = expr->TableIdx;
+							col->TableID = expr->TableId;
 							col->Column = expr->ColumnIdx;
 							col->Mem = ++parse->Mems;
 							col->SorterColumn = -1;
@@ -2972,7 +2972,7 @@ no_mem:
 								for (int j = 0; j < n; j++, term++)
 								{
 									Expr *e = term->Expr;
-									if (e->OP == TK_COLUMN && e->TableIdx == expr->TableIdx && e->ColumnIdx == expr->ColumnIdx)
+									if (e->OP == TK_COLUMN && e->TableId == expr->TableId && e->ColumnIdx == expr->ColumnIdx)
 									{
 										col->SorterColumn = j;
 										break;

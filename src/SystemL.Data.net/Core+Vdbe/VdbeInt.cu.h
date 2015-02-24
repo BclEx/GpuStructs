@@ -100,8 +100,8 @@ namespace Core
 		MEM_Zero = 0x0000,
 #endif
 	};
-	__device__ inline void operator|=(MEM &a, int b) { a = (MEM)(a | b); }
-	__device__ inline void operator&=(MEM &a, int b) { a = (MEM)(a & b); }
+	__device__ inline void operator|=(MEM &a, MEM b) { a = (MEM)(a | b); }
+	__device__ inline void operator&=(MEM &a, MEM b) { a = (MEM)(a & b); }
 	__device__ inline MEM operator|(MEM a, MEM b) { return (MEM)((int)a | (int)b); }
 	__device__ inline MEM operator&(MEM a, MEM b) { return (MEM)((int)a & (int)b); }
 

@@ -33,7 +33,7 @@ namespace Core
 		WO_ALL = 0xfff,			// Mask of all possible WO_* values
 		WO_SINGLE = 0x0ff,      // Mask of all non-compound WO_* values
 	};
-	__device__ inline void operator|=(WO &a, int b) { a = (WO)(a | b); }
+	__device__ inline void operator|=(WO &a, WO b) { a = (WO)(a | b); }
 	__device__ inline WO operator|(WO a, WO b) { return (WO)((int)a | (int)b); }
 	__device__ inline WO operator&(WO a, WO b) { return (WO)((int)a & (int)b); }
 
@@ -52,8 +52,8 @@ namespace Core
 		TERM_VNULL = 0x00,   // Disabled if not using stat3
 #endif
 	};
-	__device__ inline void operator|=(TERM &a, int b) { a = (TERM)(a | b); }
-	__device__ inline void operator&=(TERM &a, int b) { a = (TERM)(a & b); }
+	__device__ inline void operator|=(TERM &a, TERM b) { a = (TERM)(a | b); }
+	__device__ inline void operator&=(TERM &a, TERM b) { a = (TERM)(a & b); }
 	__device__ inline TERM operator|(TERM a, TERM b) { return (TERM)((int)a | (int)b); }
 
 	struct WhereTerm
@@ -273,7 +273,7 @@ namespace Core
 		if (!p) return 0;
 		if (p->OP == TK_COLUMN)
 		{
-			mask = GetMask(maskSet, p->TableIdx);
+			mask = GetMask(maskSet, p->TableId);
 			return mask;
 		}
 		mask = ExprTableUsage(maskSet, p->Right);
@@ -428,10 +428,10 @@ namespace Core
 							Expr *x = term->Expr->Right->SkipCollate();
 							_assert(x->OP == TK_COLUMN);
 							for (j = 0; j < equivsLength; j+=2)
-								if (equivs[j] == x->TableIdx && equivs[j+1] == x->ColumnIdx) break;
+								if (equivs[j] == x->TableId && equivs[j+1] == x->ColumnIdx) break;
 							if (j == equivsLength)
 							{
-								equivs[j] = x->TableIdx;
+								equivs[j] = x->TableId;
 								equivs[j+1] = x->ColumnIdx;
 								equivsLength += 2;
 							}
@@ -782,7 +782,7 @@ findTerm_success:
 			WO opMask = ((term->PrereqRight & prereqLeft) == 0 ? WO_ALL : WO_EQUIV);
 			if (left->OP == TK_COLUMN)
 			{
-				term->LeftCursor = left->TableIdx;
+				term->LeftCursor = left->TableId;
 				term->u.LeftColumn = left->ColumnIdx;
 				term->EOperator = OperatorMask(op) & opMask;
 			}
@@ -820,7 +820,7 @@ findTerm_success:
 				}
 				ExprCommute(parse, dup);
 				left = dup->Left->SkipCollate();
-				newTerm->LeftCursor = left->TableIdx;
+				newTerm->LeftCursor = left->TableId;
 				newTerm->u.LeftColumn = left->ColumnIdx;
 				ASSERTCOVERAGE((prereqLeft | extraRight) != prereqLeft);
 				newTerm->PrereqRight = prereqLeft | extraRight;
@@ -931,7 +931,7 @@ findTerm_success:
 				ASSERTCOVERAGE(idxNew == 0);
 				WhereTerm *newTerm = &wc->Slots[idxNew];
 				newTerm->PrereqRight = prereqExpr;
-				newTerm->LeftCursor = left->TableIdx;
+				newTerm->LeftCursor = left->TableId;
 				newTerm->u.LeftColumn = left->ColumnIdx;
 				newTerm->EOperator = WO_MATCH;
 				newTerm->Parent = idxTerm;
@@ -957,7 +957,7 @@ findTerm_success:
 			{
 				WhereTerm *newTerm = &wc->Slots[idxNew];
 				newTerm->PrereqRight = 0;
-				newTerm->LeftCursor = left->TableIdx;
+				newTerm->LeftCursor = left->TableId;
 				newTerm->u.LeftColumn = left->ColumnIdx;
 				newTerm->EOperator = WO_GT;
 				newTerm->Parent = idxTerm;
@@ -979,7 +979,7 @@ findTerm_success:
 		for (int i = 0; i < list->Exprs; i++)
 		{
 			Expr *expr = list->Ids[i].Expr->SkipCollate();
-			if (expr->OP == TK_COLUMN && expr->ColumnIdx == index->Columns[column] && expr->TableIdx == baseId)
+			if (expr->OP == TK_COLUMN && expr->ColumnIdx == index->Columns[column] && expr->TableId == baseId)
 			{
 				CollSeq *coll = list->Ids[i].Expr->CollSeq(parse);
 				if (_ALWAYS(coll) && !_strcmp(coll->Name, collName))
@@ -1005,7 +1005,7 @@ findTerm_success:
 		{
 			Expr *expr = distinct->Ids[i].Expr->SkipCollate();
 			if (expr->OP != TK_COLUMN) return false;
-			WhereTerm *term = FindTerm(wc, expr->TableIdx, expr->ColumnIdx, ~(Bitmask)0, WO_EQ, 0);
+			WhereTerm *term = FindTerm(wc, expr->TableId, expr->ColumnIdx, ~(Bitmask)0, WO_EQ, 0);
 			if (term)
 			{
 				Expr *x = term->Expr;
@@ -1013,7 +1013,7 @@ findTerm_success:
 				CollSeq *p2 = expr->CollSeq(parse);
 				if (p1 == p2) continue;
 			}
-			if (expr->TableIdx != baseId) return false;
+			if (expr->TableId != baseId) return false;
 			mask |= (((Bitmask)1) << i);
 		}
 		for (i = eqCols; mask && i < index->Columns.length; i++)
@@ -1039,7 +1039,7 @@ findTerm_success:
 		for (i = 0; i < distinct->Exprs; i++)
 		{
 			Expr *expr = distinct->Ids[i].Expr->SkipCollate();
-			if (expr->OP == TK_COLUMN && expr->TableIdx == baseId && expr->ColumnIdx < 0) return true;
+			if (expr->OP == TK_COLUMN && expr->TableId == baseId && expr->ColumnIdx < 0) return true;
 		}
 
 		// Loop through all indices on the table, checking each to see if it makes the DISTINCT qualifier redundant. It does so if:
@@ -1416,7 +1416,7 @@ findTerm_success:
 			for (i = 0; i < n; i++)
 			{
 				Expr *expr = orderBy->Ids[i].Expr;
-				if (expr->OP != TK_COLUMN || expr->TableIdx != src->Cursor) break;
+				if (expr->OP != TK_COLUMN || expr->TableId != src->Cursor) break;
 			}
 			if (i == n)
 				orderBys = n;
@@ -1977,7 +1977,7 @@ cancel:
 			// If the next term of the ORDER BY clause refers to anything other than a column in the "base" table, then this index will not be of any
 			// further use in handling the ORDER BY.
 			Expr *obExpr = obItem->Expr->SkipCollate(); // The expression of the ORDER BY pOBItem
-			if (obExpr->OP != TK_COLUMN || obExpr->TableIdx != baseId)
+			if (obExpr->OP != TK_COLUMN || obExpr->TableId != baseId)
 				break;
 
 			// Find column number and collating sequence for the next entry in the index
@@ -2033,8 +2033,8 @@ cancel:
 				Expr *right = constraint->Expr->Right;
 				if (right->OP == TK_COLUMN)
 				{
-					WHERETRACE("       .. isOrderedColumn(tab=%d,col=%d)", right->TableIdx, right->ColumnIdx);
-					isEq = IsOrderedColumn(p, right->TableIdx, right->ColumnIdx);
+					WHERETRACE("       .. isOrderedColumn(tab=%d,col=%d)", right->TableId, right->ColumnIdx);
+					isEq = IsOrderedColumn(p, right->TableId, right->ColumnIdx);
 					WHERETRACE(" -> isEq=%d\n", isEq);
 					// If the constraint is of the form X=Y where Y is an ordered value in an outer loop, then make sure the sort order of Y matches the
 					// sort order required for X.
@@ -2637,7 +2637,7 @@ cancel:
 				ASSERTCOVERAGE(rev);
 				rev = !rev;
 			}
-			int tableId = x->TableIdx;
+			int tableId = x->TableId;
 			v->AddOp2(rev ? OP_Last : OP_Rewind, tableId, 0);
 			_assert(level->Plan.WsFlags & WHERE_IN_ABLE);
 			if (level->u.in.InLoopsLength == 0)

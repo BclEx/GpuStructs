@@ -4,7 +4,7 @@ namespace Core { namespace Command
 {
 
 #ifndef OMIT_VIRTUALTABLE
-	static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xrefs, Expr *where_, OE onError);
+	__device__ static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xrefs, Expr *where_, OE onError);
 #endif
 
 	__device__ void Update::ColumnDefault(Vdbe *v, Table *table, int i, int regId)
@@ -432,7 +432,7 @@ update_cleanup:
 #endif
 
 #ifndef OMIT_VIRTUALTABLE
-	static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xrefs, Expr *where_, OE onError)
+	__device__ static void UpdateVirtualTable(Parse *parse, SrcList *src, Table *table, ExprList *changes, Expr *rowid, int *xrefs, Expr *where_, OE onError)
 	{
 		int i;
 		Context *ctx = parse->Ctx; // Database connection

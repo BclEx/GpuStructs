@@ -237,7 +237,6 @@ detach_error:
 		Vdbe::Result_Error(fctx, err, -1);
 	}
 
-
 	__device__ static void CodeAttach(Parse *parse, AUTH type, FuncDef const *func, Expr *authArg, Expr *filename, Expr *dbName, Expr *key)
 	{
 		Context *ctx = parse->Ctx;
@@ -246,8 +245,7 @@ detach_error:
 		_memset(&sName, 0, sizeof(NameContext));
 		sName.Parse = parse;
 
-		RC rc;
-		if ((rc = ResolveAttachExpr(&sName, filename)) != RC_OK || (rc = ResolveAttachExpr(&sName, dbName)) != RC_OK || (rc = ResolveAttachExpr(&sName, key)) != RC_OK)
+		if (ResolveAttachExpr(&sName, filename) != RC_OK || ResolveAttachExpr(&sName, dbName) != RC_OK || ResolveAttachExpr(&sName, key) != RC_OK)
 		{
 			parse->Errs++;
 			goto attach_end;

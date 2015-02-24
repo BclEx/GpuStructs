@@ -192,7 +192,7 @@ namespace Core
                 E.ExprSetProperty(eq, EP.FromJoin);
                 Debug.Assert(!E.ExprHasAnyProperty(eq, EP.TokenOnly | EP.Reduced));
                 E.ExprSetIrreducible(eq);
-                eq.RightJoinTable = (short)e2.TableIdx;
+                eq.RightJoinTable = (short)e2.TableId;
             }
             where_ = Expr.And(ctx, where_, eq);
         }
@@ -764,7 +764,7 @@ namespace Core
                         while (nc != null && table == null)
                         {
                             SrcList tabList = nc.SrcList;
-                            for (j = 0; j < tabList.Srcs && tabList.Ids[j].Cursor != expr.TableIdx; j++) ;
+                            for (j = 0; j < tabList.Srcs && tabList.Ids[j].Cursor != expr.TableId; j++) ;
                             if (j < tabList.Srcs)
                             {
                                 table = tabList.Ids[j].Table;
@@ -916,7 +916,7 @@ namespace Core
                     int colId = p.ColumnIdx;
                     int j;
                     for (j = 0; C._ALWAYS(j < tabList.Srcs); j++)
-                        if (tabList.Ids[j].Cursor == p.TableIdx) break;
+                        if (tabList.Ids[j].Cursor == p.TableId) break;
                     Debug.Assert(j < tabList.Srcs);
                     Table table = tabList.Ids[j].Table;
                     if (colId < 0) colId = table.PKey;

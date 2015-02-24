@@ -1136,7 +1136,7 @@ namespace Core { namespace Command
 			ctx->MallocFailed = true;
 	}
 
-	static void SetLikeOptFlag(Context *ctx, const char *name, FUNC flagVal)
+	__device__ static void SetLikeOptFlag(Context *ctx, const char *name, FUNC flagVal)
 	{
 		FuncDef *def = Callback::FindFunction(ctx, name, _strlen30(name), 2, TEXTENCODE_UTF8, 0);
 		if (_ALWAYS(def))
@@ -1173,7 +1173,13 @@ namespace Core { namespace Command
 	// The following array holds FuncDef structures for all of the functions defined in this file.
 	//
 	// The array cannot be constant since changes are made to the FuncDef.pHash elements at start-time.  The elements of this array are read-only after initialization is complete.
-	__device__ static _WSD FuncDef g_builtinFuncs[] = {
+#if __CUDACC__
+	__constant__ static _WSD FuncDef g_builtinFuncs[56];
+	static _WSD FuncDef h_builtinFuncs[56] =
+#else
+	static _WSD FuncDef g_builtinFuncs[56] =
+#endif
+	{
 		FUNCTION(ltrim,              1, 1, 0, TrimFunc         ),
 		FUNCTION(ltrim,              2, 1, 0, TrimFunc         ),
 		FUNCTION(rtrim,              1, 2, 0, TrimFunc         ),
@@ -1247,15 +1253,15 @@ namespace Core { namespace Command
 	};
 
 	__device__ void Func::RegisterGlobalFunctions()
-	{
-		FuncDefHash *hash = &Main_GlobalFunctions;
-		FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_builtinFuncs);
-		for (int i = 0; i < _lengthof(g_builtinFuncs); i++)
-			Callback::FuncDefInsert(hash, &funcs[i]);
-		Date_::RegisterDateTimeFunctions();
+		{
+			FuncDefHash *hash = &Main_GlobalFunctions;
+			FuncDef *funcs = (FuncDef *)&_GLOBAL(FuncDef, g_builtinFuncs);
+			for (int i = 0; i < _lengthof(g_builtinFuncs); i++)
+				Callback::FuncDefInsert(hash, &funcs[i]);
+			Date_::RegisterDateTimeFunctions();
 #ifndef OMIT_ALTERTABLE
-		Alter::Functions();
+			Alter::Functions();
 #endif
-	}
+		}
 
 }}
