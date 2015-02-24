@@ -76,8 +76,8 @@
 		RC_DONE = 101,
 	};
 
-	__device__ inline void operator|=(RC &a, RC b) { a = (RC)(a | b); }
-	__device__ inline void operator&=(RC &a, RC b) { a = (RC)(a & b); }
+	__device__ inline void operator|=(RC &a, int b) { a = (RC)(a | b); }
+	__device__ inline void operator&=(RC &a, int b) { a = (RC)(a & b); }
 	__device__ inline RC operator|(RC a, RC b) { return (RC)((int)a | (int)b); }
 	__device__ inline RC operator&(RC a, RC b) { return (RC)((int)a & (int)b); }
 

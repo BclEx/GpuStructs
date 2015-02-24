@@ -85,7 +85,7 @@ namespace Core
 	//#define core_blob_reopen			nullptr
 	//#endif
 
-	static const core_api_routines g_apis =
+	__constant__ static const core_api_routines g_apis =
 	{
 		//		core_aggregate_context,
 		//#ifndef OMIT_DEPRECATED

@@ -9,8 +9,8 @@
 		TEXTENCODE_ANY = 5, // sqlite3_create_function only
 		TEXTENCODE_UTF16_ALIGNED = 8, // sqlite3_create_collation only
 	};
-	__device__ inline void operator|=(TEXTENCODE &a, TEXTENCODE b) { a = (TEXTENCODE)(a | b); }
-	__device__ inline void operator&=(TEXTENCODE &a, TEXTENCODE b) { a = (TEXTENCODE)(a & b); }
+	__device__ inline void operator|=(TEXTENCODE &a, int b) { a = (TEXTENCODE)(a | b); }
+	__device__ inline void operator&=(TEXTENCODE &a, int b) { a = (TEXTENCODE)(a & b); }
 	__device__ inline TEXTENCODE operator|(TEXTENCODE a, TEXTENCODE b) { return (TEXTENCODE)((int)a | (int)b); }
 	__device__ inline TEXTENCODE operator&(TEXTENCODE a, TEXTENCODE b) { return (TEXTENCODE)((int)a & (int)b); }
 

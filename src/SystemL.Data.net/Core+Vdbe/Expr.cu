@@ -545,7 +545,7 @@ namespace Core
 
 			// Figure out where to write the new Expr structure.
 			uint8 *alloc;
-			uint32 staticFlag;
+			EP staticFlag;
 			if (buffer)
 			{
 				alloc = *buffer;
@@ -554,7 +554,7 @@ namespace Core
 			else
 			{
 				alloc = (uint8 *)_tagalloc(ctx, DupedExprSize(expr, flags));
-				staticFlag = 0;
+				staticFlag = (EP)0;
 			}
 			newExpr = (Expr *)alloc;
 			if (newExpr)
@@ -578,7 +578,7 @@ namespace Core
 
 				// Set the EP_Reduced, EP_TokenOnly, and EP_Static flags appropriately.
 				newExpr->Flags &= ~(EP_Reduced|EP_TokenOnly|EP_Static);
-				newExpr->Flags |= (structSize & (EP_Reduced|EP_TokenOnly));
+				newExpr->Flags |= (EP)(structSize & (EP_Reduced|EP_TokenOnly));
 				newExpr->Flags |= staticFlag;
 				// Copy the p->u.zToken string, if any.
 				if (tokenLength)
@@ -742,9 +742,9 @@ namespace Core
 		newSelect->OffsetId = 0;
 		newSelect->SelFlags = (SF)(select->SelFlags & ~SF_UsesEphemeral);
 		newSelect->Rightmost = nullptr;
-		newSelect->AddrOpenEphms[0] = -1;
-		newSelect->AddrOpenEphms[1] = -1;
-		newSelect->AddrOpenEphms[2] = -1;
+		newSelect->AddrOpenEphms[0] = (::OP)-1;
+		newSelect->AddrOpenEphms[1] = (::OP)-1;
+		newSelect->AddrOpenEphms[2] = (::OP)-1;
 		return newSelect;
 	}
 #else

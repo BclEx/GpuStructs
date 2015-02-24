@@ -33,7 +33,7 @@ namespace Core
 		WO_ALL = 0xfff,			// Mask of all possible WO_* values
 		WO_SINGLE = 0x0ff,      // Mask of all non-compound WO_* values
 	};
-	__device__ inline void operator|=(WO &a, WO b) { a = (WO)(a | b); }
+	__device__ inline void operator|=(WO &a, int b) { a = (WO)(a | b); }
 	__device__ inline WO operator|(WO a, WO b) { return (WO)((int)a | (int)b); }
 	__device__ inline WO operator&(WO a, WO b) { return (WO)((int)a & (int)b); }
 
@@ -52,8 +52,8 @@ namespace Core
 		TERM_VNULL = 0x00,   // Disabled if not using stat3
 #endif
 	};
-	__device__ inline void operator|=(TERM &a, TERM b) { a = (TERM)(a | b); }
-	__device__ inline void operator&=(TERM &a, TERM b) { a = (TERM)(a & b); }
+	__device__ inline void operator|=(TERM &a, int b) { a = (TERM)(a | b); }
+	__device__ inline void operator&=(TERM &a, int b) { a = (TERM)(a & b); }
 	__device__ inline TERM operator|(TERM a, TERM b) { return (TERM)((int)a | (int)b); }
 
 	struct WhereTerm

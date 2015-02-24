@@ -93,11 +93,11 @@ namespace Core
 
 	// If the following global variable points to a string which is the name of a directory, then that directory will be used to store temporary files.
 	// See also the "PRAGMA temp_store_directory" SQL command.
-	char *g_temp_directory = nullptr;
+	__device__ char *g_temp_directory = nullptr;
 	// If the following global variable points to a string which is the name of a directory, then that directory will be used to store
 	// all database files specified with a relative pathname.
 	// See also the "PRAGMA data_store_directory" SQL command.
-	char *g_data_directory = nullptr;
+	__device__ char *g_data_directory = nullptr;
 
 #ifndef ALLOW_COVERING_INDEX_SCAN
 #define ALLOW_COVERING_INDEX_SCAN true
@@ -1170,7 +1170,7 @@ _out:
 #error MAX_TRIGGER_DEPTH must be at least 1
 #endif
 
-	static const int _hardLimits[] = // kept in sync with the LIMIT_*
+	__constant__ static const int _hardLimits[] = // kept in sync with the LIMIT_*
 	{
 		CORE_MAX_LENGTH,
 		MAX_SQL_LENGTH,
@@ -1202,7 +1202,7 @@ _out:
 		_assert(_hardLimits[LIMIT_TRIGGER_DEPTH] == MAX_TRIGGER_DEPTH);
 		_assert(LIMIT_TRIGGER_DEPTH == (LIMIT_MAX_-1));
 
-		if (limit < 0 || limit >= LIMIT_MAX_)
+		if (limit >= LIMIT_MAX_)
 			return -1;
 		int oldLimit = ctx->Limits[limit];
 		if (newLimit >= 0) // IMP: R-52476-28732
