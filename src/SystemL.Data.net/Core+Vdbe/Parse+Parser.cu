@@ -56,7 +56,7 @@
 #line 663 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// This routine constructs a binary expression node out of two ExprSpan objects and uses the result to populate a new ExprSpan object.
-	static void SpanBinaryExpr(ExprSpan *out_, Parse *parse, int op, ExprSpan *left, ExprSpan *right)
+	__device__ static void SpanBinaryExpr(ExprSpan *out_, Parse *parse, int op, ExprSpan *left, ExprSpan *right)
 	{
 		out_->Expr = Expr::PExpr_(parse, op, left->Expr, right->Expr, 0);
 		out_->Start = left->Start;
