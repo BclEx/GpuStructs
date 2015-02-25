@@ -65,7 +65,7 @@
 #line 708 "C:\\_GITHUB\\GpuStructs\\src\\SystemL.Data.net\\Core+Vdbe\\Parse+Parser.ycu"
 
 	// Construct an expression node for a unary postfix operator
-	static void SpanUnaryPostfix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *postOp)
+	__device__ static void SpanUnaryPostfix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *postOp)
 	{
 		out_->Expr = Expr::PExpr_(parse, op, operand->Expr, 0, 0);
 		out_->Start = operand->Start;
@@ -204,7 +204,7 @@ __device__ static const YYMINORTYPE yyzerominor = { 0 };
 //  yy_reduce_ofst[]   For each state, the offset into yy_action for shifting non-terminals after a reduce.
 //  yy_default[]       Default action for each state.
 #define YY_ACTTAB_COUNT (1564)
-static const YYACTIONTYPE yy_action[] = {
+__constant__ static const YYACTIONTYPE yy_action[] = {
  /*     0 */   309,  955,  184,  417,    2,  171,  624,  594,   56,   56,
  /*    10 */    56,   56,   49,   54,   54,   54,   54,   53,   53,   52,
  /*    20 */    52,   52,   51,  233,  620,  619,  298,  620,  619,  234,
@@ -363,7 +363,7 @@ static const YYACTIONTYPE yy_action[] = {
  /*  1550 */   233,  340,  207,  524,  368,  505,  334,  522,  499,  399,
  /*  1560 */   295,  498,  956,  488,
 };
-static const YYCODETYPE yy_lookahead[] = {
+__constant__ static const YYCODETYPE yy_lookahead[] = {
  /*     0 */    19,  142,  143,  144,  145,   24,    1,   26,   77,   78,
  /*    10 */    79,   80,   81,   82,   83,   84,   85,   86,   87,   88,
  /*    20 */    89,   90,   91,   92,   26,   27,   15,   26,   27,  197,
@@ -526,7 +526,7 @@ static const YYCODETYPE yy_lookahead[] = {
 #define YY_SHIFT_COUNT (416)
 #define YY_SHIFT_MIN   (-69)
 #define YY_SHIFT_MAX   (1487)
-static const short yy_shift_ofst[] = {
+__constant__ static const short yy_shift_ofst[] = {
  /*     0 */  1143, 1188, 1417, 1188, 1287, 1287,  138,  138,   -2,  -19,
  /*    10 */  1287, 1287, 1287, 1287,  347,  362,  129,  129,  795, 1165,
  /*    20 */  1287, 1287, 1287, 1287, 1287, 1287, 1287, 1287, 1287, 1287,
@@ -574,7 +574,7 @@ static const short yy_shift_ofst[] = {
 #define YY_REDUCE_COUNT (308)
 #define YY_REDUCE_MIN   (-168)
 #define YY_REDUCE_MAX   (1391)
-static const short yy_reduce_ofst[] = {
+__constant__ static const short yy_reduce_ofst[] = {
  /*     0 */  -141,   90, 1095,  222,  158,  156,   19,   17,   10, -104,
  /*    10 */   378,  316,  311,   12,  180,  249,  598,  464,  397, 1181,
  /*    20 */  1177, 1175, 1128, 1106, 1096, 1054, 1038,  974,  964,  962,
@@ -607,7 +607,7 @@ static const short yy_reduce_ofst[] = {
  /*   290 */  1229, 1223, 1211, 1206, 1201, 1197, 1239, 1237, 1219, 1216,
  /*   300 */  1209, 1208, 1185, 1089, 1086, 1087, 1137, 1136, 1164,
 };
-static const YYACTIONTYPE yy_default[] = {
+__constant__ static const YYACTIONTYPE yy_default[] = {
  /*     0 */   632,  866,  954,  954,  866,  866,  954,  954,  954,  756,
  /*    10 */   954,  954,  954,  864,  954,  954,  784,  784,  928,  954,
  /*    20 */   954,  954,  954,  954,  954,  954,  954,  954,  954,  954,
@@ -802,9 +802,9 @@ __device__ static char *yyTracePrompt = nullptr;
 //
 // Outputs:
 // None.
-extern "C" __device__ void ParserTrace(FILE *TraceFILE, char *tracePrompt)
+extern "C" __device__ void ParserTrace(FILE *traceFILE, char *tracePrompt)
 {
-	yyTraceFILE = TraceFILE;
+	yyTraceFILE = traceFILE;
 	yyTracePrompt = tracePrompt;
 	if (!yyTraceFILE) yyTracePrompt = nullptr;
 	else if (!yyTracePrompt) yyTraceFILE = nullptr;

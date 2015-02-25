@@ -1,6 +1,7 @@
 ﻿#include "../Core+Btree/Core+Btree.cu.h"
 #include "Parser.orig.h"
 #include "../Opcodes.h"
+#include <stdio.h>
 namespace Core
 {
 #pragma region Limit Types
@@ -1245,7 +1246,7 @@ namespace Core
 	extern "C" __device__ int ParserStackPeak(void *);
 #endif
 #ifdef _DEBUG
-	extern "C" __device__ void ParserTrace(void *, char *);
+	extern "C" __device__ void ParserTrace(FILE *, char *);
 #endif
 
 #pragma endregion

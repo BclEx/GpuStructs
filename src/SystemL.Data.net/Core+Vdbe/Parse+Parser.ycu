@@ -707,7 +707,7 @@ expr(A) ::= expr(X) likeop(OP) expr(Y) ESCAPE expr(E).  [LIKE_KW]  {
 
 %include {
 	// Construct an expression node for a unary postfix operator
-	static void SpanUnaryPostfix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *postOp)
+	__device__ static void SpanUnaryPostfix(ExprSpan *out_, Parse *parse, TK op, ExprSpan *operand, Token *postOp)
 	{
 		out_->Expr = Expr::PExpr_(parse, op, operand->Expr, 0, 0);
 		out_->Start = operand->Start;

@@ -1,5 +1,5 @@
 // vdbe.h
-#include <stdio.h>
+//#include <stdio.h>
 
 namespace Core
 {
