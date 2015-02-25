@@ -77,7 +77,7 @@ namespace Core
 					token = TKC_OTHER;
 					break;
 				}
-				while (*sql && *sql !=' \n') sql++;
+				while (*sql && *sql != '\n') sql++;
 				if (*sql == 0) return (state == 1);
 				token = TKC_WS;
 				break; }

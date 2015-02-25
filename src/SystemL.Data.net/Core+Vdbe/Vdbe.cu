@@ -4637,7 +4637,7 @@ op_column_out:
 				}
 #ifdef _DEBUG
 				if ((ctx->Flags & Context::FLAG_SqlTrace) != 0 && (trace = (op->P4.Z ? op->P4.Z : Sql_)) != nullptr)
-					_dprintf("SQL-trace: %s\n", trace);
+					_fprintf(stdout, "SQL-trace: %s\n", trace);
 #endif
 				break; }
 #endif
@@ -4660,7 +4660,7 @@ op_column_out:
 				op->Cycles += elapsed;
 				op->Cnt++;
 #if 0
-				fprintf(stdout, "%10llu ", elapsed);
+				_fprintf(stdout, "%10llu ", elapsed);
 				PrintOp(stdout, origPc, &ops[origPc]);
 #endif
 			}

@@ -208,6 +208,7 @@
       <CodeGeneration>compute_$(LC),sm_$(LC)</CodeGeneration>
       <GenerateRelocatableDeviceCode Condition="'$(LC)'!='11'">true</GenerateRelocatableDeviceCode>
       <AdditionalOptions>-Xcudafe "--diag_suppress=branch_past_initialization" %(AdditionalOptions)</AdditionalOptions>
+      <Keep Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">true</Keep>
     </CudaCompile>
     <PostBuildEvent>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug.cu|x64'">"$(CudaToolkitBinDir)\nvcc.exe" -arch=sm_$(LC) -lib "$(IntDir)Btree.cu.obj" "$(IntDir)Pager.cu.obj" "$(IntDir)PCache.cu.obj" "$(IntDir)PCache1.cu.obj" -o "$(OutDir)SystemL.Data.$(LC)$(LD)D.lib"</Command>

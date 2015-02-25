@@ -453,9 +453,9 @@ __device__ inline static char *__snprintf(const char *buf, size_t bufLen, const 
 #pragma endregion
 
 //////////////////////
-// DPRINTF
-#pragma region MPRINTF
-#define _dprintf _printf
+// FPRINTF
+#pragma region FPRINTF
+#define _fprintf(f, ...) _printf(__VA_ARGS__)
 #pragma endregion
 
 //////////////////////

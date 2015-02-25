@@ -85,18 +85,13 @@
     <None Include="Core+Vdbe\Backup.cu" />
     <None Include="CompileTime.cu" />
     <Content Include="Core+Vdbe\Core+Ext.cu.h" />
-    <Content Include="Core+Vdbe\Parse+Parser.h">
-      <DependentUpon>Parse+Parser.ycu</DependentUpon>
-    </Content>
-    <Content Include="Core+Vdbe\Parser.orig.h" />
+    <Content Include="Core+Vdbe\Parse+Parser.orig.h" />
     <Content Include="_hwtime.h" />
     <Content Include="Core+Vdbe\VdbeInt.cu.h" />
     <Content Include="Core+Vdbe\Vdbe.cu.h" />
     <Content Include="KeywordHash.h" />
     <Content Include="Opcodes.h" />
     <Content Include="Core+Vdbe\Parse+Parser.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
       <DependentUpon>Parse+Parser.y</DependentUpon>
     </Content>
     <Compile Include="Core+Vdbe\Parse+Build.cs" />
@@ -136,15 +131,16 @@
     <None Include="Core+Vdbe\Main+Legacy.cu" />
     <None Include="Core+Vdbe\Parse+Build.cu" />
     <None Include="Core+Vdbe\Parse+FKey.cu" />
-    <None Include="Core+Vdbe\Parse+Parser.cu">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
+    <Content Include="Core+Vdbe\Parse+Parser.h">
       <DependentUpon>Parse+Parser.ycu</DependentUpon>
-    </None>
+    </Content>
     <None Include="Core+Vdbe\Parse+Parser.out">
       <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </None>
     <None Include="Core+Vdbe\Parse+Parser.template">
+      <DependentUpon>Parse+Parser.ycu</DependentUpon>
+    </None>
+    <None Include="Core+Vdbe\Parse+Parser.cu">
       <DependentUpon>Parse+Parser.ycu</DependentUpon>
     </None>
     <None Include="Core+Vdbe\Prepare.cu" />
@@ -193,7 +189,7 @@
     </None>
     <None Include="Core+Vdbe\Parse+Parser.ycu">
       <Generator>LALRC</Generator>
-      <LastGenOutput>Parse+Parser.cu</LastGenOutput>
+      <LastGenOutput>Parse+Parser1.cu</LastGenOutput>
     </None>
     <None Include="Core+Vdbe\Rowset.cu" />
     <None Include="Core+Vdbe\Table.cu" />
