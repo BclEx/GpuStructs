@@ -19,7 +19,7 @@ __device__ static void TestDB()
 
 	// open
 	Context *ctx;
-	Main::Open("C:\\T_\\Test.db", &ctx);
+	Main::Open("C:\\T_\\Test2.db", &ctx);
 
 	// run query
 	char *errMsg = nullptr;
@@ -35,14 +35,14 @@ __device__ static void TestDB()
 	Main::Close(ctx);
 }
 
-__device__ static void TestVFS()
-{
-	auto vfs = VSystem::FindVfs(nullptr);
-	auto file = (VFile *)_alloc(vfs->SizeOsFile);
-	auto rc = vfs->Open("C:\\T_\\Test2.db", file, VSystem::OPEN_CREATE | VSystem::OPEN_READWRITE | VSystem::OPEN_MAIN_DB, nullptr);
-	file->Write4(0, 123145);
-	file->Close();
-}
+//__device__ static void TestVFS()
+//{
+//	auto vfs = VSystem::FindVfs(nullptr);
+//	auto file = (VFile *)_alloc(vfs->SizeOsFile);
+//	auto rc = vfs->Open("C:\\T_\\Test.db", file, VSystem::OPEN_CREATE | VSystem::OPEN_READWRITE | VSystem::OPEN_MAIN_DB, nullptr);
+//	file->Write4(0, 123145);
+//	file->Close();
+//}
 
 //namespace Core { int Bitvec_BuiltinTest(int size, int *ops); }
 //void TestBitvec()
@@ -58,7 +58,7 @@ __global__ void main(int argc, char **argv) {
 #endif
 	Main::Initialize();
 	//
-	TestVFS();
+	//TestVFS();
 	TestDB();
 	//
 	Main::Shutdown();

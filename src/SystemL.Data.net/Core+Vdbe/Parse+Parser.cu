@@ -785,8 +785,8 @@ typedef struct YYPARSER
 
 #ifndef NDEBUG
 #include <stdio.h>
-static FILE *yyTraceFILE = nullptr;
-static char *yyTracePrompt = nullptr;
+__device__ static FILE *yyTraceFILE = nullptr;
+__device__ static char *yyTracePrompt = nullptr;
 #endif
 
 #ifndef NDEBUG
@@ -802,7 +802,7 @@ static char *yyTracePrompt = nullptr;
 //
 // Outputs:
 // None.
-__device__ extern "C" void ParserTrace(FILE *TraceFILE, char *tracePrompt)
+extern "C" __device__ void ParserTrace(FILE *TraceFILE, char *tracePrompt)
 {
 	yyTraceFILE = TraceFILE;
 	yyTracePrompt = tracePrompt;
@@ -1239,7 +1239,7 @@ __device__ static void yyGrowStack(YYPARSER *p)
 //
 // Outputs:
 // A pointer to a parser.  This pointer is used in subsequent calls to Parser and ParserFree.
-__device__ extern "C" void *ParserAlloc(void *(*allocProc)(size_t))
+extern "C" __device__ void *ParserAlloc(void *(*allocProc)(size_t))
 {
 	YYPARSER *parser = (YYPARSER *)(*allocProc)((size_t)sizeof(YYPARSER));
 	if (parser)
@@ -1393,7 +1393,7 @@ __device__ static int yy_pop_parser_stack(YYPARSER *parser)
 // <li>  A pointer to the parser.  This should be a pointer obtained from ParserAlloc.
 // <li>  A pointer to a function used to reclaim memory obtained from malloc.
 // </ul>
-__device__ extern "C" void ParserFree(void *p, void (*freeProc)(void*))
+extern "C" __device__ void ParserFree(void *p, void (*freeProc)(void*))
 {
 	YYPARSER *parser = (YYPARSER *)p;
 	if (!parser) return;
@@ -1406,7 +1406,7 @@ __device__ extern "C" void ParserFree(void *p, void (*freeProc)(void*))
 
 // Return the peak depth of the stack for a parser.
 #ifdef YYTRACKMAXSTACKDEPTH
-__device__ extern "C" int ParserStackPeak(void *p)
+extern "C" __device__ int ParserStackPeak(void *p)
 {
 	YYPARSER *parser = (YYPARSER *)p;
 	return parser->yyidxMax;
@@ -3429,7 +3429,7 @@ __device__ static void yy_accept(YYPARSER *yyparser)
 //
 // Outputs:
 // None.
-__device__ extern "C" void Parser(void *yyp, int yymajor, ParserTOKENTYPE yyminor ParserARG_PDECL)
+extern "C" __device__ void Parser(void *yyp, int yymajor, ParserTOKENTYPE yyminor ParserARG_PDECL)
 {
 	YYMINORTYPE yyminorunion;
 	int yyact;            // The parser action.
